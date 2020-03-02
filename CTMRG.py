@@ -37,41 +37,46 @@ class CTMRG(object):
     return self._env
 
 
-  def do_step(self):
-    for x in range(self._Lx):
+  def iterate(self):
       self.left_move(x)
       self.right_move(x)
-    for y in range(self._Ly):
       self.up_move(y)
       self.down_move(y)
 
 
-  def left_move(self,x,y):
-    l = self._chi*self._D2
-    # CT-TC
-    # Ta-aT
-    # || ||
-    # 01 23
-    # 01 32
-    # |/ \|
-    # 0   1
-    halfU = self.construct_U_half(x)
-    R = halfU.swapaxes(2,3).reshape(l,l)
+  def left_move(self):
+    P,Pt = [None]*self._nneq, [None]*self._nneq
+    for i in range(self._nneq):
+      x,y = self.env.coord[i]
+      # CT-TC
+      # Ta-aT
+      # || ||
+      # 01 23
+      # 01 32
+      # |/ \|
+      # 0   1
+      halfU = self.construct_U_half(x,y)
+      R = halfU.swapaxes(2,3).reshape(l,l)
 
-    #    1   0
-    #    |\ /|
-    #    23 10
-    #    32 10
-    #    || ||
-    #    Ta-aT
-    #    CT-TC
-    halfD = self.construct_L_half(x)
-    Rt = halfD.swapaxes(2,3).reshape(l,l)
+      #    1   0
+      #    |\ /|
+      #    23 10
+      #    32 10
+      #    || ||
+      #    Ta-aT
+      #    CT-TC
+      halfD = self.construct_L_half(x,y)
+      Rt = halfD.swapaxes(2,3).reshape(l,l)
 
-    P,Pt = self.construct_projectors(R,Rt)
-    self._env.renormalize_C1(x,P)
-    self._env.renormalize_T2(x,P,Pt)
-    self._env.renormalize_C2(x,Pt)
+      P[i], Pt[i] = self.construct_projectors(R,Rt)
+      for i in range(self._nneq):
+        x,y = self.env.coord(i)
+        nC1[i] = self.renormalize_C1(x,y,P,Pt)
+        nT2[i] = self.renormalize_T2(x,y,P,Pt)
+        nC2[i] = self.renormalize_C2(x,y,P,Pt)
+      self._env.C1 = nC1
+      self._env.T2 = nT2
+      self._env.C2 = nC2
 
 
   def right_move(self,x,y):
@@ -423,19 +428,64 @@ class CTMRG(object):
 
 
 class Env(object):
-  def __init__(self):
-    self._nneq = nneq   # number of non-equivalent sites
-    indices = np.empty((self._Lx, self._Ly), dtype=np.int8)
-    self._indices = indices
-    self._a = [None]*n_sites
-    self._C1 = [None]*n_sites
-    self._C2 = [None]*n_sites
-    self._C3 = [None]*n_sites
-    self._C4 = [None]*n_sites
-    self._T1 = [None]*n_sites
-    self._T2 = [None]*n_sites
-    self._T3 = [None]*n_sites
-    self._T4 = [None]*n_sites
+  def __init__(self, tensors, tiling):
+    """
+    tensors: list-like containing tensors
+    tiling: string.
+      tiling pattern
+    """
+    self._tiling = tiling
+    self._nneq = len(tensors)   # number of non-equivalent sites
+    tensors_str = sorted(set(tiling.strip()) - {'\n',' '})
+    if self._nneq != len(tensors_str):
+      raise ValueError("incompatible tiling and tensors")
+    ind_dic = dict(zip(tensors_str,range(self._nneq)))
+    indices = []
+    for l in tiling.split():
+      indices.append([ind_dic[c] for c in l])
+    self._indices = np.array(indices,dtype=np.int8)
+    self._Lx = len(indices[0])
+    self._Ly = len(indices)
+    self._coord = np.empty((self._nneq,2))
+
+coord = np.array([[0,0],[0,1],[0,2],[1,0],[1,1],[1,2],[2,0],[2,1],[2,2]])
+objectif : coord[indices[i,j]] = i,j et indices[coord[i]] = i
+
+    self._a = []
+    C1 = []
+    C2 = []
+    C3 = []
+    C4 = []
+    T1 = []
+    T2 = []
+    T3 = []
+    T4 = []
+    for A in tensors:
+      a = double_layer(A)
+      T1[i],C1[i],T2[i],C2[i],T3[i],C3[i],T4[i],C4[i] = init_env(a)
+
+
+  def init_env(a):
+    U,s,V = lg.svd(np.einsum(a))
+    T1 = np.tendordot(np.einsum(a),V)
+    C1 = np.diag(s)
+    T2 = np.tensorsot(np.einsum(a),U)
+
+    U,s,V = lg.svd(np.einsum(a))
+    T2 = np.tendordot(T2,V)
+    C2 = np.diag(s)
+    T3 = np.tensorsot(np.einsum(a),U)
+
+    U,s,V = lg.svd(np.einsum(a))
+    T3 = np.tendordot(T3,V)
+    C3 = np.diag(s)
+    T4 = np.tensorsot(np.einsum(a),U)
+
+    U,s,V = lg.svd(np.einsum(a))
+    T4 = np.tendordot(T4,V)
+    C4 = np.diag(s)
+    T1 = np.tensorsot(T1,U)
+    return C1,T1,C2,T2,C3,T3,C4,T4
 
   def get_a(self,x,y):
     return self._a[self._indices[x%self._Lx, y%self_Ly]]
