@@ -11,197 +11,221 @@ class CTMRG(object):
   #    |  |  |  |
   #    C2-T3-T3-C3
 
-  def __init__(self,Lx,Ly,A_i,chi):
-    assert(len(A_i) == Lx), "A_i must be a list of list len (Lx,Ly)"
-    assert(sum([len(a) == Ly for a in A_i)==Lx), "A_i must be a list of list len (Lx,Ly)"
-    self._Lx = Lx
-    self._Ly = Ly
-    self._env = Env(Lx,Ly,A_i)
-    self._chi = chi
-    self._l = chi*D**2
+  def __init__(self,tensors,tiling,chi):
+    self._env = Env(tensors,tiling)
+    self._neq_coords = self._env.neq_coords
+    self._Nneq = len(self._neq_coords)
+    self.chi = chi
 
   @property
   def Lx(self):
-    return self._Lx
+    return self._env.Lx
 
   @property
   def Ly(self):
-    return self._Ly
-
-  @property
-  def chi(self):
-    return self._chi
+    return self._env.Ly
 
   @property
   def env(self):
     return self._env
 
-
   def iterate(self):
-      self.left_move(x)
-      self.right_move(x)
-      self.up_move(y)
-      self.down_move(y)
-
+    self.up_move()
+    self.left_move()
+    self.down_move()
+    self.right_move()
 
   def left_move(self):
-    P,Pt = [None]*self._nneq, [None]*self._nneq
-    for i in range(self._nneq):
-      x,y = self.env.coord[i]
-      # CT-TC
-      # Ta-aT
-      # || ||
-      # 01 23
-      # 01 32
-      # |/ \|
-      # 0   1
-      halfU = self.construct_U_half(x,y)
-      R = halfU.swapaxes(2,3).reshape(l,l)
+    # 1) compute isometries for every non-equivalent sites
+    P_list,Pt_list = [None]*self._Nneq, [None]*self._Nneq
+    for x,y in self._neq_coords:
+      j = self._env.get_neq_index(x,y+1)
+      R = self.construct_U_half(x,y)
+      Rt = self.construct_D_half(x,y)
+      P_list[j], Pt_list[j] = self.construct_projectors(R,Rt)
 
-      #    1   0
-      #    |\ /|
-      #    23 10
-      #    32 10
-      #    || ||
-      #    Ta-aT
-      #    CT-TC
-      halfD = self.construct_L_half(x,y)
-      Rt = halfD.swapaxes(2,3).reshape(l,l)
+    # 2) renormalize every non-equivalent C1, T2 and C2
+    nC1s,nT2s,nC2s = [None]*self._Nneq, [None]*self._Nneq, [None]*self._Nneq
+    for i, (x,y) in enumerate(self._neq_coords):
+      j = self._env.get_neq_index(x+1,y)
+      Pt = Pt_list[i]
+      P = P_list[self._env.get_neq_index(x,y-1)]
+      nC1s[j] = self.renormalize_C1(x,y,Pt)
+      nT2s[j] = self.renormalize_T2(x,y,P,Pt)
+      nC2s[j] = self.renormalize_C1(x,y,P)
 
-      P[i], Pt[i] = self.construct_projectors(R,Rt)
-      for i in range(self._nneq):
-        x,y = self.env.coord(i)
-        nC1[i] = self.renormalize_C1(x,y,P,Pt)
-        nT2[i] = self.renormalize_T2(x,y,P,Pt)
-        nC2[i] = self.renormalize_C2(x,y,P,Pt)
-      self._env.C1 = nC1
-      self._env.T2 = nT2
-      self._env.C2 = nC2
+    # 3) store renormalized tensors in the environment
+    self._env.neq_C1s = nC1s
+    self._env.neq_T2s = nT2s
+    self._env.neq_C2s = nC2s
 
+  def renormalize_C1(self,x,y,Pt):
+    """
+    Renormalize corner C1 using projector Pt
+    CPU: 2*chi**3*D**2
+    """
+    # contracting T1 and Pt first set complexity to chi^3*(D^2+chi).
+    # no leading order gain for chi<D^2, do not implement it.
 
-  def right_move(self,x,y):
-    l = self._chi*self._D2
-    # CT-TC
-    # Ta-aT
-    # || ||
-    # 01 23
-    # 01 32
-    # |/ \|
-    # 0   1
-    halfU = self.construct_U_half(x)
-    Rt = halfU.swapaxes(2,3).reshape(l,l)
+    #  C1-1    0-T1-2    1    0
+    #  |         |        \Pt/
+    #  0         1         |
+    #                      2
+    C1 = self._env.get_C1(x,y)
+    T1 = self._env.get_T1(x+1,y)
 
-    #    1   0
-    #    |\ /|
-    #    23 10
-    #    32 10
-    #    || ||
-    #    Ta-aT
-    #    CT-TC
-    halfD = self.construct_L_half(x)
-    R = halfD.swapaxes(2,3).reshape(l,l)
+    #  C1-10-T1-2
+    #  |     |
+    #  0     1
+    nC1 = np.tensordot(C1,T1,(1,0))
+    #  C1---T1-2 ->1
+    #  |     |
+    #  0     1
+    #   1    0
+    #    \Pt/
+    #     |
+    #     2 ->0
+    nC1 = np.tensordot(Pt,nC1,((1,0),(0,1)))
+    return nC1
 
-    P,Pt = self.construct_projectors(R,Rt)
-    self._env.renormalize_C4(x,P)
-    self._env.renormalize_T4(x,P,Pt)
-    self._env.renormalize_C3(x,Pt)
-
-
-  def up_move(self,x,y):
-    l = self._chi*self._D2
-    # CT-00-0
-    # Ta-11/
-    # Ta-23\
-    # CT-32-1
-    halfL = self.construct_L_half(x,y)
-    R = halfL.swapaxes(2,3).reshape(l,l)
-
-    #  1-23-TC
-    #   \32-aT
-    #   /11-aT
-    #  0-00-TC
-    halfR = self.construct_R_half(x,y)
-    Rt = halfR.swapaxes(2,3).reshape(l,l)
-
-    P,Pt = self.construct_projectors(R,Rt)
-    self._env.renormalize_C1(x,y,P)
-    self._env.renormalize_T1(x,y,P,Pt)
-    self._env.renormalize_C4(x,y,Pt)
+  def renormalize_T2(self,x,y,P,Pt):
+    """
+    Renormalize edge T2 using projectord P and Pt
+    CPU: chi**2*D**4*(2*chi+D**4)
+    """
+    #    0        1   0      0           0
+    #    |         \ /       |           |
+    #    T2-2       Pt     1-a-3         P
+    #    |          |        |          / \
+    #    1          2        2         1   2
+    T2 = self._env.get_T2(x,y)
+    a = self._env.get_a(x+1,y)
 
 
-  def down_move(self,x,y):
-    l = self._chi*self._D2
-    # CT-00-0
-    # Ta-11/
-    # Ta-23\
-    # CT-32-1
-    halfL = self.construct_L_half(x,y)
-    Rt = halfL.swapaxes(2,3).reshape(l,l)
+    #       0
+    #       |
+    #       P
+    #     /   \
+    #     1    2 ->1
+    #     0
+    #     |
+    #     T2-2 ->3
+    #     |
+    #     1 -> 2
+    nT2 = np.tensordot(P,T2,(1,0))
 
-    #  1-23-TC
-    #   \32-aT
-    #   /11-aT
-    #  0-00-TC
-    halfR = self.construct_R_half(x,y)
-    R = halfR.swapaxes(2,3).reshape(l,l)
+    #        0
+    #        |
+    #        P
+    #      /   \
+    #     |     1
+    #     |     0
+    #     |     |
+    #     T2-31-a-3
+    #     |     |
+    #     2->1  2
+    nT2 = np.tensordot(nT2,a,((1,3),(0,1)))
 
-    P,Pt = self.construct_projectors(R,Rt)
-    self._env.renormalize_C2(x,y,P)
-    self._env.renormalize_T3(x,y,P,Pt)
-    self._env.renormalize_C3(x,y,Pt)
+    #        0
+    #        |
+    #        P
+    #      /   \
+    #     |     |
+    #     |     |
+    #     |     |
+    #     T2----a-3 ->1 -> 2
+    #     |     |
+    #     1     2
+    #      1    0
+    #       \  /
+    #        Pt
+    #        |
+    #        2 ->2 -> 1
+    nT2 = np.tensordot(nT2,Pt,(2,1),(0,1)).swapaxes(1,2)
+    return nT2
+
+  def renormalize_C2(self,x,y,P):
+    """
+    Renormalize corner C2 using projector P
+    CPU: 2*chi**3*D**2
+    """
+    #  0         0         0
+    #  |         |         |
+    #  C2-1    1-T3-2      P
+    #                     / \
+    #                    1   2
+    C2 = self._env.get_C2(x,y)
+    T3 = self._env.get_T3(x+1,y)
+
+    #     0     0 ->1
+    #     |     |
+    #     C2-11-T3-2
+    nC2 = np.tensordot(C2,T3,(1,1))
+
+    #        0
+    #        |
+    #        P
+    #       / \
+    #      1   2
+    #     0     1
+    #     |     |
+    #     C2----T3-2 ->1
+    nC2 = np.tensordot(P,nC2,((1,2),(0,1)))
+    return nC2
+
 
 
 
 ###############################################################################
 #  construct 2x2 corners
-#  transpose but do not reshape to keep view and avoid useless copy
-#  another transpose will be made at half constructions
 ###############################################################################
   def construct_UL_corner(self,x,y):
-    #               0
-    #               |
-    #  0-T1-2       T2-2      C1-1
-    #    |          |         |
-    #    1          1         0
+    #                     0
+    #                     |
+    #  0-T1-2    C1-1     T2-2
+    #    |       |        |
+    #    1       0        1
     a = self._env.get_a(x+1,y+1)
     T1 = self._env.get_T1(x+1,y)
-    T2 = self._env.get_T2(x+2,y)
     C1 = self._env.get_C1(x,y)
+    T2 = self._env.get_T2(x+2,y)
 
-    #  C1-10-T1-2
+    #  C1-10-T1-2->1
     #  |     |
-    #  0     1
-    cornerUL = np.tensordot(C1,T1,(1,0))
+    #  0->2  1->0
+    cornerUL = np.tensordot(T1,C1,(0,1))
 
-    #  C1-10-T1-2 -> 1
-    #  |     |
-    #  0     1 -> 0
+    #  C1---T1-1
+    #  |    |
+    #  2    0
     #  0
     #  |
     #  T2-2 -> 3
     #  |
     #  1 -> 2
-    cornerUL = np.tensordot(cornerUL,T2,(0,0))
+    cornerUL = np.tensordot(cornerUL,T2,(2,0))
 
-    #  C1-10-T1-1 -> 0
+    #  C1----T1-1 -> 0
     #  |     |
-    #  0     0
-    #  0     0
+    #  |     0
+    #  |     0
     #  |     |
     #  T2-31-a-3
     #  |     |
     #  2->1  2
     cornerUL = np.tensordot(cornerUL,a,((0,3),(0,1)))
 
-    #  C1-10-T1-0 -> 3
-    #  |     |
-    #  0     0
-    #  0     0
-    #  |     |
-    #  T2-31-a-3 -> 2
-    #  |     |
-    #  1->0  2 -> 1
-    cornerUL = cornerUL.transpose(3,0,1,2)
+    lx = T1.shape[2]*a.shape[3]
+    ly = T2.shape[1]*a.shape[2]
+    #  C1-T1-0->2\
+    #  |  |       1
+    #  T2-a-3->3 /
+    #  |  |
+    #  1  2
+    #  0  1
+    #  \ /
+    #   0
+    cornerUL = cornerUL.transpose(1,2,0,3).reshape(ly,lx)
     return cornerUL
 
 
@@ -213,8 +237,8 @@ class CTMRG(object):
     #    1
     a = self._env.get_a(x+1,y+2)
     T2 = self._env.get_T2(x,y+2)
-    T3 = self._env.get_T3(x+1,y+3)
     C2 = self._env.get_C2(x,y+3)
+    T3 = self._env.get_T3(x+1,y+3)
 
     #      0
     #      |
@@ -230,31 +254,33 @@ class CTMRG(object):
     #      |
     #      T2-1
     #      |
-    #      1
-    #      0     0 -> 2
+    #      |
+    #      |     0 -> 2
     #      |     |
     #      C2-21-T3-2 -> 3
     cornerDL = np.tensordot(cornerDL,T3,(2,1))
 
     #      0     0 -> 2
     #      |     |
-    #      T2-11-a-3
+    #      T2-11-a--3
     #      |     |
-    #      1     2
-    #      0     2
+    #      |     2
+    #      |     2
     #      |     |
-    #      C2-21-T3-3 -> 1
+    #      C2----T3-3 -> 1
     cornerDL = np.tensordot(cornerDL,a,((1,2),(1,2)))
 
-    #      0->1  2 -> 0
-    #      |     |
-    #      T2-11-a-3
-    #      |     |
-    #      1     2
-    #      0     2
-    #      |     |
-    #      C2-21-T3-1 -> 2
-    cornerDL = cornerDL.transpose(2,0,1,3)
+    lx = T3.shape[2]*a.shape[3]
+    ly = T2.shape[0]*a.shape[0]
+    #       0
+    #       /\
+    #      0  1
+    #      0  2
+    #      |  |
+    #      T2-a--33\
+    #      |  |     1
+    #      C2-T3-12/
+    cornerDL = cornerDL.swapaxes(1,2).reshape(ly,lx)
     return cornerDL
 
 
@@ -265,9 +291,9 @@ class CTMRG(object):
     #    |
     #    2
     a = self._env.get_a(x+2,y+2)
-    T4 = self._env.get_T4(x+3,y+2)
     T3 = self._env.get_T3(x+2,y+3)
     C3 = self._env.get_C3(x+3,y+3)
+    T4 = self._env.get_T4(x+3,y+2)
 
     #       0     0->2
     #       |     |
@@ -281,28 +307,30 @@ class CTMRG(object):
     #             2
     #       0     2
     #       |     |
-    #     1-T3-21-C3
+    #     1-T3----C3
     cornerDR = np.tensordot(cornerDR,T4,(2,2))
 
-    #       0     2->3
-    #       |     |
-    #     1-a-3 3-T4
-    #       |     |
-    #       2     2
-    #       0     2
-    #       |     |
-    #  2<-1-T3-21-C3
+    #       0    2->3
+    #       |    |
+    #     1-a-33-T4
+    #       |    |
+    #       2    |
+    #       0    |
+    #       |    |
+    #  2<-1-T3---C3
     cornerDR = np.tensordot(a,cornerDR,((2,3),(0,3)))
 
-    #    1<-0     3->0
-    #       |     |
-    #  2<-1-a-3 3-T4
-    #       |     |
-    #       2     2
-    #       0     2
-    #       |     |
-    #  3<-2-T3-21-C3
-    cornerDR = cornerDR.transpose(3,0,1,2)
+    ly = T4.shape[0]*a.shape[0]
+    lx = T3.shape[1]*a.shape[1]
+    #        0
+    #        /\
+    #       1  0
+    #       0  3
+    #       |  |
+    #   /31-a--T4
+    #  1    |  |
+    #   \22-T3-C3
+    cornerDR = cornerDR.transpose(3,0,2,1).reshape(ly,lx)
     return cornerDR
 
 
@@ -313,9 +341,9 @@ class CTMRG(object):
     #    |          |         |
     #    1          2         1
     a = self._env.get_a(x+2,y+1)
-    T1 = self._env.get_T1(x+2,y)
     T4 = self._env.get_T4(x+3,y+1)
     C4 = self._env.get_C4(x+3,y)
+    T1 = self._env.get_T1(x+2,y)
 
 
     #  0-T1-20-C4
@@ -323,7 +351,7 @@ class CTMRG(object):
     #    1     1->2
     cornerUR = np.tensordot(T1,C4,(2,0))
 
-    #  0-T1-20-C4
+    #  0-T1----C4
     #    |     |
     #    1     2
     #          0
@@ -333,25 +361,27 @@ class CTMRG(object):
     #          2-> 3
     cornerUR = np.tensordot(cornerUR,T4,(2,0))
 
-    #    0-T1-20-C4
-    #      |     |
-    #      1     2
-    #      0     0
-    #      |     |
-    # 2<-1-a-3 2-T4
-    #      |     |
-    #  3 <-2     3 -> 1
+    #    0-T1---C4
+    #      |    |
+    #      1    |
+    #      0    |
+    #      |    |
+    # 2<-1-a-32-T4
+    #      |    |
+    #  3 <-2    3 -> 1
     cornerUR = np.tensordot(cornerUR,a,((1,2),(0,3)))
 
-    #    0-T1-20-C4
-    #      |     |
-    #      1     2
-    #      0     0
-    #      |     |
-    # 1<-2-a-3 2-T4
-    #      |     |
-    #  2 <-3     1 -> 3
-    cornerUR = cornerUR.transpose(0,2,3,1)
+    lx = T1.shape[0]*a.shape[1]
+    ly = T4.shape[2]*a.shape[2]
+    #    /00-T1-C4
+    #   0    |  |
+    #    \12-a--T4
+    #        |  |
+    #        3  1
+    #        3  2
+    #         \/
+    #         1
+    cornerUR = cornerUR.swapaxes(1,2).reshape(lx,ly)
     return cornerUR
 
 
@@ -363,153 +393,246 @@ class CTMRG(object):
   def construct_U_half(self,x,y):
     cornerUL = self.construct_UL_corner(x,y)
     cornerUR = self.construct_UR_corner(x,y)
-
-    # CT-3 0-TC
-    # Ta-2 1-aT
-    # ||     ||
-    # 01     23
-    halfU = np.tensorsot(cornerUL,cornerUR,((2,3),(1,0)))
-    return halfU
+    #  UL-10-UR
+    #  |     |
+    #  0     1
+    return cornerUL @ cornerUR
 
 
   def construct_L_half(self,x,y):
     cornerUL = self.construct_UL_corner(x,y)
     cornerDL = self.construct_DL_corner(x,y)
-
-    # CT-3
-    # Ta-2
-    # ||
-    # 01
-    # 10
-    # ||
-    # Ta-3 -> 1
-    # CT-2 -> 0
-    halfL = np.tensorsot(cornerDL,cornerUL,((1,0),(0,1)))
-    return halfL
+    # UL-1
+    # |
+    # 0
+    # 0
+    # |
+    # DL-1 ->0
+    return cornerDL.T @ cornerUL
 
 
   def construct_D_half(self,x,y):
     cornerDL = self.construct_DL_corner(x,y)
     cornerDR = self.construct_DR_corner(x,y)
-
-    #
-    # 3<-10->2  10
-    #    ||     ||
-    #    Ta-3 2-aT
-    #    CT-2 3-TC
-    halfD = np.tensorsdot(cornerDR,cornerDL,((2,3),(3,2)))
-    return halfD
+    #  1     0
+    #  0     1
+    #  |     |
+    #  DL-10-DR
+    return (cornerDL @ cornerDR).T
 
 
   def construct_R_half(self,x,y):
     cornerDR = self.construct_DR_corner(x,y)
     cornerUR = self.construct_UR_corner(x,y)
-
-    # 0-TC
-    # 1-aT
-    #   ||
-    #   23
-    #   10
-    #   ||
-    # 2-aT
-    # 3-TC
-    halfR = np.tensorsot(cornerUR,cornerDR,((2,3),(1,0)))
-    return halfR
+    #   0-DR
+    #     |
+    #     1
+    #     0
+    #     |
+    #   1-UR
+    return cornerDR @ cornerUR
 
 
-    def construct_projectors(self,R,Rt):
+  def construct_projectors(self,R,Rt):
     M = R.T @ Rt
     U,s,V = lg.svd(M)
-    s12 = 1/np.sqrt(s[:chi])
-    Pt = np.einsum('ij,i->ij', V[:self._chi], s12) @ Rt
-    P = R @ np.einsum('ij,j->ij', U[:,:self._chi], s12)
+    print('ici')
+    s12 = 1/np.sqrt(s[:self.chi])
+    print('la')
+    Pt = np.einsum('ij,i->ij', V[:self.chi], s12) @ Rt
+    P = R @ np.einsum('ij,j->ij', U[:,:self.chi], s12)
     return P,Pt
 
 
 
 class Env(object):
+  """
+  Container for CTMRG environment tensors.
+  leg conventions:
+
+     C1-T1-T1-C4
+     |  |  |  |
+     T2-a--a--T4
+     |  |  |  |
+     T2-a--a--T4
+     |  |  |  |
+     C2-T3-T3-C3
+  """
+
   def __init__(self, tensors, tiling):
     """
-    tensors: list-like containing tensors
-    tiling: string.
-      tiling pattern
+    tensors: list-like containing tensors.
+    tiling: string. Tiling pattern.
     """
-    self._tiling = tiling
-    self._nneq = len(tensors)   # number of non-equivalent sites
-    tensors_str = sorted(set(tiling.strip()) - {'\n',' '})
-    if self._nneq != len(tensors_str):
+    self._tensors = list(tensors)
+    tiling1 = tiling.strip()
+    letters = list(tiling1.replace('\n','').replace(' ',''))
+    tensors_str = sorted(set(letters))
+    self._Lx = tiling1.index('\n')
+    self._Ly = len(letters)//self._Lx
+    indices = np.array([tensors_str.index(t) for t in letters])
+    self._cell = np.array(list(map(chr,indices+65))).reshape(self._Lx,self._Ly)
+    self._Nneq = len(tensors_str)
+    if self._Nneq != len(tensors):
       raise ValueError("incompatible tiling and tensors")
-    ind_dic = dict(zip(tensors_str,range(self._nneq)))
-    indices = []
-    for l in tiling.split():
-      indices.append([ind_dic[c] for c in l])
-    self._indices = np.array(indices,dtype=np.int8)
-    self._Lx = len(indices[0])
-    self._Ly = len(indices)
-    self._coord = np.empty((self._nneq,2))
 
-coord = np.array([[0,0],[0,1],[0,2],[1,0],[1,1],[1,2],[2,0],[2,1],[2,2]])
-objectif : coord[indices[i,j]] = i,j et indices[coord[i]] = i
+    self._neq_coords = np.empty((self._Nneq,2),dtype=np.int8)
+    for i in range(self._Nneq):
+      ind = np.argmax(indices==i)
+      self._neq_coords[i] = ind//self._Ly, ind%self._Lx
 
-    self._a = []
-    C1 = []
-    C2 = []
-    C3 = []
-    C4 = []
-    T1 = []
-    T2 = []
-    T3 = []
-    T4 = []
+    self._indices = indices.reshape(self._Lx,self._Ly)
+
+    D = tensors[0].shape[1]   # do not consider the case Dx != Dy
+    a_L, T1s, C1s, T2s, C2s, T3s, C3s, T4s, C4s = [[] for i in range(9)]
     for A in tensors:
-      a = double_layer(A)
-      T1[i],C1[i],T2[i],C2[i],T3[i],C3[i],T4[i],C4[i] = init_env(a)
+      a = np.tensordot(A,A.conj(),(0,0)).transpose(0,4,1,5,2,6,3,7).copy()
+      a_L.append(a.reshape(D**2,D**2,D**2,D**2))
+      T1 = np.einsum('iijkl->jkl', a.reshape(D,D,D**2,D**2,D**2))
+      C1 = np.einsum('iijjkl->kl', a.reshape(D,D,D,D,D**2,D**2))
+      T2 = np.einsum('ijjkl->ikl', a.reshape(D**2,D,D,D**2,D**2))
+      C2 = np.einsum('ijjkkl->il', a.reshape(D**2,D,D,D,D,D**2))
+      T3 = np.einsum('ijkkl->ijl', a.reshape(D**2,D**2,D,D,D**2))
+      C3 = np.einsum('ijkkll->ij', a.reshape(D**2,D**2,D,D,D,D))
+      T4 = np.einsum('ijkll->ijk', a.reshape(D**2,D**2,D**2,D,D))
+      C4 = np.einsum('iijkll->jk', a.reshape(D,D,D**2,D**2,D,D))
+
+    self._neq_a = a_L
+    self._neq_T1s = T1s
+    self._neq_C1s = C1s
+    self._neq_T2s = T2s
+    self._neq_C2s = C2s
+    self._neq_T3s = T3s
+    self._neq_C3s = C3s
+    self._neq_T4s = T4s
+    self._neq_C4s = C4s
 
 
-  def init_env(a):
-    U,s,V = lg.svd(np.einsum(a))
-    T1 = np.tendordot(np.einsum(a),V)
-    C1 = np.diag(s)
-    T2 = np.tensorsot(np.einsum(a),U)
+  @property
+  def cell(self):
+    return self._cell
 
-    U,s,V = lg.svd(np.einsum(a))
-    T2 = np.tendordot(T2,V)
-    C2 = np.diag(s)
-    T3 = np.tensorsot(np.einsum(a),U)
+  @property
+  def Nneq(self):
+    return self._Nneq
 
-    U,s,V = lg.svd(np.einsum(a))
-    T3 = np.tendordot(T3,V)
-    C3 = np.diag(s)
-    T4 = np.tensorsot(np.einsum(a),U)
+  @property
+  def Lx(self):
+    return self._Lx
 
-    U,s,V = lg.svd(np.einsum(a))
-    T4 = np.tendordot(T4,V)
-    C4 = np.diag(s)
-    T1 = np.tensorsot(T1,U)
-    return C1,T1,C2,T2,C3,T3,C4,T4
+  @property
+  def Ly(self):
+    return self._Ly
+
+  @property
+  def indices(self):
+    return self._indices
+
+  @property
+  def neq_coords(self):
+    return self._neq_coords
+
+  def get_neq_index(self,x,y):
+    return self._indices[x%self._Lx, y%self._Ly]
 
   def get_a(self,x,y):
-    return self._a[self._indices[x%self._Lx, y%self_Ly]]
+    return self._neq_a[self._indices[x%self._Lx, y%self._Ly]]
 
-  def getC1(self,x,y):
-    return self._C1[self._indices[x%self._Lx, y%self_Ly]]
+  def get_tensor_type(self,x,y):
+    return self._cell[x%self._Lx, y%self._Ly]
 
-  def getC2(self,x,y):
-    return self._C2[self._indices[x%self._Lx,y%self._Ly]]
+  def get_T1(self,x,y):
+    return self._neq_T1s[self._indices[x%self._Lx,y%self._Ly]]
 
-  def getC3(self,x,y):
-    return self._C3[self._indices[x%self._Lx,y%self._Ly]]
+  def get_C1(self,x,y):
+    return self._neq_C1s[self._indices[x%self._Lx, y%self._Ly]]
 
-  def getC4(self,x,y):
-    return self._C4[self._indices[x%self._Lx,y%self._Ly]]
+  def get_T2(self,x,y):
+    return self._neq_T2s[self._indices[x%self._Lx,y%self._Ly]]
 
-  def getT1(self,x,y):
-    return self._T1[self._indices[x%self._Lx,y%self._Ly]]
+  def get_C2(self,x,y):
+    return self._neq_C2s[self._indices[x%self._Lx,y%self._Ly]]
 
-  def getT2(self,x,y):
-    return self._T2[self._indices[x%self._Lx,y%self._Ly]]
+  def get_T3(self,x,y):
+    return self._neq_T3s[self._indices[x%self._Lx,y%self._Ly]]
 
-  def getT3(self,x,y):
-    return self._T3[self._indices[x%self._Lx,y%self._Ly]]
+  def get_C3(self,x,y):
+    return self._neq_C3s[self._indices[x%self._Lx,y%self._Ly]]
 
-  def getT4(self,x,y):
-    return self._T4[self._indices[x%self._Lx,y%self._Ly]]
+  def get_T4(self,x,y):
+    return self._neq_T4s[self._indices[x%self._Lx,y%self._Ly]]
+
+  def get_C4(self,x,y):
+    return self._neq_C4s[self._indices[x%self._Lx,y%self._Ly]]
+
+  @property
+  def neq_T1s(self):
+    return self._neq_T1s
+
+  @neq_T1s.setter
+  def neq_T1(self, neq_T1s):
+    assert(len(neq_T1s) == self._Nneq), 'neq_T1s length is not nneq'
+    self._neq_T1s = neq_T1s
+
+  @property
+  def neq_C1s(self):
+    return self._neq_C1s
+
+  @neq_C1s.setter
+  def neq_C1s(self, neq_C1s):
+    assert(len(neq_C1s) == self._Nneq), 'neq_C1s length is not nneq'
+    self._neq_C1s = neq_C1s
+
+  @property
+  def neq_T2s(self):
+    return self._neq_T2s
+
+  @neq_T2s.setter
+  def neq_T2s(self, neq_T2s):
+    assert(len(neq_T2s) == self._Nneq), 'neq_T2s length is not nneq'
+    self._neq_T2s = neq_T2s
+
+  @property
+  def neq_C2s(self):
+    return self._neq_C2s
+
+  @neq_C2s.setter
+  def neq_C2s(self, neq_C2s):
+    assert(len(neq_C2s) == self._Nneq), 'neq_C2s length is not nneq'
+    self._neq_C2s = neq_C2s
+
+  @property
+  def neq_T3s(self):
+    return self._neq_T3s
+
+  @neq_T3s.setter
+  def neq_T3s(self, neq_T3s):
+    assert(len(neq_T3s) == self._Nneq), 'neq_T3s length is not nneq'
+    self._neq_T3s = neq_T3s
+
+  @property
+  def neq_C3s(self):
+    return self._neq_C3s
+
+  @neq_C3s.setter
+  def neq_C3s(self, neq_C3s):
+    assert(len(neq_C3s) == self._Nneq), 'neq_C3s length is not nneq'
+    self._neq_C3s = neq_C3s
+
+  @property
+  def neq_T4s(self):
+    return self._neq_T4s
+
+  @neq_T4s.setter
+  def neq_T4s(self, neq_T4s):
+    assert(len(neq_T4s) == self._Nneq), 'neq_T4s length is not nneq'
+    self._neq_T4s = neq_T4s
+
+  @property
+  def neq_C4s(self):
+    return self._neq_C4s
+
+  @neq_C4s.setter
+  def neq_C4s(self, neq_C4s):
+    assert(len(neq_C4s) == self._Nneq), 'neq_C4s length is not nneq'
+    self._neq_C4s = neq_C4s
