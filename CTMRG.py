@@ -559,55 +559,6 @@ class Env(object):
       self._neq_T4s.append(T4)
       self._neq_C4s.append(C4)
 
-    # 1st renormaliztion without absorbtion
-    for i,(x,y) in enumerate(self._neq_coords):
-      iT1 = self._indices[x,(y-1)%self._Ly]
-      iC1 = self._indices[(x-1)%self._Lx,(y-1)%self._Ly]
-      iT2 = self._indices[(x-1)%self._Lx,y]
-      iC2 = self._indices[(x-1)%self._Lx,(y+1)%self._Ly]
-      iT3 = self._indices[x,(y+1)%self._Ly]
-      iC3 = self._indices[(x+1)%self._Lx,(y+1)%self._Ly]
-      iT4 = self._indices[(x+1)%self._Lx,y]
-      iC4 = self._indices[(x+1)%self._Lx,(y-1)%self._Ly]
-      #   s-V-T1
-      #   |
-      #   U
-      #   |
-      #   T2
-      U,s,V = lg.svd(self._neq_C1s[iC1])
-      self._neq_T1s[iT1] = np.tensordot(V[:chi],self._neq_T1s[iT1],((1,),(0,)))
-      self._neq_C1s[iC1] = np.diag(s[:chi])
-      self._neq_T2s[iT2] = np.tensordot(U[:,:chi],self._neq_T2s[iT2],((0,),(0,)))
-      #   T2
-      #   |
-      #   U
-      #   |
-      #   s-V-T3
-      U,s,V = lg.svd(self._neq_C2s[iC2])
-      self._neq_T2s[iT2] = np.tensordot(self._neq_T2s[iT2],U[:,:chi],((1,),(0,))).swapaxes(1,2)
-      self._neq_C2s[iC2] = np.diag(s[:chi])
-      self._neq_T3s[iT3] = np.tensordot(V[:chi],self._neq_T3s[iT3],((1,),(1,))).swapaxes(0,1)
-      #       T4
-      #       |
-      #       U
-      #       |
-      #  T3-V-s
-      U,s,V = lg.svd(self._neq_C3s[iC3])
-      self._neq_T3s[iT3] = np.tensordot(self._neq_T3s[iT3],V[:chi],((2,),(1,)))
-      self._neq_C3s[iC3] = np.diag(s[:chi])
-      self._neq_T4s[iT4] = np.tensordot(self._neq_T4s[iT4],U[:,:chi],((2,),(0,)))
-      #    T1-U-s
-      #         |
-      #         V
-      #         |
-      #         T4
-      U,s,V = lg.svd(self._neq_C4s[iC4])
-      self._neq_T4s[iT4] = np.tensordot(V[:chi],self._neq_T4s[iT4],((1,),(0,)))
-      self._neq_C4s[iC4] = np.diag(s[:chi])
-      self._neq_T1s[iT1] = np.tensordot(self._neq_T1s[iT1],U[:,:chi],((2,),(0,)))
-
-
-
   @property
   def cell(self):
     return self._cell
