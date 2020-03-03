@@ -16,6 +16,8 @@ class CTMRG(object):
     self._neq_coords = self._env.neq_coords
     self._Nneq = len(self._neq_coords)
     self.chi = chi
+    self._D = tensors[0].shape[1]
+    self._D2 = self._D**2
 
   @property
   def Lx(self):
@@ -73,11 +75,12 @@ class CTMRG(object):
     #                      2
     C1 = self._env.get_C1(x,y)
     T1 = self._env.get_T1(x+1,y)
+    PtT = Pt.swapaxes(0,1)
 
     #  C1-10-T1-2
     #  |     |
     #  0     1
-    nC1 = np.tensordot(C1,T1,(1,0))
+    nC1 = np.tensordot(C1,T1,((1,),(0,)))
     #  C1---T1-2 ->1
     #  |     |
     #  0     1
@@ -85,7 +88,7 @@ class CTMRG(object):
     #    \Pt/
     #     |
     #     2 ->0
-    nC1 = np.tensordot(Pt,nC1,((1,0),(0,1)))
+    nC1 = np.tensordot(PtT,nC1,((1,0),(0,1)))
     return nC1
 
   def renormalize_T2(self,x,y,P,Pt):
@@ -100,7 +103,8 @@ class CTMRG(object):
     #    1          2        2         1   2
     T2 = self._env.get_T2(x,y)
     a = self._env.get_a(x+1,y)
-
+    PT = P.transpose(2,0,1)
+    PtT = Pt.swapaxes(0,1)
 
     #       0
     #       |
@@ -112,7 +116,7 @@ class CTMRG(object):
     #     T2-2 ->3
     #     |
     #     1 -> 2
-    nT2 = np.tensordot(P,T2,(1,0))
+    nT2 = np.tensordot(PT,T2,((1,),(0,)))
 
     #        0
     #        |
@@ -141,7 +145,7 @@ class CTMRG(object):
     #        Pt
     #        |
     #        2 ->2 -> 1
-    nT2 = np.tensordot(nT2,Pt,(2,1),(0,1)).swapaxes(1,2)
+    nT2 = np.tensordot(nT2,PtT,((2,1),(0,1))).swapaxes(1,2)
     return nT2
 
   def renormalize_C2(self,x,y,P):
@@ -156,11 +160,12 @@ class CTMRG(object):
     #                    1   2
     C2 = self._env.get_C2(x,y)
     T3 = self._env.get_T3(x+1,y)
+    PT = P.transpose(2,0,1)
 
     #     0     0 ->1
     #     |     |
     #     C2-11-T3-2
-    nC2 = np.tensordot(C2,T3,(1,1))
+    nC2 = np.tensordot(C2,T3,((1,),(1,)))
 
     #        0
     #        |
@@ -170,7 +175,7 @@ class CTMRG(object):
     #     0     1
     #     |     |
     #     C2----T3-2 ->1
-    nC2 = np.tensordot(P,nC2,((1,2),(0,1)))
+    nC2 = np.tensordot(PT,nC2,((1,2),(0,1)))
     return nC2
 
 
@@ -193,7 +198,7 @@ class CTMRG(object):
     #  C1-10-T1-2->1
     #  |     |
     #  0->2  1->0
-    cornerUL = np.tensordot(T1,C1,(0,1))
+    cornerUL = np.tensordot(T1,C1,((0,),(1,)))
 
     #  C1---T1-1
     #  |    |
@@ -203,7 +208,7 @@ class CTMRG(object):
     #  T2-2 -> 3
     #  |
     #  1 -> 2
-    cornerUL = np.tensordot(cornerUL,T2,(2,0))
+    cornerUL = np.tensordot(cornerUL,T2,((2,),(0,)))
 
     #  C1----T1-1 -> 0
     #  |     |
@@ -248,7 +253,7 @@ class CTMRG(object):
     #      0
     #      |
     #      C2-0 -> 2
-    cornerDL = np.tensordot(T2,C2,(1,0))
+    cornerDL = np.tensordot(T2,C2,((1,),(0,)))
 
     #      0
     #      |
@@ -258,7 +263,7 @@ class CTMRG(object):
     #      |     0 -> 2
     #      |     |
     #      C2-21-T3-2 -> 3
-    cornerDL = np.tensordot(cornerDL,T3,(2,1))
+    cornerDL = np.tensordot(cornerDL,T3,((2,),(1,)))
 
     #      0     0 -> 2
     #      |     |
@@ -298,7 +303,7 @@ class CTMRG(object):
     #       0     0->2
     #       |     |
     #     1-T3-21-C3
-    cornerDR = np.tensordot(T3,C3,(2,1))
+    cornerDR = np.tensordot(T3,C3,((2,),(1,)))
 
     #             0->2
     #             |
@@ -308,7 +313,7 @@ class CTMRG(object):
     #       0     2
     #       |     |
     #     1-T3----C3
-    cornerDR = np.tensordot(cornerDR,T4,(2,2))
+    cornerDR = np.tensordot(cornerDR,T4,((2,),(2,)))
 
     #       0    2->3
     #       |    |
@@ -349,7 +354,7 @@ class CTMRG(object):
     #  0-T1-20-C4
     #    |     |
     #    1     1->2
-    cornerUR = np.tensordot(T1,C4,(2,0))
+    cornerUR = np.tensordot(T1,C4,((2,),(0,)))
 
     #  0-T1----C4
     #    |     |
@@ -359,7 +364,7 @@ class CTMRG(object):
     #     2<-1-T4
     #          |
     #          2-> 3
-    cornerUR = np.tensordot(cornerUR,T4,(2,0))
+    cornerUR = np.tensordot(cornerUR,T4,((2,),(0,)))
 
     #    0-T1---C4
     #      |    |
@@ -434,14 +439,34 @@ class CTMRG(object):
 
 
   def construct_projectors(self,R,Rt):
-    M = R.T @ Rt
-    U,s,V = lg.svd(M)
-    print('ici')
+    U,s,V = lg.svd(R.T @ Rt)
+    U_H = U[:,:self.chi].T.conj()
+    V_H = V[:self.chi].T.conj()
     s12 = 1/np.sqrt(s[:self.chi])
-    print('la')
-    Pt = np.einsum('ij,i->ij', V[:self.chi], s12) @ Rt
-    P = R @ np.einsum('ij,j->ij', U[:,:self.chi], s12)
+    #   ||    <- size chi*D**2
+    #    R
+    #    |
+    #    V
+    #    |
+    #    s  <- size chi
+    Pt = (Rt @ np.einsum('ij,j->ij', V_H, s12)).reshape(self.chi,self._D2,self.chi)
+    P = (np.einsum('ij,i->ij', U_H, s12)@ R).reshape(self.chi,self._D2,self.chi)
     return P,Pt
+
+
+def initialize_env(A,chi):
+    D = A.shape[1]   # do not consider the case Dx != Dy
+    a = np.tensordot(A,A.conj(),(0,0)).transpose(0,4,1,5,2,6,3,7).copy()
+    T1 = np.einsum('iijkl->jkl', a.reshape(D,D,D**2,D**2,D**2))
+    C1 = np.einsum('iijjkl->kl', a.reshape(D,D,D,D,D**2,D**2))
+    T2 = np.einsum('ijjkl->ikl', a.reshape(D**2,D,D,D**2,D**2))
+    C2 = np.einsum('ijjkkl->il', a.reshape(D**2,D,D,D,D,D**2))
+    T3 = np.einsum('ijkkl->ijl', a.reshape(D**2,D**2,D,D,D**2))
+    C3 = np.einsum('ijkkll->ij', a.reshape(D**2,D**2,D,D,D,D))
+    T4 = np.einsum('ijkll->ijk', a.reshape(D**2,D**2,D**2,D,D))
+    C4 = np.einsum('iijkll->jk', a.reshape(D,D,D**2,D**2,D,D))
+    a = a.reshape(D**2,D**2,D**2,D**2)
+    return a,T1,C1,T2,C2,T3,C3,T4,C4
 
 
 
@@ -482,7 +507,7 @@ class Env(object):
       self._neq_coords[i] = ind//self._Ly, ind%self._Lx
 
     self._indices = indices.reshape(self._Lx,self._Ly)
-    self._neq_a = []
+    self._neq_as = []
     self._neq_T1s = []
     self._neq_C1s = []
     self._neq_T2s = []
@@ -506,64 +531,50 @@ class Env(object):
 
     # 1st renormaliztion without absorbtion
     for i,(x,y) in enumerate(self._neq_coords):
-      iT1 = self._indices[x,y-1+self._Ly]
-      iC1 = self._indices[x-1+self._Lx,y-1+self._Ly]
-      iT2 = self._indices[x-1+self._Lx,y]
-      iC2 = self._indices[x-1+self._Lx,(y+1)%self._Ly]
+      iT1 = self._indices[x,(y-1)%self._Ly]
+      iC1 = self._indices[(x-1)%self._Lx,(y-1)%self._Ly]
+      iT2 = self._indices[(x-1)%self._Lx,y]
+      iC2 = self._indices[(x-1)%self._Lx,(y+1)%self._Ly]
       iT3 = self._indices[x,(y+1)%self._Ly]
       iC3 = self._indices[(x+1)%self._Lx,(y+1)%self._Ly]
       iT4 = self._indices[(x+1)%self._Lx,y]
-      iC4 = self._indices[(x+1)%self._Lx,y-1+self._Ly]
+      iC4 = self._indices[(x+1)%self._Lx,(y-1)%self._Ly]
       #   s-V-T1
       #   |
       #   U
       #   |
       #   T2
-      U,s,V = lg.svd(self._neq_C1s[indC1])
-      self._neq_T1s[iT1] = np.tensordot(V[:chi],self._neq_T1s[iT1],([1],[0]))
+      U,s,V = lg.svd(self._neq_C1s[iC1])
+      self._neq_T1s[iT1] = np.tensordot(V[:chi],self._neq_T1s[iT1],((1,),(0,)))
       self._neq_C1s[iC1] = np.diag(s[:chi])
-      self._neq_T2s[iT2] = np.tensordot(U[:,:chi],self._neq_T1s[iT2],([0],[0]))
+      self._neq_T2s[iT2] = np.tensordot(U[:,:chi],self._neq_T2s[iT2],((0,),(0,)))
       #   T2
       #   |
       #   U
       #   |
       #   s-V-T3
       U,s,V = lg.svd(self._neq_C2s[iC2])
-      self._neq_T2s[iT2] = np.tensordot(self._neq_T2s[iT2],U[:,:chi],([1],[0])).swapaxes(1,2)
+      self._neq_T2s[iT2] = np.tensordot(self._neq_T2s[iT2],U[:,:chi],((1,),(0,))).swapaxes(1,2)
       self._neq_C2s[iC2] = np.diag(s[:chi])
-      self._neq_T3s[iT3] = np.tensorsot(V[:chi],self._neq_T3s[iT3],([1],[1])).swapaxes(0,1)
+      self._neq_T3s[iT3] = np.tensordot(V[:chi],self._neq_T3s[iT3],((1,),(1,))).swapaxes(0,1)
       #       T4
       #       |
       #       U
       #       |
       #  T3-V-s
       U,s,V = lg.svd(self._neq_C3s[iC3])
-      self._neq_T3s[iT3] = np.tensordot(self._neq_T3s[iT3],V[:chi],([2],[1]))
+      self._neq_T3s[iT3] = np.tensordot(self._neq_T3s[iT3],V[:chi],((2,),(1,)))
       self._neq_C3s[iC3] = np.diag(s[:chi])
-      self._neq_T4s[iT4] = np.tensordot(self._neq_T4s[iT4],U[:,:chi],([2],[0]))
+      self._neq_T4s[iT4] = np.tensordot(self._neq_T4s[iT4],U[:,:chi],((2,),(0,)))
       #    T1-U-s
       #         |
       #         V
       #         |
       #         T4
       U,s,V = lg.svd(self._neq_C4s[iC4])
-      self._neq_T4s[iT4] = np.tensordot(V[:chi],self._neq_T4s[iT4],([1],[0]))
+      self._neq_T4s[iT4] = np.tensordot(V[:chi],self._neq_T4s[iT4],((1,),(0,)))
       self._neq_C4s[iC4] = np.diag(s[:chi])
-      self._neq_T1s[iT1] = np.tensorsot(self._neq_T1s[iT1],U[:,:chi],([2],[0]))
-
-  def initialize_env(A,chi):
-      D = A.shape[1]   # do not consider the case Dx != Dy
-      a = np.tensordot(A,A.conj(),(0,0)).transpose(0,4,1,5,2,6,3,7).copy()
-      T1 = np.einsum('iijkl->jkl', a.reshape(D,D,D**2,D**2,D**2))
-      C1 = np.einsum('iijjkl->kl', a.reshape(D,D,D,D,D**2,D**2))
-      T2 = np.einsum('ijjkl->ikl', a.reshape(D**2,D,D,D**2,D**2))
-      C2 = np.einsum('ijjkkl->il', a.reshape(D**2,D,D,D,D,D**2))
-      T3 = np.einsum('ijkkl->ijl', a.reshape(D**2,D**2,D,D,D**2))
-      C3 = np.einsum('ijkkll->ij', a.reshape(D**2,D**2,D,D,D,D))
-      T4 = np.einsum('ijkll->ijk', a.reshape(D**2,D**2,D**2,D,D))
-      C4 = np.einsum('iijkll->jk', a.reshape(D,D,D**2,D**2,D,D))
-      a = a.reshape(D**2,D**2,D**2,D**2)
-      return a,T1,C1,T2,C2,T3,C3,T4,C4
+      self._neq_T1s[iT1] = np.tensordot(self._neq_T1s[iT1],U[:,:chi],((2,),(0,)))
 
 
 
@@ -595,7 +606,7 @@ class Env(object):
     return self._indices[x%self._Lx, y%self._Ly]
 
   def get_a(self,x,y):
-    return self._neq_a[self._indices[x%self._Lx, y%self._Ly]]
+    return self._neq_as[self._indices[x%self._Lx, y%self._Ly]]
 
   def get_tensor_type(self,x,y):
     return self._cell[x%self._Lx, y%self._Ly]
