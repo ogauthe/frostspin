@@ -12,7 +12,7 @@ class CTMRG(object):
   #    C2-T3-T3-C3
 
   def __init__(self,tensors,tiling,chi):
-    self._env = Env(tensors,tiling)
+    self._env = Env(tensors,tiling,chi)
     self._neq_coords = self._env.neq_coords
     self._Nneq = len(self._neq_coords)
     self.chi = chi
@@ -459,7 +459,7 @@ class Env(object):
      C2-T3-T3-C3
   """
 
-  def __init__(self, tensors, tiling):
+  def __init__(self, tensors, tiling, chi):
     """
     tensors: list-like containing tensors.
     tiling: string. Tiling pattern.
@@ -482,12 +482,78 @@ class Env(object):
       self._neq_coords[i] = ind//self._Ly, ind%self._Lx
 
     self._indices = indices.reshape(self._Lx,self._Ly)
+    self._neq_a = []
+    self._neq_T1s = []
+    self._neq_C1s = []
+    self._neq_T2s = []
+    self._neq_C2s = []
+    self._neq_T3s = []
+    self._neq_C3s = []
+    self._neq_T4s = []
+    self._neq_C4s = []
 
-    D = tensors[0].shape[1]   # do not consider the case Dx != Dy
-    a_L, T1s, C1s, T2s, C2s, T3s, C3s, T4s, C4s = [[] for i in range(9)]
     for A in tensors:
+      a,T1,C1,T2,C2,T3,C3,T4,C4 = initialize_env(A,chi)
+      self._neq_as.append(a)
+      self._neq_T1s.append(T1)
+      self._neq_C1s.append(C1)
+      self._neq_T2s.append(T2)
+      self._neq_C2s.append(C2)
+      self._neq_T3s.append(T3)
+      self._neq_C3s.append(C3)
+      self._neq_T4s.append(T4)
+      self._neq_C4s.append(C4)
+
+    # 1st renormaliztion without absorbtion
+    for i,(x,y) in enumerate(self._neq_coords):
+      iT1 = self._indices[x,y-1+self._Ly]
+      iC1 = self._indices[x-1+self._Lx,y-1+self._Ly]
+      iT2 = self._indices[x-1+self._Lx,y]
+      iC2 = self._indices[x-1+self._Lx,(y+1)%self._Ly]
+      iT3 = self._indices[x,(y+1)%self._Ly]
+      iC3 = self._indices[(x+1)%self._Lx,(y+1)%self._Ly]
+      iT4 = self._indices[(x+1)%self._Lx,y]
+      iC4 = self._indices[(x+1)%self._Lx,y-1+self._Ly]
+      #   s-V-T1
+      #   |
+      #   U
+      #   |
+      #   T2
+      U,s,V = lg.svd(self._neq_C1s[indC1])
+      self._neq_T1s[iT1] = np.tensordot(V[:chi],self._neq_T1s[iT1],([1],[0]))
+      self._neq_C1s[iC1] = np.diag(s[:chi])
+      self._neq_T2s[iT2] = np.tensordot(U[:,:chi],self._neq_T1s[iT2],([0],[0]))
+      #   T2
+      #   |
+      #   U
+      #   |
+      #   s-V-T3
+      U,s,V = lg.svd(self._neq_C2s[iC2])
+      self._neq_T2s[iT2] = np.tensordot(self._neq_T2s[iT2],U[:,:chi],([1],[0])).swapaxes(1,2)
+      self._neq_C2s[iC2] = np.diag(s[:chi])
+      self._neq_T3s[iT3] = np.tensorsot(V[:chi],self._neq_T3s[iT3],([1],[1])).swapaxes(0,1)
+      #       T4
+      #       |
+      #       U
+      #       |
+      #  T3-V-s
+      U,s,V = lg.svd(self._neq_C3s[iC3])
+      self._neq_T3s[iT3] = np.tensordot(self._neq_T3s[iT3],V[:chi],([2],[1]))
+      self._neq_C3s[iC3] = np.diag(s[:chi])
+      self._neq_T4s[iT4] = np.tensordot(self._neq_T4s[iT4],U[:,:chi],([2],[0]))
+      #    T1-U-s
+      #         |
+      #         V
+      #         |
+      #         T4
+      U,s,V = lg.svd(self._neq_C4s[iC4])
+      self._neq_T4s[iT4] = np.tensordot(V[:chi],self._neq_T4s[iT4],([1],[0]))
+      self._neq_C4s[iC4] = np.diag(s[:chi])
+      self._neq_T1s[iT1] = np.tensorsot(self._neq_T1s[iT1],U[:,:chi],([2],[0]))
+
+  def initialize_env(A,chi):
+      D = A.shape[1]   # do not consider the case Dx != Dy
       a = np.tensordot(A,A.conj(),(0,0)).transpose(0,4,1,5,2,6,3,7).copy()
-      a_L.append(a.reshape(D**2,D**2,D**2,D**2))
       T1 = np.einsum('iijkl->jkl', a.reshape(D,D,D**2,D**2,D**2))
       C1 = np.einsum('iijjkl->kl', a.reshape(D,D,D,D,D**2,D**2))
       T2 = np.einsum('ijjkl->ikl', a.reshape(D**2,D,D,D**2,D**2))
@@ -496,16 +562,9 @@ class Env(object):
       C3 = np.einsum('ijkkll->ij', a.reshape(D**2,D**2,D,D,D,D))
       T4 = np.einsum('ijkll->ijk', a.reshape(D**2,D**2,D**2,D,D))
       C4 = np.einsum('iijkll->jk', a.reshape(D,D,D**2,D**2,D,D))
+      a = a.reshape(D**2,D**2,D**2,D**2)
+      return a,T1,C1,T2,C2,T3,C3,T4,C4
 
-    self._neq_a = a_L
-    self._neq_T1s = T1s
-    self._neq_C1s = C1s
-    self._neq_T2s = T2s
-    self._neq_C2s = C2s
-    self._neq_T3s = T3s
-    self._neq_C3s = C3s
-    self._neq_T4s = T4s
-    self._neq_C4s = C4s
 
 
   @property
