@@ -54,7 +54,7 @@ class CTMRG(object):
       P = P_list[self._env.get_neq_index(x,y-1)]
       nC1s[j] = self.renormalize_C1(x,y,Pt)
       nT2s[j] = self.renormalize_T2(x,y,P,Pt)
-      nC2s[j] = self.renormalize_C1(x,y,P)
+      nC2s[j] = self.renormalize_C2(x,y,P)
 
     # 3) store renormalized tensors in the environment
     self._env.neq_C1s = nC1s
@@ -69,26 +69,30 @@ class CTMRG(object):
     # contracting T1 and Pt first set complexity to chi^3*(D^2+chi).
     # no leading order gain for chi<D^2, do not implement it.
 
-    #  C1-1    0-T1-2    1    0
-    #  |         |        \Pt/
+    #                      0
+    #  C1-1    0-T1-2      ||
+    #  |         |         Pt
     #  0         1         |
-    #                      2
+    #                      1
     C1 = self._env.get_C1(x,y)
     T1 = self._env.get_T1(x+1,y)
-    PtT = Pt.swapaxes(0,1)
 
-    #  C1-10-T1-2
+    #  C1-10-T1-2 ->1
     #  |     |
     #  0     1
-    nC1 = np.tensordot(C1,T1,((1,),(0,)))
-    #  C1---T1-2 ->1
-    #  |     |
-    #  0     1
-    #   1    0
-    #    \Pt/
-    #     |
-    #     2 ->0
-    nC1 = np.tensordot(PtT,nC1,((1,0),(0,1)))
+    #    \ /
+    #     0
+    nC1 = np.tensordot(C1,T1,((1,),(0,))).reshape(len(Pt),T1.shape[2])
+    #  C1--T1-1
+    #  |   |
+    #   \ /
+    #    0
+    #    0
+    #    ||
+    #    Pt
+    #    |
+    #    1 ->0
+    nC1 = Pt.T @ nC1
     return nC1
 
   def renormalize_T2(self,x,y,P,Pt):
@@ -96,19 +100,23 @@ class CTMRG(object):
     Renormalize edge T2 using projectord P and Pt
     CPU: chi**2*D**4*(2*chi+D**4)
     """
-    #    0        1   0      0           0
-    #    |         \ /       |           |
-    #    T2-2       Pt     1-a-3         P
-    #    |          |        |          / \
-    #    1          2        2         1   2
+    #    0          0        0         0
+    #    |          ||       |         |
+    #    T2-2       Pt     1-a-3       P
+    #    |          |        |         ||
+    #    1          1        2         1
     T2 = self._env.get_T2(x,y)
     a = self._env.get_a(x+1,y)
-    PT = P.transpose(2,0,1)
-    PtT = Pt.swapaxes(0,1)
 
+    #       0    # reshape P to 3-leg tensor
+    #       |
+    #       P3
+    #     /   \
+    #     1    2
+    P3 = P.reshape(len(P),T2.shape[0],self._D2)
     #       0
     #       |
-    #       P
+    #       P3
     #     /   \
     #     1    2 ->1
     #     0
@@ -116,7 +124,7 @@ class CTMRG(object):
     #     T2-2 ->3
     #     |
     #     1 -> 2
-    nT2 = np.tensordot(PT,T2,((1,),(0,)))
+    nT2 = np.tensordot(P3,T2,((1,),(0,)))
 
     #        0
     #        |
@@ -137,15 +145,30 @@ class CTMRG(object):
     #     |     |
     #     |     |
     #     |     |
-    #     T2----a-3 ->1 -> 2
+    #     T2----a-3 ->2
     #     |     |
     #     1     2
-    #      1    0
+    #      \  /
+    #        1
+    nT2 = nT2.reshape(len(P),len(Pt),self._D2)
+
+    #        0
+    #        |
+    #        P
+    #      /   \
+    #     |     |
+    #     |     |
+    #     |     |
+    #     T2----a-2 -> 1 -> 2
+    #      |    |
     #       \  /
+    #        1
+    #        0
+    #        ||
     #        Pt
     #        |
-    #        2 ->2 -> 1
-    nT2 = np.tensordot(nT2,PtT,((2,1),(0,1))).swapaxes(1,2)
+    #        1 -> 2 -> 1
+    nT2 = np.tensordot(nT2,Pt,((1),(0,))).swapaxes(1,2)
     return nT2
 
   def renormalize_C2(self,x,y,P):
@@ -156,11 +179,10 @@ class CTMRG(object):
     #  0         0         0
     #  |         |         |
     #  C2-1    1-T3-2      P
-    #                     / \
-    #                    1   2
+    #                     ||
+    #                      1
     C2 = self._env.get_C2(x,y)
     T3 = self._env.get_T3(x+1,y)
-    PT = P.transpose(2,0,1)
 
     #     0     0 ->1
     #     |     |
@@ -168,14 +190,23 @@ class CTMRG(object):
     nC2 = np.tensordot(C2,T3,((1,),(1,)))
 
     #        0
-    #        |
-    #        P
-    #       / \
-    #      1   2
+    #       /  \
     #     0     1
     #     |     |
-    #     C2----T3-2 ->1
-    nC2 = np.tensordot(PT,nC2,((1,2),(0,1)))
+    #     C2----T3-2 -> 1
+    nC2 = nC2.reshape(P.shape[1],T3.shape[2])
+
+    #        0
+    #        |
+    #        P
+    #       ||
+    #        1
+    #        0
+    #       /  \
+    #     0     1
+    #     |     |
+    #     C2----T3-1
+    nC2 = P @ nC2
     return nC2
 
 
@@ -443,14 +474,13 @@ class CTMRG(object):
     U_H = U[:,:self.chi].T.conj()
     V_H = V[:self.chi].T.conj()
     s12 = 1/np.sqrt(s[:self.chi])
-    #   ||    <- size chi*D**2
-    #    R
-    #    |
-    #    V
-    #    |
-    #    s  <- size chi
-    Pt = (Rt @ np.einsum('ij,j->ij', V_H, s12)).reshape(self.chi,self._D2,self.chi)
-    P = (np.einsum('ij,i->ij', U_H, s12)@ R).reshape(self.chi,self._D2,self.chi)
+    #  0        0
+    #  ||       |
+    #  Pt       P
+    #  |        ||
+    #  1        1
+    Pt = Rt @ np.einsum('ij,j->ij', V_H, s12)
+    P = np.einsum('ij,i->ij', U_H, s12) @ R
     return P,Pt
 
 
