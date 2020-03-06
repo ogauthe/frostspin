@@ -165,7 +165,6 @@ def construct_DR_corner(env,x,y):
   T3 = env.get_T3(x+2,y+3)
   C4 = env.get_C4(x+3,y+3)
   T4 = env.get_T4(x+3,y+2)
-
   #       0     0->2
   #       |     |
   #     1-T3-21-C4
@@ -234,21 +233,20 @@ def construct_L_half(env,x,y):
 def construct_D_half(env,x,y):
   cornerDL = construct_DL_corner(env,x,y)
   cornerDR = construct_DR_corner(env,x,y)
-  #  1     0
-  #  0     1
-  #  |     |
-  #  DL-10-DR
-  return (cornerDL @ cornerDR).T
+  #  1<- 0     0
+  #      |     |
+  #      DL-11-DR
+  return cornerDR @ cornerDL.T
 
 
 def construct_R_half(env,x,y):
   cornerDR = construct_DR_corner(env,x,y)
   cornerUR = construct_UR_corner(env,x,y)
-  #   0-DR
+  #   0-UR
   #     |
   #     1
   #     0
   #     |
-  #   1-UR
-  return cornerDR @ cornerUR
+  #   1-DR
+  return cornerUR @ cornerDR
 

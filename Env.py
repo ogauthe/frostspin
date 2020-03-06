@@ -164,7 +164,7 @@ class Env(object):
     return self._neq_T1s
 
   @neq_T1s.setter
-  def neq_T1(self, neq_T1s):
+  def neq_T1s(self, neq_T1s):
     assert(len(neq_T1s) == self._Nneq), 'neq_T1s length is not nneq'
     self._neq_T1s = neq_T1s
 
