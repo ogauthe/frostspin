@@ -5,13 +5,13 @@ from ctm_contract import construct_U_half, construct_L_half, construct_D_half, c
 
 class CTMRG(object):
   #
-  #    C1-T1-T1-C4
+  #    C2-T1-T1-C1
   #    |  |  |  |
   #    T2-a--a--T4
   #    |  |  |  |
   #    T2-a--a--T4
   #    |  |  |  |
-  #    C2-T3-T3-C3
+  #    C3-T3-T3-C4
 
   def __init__(self,tensors,tiling,chi,verbosity=0):
     self.verbosity = verbosity
@@ -63,25 +63,25 @@ class CTMRG(object):
       self._env.set_projectors(x+1,y,self.construct_projectors(R,Rt))
       del R, Rt
 
-    # 2) renormalize every non-equivalent C4, T1 and C1
+    # 2) renormalize every non-equivalent C1, T1 and C2
     # P != P_list[i] => need all projectors to be constructed at this time
-    nC4s,nT1s,nC1s = [None]*self._Nneq, [None]*self._Nneq, [None]*self._Nneq
+    nC1s,nT1s,nC2s = [None]*self._Nneq, [None]*self._Nneq, [None]*self._Nneq
     if self.verbosity > 0:
       print('Projectors constructed, renormalize tensors')
     for i, (x,y) in enumerate(self._neq_coords):
       j = self._env.get_neq_index(x,y+1)
       if self.verbosity > 1:
         print(f'x = {x}, y = {y}, i = {i}, j = {j}')
-      nC4s[j] = self.renormalize_C4_up(x,y)
-      nT1s[j] = self.renormalize_T1(x,y)
       nC1s[j] = self.renormalize_C1_up(x,y)
+      nT1s[j] = self.renormalize_T1(x,y)
+      nC2s[j] = self.renormalize_C2_up(x,y)
 
     # 3) store renormalized tensors in the environment
-    # renormalization reads C1[x,y] but write C1[x,y+1]
+    # renormalization reads C2[x,y] but write C2[x,y+1]
     # => need to compute every renormalized tensors before storing any of them
-    self._env.neq_C4s = nC4s
-    self._env.neq_T1s = nT1s
     self._env.neq_C1s = nC1s
+    self._env.neq_T1s = nT1s
+    self._env.neq_C2s = nC2s
 
     if self.verbosity > 0:
       print('up move completed')
@@ -103,21 +103,21 @@ class CTMRG(object):
       del R, Rt
 
     # 2) renormalize tensors by absorbing column
-    nC1s,nT2s,nC2s = [None]*self._Nneq, [None]*self._Nneq, [None]*self._Nneq
+    nC2s,nT2s,nC3s = [None]*self._Nneq, [None]*self._Nneq, [None]*self._Nneq
     if self.verbosity > 0:
       print('Projectors constructed, renormalize tensors')
     for i, (x,y) in enumerate(self._neq_coords):
       j = self._env.get_neq_index(x+1,y)
       if self.verbosity > 1:
         print(f'x = {x}, y = {y}, i = {i}, j = {j}')
-      nC1s[j] = self.renormalize_C1_left(x,y)
-      nT2s[j] = self.renormalize_T2(x,y)
       nC2s[j] = self.renormalize_C2_left(x,y)
+      nT2s[j] = self.renormalize_T2(x,y)
+      nC3s[j] = self.renormalize_C3_left(x,y)
 
     # 3) store renormalized tensors in the environment
-    self._env.neq_C1s = nC1s
-    self._env.neq_T2s = nT2s
     self._env.neq_C2s = nC2s
+    self._env.neq_T2s = nT2s
+    self._env.neq_C3s = nC3s
 
     if self.verbosity > 0:
       print('left move completed')
@@ -140,22 +140,22 @@ class CTMRG(object):
       self._env.set_projectors(x+1,y+3,self.construct_projectors(R,Rt))
       del R, Rt
 
-    # 2) renormalize every non-equivalent C4, T1 and C1
-    nC2s,nT3s,nC3s = [None]*self._Nneq, [None]*self._Nneq, [None]*self._Nneq
+    # 2) renormalize every non-equivalent C1, T1 and C2
+    nC3s,nT3s,nC4s = [None]*self._Nneq, [None]*self._Nneq, [None]*self._Nneq
     if self.verbosity > 0:
       print('Projectors constructed, renormalize tensors')
     for i, (x,y) in enumerate(self._neq_coords):
       j = self._env.get_neq_index(x,y-1)
       if self.verbosity > 1:
         print(f'x = {x}, y = {y}, i = {i}, j = {j}')
-      nC2s[j] = self.renormalize_C2_down(x,y)
-      nT3s[j] = self.renormalize_T3(x,y)
       nC3s[j] = self.renormalize_C3_down(x,y)
+      nT3s[j] = self.renormalize_T3(x,y)
+      nC4s[j] = self.renormalize_C4_down(x,y)
 
     # 3) store renormalized tensors in the environment
-    self._env.neq_C2s = nC2s
-    self._env.neq_T3s = nT3s
     self._env.neq_C3s = nC3s
+    self._env.neq_T3s = nT3s
+    self._env.neq_C4s = nC4s
 
     if self.verbosity > 0:
       print('down move completed')
@@ -176,23 +176,23 @@ class CTMRG(object):
       self._env.set_projectors(x+3,y+1,self.construct_projectors(R,Rt))
       del R, Rt
 
-    # 2) renormalize every non-equivalent C3, T4 and C4
-    nC3s,nT4s,nC4s = [None]*self._Nneq, [None]*self._Nneq, [None]*self._Nneq
+    # 2) renormalize every non-equivalent C4, T4 and C1
+    nC4s,nT4s,nC1s = [None]*self._Nneq, [None]*self._Nneq, [None]*self._Nneq
     if self.verbosity > 0:
       print('Projectors constructed, renormalize tensors')
     for i, (x,y) in enumerate(self._neq_coords):
       j = self._env.get_neq_index(x-1,y)
       if self.verbosity > 1:
         print(f'x = {x}, y = {y}, i = {i}, j = {j}')
-      nC3s[j] = self.renormalize_C3_right(x,y)
-      nT4s[j] = self.renormalize_T4(x,y)
       nC4s[j] = self.renormalize_C4_right(x,y)
+      nT4s[j] = self.renormalize_T4(x,y)
+      nC1s[j] = self.renormalize_C1_right(x,y)
 
     # 3) store renormalized tensors in the environment
     self._env.reset_projectors()
-    self._env.neq_C3s = nC3s
-    self._env.neq_T4s = nT4s
     self._env.neq_C4s = nC4s
+    self._env.neq_T4s = nT4s
+    self._env.neq_C1s = nC1s
 
     if self.verbosity > 0:
       print('right move completed')
@@ -213,33 +213,131 @@ class CTMRG(object):
     P = R @ np.einsum('ij,j->ij', U[:,:self.chi].conj(), s12)
     return P,Pt
 
-  def renormalize_C1_left(self,x,y):
+  def renormalize_C1_up(self,x,y):
     """
-    Renormalize corner C1 from a left move using projector Pt
+    Renormalize corner C1 from an up move using projector Pt
+    CPU: 2*chi**3*D**2
+    """
+    return nC1
+
+  def renormalize_T1(self,x,y):
+    """
+    Renormalize edge T1 using projectors P and Pt
+    CPU: chi**2*D**4*(2*chi+D**4)
+    """
+    #                       0
+    #                       |
+    #  1-Pt=0    0-T1-2   1-a-3     0=Pt-1
+    #              |        |
+    #              1        2
+    T1 = self._env.get_T1(x,y)
+    a = self._env.get_a(x,y+1)
+    P = self._env.get_P(x+1,y)
+    Pt = self._env.get_Pt(x,y)
+    if self.verbosity > 0:
+      print('Renormalize T1: T1.shape =', T1.shape, 'P.shape =', P.shape,
+            'Pt.shape =',Pt.shape)
+
+    # reshape P to 3-leg tensor
+    #     0\
+    #       P-2
+    #     1/
+    P3 = P.reshape(T1.shape[2],self._D2,P.shape[1])
+    #  0-T1-20\
+    #    |     P-2 -> 3
+    #    1    /
+    #        1 ->2
+    nT1 = np.tensordot(T1,P3,((2,),(0,)))
+    #      0-T1--\
+    #        |    P-3 ->1
+    #        1   /
+    #        0  /
+    #        | 2
+    #  2<-1-a-3
+    #       |
+    #       2 ->3
+    nT1 = np.tensordot(nT1,a,((1,2),(0,3)))
+    #     /--0-T1\
+    #    0     |  P-1 ->3 ->2
+    #    \1<-2-a-/
+    #          |
+    #          3 ->2 ->1
+    nT1 = nT1.transpose(0,2,3,1).reshape(len(Pt),self._D2,Pt.shape[1])
+    #             /T1\
+    #  0<- 1-Pt=00    P-2
+    #             \a-/
+    #              |
+    #              1
+    nT1 = np.tensordot(Pt,nT1,((0,),(0,)))
+    return nT1
+
+  def renormalize_C2_up(self,x,y):
+    """
+    Renormalize corner C3 from an up move using projector P
+    CPU: 2*chi**3*D**2
+    """
+    #            0
+    #            |
+    #  C2-1      T2-2    0=P-1
+    #  |         |
+    #  0         1
+    C2 = self._env.get_C2(x,y)
+    T1 = self._env.get_T1(x,y+1)
+    P = self._env.get_Pt(x+1,y)
+    if self.verbosity > 0:
+      print('Renormalize C2: C2.shape =', C2.shape, 'T2.shape =', T2.shape,
+            'P.shape =',P.shape)
+
+    #  C2-1 ->0
+    #  |
+    #  0
+    #  0
+    #  |
+    #  T2-2
+    #  |
+    #  1
+    nC2 = np.tensordot(C2,T2,((0,),(0,)))
+    #  C2-0----\
+    #  |        0
+    #  T2-2 ->1/
+    #  |
+    #  1 -> 2 -> 1
+    nC2 = nC2.swapaxes(1,2).reshape(len(P),T2.shape[1])
+    #  C2-\
+    #  |   00=P-1
+    #  T2-/
+    #  |
+    #  1 ->0
+    nC2 = nC2.T @ P
+    return nC2
+
+  def renormalize_C2_left(self,x,y):
+    """
+    Renormalize corner C2 from a left move using projector Pt
     CPU: 2*chi**3*D**2
     """
     # contracting T1 and Pt first set complexity to chi^3*(D^2+chi).
     # no leading order gain for chi<D^2, do not implement it.
 
     #                      0
-    #  C1-1    0-T1-2      ||
+    #  C2-1    0-T1-2      ||
     #  |         |         Pt
     #  0         1         |
     #                      1
-    C1 = self._env.get_C1(x,y)
+    C2 = self._env.get_C2(x,y)
     T1 = self._env.get_T1(x+1,y)
     Pt = self._env.get_Pt(x,y)
     if self.verbosity > 0:
-      print('Renormalize C1: C1.shape =', C1.shape, 'T1.shape =', T1.shape,
+      print('Renormalize C2: C2.shape =', C2.shape, 'T1.shape =', T1.shape,
             'Pt.shape =',Pt.shape)
 
-    #  C1-10-T1-2 ->1
+    #  C2-10-T1-2 ->1
     #  |     |
     #  0     1
     #    \ /
     #     0
-    nC1 = np.tensordot(C1,T1,((1,),(0,))).reshape(len(Pt),T1.shape[2])
-    #  C1--T1-1
+    nC2 = np.tensordot(C2,T1,((1,),(0,))).reshape(len(Pt),T1.shape[2])
+    #  C2--T1-1
     #  |   |
     #   \ /
     #    0
@@ -248,8 +346,8 @@ class CTMRG(object):
     #    Pt
     #    |
     #    1 ->0
-    nC1 = Pt.T @ nC1
-    return nC1
+    nC2 = Pt.T @ nC2
+    return nC2
 
   def renormalize_T2(self,x,y):
     """
@@ -325,34 +423,34 @@ class CTMRG(object):
     nT2 = np.tensordot(nT2,Pt,((1),(0,))).swapaxes(1,2)
     return nT2
 
-  def renormalize_C2_left(self,x,y):
+  def renormalize_C3_left(self,x,y):
     """
-    Renormalize corner C2 using projector P
+    Renormalize corner C3 using projector P
     CPU: 2*chi**3*D**2
     """
     #  0         0         1
     #  |         |         |
-    #  C2-1    1-T3-2      P
+    #  C3-1    1-T3-2      P
     #                     ||
     #                      0
-    C2 = self._env.get_C2(x,y)
+    C3 = self._env.get_C3(x,y)
     T3 = self._env.get_T3(x+1,y)
     P = self._env.get_P(x,y-1)
     if self.verbosity > 0:
-      print('Renormalize C2: C2.shape =', C2.shape, 'T3.shape =', T3.shape,
+      print('Renormalize C3: C3.shape =', C3.shape, 'T3.shape =', T3.shape,
             'P.shape =',P.shape)
 
     #     0     0 ->1
     #     |     |
-    #     C2-11-T3-2
-    nC2 = np.tensordot(C2,T3,((1,),(1,)))
+    #     C3-11-T3-2
+    nC3 = np.tensordot(C3,T3,((1,),(1,)))
 
     #        0
     #       /  \
     #     0     1
     #     |     |
-    #     C2----T3-2 -> 1
-    nC2 = nC2.reshape(len(P),T3.shape[2])
+    #     C3----T3-2 -> 1
+    nC3 = nC3.reshape(len(P),T3.shape[2])
 
     #        1 ->0
     #        |
@@ -361,25 +459,25 @@ class CTMRG(object):
     #        0
     #        0
     #       /  \
-    #     C2----T3-1
-    nC2 = P.T @ nC2
-    return nC2
+    #     C3----T3-1
+    nC3 = P.T @ nC3
+    return nC3
 
-  def renormalize_C2_down(self,x,y):
+  def renormalize_C3_down(self,x,y):
     """
-    Renormalize corner C2 from a down move using projector Pt
+    Renormalize corner C3 from a down move using projector Pt
     CPU: 2*chi**3*D**2
     """
     #            0
     #            |
     #  0         T2-2
     #  |         |         0=Pt-1
-    #  C2-1      1
-    C2 = self._env.get_C2(x,y)
+    #  C3-1      1
+    C3 = self._env.get_C3(x,y)
     T2 = self._env.get_T2(x,y-1)
     Pt = self._env.get_Pt(x,y)
     if self.verbosity > 0:
-      print('Renormalize C2: C2.shape =', C2.shape, 'T2.shape =', T2.shape,
+      print('Renormalize C3: C3.shape =', C3.shape, 'T2.shape =', T2.shape,
             'Pt.shape =',Pt.shape)
 
     #   0
@@ -389,23 +487,23 @@ class CTMRG(object):
     #   1
     #   0
     #   |
-    #   C2-1 ->2
-    nC2 = np.tensordot(T2,C2,((1,),(0,)))
+    #   C3-1 ->2
+    nC3 = np.tensordot(T2,C3,((1,),(0,)))
     #   0
     #   |
     #   T2-1 ->2\
     #   |        1
-    #   C2-2 ->1/
-    nC2 = nC2.swapaxes(1,2).reshape(len(T2),len(Pt))
+    #   C3-2 ->1/
+    nC3 = nC3.swapaxes(1,2).reshape(len(T2),len(Pt))
 
 
     #   0
     #   |
     #   T2\
     #   |  10=Pt-1
-    #   C2/
-    nC2 = nC2 @ Pt
-    return nC2
+    #   C3/
+    nC3 = nC3 @ Pt
+    return nC3
 
   def renormalize_T3(self,x,y):
     """
@@ -431,21 +529,21 @@ class CTMRG(object):
     P3 = P.reshape(T2.shape[1],self._D2,P.shape[1])
     return nT3
 
-  def renormalize_C3_down(self,x,y):
+  def renormalize_C4_down(self,x,y):
     """
-    Renormalize corner C3 using projector P
+    Renormalize corner C4 using projector P
     CPU: 2*chi**3*D**2
     """
     #    0         0
     #    |         |
-    #  1-C3      1-T4      1-P=0
+    #  1-C4      1-T4      1-P=0
     #              |
     #              2
-    C3 = self._env.get_C3(x,y)
+    C4 = self._env.get_C4(x,y)
     T4 = self._env.get_T3(x,y-1)
     P = self._env.get_P(x-1,y)
     if self.verbosity > 0:
-      print('Renormalize C3: C3.shape =', C3.shape, 'T4.shape =', T4.shape,
+      print('Renormalize C4: C4.shape =', C4.shape, 'T4.shape =', T4.shape,
             'P.shape =',P.shape)
     #        0
     #        |
@@ -454,20 +552,20 @@ class CTMRG(object):
     #        2
     #        0
     #        |
-    #  2<- 1-C3
-    nC3 = np.tensordot(T4,C3,((2,),(0,)))
+    #  2<- 1-C4
+    nC4 = np.tensordot(T4,C4,((2,),(0,)))
 
     #         0
     #         |
     # 1-  2<-1-T4
     #  \      |
-    #    1<-2-C3
-    nC3 = nC3.swapaxes(1,2).reshape(len(T4),len(P))
+    #    1<-2-C4
+    nC4 = nC4.swapaxes(1,2).reshape(len(T4),len(P))
 
     #          0
     #          |
     #        /-T4
     #  1-P=01  |
-    #        \-C3
-    nC3 = nC3 @ P
-    return nC2
+    #        \-C4
+    nC4 = nC4 @ P
+    return nC3
