@@ -76,6 +76,8 @@ class Env(object):
       self._neq_T4s.append(T4)
       self._neq_C4s.append(C4)
 
+    self.reset_projectors()
+
   @property
   def cell(self):
     return self._cell
@@ -132,6 +134,21 @@ class Env(object):
 
   def get_C4(self,x,y):
     return self._neq_C4s[self._indices[x%self._Lx,y%self._Ly]]
+
+  def get_P(self,x,y):
+    return self._neq_P[self._indices[x%self._Lx,y%self._Ly]]
+
+  def get_Pt(self,x,y):
+    return self._neq_Pt[self._indices[x%self._Lx,y%self._Ly]]
+
+  def reset_projectors(self):
+    self._neq_P = [None]*self._Nneq
+    self._neq_Pt = [None]*self._Nneq
+
+  def set_projectors(self,x,y,proj):
+    j = self._indices[x%self._Lx, y%self._Ly]
+    self._neq_P[j] = proj[0]
+    self._neq_Pt[j] = proj[1]
 
   @property
   def neq_T1s(self):
