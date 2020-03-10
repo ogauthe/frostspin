@@ -145,10 +145,10 @@ class Env(object):
     self._neq_P = [None]*self._Nneq
     self._neq_Pt = [None]*self._Nneq
 
-  def set_projectors(self,x,y,proj):
+  def set_projectors(self,x,y,P,Pt):
     j = self._indices[x%self._Lx, y%self._Ly]
-    self._neq_P[j] = proj[0]
-    self._neq_Pt[j] = proj[1]
+    self._neq_P[j] = P
+    self._neq_Pt[j] = Pt
 
   @property
   def neq_C1s(self):
