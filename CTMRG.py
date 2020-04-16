@@ -81,6 +81,7 @@ class CTMRG(object):
     # 3) store renormalized tensors in the environment
     # renormalization reads C2[x,y] but write C2[x,y+1]
     # => need to compute every renormalized tensors before storing any of them
+    self._env.reset_projectors()
     self._env.neq_C1s = nC1s
     self._env.neq_T1s = nT1s
     self._env.neq_C2s = nC2s
@@ -118,6 +119,7 @@ class CTMRG(object):
       nC3s[j] = renormalize_C3_left(self._env,x,y,self.verbosity)
 
     # 3) store renormalized tensors in the environment
+    self._env.reset_projectors()
     self._env.neq_C2s = nC2s
     self._env.neq_T2s = nT2s
     self._env.neq_C3s = nC3s
@@ -157,6 +159,8 @@ class CTMRG(object):
       nC4s[j] = renormalize_C4_down(self._env,x,y,self.verbosity)
 
     # 3) store renormalized tensors in the environment
+    self._env.reset_projectors()
+    self._env.reset_projectors()
     self._env.neq_C3s = nC3s
     self._env.neq_T3s = nT3s
     self._env.neq_C4s = nC4s

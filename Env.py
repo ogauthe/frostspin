@@ -64,6 +64,7 @@ class Env(object):
     self._neq_C4s = []
     self._neq_T4s = []
 
+    self._A = tensors
     for A in tensors:
       a,C1,T1,C2,T2,C3,T3,C4,T4 = initialize_env(A,chi)
       self._neq_as.append(a)
@@ -104,6 +105,9 @@ class Env(object):
 
   def get_neq_index(self,x,y):
     return self._indices[x%self._Lx, y%self._Ly]
+
+  def get_A(self,x,y):
+    return self._A[self._indices[x%self._Lx, y%self._Ly]]
 
   def get_a(self,x,y):
     return self._neq_as[self._indices[x%self._Lx, y%self._Ly]]
