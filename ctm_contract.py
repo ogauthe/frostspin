@@ -65,7 +65,7 @@ def construct_UR_corner(env,x,y,verbosity=0):
   #    1         0       1
   T1 = env.get_T1(x+2,y)
   C2 = env.get_C2(x+3,y)
-  T2 = env.get_T4(x+3,y+1)
+  T2 = env.get_T2(x+3,y+1)
   a = env.get_a(x+2,y+1)
   if verbosity > 1:
     print('construct_UR_corner: T1.shape =', T1.shape, 'C2.shape =', C2.shape,
@@ -109,12 +109,12 @@ def construct_UR_corner(env,x,y,verbosity=0):
 def construct_DR_corner(env,x,y,verbosity=0):
   #     0       0       0
   #     |       |       |
-  #  2-T2    1-C4     2-T3-1
+  #  2-T2    1-C3     2-T3-1
   #     |
   #     1
-  T2 = env.get_T3(x+3,y+2)
-  C3 = env.get_C4(x+3,y+3)
-  T3 = env.get_T4(x+2,y+3)
+  T2 = env.get_T2(x+3,y+2)
+  C3 = env.get_C3(x+3,y+3)
+  T3 = env.get_T3(x+2,y+3)
   a = env.get_a(x+2,y+2)
   if verbosity > 1:
     print('construct_DR_corner: T2.shape =', T2.shape, 'C3.shape =', C3.shape,
@@ -122,27 +122,27 @@ def construct_DR_corner(env,x,y,verbosity=0):
 
   #         0      0->2
   #         |      |
-  #   1<- 2-T3-11-C4
-  cornerDR = np.tensordot(T3,C4,((1,),(1,)))
+  #   1<- 2-T3-11-C3
+  cornerDR = np.tensordot(T3,C3,((1,),(1,)))
 
   #              0
   #              |
-  #       1 <-2-T4
+  #       1 <-2-T2
   #              |
   #              1
   #       0->2   2
   #       |      |
-  #  3<-1-T3----C4
-  cornerDR = np.tensordot(T4,cornerDR,((1,),(2,)))
+  #  3<-1-T3----C3
+  cornerDR = np.tensordot(T2,cornerDR,((1,),(2,)))
 
   #    2<- 0     0
   #        |     |
-  #      3-a-11-T4
+  #      3-a-11-T2
   #        |     |
   #        2     |
   #        2     |
   #        |     |
-  #  1<- 3-T3---C4
+  #  1<- 3-T3---C3
   cornerDR = np.tensordot(cornerDR,a,((1,2),(1,2)))
 
   #           0
@@ -150,10 +150,10 @@ def construct_DR_corner(env,x,y,verbosity=0):
   #         1   0
   #         2   0
   #         |   |
-  #     /33-a--T4
+  #     /33-a--T2
   #    1    |   |
-  #     \21-T3-C4
-  cornerDR = cornerDR.swapaxes(1,2).reshape(T4.shape[0]*a.shape[0],T3.shape[1]*a.shape[1])
+  #     \21-T3-C3
+  cornerDR = cornerDR.swapaxes(1,2).reshape(T2.shape[0]*a.shape[0],T3.shape[2]*a.shape[3])
   return cornerDR
 
 
@@ -252,11 +252,11 @@ def construct_D_half(env,x,y,verbosity=0):
 def construct_R_half(env,x,y,verbosity=0):
   cornerDR = construct_DR_corner(env,x,y,verbosity)
   cornerUR = construct_UR_corner(env,x,y,verbosity)
-  #      1-DR
+  #      1-UR
   #         |
   #         0
   #         0
   #         |
-  #  0<- 1-UR
-  return cornerUR.T @ cornerDR
+  #  0<- 1-DR
+  return cornerDR.T @ cornerUR
 

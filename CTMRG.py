@@ -15,14 +15,14 @@ class CTMRG(object):
   #    C4-T3-T3-C3
 
   def __init__(self,tensors,tiling,chi,verbosity=0):
+    self._D = tensors[0].shape[1]
     self.verbosity = verbosity
     if self.verbosity > 0:
-      print(f'initalize CTMRG with chi = {chi}, verbosity = {verbosity} and tiling = {tiling}')
+      print(f'initalize CTMRG with D = {self._D}, chi = {chi}, verbosity = {verbosity} and tiling = {tiling}')
     self.chi = chi
     self._env = Env(tensors,tiling,chi)
     self._neq_coords = self._env.neq_coords
     self._Nneq = len(self._neq_coords)
-    self._D = tensors[0].shape[1]
     self._D2 = self._D**2
     if self.verbosity > 0:
       print('CTMRG constructed')
@@ -56,7 +56,7 @@ class CTMRG(object):
       #        R
       #        R
       #      0-R
-      R = construct_R_half(self._env,x,y)
+      R = construct_R_half(self._env,x,y,self.verbosity)
       #        L-0
       #        L          0
       #        L    =>    Rt
@@ -115,9 +115,9 @@ class CTMRG(object):
       j = self._env.get_neq_index(x-1,y)
       if self.verbosity > 1:
         print(f'x = {x}, y = {y}, i = {i}, j = {j}')
-      nC2s[j] = renormalize_C2_left(self._env,x,y,self.verbosity)
+      nC2s[j] = renormalize_C2_right(self._env,x,y,self.verbosity)
       nT2s[j] = renormalize_T2(self._env,x,y,self.verbosity)
-      nC3s[j] = renormalize_C3_left(self._env,x,y,self.verbosity)
+      nC3s[j] = renormalize_C3_right(self._env,x,y,self.verbosity)
 
     # 3) store renormalized tensors in the environment
     self._env.reset_projectors()
@@ -134,16 +134,17 @@ class CTMRG(object):
       print('\nstart down move')
     # 1) compute isometries for every non-equivalent sites
     for x,y in self._neq_coords:
-      #        L-1
-      #        L
-      #        L
-      #        L-0
-      R = construct_L_half(self._env,x,y)
-      #      0-R         1-R
-      #        R           R
-      #        R   =>      R
-      #      1-R         0-R
-      Rt = construct_R_half(self._env,x,y,self.verbosity).T
+      #        L-0      L-1
+      #        L        L
+      #        L    =>  L
+      #        L-1      L-0
+      R = construct_L_half(self._env,x,y,self.verbosity).T
+      #      1-R
+      #        R
+      #        R
+      #      0-R
+      Rt = construct_R_half(self._env,x,y,self.verbosity)
+      print(R.shape,Rt.shape)
       P,Pt = construct_projectors(R,Rt,self.chi,self.verbosity)
       self._env.set_projectors(x+1,y+3,P,Pt)
       del R, Rt
@@ -196,9 +197,9 @@ class CTMRG(object):
       j = self._env.get_neq_index(x+1,y)
       if self.verbosity > 1:
         print(f'x = {x}, y = {y}, i = {i}, j = {j}')
-      nC4s[j] = renormalize_C4_right(self._env,x,y,self.verbosity)
+      nC4s[j] = renormalize_C4_left(self._env,x,y,self.verbosity)
       nT4s[j] = renormalize_T4(self._env,x,y,self.verbosity)
-      nC1s[j] = renormalize_C1_right(self._env,x,y,self.verbosity)
+      nC1s[j] = renormalize_C1_left(self._env,x,y,self.verbosity)
 
     # 3) store renormalized tensors in the environment
     self._env.reset_projectors()

@@ -28,7 +28,7 @@ def initialize_env(A,chi):
   T3 = np.einsum('ijkkl->ijl', a.reshape(D**2,D**2,D,D,D**2))
   C4 = np.einsum('ijkkll->ij', a.reshape(D**2,D**2,D,D,D,D))
   T4 = np.einsum('ijkll->ijk', a.reshape(D**2,D**2,D**2,D,D))
-  return a,C1,T1,T2,C2,T3,C3,T4,C4
+  return a,C1,T1,C2,T2,C3,T3,C4,T4
 
 
 class Env(object):
@@ -182,7 +182,7 @@ class Env(object):
     return self._neq_T1s
 
   @neq_T1s.setter
-  def neq_T1(self, neq_T1s):
+  def neq_T1s(self, neq_T1s):
     assert(len(neq_T1s) == self._Nneq), 'neq_T1s length is not nneq'
     self._neq_T1s = neq_T1s
 
@@ -212,6 +212,15 @@ class Env(object):
   def neq_C3s(self, neq_C3s):
     assert(len(neq_C3s) == self._Nneq), 'neq_C3s length is not nneq'
     self._neq_C3s = neq_C3s
+
+  @property
+  def neq_T3s(self):
+    return self._neq_T3s
+
+  @neq_T3s.setter
+  def neq_T3s(self, neq_T3s):
+    assert(len(neq_T3s) == self._Nneq), 'neq_T3s length is not nneq'
+    self._neq_T3s = neq_T3s
 
   @property
   def neq_C4s(self):
