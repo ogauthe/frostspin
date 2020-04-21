@@ -5,14 +5,14 @@ from ctm_contract import construct_U_half, construct_L_half, construct_D_half, c
 from ctm_renormalize import *
 
 class CTMRG(object):
-  #
-  #    C2-T1-T1-C1
-  #    |  |  |  |
-  #    T2-a--a--T4
-  #    |  |  |  |
-  #    T2-a--a--T4
-  #    |  |  |  |
-  #    C3-T3-T3-C4
+  # convention: legs and tensors are taken clockwise.
+  #    C1-T1-T1-C2
+  #    |  |  |   |
+  #    T4-a--a--T2
+  #    |  |  |   |
+  #    T4-a--a--T2
+  #    |  |  |   |
+  #    C4-T3-T3-C3
 
   def __init__(self,tensors,tiling,chi,verbosity=0):
     self.verbosity = verbosity
@@ -41,9 +41,10 @@ class CTMRG(object):
 
   def iterate(self):
     self.up_move()
-    self.left_move()
-    self.down_move()
     self.right_move()
+    self.down_move()
+    self.left_move()
+
 
   def up_move(self):
     if self.verbosity > 0:
@@ -51,16 +52,16 @@ class CTMRG(object):
     # 1) compute isometries for every non-equivalent sites
     # convention : for every move, leg 0 of R and Rt are to be contracted
     for x,y in self._neq_coords:
-      #      0-R
-      #        R
-      #        R
       #      1-R
-      R = construct_R_half(self._env,x,y,self.verbosity)
-      #        L-1         L-0
-      #        L           L          0
-      #        L   =>      L    =>    Rt
-      #        L-0         L-1        1
-      Rt = construct_L_half(self._env,x,y,self.verbosity).T
+      #        R
+      #        R
+      #      0-R
+      R = construct_R_half(self._env,x,y)
+      #        L-0
+      #        L          0
+      #        L    =>    Rt
+      #        L-1        1
+      Rt = construct_L_half(self._env,x,y)
       P,Pt = construct_projectors(R,Rt,self.chi,self.verbosity)
       self._env.set_projectors(x+1,y,P,Pt)
       del R, Rt
@@ -79,7 +80,7 @@ class CTMRG(object):
       nC2s[j] = renormalize_C2_up(self._env,x,y,self.verbosity)
 
     # 3) store renormalized tensors in the environment
-    # renormalization reads C2[x,y] but write C2[x,y+1]
+    # renormalization reads C1[x,y] but writes C1[x,y+1]
     # => need to compute every renormalized tensors before storing any of them
     self._env.reset_projectors()
     self._env.neq_C1s = nC1s
@@ -89,18 +90,18 @@ class CTMRG(object):
     if self.verbosity > 0:
       print('up move completed')
 
-  def left_move(self):
+  def right_move(self):
     if self.verbosity > 0:
-      print('\nstart left move')
+      print('\nstart right move')
     # 1) compute isometries for every non-equivalent sites
     for x,y in self._neq_coords:
-      #      UUUU    0
-      #      |  | => R
-      #      0  1    1
-      R = construct_U_half(self._env,x,y,self.verbosity)
-      #      1  0     0  1     0
-      #      |  |  => |  |  => Rt
-      #      DDDD     DDDD     1
+      #      UUUU    UUUU    0
+      #      |  | => |  | => R
+      #      1  0    0  1    1
+      R = construct_U_half(self._env,x,y,self.verbosity).T
+      #      0  1    0
+      #      |  | => Rt
+      #      DDDD    1
       Rt = construct_D_half(self._env,x,y,self.verbosity).T
       P,Pt = construct_projectors(R,Rt,self.chi,self.verbosity)
       self._env.set_projectors(x,y+1,P,Pt)
@@ -111,7 +112,7 @@ class CTMRG(object):
     if self.verbosity > 0:
       print('Projectors constructed, renormalize tensors')
     for i, (x,y) in enumerate(self._neq_coords):
-      j = self._env.get_neq_index(x+1,y)
+      j = self._env.get_neq_index(x-1,y)
       if self.verbosity > 1:
         print(f'x = {x}, y = {y}, i = {i}, j = {j}')
       nC2s[j] = renormalize_C2_left(self._env,x,y,self.verbosity)
@@ -125,7 +126,8 @@ class CTMRG(object):
     self._env.neq_C3s = nC3s
 
     if self.verbosity > 0:
-      print('left move completed')
+      print('right move completed')
+
 
   def down_move(self):
     if self.verbosity > 0:
@@ -146,7 +148,7 @@ class CTMRG(object):
       self._env.set_projectors(x+1,y+3,P,Pt)
       del R, Rt
 
-    # 2) renormalize every non-equivalent C1, T1 and C2
+    # 2) renormalize every non-equivalent C3, T3 and C4
     nC3s,nT3s,nC4s = [None]*self._Nneq, [None]*self._Nneq, [None]*self._Nneq
     if self.verbosity > 0:
       print('Projectors constructed, renormalize tensors')
@@ -168,18 +170,19 @@ class CTMRG(object):
     if self.verbosity > 0:
       print('down move completed')
 
-  def right_move(self):
+
+  def left_move(self):
     if self.verbosity > 0:
-      print('\nstart right move')
+      print('\nstart left move')
     # 1) compute isometries for every non-equivalent sites
     for x,y in self._neq_coords:
-      #      1  0
+      #      0  1
       #      |  |
       #      DDDD
       R = construct_D_half(self._env,x,y,self.verbosity)
-      #      UUUU     UUUU     1
-      #      |  |  => |  |  => Rt
-      #      0  1     1  0     0
+      #      UUUU      1
+      #      |  |  =>  Rt
+      #      1  0      0
       Rt = construct_U_half(self._env,x,y,self.verbosity).T
       P,Pt = construct_projectors(R,Rt,self.chi,self.verbosity)
       self._env.set_projectors(x+3,y+1,P,Pt)
@@ -190,7 +193,7 @@ class CTMRG(object):
     if self.verbosity > 0:
       print('Projectors constructed, renormalize tensors')
     for i, (x,y) in enumerate(self._neq_coords):
-      j = self._env.get_neq_index(x-1,y)
+      j = self._env.get_neq_index(x+1,y)
       if self.verbosity > 1:
         print(f'x = {x}, y = {y}, i = {i}, j = {j}')
       nC4s[j] = renormalize_C4_right(self._env,x,y,self.verbosity)
@@ -204,5 +207,5 @@ class CTMRG(object):
     self._env.neq_C1s = nC1s
 
     if self.verbosity > 0:
-      print('right move completed')
+      print('left move completed')
 

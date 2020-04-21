@@ -3,18 +3,32 @@ import scipy.linalg as lg
 
 
 def initialize_env(A,chi):
-    D = A.shape[1]   # do not consider the case Dx != Dy
-    a = np.tensordot(A,A.conj(),(0,0)).transpose(0,4,1,5,2,6,3,7).copy()
-    C1 = np.einsum('iijkll->jk', a.reshape(D,D,D**2,D**2,D,D))
-    T1 = np.einsum('iijkl->jkl', a.reshape(D,D,D**2,D**2,D**2))
-    C2 = np.einsum('iijjkl->kl', a.reshape(D,D,D,D,D**2,D**2))
-    T2 = np.einsum('ijjkl->ikl', a.reshape(D**2,D,D,D**2,D**2))
-    C3 = np.einsum('ijjkkl->il', a.reshape(D**2,D,D,D,D,D**2))
-    T3 = np.einsum('ijkkl->ijl', a.reshape(D**2,D**2,D,D,D**2))
-    C4 = np.einsum('ijkkll->ij', a.reshape(D**2,D**2,D,D,D,D))
-    T4 = np.einsum('ijkll->ijk', a.reshape(D**2,D**2,D**2,D,D))
-    a = a.reshape(D**2,D**2,D**2,D**2)
-    return a,C1,T1,C2,T2,C3,T3,C4,T4
+  #
+  #   C1-0  2-T1-0  1-C2            0
+  #   |       |        |             \ 1
+  #   1       1        0              \|
+  #                                  4-A-2
+  #   0       0        0               |
+  #   |       |        |               3
+  #   T4-1  3-a--1  2-T2
+  #   |       |        |
+  #   2       2        1
+  #
+  #   0       0        0
+  #   |       |        |
+  #   C4-1  2-T3-1  1-C3
+  #
+  D = A.shape[1]   # do not consider the case Dx != Dy
+  a = np.tensordot(A,A.conj(),(0,0)).transpose(0,4,1,5,2,6,3,7).reshape(D**2,D**2,D**2,D**2)
+  C1 = np.einsum('iijkll->jk', a.reshape(D,D,D**2,D**2,D,D))
+  T1 = np.einsum('iijkl->jkl', a.reshape(D,D,D**2,D**2,D**2))
+  C2 = np.einsum('iijjkl->kl', a.reshape(D,D,D,D,D**2,D**2))
+  T2 = np.einsum('ijjkl->ikl', a.reshape(D**2,D,D,D**2,D**2))
+  C3 = np.einsum('ijjkkl->il', a.reshape(D**2,D,D,D,D,D**2))
+  T3 = np.einsum('ijkkl->ijl', a.reshape(D**2,D**2,D,D,D**2))
+  C4 = np.einsum('ijkkll->ij', a.reshape(D**2,D**2,D,D,D,D))
+  T4 = np.einsum('ijkll->ijk', a.reshape(D**2,D**2,D**2,D,D))
+  return a,C1,T1,T2,C2,T3,C3,T4,C4
 
 
 class Env(object):
@@ -22,13 +36,13 @@ class Env(object):
   Container for CTMRG environment tensors.
   leg conventions:
 
-     C2-T1-T1-C1
-     |  |  |  |
-     T2-a--a--T4
-     |  |  |  |
-     T2-a--a--T4
-     |  |  |  |
-     C3-T3-T3-C4
+     C1-T1-T1-C2
+     |  |  |   |
+     T4-a--a--T2
+     |  |  |   |
+     T4-a--a--T2
+     |  |  |   |
+     C4-T3-T3-C3
   """
 
   def __init__(self, tensors, tiling, chi):
@@ -64,7 +78,7 @@ class Env(object):
     self._neq_C4s = []
     self._neq_T4s = []
 
-    self._A = tensors
+    self._neq_As = np.ascontiguousarray(tensors)
     for A in tensors:
       a,C1,T1,C2,T2,C3,T3,C4,T4 = initialize_env(A,chi)
       self._neq_as.append(a)
@@ -107,7 +121,7 @@ class Env(object):
     return self._indices[x%self._Lx, y%self._Ly]
 
   def get_A(self,x,y):
-    return self._A[self._indices[x%self._Lx, y%self._Ly]]
+    return self._neq_As[self._indices[x%self._Lx, y%self._Ly]]
 
   def get_a(self,x,y):
     return self._neq_as[self._indices[x%self._Lx, y%self._Ly]]
@@ -168,7 +182,7 @@ class Env(object):
     return self._neq_T1s
 
   @neq_T1s.setter
-  def neq_T1s(self, neq_T1s):
+  def neq_T1(self, neq_T1s):
     assert(len(neq_T1s) == self._Nneq), 'neq_T1s length is not nneq'
     self._neq_T1s = neq_T1s
 
@@ -198,15 +212,6 @@ class Env(object):
   def neq_C3s(self, neq_C3s):
     assert(len(neq_C3s) == self._Nneq), 'neq_C3s length is not nneq'
     self._neq_C3s = neq_C3s
-
-  @property
-  def neq_T3s(self):
-    return self._neq_T3s
-
-  @neq_T3s.setter
-  def neq_T3s(self, neq_T3s):
-    assert(len(neq_T3s) == self._Nneq), 'neq_T3s length is not nneq'
-    self._neq_T3s = neq_T3s
 
   @property
   def neq_C4s(self):
