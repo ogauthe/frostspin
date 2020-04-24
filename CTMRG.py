@@ -1,8 +1,10 @@
 import numpy as np
 import scipy.linalg as lg
-from Env import Env
+
+import Env
 from ctm_contract import construct_U_half, construct_L_half, construct_D_half, construct_R_half
 from ctm_renormalize import *
+import rdm
 
 class CTMRG(object):
   # convention: legs and tensors are taken clockwise.
@@ -20,7 +22,7 @@ class CTMRG(object):
     if self.verbosity > 0:
       print(f'initalize CTMRG with D = {self._D}, chi = {chi}, verbosity = {verbosity} and tiling = {tiling}')
     self.chi = chi
-    self._env = Env(tensors,tiling,chi)
+    self._env = Env.Env(tensors,tiling,chi)
     self._neq_coords = self._env.neq_coords
     self._Nneq = len(self._neq_coords)
     self._D2 = self._D**2
@@ -210,3 +212,23 @@ class CTMRG(object):
     if self.verbosity > 0:
       print('left move completed')
 
+
+  def compute_rdm1x1(self,x=0,y=0):
+    if self.verbosity > 0:
+      print(f'Compute rdm 1x1 with C1 coord = ({x},{y})')
+    return rdm.rdm_1x1(self._env,x,y)
+
+  def compute_rdm1x2(self,x=0,y=0):
+    if self.verbosity > 0:
+      print(f'Compute rdm 1x2 with C1 coord = ({x},{y})')
+    return rdm.rdm_1x2(self._env,x,y)
+
+  def compute_rdm2x1(self,x=0,y=0):
+    if self.verbosity > 0:
+      print(f'Compute rdm 2x1 with C1 coord = ({x},{y})')
+    return rdm.rdm_2x1(self._env,x,y)
+
+  def compute_rdm2x2(self,x=0,y=0):
+    if self.verbosity > 0:
+      print(f'Compute rdm 2x2 with C1 coord = ({x},{y})')
+    return rdm.rdm_2x2(self._env,x,y)
