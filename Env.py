@@ -54,8 +54,12 @@ class Env(object):
     tiling1 = tiling.strip()
     letters = list(tiling1.replace('\n','').replace(' ',''))
     tensors_str = sorted(set(letters))
-    self._Lx = tiling1.index('\n')
-    self._Ly = len(letters)//self._Lx
+    try:
+      self._Lx = tiling1.index('\n')
+      self._Ly = len(letters)//self._Lx
+    except ValueError:
+      self._Lx = len(tiling1)  # one line
+      self._Ly = 1
     indices = np.array([tensors_str.index(t) for t in letters])
     self._cell = np.array(list(map(chr,indices+65))).reshape(self._Lx,self._Ly)
     self._Nneq = len(tensors_str)
