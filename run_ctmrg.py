@@ -41,7 +41,7 @@ tAKLT2[3,1,1,1,0] = 0.5
 tAKLT2[4,1,1,1,1] = 1.0
 
 gen5 = construct_genSU2_s(2)
-SdS55 = np.tensordot(gen5, gen5, (0,0)).real.swapaxes(1,2).reshape(25,25)
+SdS55 = np.tensordot(gen5, -gen5.conj(), (0,0)).real.swapaxes(1,2).reshape(25,25)
 SdS55_2 = SdS55 @ SdS55
 
 H_AKLT = 1/28*SdS55 + 1/40*SdS55_2 + 1/180*SdS55@SdS55_2 + 1/2520*SdS55_2@SdS55_2
@@ -51,14 +51,19 @@ d = 5
 D = 2
 chi = 3
 
+tensors = [tAKLT2.copy(),tAKLT2.copy(),tAKLT2.copy()]
 tiling = """
 ABC
 BCA
 CAB
 """
 
+tensors = [tAKLT2.copy()]
+tiling = """
+A
+"""
 
-tensors = [tAKLT2.copy(),tAKLT2.copy(),tAKLT2.copy()]
+
 ctm = CTMRG(tensors,tiling,chi,verbosity=100)
 print('CTM constructed, tensors shapes are:')
 print('T1 shape =', ctm.env.get_T1(0,0).shape)
@@ -91,5 +96,5 @@ print('rdm1x2 is hermitian:', lg.norm(rdm1x2-rdm1x2.T.conj()))
 print('rdm2x1 is hermitian:', lg.norm(rdm2x1-rdm2x1.T.conj()))
 print('rdm2x2 is hermitian:', lg.norm(rdm2x2-rdm2x2.T.conj()))
 
-print('trace(H_AKLT @ rdm2x1) =', np.trace(H_AKLT @ rdm2x1))
 print('trace(H_AKLT @ rdm1x2) =', np.trace(H_AKLT @ rdm1x2))
+print('trace(H_AKLT @ rdm2x1) =', np.trace(H_AKLT @ rdm2x1))
