@@ -146,7 +146,6 @@ class CTMRG(object):
       #        R
       #      0-R
       Rt = construct_R_half(self._env,x,y,self.verbosity)
-      print(R.shape,Rt.shape)
       P,Pt = construct_projectors(R,Rt,self.chi,self.verbosity)
       self._env.set_projectors(x+1,y+3,P,Pt)
       del R, Rt
