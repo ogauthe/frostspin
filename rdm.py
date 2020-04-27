@@ -92,31 +92,52 @@ def rdm_1x2(env,x,y):
   C4 = env.get_C4(x,y+2)
   T4 = env.get_T4(x,y+1)
 
-  right = np.dot(C3.T,T2.swapaxes(0,1).reshape(chi, D**2*chi)).reshape(chi, chi, D, D)
-  left = np.dot(T4.transpose(1, 2, 0).reshape(D**2*chi, chi),C1.T).reshape(D, D, chi, chi)
-  left = left.transpose(0, 1, 3, 2).reshape(D**2*chi, chi)
-  left = np.dot(left,C4).reshape(D, D, chi, chi)
-  left = np.dot(left.reshape(D**2*chi, chi),T3l.transpose(2, 0, 1).reshape(chi, D**2*chi)).reshape(D, D, chi, D, D, chi)
-  left = left.transpose(1, 2, 4, 5, 0, 3).reshape(D**2*chi**2, D**2)
-  left = np.dot(left,Al.transpose(4, 3, 0, 1, 2).reshape(D**2, D**2*d)).reshape(D, chi, D, chi, d, D, D)
-  left = left.transpose(1, 3, 4, 5, 6, 0, 2).reshape(D**2*chi**2*d, D**2)
-  left  = np.dot(left,Al.conj().transpose(4, 3, 0, 1, 2).reshape(D**2, D**2*d)).reshape(chi, chi, d, D, D, d, D, D)
-  left = left.transpose(1, 2, 4, 5, 7, 0, 3, 6).reshape(D**2*chi*d**2, D**2*chi)
-  left = np.dot(left,T1l.swapaxes(0,2).reshape(D**2*chi, chi)).reshape(chi, d, D, d, D, chi)
-  right = right.transpose(1, 2, 3, 0).reshape(D**2*chi, chi)
-  right = np.dot(right,T3r.swapaxes(1,2).reshape(chi, D**2*chi)).reshape(chi, D, D, D, D, chi)
-  right = right.transpose(0, 1, 3, 5, 2, 4).reshape(D**2*chi**2, D**2)
-  right = np.dot(right,Ar.conj().transpose(2, 3, 0, 1, 4).reshape(D**2, D**2*d)).reshape(chi, D, D, chi, d, D, D)
-  right = right.transpose(0, 3, 4, 5, 6, 1, 2).reshape(D**2*chi**2*d, D**2)
-  right = np.dot(right,Ar.transpose(2, 3, 0, 1, 4).reshape(D**2, d*D**2)).reshape(chi, chi, d, D, D, d, D, D)
-  right = right.transpose(1, 2, 4, 5, 7, 6, 3, 0).reshape(D**2*chi*d**2, D**2*chi)
-  T1r = T1r.swapaxes(1, 0).reshape(D**2*chi, chi)
-  right = np.dot(right,T1r).reshape(chi, d, D, d, D, chi)
-  right = right.transpose(1, 3, 5, 4, 2, 0).reshape(d**2, D**2*chi**2)
-  left = left.transpose(5, 2, 4, 0, 1, 3).reshape(D**2*chi**2, d**2)
+  left = np.dot(C1,T4.reshape(chi,D2*chi)).reshape(chi*D2, chi)
+  left = np.dot(left,C4).reshape(chi*D2, chi)
+  left = np.dot(left,T3l.transpose(2, 0, 1).reshape(chi, D2*chi)).reshape(chi, D, D, D, D, chi)
+  left = left.transpose(3, 1, 0, 5, 4, 2).reshape(D2,chi**2*D2)
+  #   L-0            L-0
+  #   L              L
+  #   L=1,2   =>     L=1,2
+  #   L              L
+  #   L  34          L  34
+  #   LLLLL-5        LLLLLL-5
+  left = np.dot(Al.reshape(d*D2,D2),left).reshape(d*D2*chi**2, D2)
+  left  = np.dot(left,Al.conj().transpose(3, 4, 0, 1, 2).reshape(D2, D2*d)).reshape(d,D,D,chi,chi,d,D,D)
+  #     L-3               L-2
+  #   0 L 16            3 L 01
+  #    \LLLL=27   =>     \LLLL=47
+  #    /L                /L
+  #   5 L-4             6 L-5
+  left = left.transpose(1,6,3,0,2,4,5,7).reshape(D2*chi,d**2*chi*D2)
+  left = np.dot(T1l.reshape(chi,D2*chi),left).reshape(chi, d, D, chi, d, D)
+  right = np.dot(C3.T,T2.swapaxes(0,1).reshape(chi, D2*chi))
+  #   1           0
+  #  2R           ||
+  #  0R         2-T3r-1
+  right = np.dot(T3r.swapaxes(1,2).reshape(D**2*chi,chi), right).reshape(D, D, chi, chi, D, D)
+  right = right.transpose(0, 4, 2, 3, 5, 1).reshape(D2,chi**2*D2)
+  #          3    0                   3    0     2
+  #         4R     \1                1R     \1    \3
+  #         5R     4A2      =>       4R     2A4   4A*0
+  #      01  R      3              05 R      3     1
+  #    2-RRRRR                   2RRRRR
+  right = np.dot(Ar.swapaxes(2,4).reshape(D2*d, D2), right).reshape(d*D2*chi**2,D2)
+  right = np.dot(right,Ar.conj().transpose(2, 3, 0, 1, 4).reshape(D2, d*D2)).reshape(d,D,D,chi,chi,d,D,D)
+  #           4 0                 5 0
+  #        16 R/               67 R/
+  #   2,7=RRRRR\    =>    3,4=RRRRR\
+  #           R 5                 R 1
+  #      3RRRRR              2RRRRR
+  right = right.transpose(0,5,3,2,7,4,1,6).reshape(D2*chi*d**2, D2*chi)
+  right = np.dot(right,T1r.reshape(chi*D2,chi)).reshape(d**2, D2*chi**2)
+  #     L-0           L-3        5-R
+  # 1,4=L=2,5  => 3,4=L=1,2    3,4=R=0,1
+  #     L-3           L-0        2-R
+  left = left.transpose(3,2,5,0,1,4).reshape(D2*chi**2,d**2)
   rdm = np.dot(right,left).reshape(d, d, d, d)
   del right,left
-  rdm = rdm.transpose(2, 1, 3, 0).reshape(d**2,d**2)
+  rdm = rdm.transpose(2,0,1,3).reshape(d**2,d**2)
   rdm = rdm/np.trace(rdm)
   return rdm
 
