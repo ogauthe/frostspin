@@ -137,7 +137,7 @@ def rdm_1x2(env,x,y):
   left = left.transpose(3,2,5,0,1,4).reshape(D2*chi**2,d**2)
   rdm = np.dot(right,left).reshape(d, d, d, d)
   del right,left
-  rdm = rdm.transpose(2,0,1,3).reshape(d**2,d**2)
+  rdm = rdm.transpose(2,0,3,1).reshape(d**2,d**2)
   rdm = rdm/np.trace(rdm)
   return rdm
 
