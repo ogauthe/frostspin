@@ -47,7 +47,7 @@ def rdm_1x1(env,x,y):
   T2C2T1C1 = np.dot(T2C2.reshape(l, chi),T1C1.reshape(chi, l)).reshape(chi, D, D, D, D*chi)
   del T2C2, T1C1
   T2C2T1C1 = T2C2T1C1.transpose(2, 4, 3, 1, 0).reshape(D2, l*chi)
-  rdm = rdm.transpose(3, 1, 4, 3, 0).reshape(l*chi, D2*d)
+  rdm = rdm.transpose(2, 1, 4, 3, 0).reshape(l*chi, D2*d)
   rdm = np.dot(T2C2T1C1,rdm).reshape(D, D, D, D, d)
   del T2C2T1C1
   rdm = rdm.transpose(4, 1, 0, 3, 2).reshape(d, D2**2)
