@@ -10,11 +10,11 @@ def construct_projectors(R,Rt,chi,verbosity=0):
   U,s,V = lg.svd(R.T @ Rt)
   s12 = 1/np.sqrt(s[:chi])
   # convention: projectors have shape (last_chi*D**2,chi)
-  #  0        1
+  #  00'      1
   #  ||       |
   #  Pt       P
   #  |        ||
-  #  1        0
+  #  1        00'
   Pt = (Rt @ np.einsum('ij,i->ji', V[:chi].conj(), s12))
   P = (R @ np.einsum('ij,j->ij', U[:,:chi].conj(), s12))
   return P,Pt
