@@ -62,8 +62,6 @@ print(f'rdm1x2 is hermitian: {lg.norm(rdm1x2-rdm1x2.T.conj()):.1e}')
 print(f'rdm2x1 is hermitian: {lg.norm(rdm2x1-rdm2x1.T.conj()):.1e}')
 print(f'rdm2x2 is hermitian: {lg.norm(rdm2x2-rdm2x2.T.conj()):.1e}')
 
-print(f'trace(H_AKLT_55b @ rdm1x2) = {np.trace(H_AKLT_55b @ rdm1x2):.1e}')
-print(f'trace(H_AKLT_55b @ rdm2x1) = {np.trace(H_AKLT_55b @ rdm2x1):.1e}')
 print(f'trace(H_AKLT @ rdm1x2) = {np.trace(H_AKLT @ rdm1x2):.1e}')
 print(f'trace(H_AKLT @ rdm2x1) = {np.trace(H_AKLT @ rdm2x1):.1e}')
 
@@ -107,4 +105,28 @@ print('\nC4s are all the same:', end=' ')
 for t in C4s[1:]:
   print(f'{lg.norm(t-C4s[0]):.1e}', end=', ')
 
-print('\n'+'#'*79)
+
+
+###############################################################################
+print('\n'+'#'*30 + 'RVB tensor' + '#'*30)
+
+chi = 17
+niter = 10
+tensors = [tRVB2]
+tiling = """
+A
+"""
+
+ctm = CTMRG(tensors,tiling,chi,verbosity=0)
+print(f'chi = {chi}, launch {niter} iterations')
+for i in range(niter):
+  ctm.iterate()
+
+print('measure AF Heisenberg energy')
+for i in range(10):
+  ctm.iterate()
+  rdm1x2 = ctm.compute_rdm1x2()
+  rdm2x1 = ctm.compute_rdm2x1()
+  print(f'trace(SdS_22b @ rdm1x2) = {np.trace(SdS_22b @ rdm1x2):.5e}')
+  print(f'trace(SdS_22b @ rdm2x1) = {np.trace(SdS_22b @ rdm2x1):.5e}')
+
