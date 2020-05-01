@@ -2,7 +2,7 @@ import numpy as np
 import scipy.linalg as lg
 
 
-def initialize_env(A,chi):
+def initialize_env(A):
   #
   #   C1-0  2-T1-0  1-C2            0
   #   |       |        |             \ 1
@@ -84,7 +84,7 @@ class Env(object):
 
     self._neq_As = np.ascontiguousarray(tensors)
     for A in tensors:
-      a,C1,T1,C2,T2,C3,T3,C4,T4 = initialize_env(A,chi)
+      a,C1,T1,C2,T2,C3,T3,C4,T4 = initialize_env(A)
       self._neq_as.append(a)
       self._neq_C1s.append(C1)
       self._neq_T1s.append(T1)
