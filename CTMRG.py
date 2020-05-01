@@ -55,10 +55,10 @@ class CTMRG(object):
     # convention : for every move, leg 0 of R and Rt are to be contracted
     for x,y in self._neq_coords:
       #      1-R
-      #        R
-      #        R
-      #      0-R
-      R = construct_R_half(self._env,x,y,self.verbosity)
+      #        R     0
+      #        R  => R
+      #      0-R     1
+      R = construct_R_half(self._env,x,y,self.verbosity).T
       #        L-0
       #        L          0
       #        L    =>    Rt
@@ -97,10 +97,10 @@ class CTMRG(object):
       print('\nstart right move')
     # 1) compute isometries for every non-equivalent sites
     for x,y in self._neq_coords:
-      #      UUUU    UUUU    0
-      #      |  | => |  | => R
-      #      1  0    0  1    1
-      R = construct_U_half(self._env,x,y,self.verbosity).T
+      #      UUUU     0
+      #      |  | =>  R
+      #      1  0     1
+      R = construct_U_half(self._env,x,y,self.verbosity)
       #      0  1    0
       #      |  | => Rt
       #      DDDD    1
