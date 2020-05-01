@@ -97,14 +97,14 @@ class CTMRG(object):
       print('\nstart right move')
     # 1) compute isometries for every non-equivalent sites
     for x,y in self._neq_coords:
-      #      UUUU     0
-      #      |  | =>  R
-      #      1  0     1
-      R = construct_U_half(self._env,x,y,self.verbosity)
       #      0  1    0
-      #      |  | => Rt
+      #      |  | => R
       #      DDDD    1
-      Rt = construct_D_half(self._env,x,y,self.verbosity).T
+      R = construct_D_half(self._env,x,y,self.verbosity).T
+      #      UUUU     0
+      #      |  | =>  Rt
+      #      1  0     1
+      Rt = construct_U_half(self._env,x,y,self.verbosity)
       P,Pt = construct_projectors(R,Rt,self.chi,self.verbosity)
       self._env.set_projectors(x,y+1,P,Pt)
       del R, Rt
@@ -178,14 +178,14 @@ class CTMRG(object):
       print('\nstart left move')
     # 1) compute isometries for every non-equivalent sites
     for x,y in self._neq_coords:
+      #      UUUU      1
+      #      |  |  =>  R
+      #      1  0      0
+      R = construct_U_half(self._env,x,y,self.verbosity).T
       #      0  1
       #      |  |
       #      DDDD
-      R = construct_D_half(self._env,x,y,self.verbosity)
-      #      UUUU      1
-      #      |  |  =>  Rt
-      #      1  0      0
-      Rt = construct_U_half(self._env,x,y,self.verbosity).T
+      Rt = construct_D_half(self._env,x,y,self.verbosity)
       P,Pt = construct_projectors(R,Rt,self.chi,self.verbosity)
       self._env.set_projectors(x+3,y+1,P,Pt)
       del R, Rt
