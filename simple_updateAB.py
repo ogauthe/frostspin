@@ -106,20 +106,16 @@ class SimpleUpdateAB(object):
     # 5) SVD cut theta and renormalize D_eff*d to D_eff
     # # TODO truncate directly inside SVD
     U,s,V = lg.svd(theta)
-    U = U[:,:self._Dr]
-    V = V[:self._Dr]
     self._lambda_r = s[:self._Dr]    # renormalize lambda_r with SVD weights
 
-    # 6) remove lambdas from W_A
-    W_A = W_A.reshape(self._a, self._Du, self._Dd, self._Dl, D_eff)
-    W_A = np.einsum('audle,u,d,l,e->audle',W_A, self._lambda_u**-1, self._lambda_d**-1, self._lambda_l**-1, sA)
+    # 6) define new gammaA from W_A and U
+    U = np.einsum('i,ij->ij', sA, U[:,:self._Dr].reshape(D_eff, self._d*self._Dr))
+    W_A = np.dot(W_A, U).reshape(self._a, self._Du, self._Dd, delf._Dl, self._d, self._Dr)
 
-    # 7) define new gammaA from W_A and U
-    W_A = np.dot(W_A.reshape(D_aux,D_eff),U.reshape(D_eff,self._d*self._Dr))
-    self._gammaA = W_A.reshape(self._a, self._Du, self._Dd, self._Dl, self._d, self._Dr).transpose(4,0,1,5,2,3)
+    # 7) define new gammaA by removing lambdas
+    self_gammaA = np.einsum('audldr,u,d,l->paurdl',W_A, self._lambda_u**-1, self._lambda_d**-1, self._lambda_l**-1)
 
     # 8) repeat steps 6 and 7 for B
-    W_B = W_B.reshape(D_eff, self._a, self._Dd, self._Dl, self._Du)
-    W_B = np.einsum('eaurd,e,u,r,d->eaurd', W_B, sB, self._lambda_d**-1, self._lambda_l**-1, self._lambda_u**-1)
-    W_B = np.dot(V.reshape(self._Dr*self._d,D_eff), W_B.reshape(D_eff,D_aux))
-    self._gammaB = W_B.reshape(self._Dr, self._d, self._a, self._Dd, self._Dl, self._Du).transpose(1,2,3,4,5,0)
+    V = np.einsum('ij,j->ij', V[:self._Dr].reshape(self._Dr*self_d, D_eff), sB)
+    W_B = np.dot(V, W_B).reshape(self._Dr, self._d, self._a, self._Dd, self._Dl, self_Du)
+    self._gammaB = np.einsum('lpaurd,u,r,d->paurdl',W_B, self._lambda_d**-1, self._lambda_l**-1, self._lambda_u**-1)
