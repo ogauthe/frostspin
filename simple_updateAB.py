@@ -1,6 +1,54 @@
 import numpy as np
 import scipy.linalg as lg
 
+def svd_SU(M_A, M_B, lambda_dir, gate, D_cst, d, D_dir):
+  """
+  utilitary function
+  Construct matrix theta from tensors M_A and M_B, where lambda have been added
+  to gammaA and gammaB. Cut it using SVD.
+  """
+
+  D_eff = D_dir*d
+
+  # 1) SVD cut between constant tensors and effective tensor to update
+  # hence reduce main SVD to dimension D_eff*d < D_cst*d
+  #     \|        \|
+  #     -A-    -> -W==M-
+  #      |\        |   \
+  M_A = M_A.reshape(D_cst, D_eff)
+  W_A, sA, M_A = lg.svd(M_A, full_matrices=False)
+  M_B = M_B.reshape(D_eff, D_cst)
+  M_B, sB, W_B = lg.svd(M_B, full_matrices=False)
+
+  # 2) construct matrix theta with gate g
+  #
+  #             =MA-lr-MB=
+  #                \  /
+  #   theta =       gg
+  #                /  \
+  theta = M_A.reshape(D_eff*self._d, self._Dd)
+  theta = np.einsum('ij,j->ij', theta, lambda_dir)
+  theta = np.dot(theta, M_B.reshape(D_dir, d*D_eff) )
+  theta = theta.reshape(D_eff, d, d, D_eff).transpose(0,3,1,2).reshape(D_eff**2, d**2)
+  theta = np.dot(theta, gate)
+
+  # 3) cut theta with SVD
+  theta = theta.reshape(D_eff, D_eff, d, d).swapaxes(1,2).reshape(D_eff*d, D_eff*d)
+  M_A,s,M_B = lg.svd(theta)
+
+  # 4) renormalize link dimension
+  s = s[:D_dir]
+
+  # 5) start reconstruction of new gammaA and gammaB by unifying cst and eff
+  M_A = M_A[:,:D_dir].reshape(D_eff, d*D_dir))
+  M_A = np.einsum('i,ij->ij', sA, M_A)
+  M_A = np.dot(W_A, M_A)
+  M_B = M_B[:D_dir].reshape(D_dir*d, D_eff)
+  M_B = np.einsum('ij,j->ij', M_B, sB)
+  M_B = np.dot(M_B, W_B)
+  return M_A, s, M_B
+
+
 class SimpleUpdateAB(object):
 
   def __init__(self, sh, gates, A0=None, B0=None):
@@ -72,50 +120,15 @@ class SimpleUpdateAB(object):
     """
     update lambda_r by applying gate gr to right link
     """
-    D_aux = self._a*self._Du*self._Dd*self._Dl    # auxiliary dimension, cut by SVD
-    D_eff = self._Dr*self._d                      # effective link dimension after SVD
-
-    # 1) add diagonal lambdas to gammaA
+    # add diagonal lambdas to gammaA and gammaB
     M_A = np.einsum('paurdl,u,d,l->audlpr', self._gammaA, self._lambda_u, self._lambda_d, self._lambda_l)
-    # 2) SVD cut between constant tensors and effective tensor to update
-    # hence reduce main SVD to dimension D_eff*d < D_aux*d
-    #     \|        \|
-    #     -A-    -> -W==M-
-    #      |\        |   \
-    M_A = M_A.reshape(D_aux, D_eff)
-    W_A, sA, M_A = lg.svd(M_A, full_matrices=False)
-
-    # 3) repeat steps 1 and 2 for B
     M_B = np.einsum('paurdl,u,r,d->lpaurd', self._gammaB, self._lambda_d, self._lambda_l, self._lambda_u)
-    M_B = B.reshape(D_eff, D_aux)
-    M_B, sB, W_B = lg.svd(B, full_matrices=False)
 
-    # 4) construct matrix theta
-    #
-    #             =MA-lr-MB=
-    #                \  /
-    #   theta =       gg
-    #                /  \
-    theta = M_A.reshape(D_eff*self._d, self._Dr)
-    theta = np.einsum('ij,j->ij', theta, self._lambda_r)   # add lambda_r, more efficient after SVD
-    theta = np.dot(theta, M_B.reshape(self._Dr,self._d*D_eff) )
-    theta = theta.reshape(D_eff, self._d, self._d, D_eff).transpose(0,3,1,2).reshape(D_eff**2, self._d**2)
-    theta = np.dot(theta, self._gr)
-    theta = theta.reshape(D_eff,D_eff,self._d,self._d).swapaxes(1,2).reshape(D_eff*self._d, D_eff*self._d)
+    # construct matrix theta, renormalize bond dimension and get back tensors
+    M_A, self._lambda_r, M_B = svd_SU(M_A, M_B, self._lambda_r, self._gr, self._a*self._Du*self._Dd*self._Dl, self._d, self._Dr)
 
-    # 5) SVD cut theta and renormalize D_eff*d to D_eff
-    # # TODO truncate directly inside SVD
-    U,s,V = lg.svd(theta)
-    self._lambda_r = s[:self._Dr]    # renormalize lambda_r with SVD weights
-
-    # 6) define new gammaA from W_A and U
-    U = np.einsum('i,ij->ij', sA, U[:,:self._Dr].reshape(D_eff, self._d*self._Dr))
-    W_A = np.dot(W_A, U).reshape(self._a, self._Du, self._Dd, delf._Dl, self._d, self._Dr)
-
-    # 7) define new gammaA by removing lambdas
-    self._gammaA = np.einsum('audlpr,u,d,l->paurdl', W_A, self._lambda_u**-1, self._lambda_d**-1, self._lambda_l**-1)
-
-    # 8) repeat steps 6 and 7 for B
-    V = np.einsum('ij,j->ij', V[:self._Dr].reshape(self._Dr*self_d, D_eff), sB)
-    W_B = np.dot(V, W_B).reshape(self._Dr, self._d, self._a, self._Dd, self._Dl, self_Du)
-    self._gammaB = np.einsum('lpaurd,u,r,d->paurdl',W_B, self._lambda_d**-1, self._lambda_l**-1, self._lambda_u**-1)
+    # define new gammaA and gammaB from renormalized M_A and M_B
+    M_A = M_A.reshape(self._a, self._Du, self._Dd, delf._Dl, self._d, self._Dr)
+    self._gammaA = np.einsum('audlpr,u,d,l->paurdl', M_A, self._lambda_u**-1, self._lambda_d**-1, self._lambda_l**-1)
+    M_B = M_B.reshape(self._Dr, self._d, self._a, self._Dd, self._Dl, self_Du)
+    self._gammaB = np.einsum('lpaurd,u,r,d->paurdl',M_B, self._lambda_d**-1, self._lambda_l**-1, self._lambda_u**-1)
