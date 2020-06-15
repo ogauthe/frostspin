@@ -26,7 +26,7 @@ def svd_SU(M_A, M_B, lambda_dir, gate, D_cst, d, D_dir):
   #                \  /
   #   theta =       gg
   #                /  \
-  theta = M_A.reshape(D_eff*self._d, self._Dd)
+  theta = M_A.reshape(D_eff*d, D_dir)
   theta = np.einsum('ij,j->ij', theta, lambda_dir)
   theta = np.dot(theta, M_B.reshape(D_dir, d*D_eff) )
   theta = theta.reshape(D_eff, d, d, D_eff).transpose(0,3,1,2).reshape(D_eff**2, d**2)
@@ -40,7 +40,7 @@ def svd_SU(M_A, M_B, lambda_dir, gate, D_cst, d, D_dir):
   s = s[:D_dir]
 
   # 5) start reconstruction of new gammaA and gammaB by unifying cst and eff
-  M_A = M_A[:,:D_dir].reshape(D_eff, d*D_dir))
+  M_A = M_A[:,:D_dir].reshape(D_eff, d*D_dir)
   M_A = np.einsum('i,ij->ij', sA, M_A)
   M_A = np.dot(W_A, M_A)
   M_B = M_B[:D_dir].reshape(D_dir*d, D_eff)
@@ -128,7 +128,7 @@ class SimpleUpdateAB(object):
     M_A, self._lambda_r, M_B = svd_SU(M_A, M_B, self._lambda_r, self._gr, self._a*self._Du*self._Dd*self._Dl, self._d, self._Dr)
 
     # define new gammaA and gammaB from renormalized M_A and M_B
-    M_A = M_A.reshape(self._a, self._Du, self._Dd, delf._Dl, self._d, self._Dr)
+    M_A = M_A.reshape(self._a, self._Du, self._Dd, self._Dl, self._d, self._Dr)
     self._gammaA = np.einsum('audlpr,u,d,l->paurdl', M_A, self._lambda_u**-1, self._lambda_d**-1, self._lambda_l**-1)
-    M_B = M_B.reshape(self._Dr, self._d, self._a, self._Dd, self._Dl, self_Du)
-    self._gammaB = np.einsum('lpaurd,u,r,d->paurdl',M_B, self._lambda_d**-1, self._lambda_l**-1, self._lambda_u**-1)
+    M_B = M_B.reshape(self._Dr, self._d, self._a, self._Dd, self._Dl, self._Du)
+    self._gammaB = np.einsum('lpaurd,u,r,d->paurdl', M_B, self._lambda_d**-1, self._lambda_l**-1, self._lambda_u**-1)
