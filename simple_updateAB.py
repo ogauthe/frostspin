@@ -113,7 +113,7 @@ class SimpleUpdateAB(object):
     W_A = np.dot(W_A, U).reshape(self._a, self._Du, self._Dd, delf._Dl, self._d, self._Dr)
 
     # 7) define new gammaA by removing lambdas
-    self_gammaA = np.einsum('audldr,u,d,l->paurdl',W_A, self._lambda_u**-1, self._lambda_d**-1, self._lambda_l**-1)
+    self._gammaA = np.einsum('audlpr,u,d,l->paurdl', W_A, self._lambda_u**-1, self._lambda_d**-1, self._lambda_l**-1)
 
     # 8) repeat steps 6 and 7 for B
     V = np.einsum('ij,j->ij', V[:self._Dr].reshape(self._Dr*self_d, D_eff), sB)
