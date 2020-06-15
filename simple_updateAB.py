@@ -76,19 +76,19 @@ class SimpleUpdateAB(object):
     D_eff = self._Dr*self._d                      # effective link dimension after SVD
 
     # 1) add diagonal lambdas to gammaA
-    A = np.einsum('paurdl,u,d,l->audlpr', self._gammaA, self._lambda_u, self._lambda_d, self._lambda_l)
+    M_A = np.einsum('paurdl,u,d,l->audlpr', self._gammaA, self._lambda_u, self._lambda_d, self._lambda_l)
     # 2) SVD cut between constant tensors and effective tensor to update
     # hence reduce main SVD to dimension D_eff*d < D_aux*d
     #     \|        \|
     #     -A-    -> -W==M-
     #      |\        |   \
-    A = A.reshape(D_aux, D_eff)
-    W_A, sA, M_A = lg.svd(A,full_matrices=False)
+    M_A = M_A.reshape(D_aux, D_eff)
+    W_A, sA, M_A = lg.svd(M_A, full_matrices=False)
 
     # 3) repeat steps 1 and 2 for B
-    B = np.einsum('paurdl,u,r,d->lpaurd', self._gammaB, self._lambda_d, self._lambda_l, self._lambda_u)
-    B = B.reshape(D_eff, D_aux)
-    U_B, sB, V_B = lg.svd(B,full_matrices=False)
+    M_B = np.einsum('paurdl,u,r,d->lpaurd', self._gammaB, self._lambda_d, self._lambda_l, self._lambda_u)
+    M_B = B.reshape(D_eff, D_aux)
+    M_B, sB, W_B = lg.svd(B, full_matrices=False)
 
     # 4) construct matrix theta
     #
@@ -96,9 +96,9 @@ class SimpleUpdateAB(object):
     #                \  /
     #   theta =       gg
     #                /  \
-    theta = M_A.reshape(D_eff, self._d, self._Dr)
-    theta = np.einsum('ijk,k->ijk',theta, self._lambda_r).reshape(D_eff*self._d,self._Dr)
-    theta = np.dot(theta, U_B.reshape(self._Dr,self._d*D_eff) )
+    theta = M_A.reshape(D_eff*self._d, self._Dr)
+    theta = np.einsum('ij,j->ij', theta, self._lambda_r)   # add lambda_r, more efficient after SVD
+    theta = np.dot(theta, M_B.reshape(self._Dr,self._d*D_eff) )
     theta = theta.reshape(D_eff, self._d, self._d, D_eff).transpose(0,3,1,2).reshape(D_eff**2, self._d**2)
     theta = np.dot(theta, self._gr)
     theta = theta.reshape(D_eff,D_eff,self._d,self._d).swapaxes(1,2).reshape(D_eff*self._d, D_eff*self._d)
@@ -119,7 +119,7 @@ class SimpleUpdateAB(object):
     self._gammaA = W_A.reshape(self._a, self._Du, self._Dd, self._Dl, self._d, self._Dr).transpose(4,0,1,5,2,3)
 
     # 8) repeat steps 6 and 7 for B
-    V_B = V_B.reshape(D_eff, self._a, self._Dd, self._Dl, self._Du)
-    V_B = np.einsum('eaurd,e,u,r,d->eaurd', V_B, sB, self._lambda_d**-1, self._lambda_l**-1, self._lambda_u**-1)
-    V_B = np.dot(V.reshape(self._Dr*self._d,D_eff), V_B.reshape(D_eff,D_aux))
-    self._gammaB = V_B.reshape(self._Dr, self._d, self._a, self._Dd, self._Dl, self._Du).transpose(1,2,3,4,5,0)
+    W_B = W_B.reshape(D_eff, self._a, self._Dd, self._Dl, self._Du)
+    W_B = np.einsum('eaurd,e,u,r,d->eaurd', W_B, sB, self._lambda_d**-1, self._lambda_l**-1, self._lambda_u**-1)
+    W_B = np.dot(V.reshape(self._Dr*self._d,D_eff), W_B.reshape(D_eff,D_aux))
+    self._gammaB = W_B.reshape(self._Dr, self._d, self._a, self._Dd, self._Dl, self._Du).transpose(1,2,3,4,5,0)
