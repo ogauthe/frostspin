@@ -17,8 +17,10 @@ def svd_SU(M_A, M_B, lambda_dir, gate, D_cst, d, D_dir):
   #      |\        |   \
   M_A = M_A.reshape(D_cst, D_eff)
   W_A, sA, M_A = lg.svd(M_A, full_matrices=False)
+  M_A = np.einsum('i,ij->ij', sA, M_A)
   M_B = M_B.reshape(D_eff, D_cst)
   M_B, sB, W_B = lg.svd(M_B, full_matrices=False)
+  M_B = np.einsum('ij,j->ij', M_B, sB)
 
   # 2) construct matrix theta with gate g
   #
@@ -42,10 +44,8 @@ def svd_SU(M_A, M_B, lambda_dir, gate, D_cst, d, D_dir):
 
   # 5) start reconstruction of new gammaA and gammaB by unifying cst and eff
   M_A = M_A[:,:D_dir].reshape(D_eff, d*D_dir)
-  M_A = np.einsum('i,ij->ij', sA, M_A)
   M_A = np.dot(W_A, M_A)
   M_B = M_B[:D_dir].reshape(D_dir*d, D_eff)
-  M_B = np.einsum('ij,j->ij', M_B, sB)
   M_B = np.dot(M_B, W_B)
   return M_A, s, M_B
 
@@ -147,18 +147,14 @@ class SimpleUpdateAB(object):
     update all links
     """
     # TODO: do not add and remove lambdas every time, keep some
+    # TODO: merge all directional functions, fine dealing with lambda
+    # goes to 2nd order Trotter by reversing order, tau twice bigger for gl
+    # and call once. Wait for working ctm to test.
     self.update_up()
     self.update_right()
     self.update_down()
     self.update_left()
-    # 2nd order Trotter by reversing order
-    self.update_left()
-    self.update_down()
-    self.update_right()
-    self.update_up()
 
-    self._gammaA /= lg.norm(self._gammaA)
-    self._gammaB /= lg.norm(self._gammaB)
 
   def update_right(self):
     """
