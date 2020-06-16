@@ -1,10 +1,17 @@
+#! /usr/bin/env python3
+
 import numpy as np
 import scipy.linalg as lg
 from simple_updateAB import SimpleUpdateAB
+from test_tools import H_AKLT
 
-sh = ((2,2,6,4,5,3))
-gates = [np.random.random((4,4))]*4
+d = 5
+a = 1
+D = 3
+sh = ((d,a,D,D,D,D))
+
+gates = [H_AKLT]*4
 su = SimpleUpdateAB(sh,gates)
 
-su.update()
-su.update()
+for i in range(100):
+  su.update()
