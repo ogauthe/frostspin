@@ -124,6 +124,13 @@ class SimpleUpdateAB(object):
     self.update_right()
     self.update_down()
     self.update_left()
+    self._gammaA /= lg.norm(self._gammaA)
+    self._gammaB /= lg.norm(self._gammaB)
+    n = np.sqrt(lg.norm(self._lambda_u)**2 + lg.norm(self._lambda_r)**2 + lg.norm(self._lambda_d)**2 + lg.norm(self._lambda_l)**2)
+    self._lambda_u /= n
+    self._lambda_r /= n
+    self._lambda_d /= n
+    self._lambda_l /= n
 
 
   def update_right(self):
