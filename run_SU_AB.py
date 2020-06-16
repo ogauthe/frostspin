@@ -32,8 +32,7 @@ su_iter = 1000
 print(f'run simple update with d = {d}, a = {a}, D = {D}, converge CTM with chi = {chi}')
 
 tau = 0.01
-gates = [lg.expm(-tau*H_AKLT)]*4
-su = SimpleUpdateAB(sh,gates)
+su = SimpleUpdateAB(sh, H_AKLT, tau)
 
 eps0 = evalH(su,chi)
 print(f'Random tensors: <H_AKLT> = {eps0:.4e}')
