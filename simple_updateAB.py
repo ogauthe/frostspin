@@ -52,7 +52,7 @@ def svd_SU(M_A, M_B, lambda_dir, gate, D_cst, d, D_dir):
 
 class SimpleUpdateAB(object):
 
-  def __init__(self, sh, gates, A0=None, B0=None):
+  def __init__(self, sh, hamilt, tau, A0=None, B0=None):
     """
     sh: tuple of int, shape of tensor A.
     form (d,a,Du,Dr,Dd,Dl), where a=1 for pure wavefunction and a=d for thermal TN
@@ -81,16 +81,26 @@ class SimpleUpdateAB(object):
     else:
       B0 = np.random.random((self._d,self._a,self._Dd,self._Dl,self._Du,self._Dr))
 
-    self._gu, self._gr, self._gd, self._gl = gates
-    shg = (self._d**2, self._d**2)
-    if self._gu.shape != shg:
-      raise ValueError('invalid shape for up gate')
-    if self._gr.shape != shg:
-      raise ValueError('invalid shape for right gate')
-    if self._gd.shape != shg:
-      raise ValueError('invalid shape for down gate')
-    if self._gl.shape != shg:
-      raise ValueError('invalid shape for left gate')
+    # hamilt can be either 1 unique numpy array for all bonds or a list/tuple
+    # of 4 bond-dependant Hamiltonians
+    shH = (self._d**2, self._d**2)
+    if type(hamilt) == list or type(hamilt) == tuple:
+      self._hamilt = None
+      self._hu, self._hr, self._hd, self._hl = hamilt
+      if self._hu.shape != shH:
+        raise ValueError('invalid shape for up Hamilt')
+      if self._hr.shape != shH:
+        raise ValueError('invalid shape for right Hamilt')
+      if self._hd.shape != shH:
+        raise ValueError('invalid shape for down Hamilt')
+      if self._hl.shape != shH:
+        raise ValueError('invalid shape for left Hamilt')
+    else:
+      if hamilt.shape != shH
+        raise ValueError('invalid shape for Hamiltonian')
+      self._hamilt = hamilt
+
+    self.set_tau(tau)
 
     self._gammaA = A0
     self._gammaB = B0
@@ -99,6 +109,20 @@ class SimpleUpdateAB(object):
     self._lambda_r = np.ones(self._Dr)
     self._lambda_d = np.ones(self._Dd)
     self._lambda_l = np.ones(self._Dl)
+
+
+  def set_tau(self, tau):
+    """
+    set imaginary time step value
+    """
+    if self._hamilt is not None:
+      g = lg.expm(-tau*self._hamilt)
+      self._gu, self._gr, self_gd, self_gl = [g]*4
+    else:
+      self._gu = lg.expm(-tau*self._hu)
+      self._gr = lg.expm(-tau*self._hr)
+      self._gd = lg.expm(-tau*self._hd)
+      self._gl = lg.expm(-tau*self._hl)
 
 
   def get_AB(self):
