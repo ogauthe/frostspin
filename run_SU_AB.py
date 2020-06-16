@@ -36,7 +36,7 @@ gates = [lg.expm(-tau*H_AKLT)]*4
 su = SimpleUpdateAB(sh,gates)
 
 eps0 = evalH(su,chi)
-print(f'Random tensors: <H_AKLT> = {eps0:.1e}')
+print(f'Random tensors: <H_AKLT> = {eps0:.4e}')
 
 print(f'Iter simple update for {su_iter} times', end='...')
 for i in range(su_iter):
@@ -44,4 +44,4 @@ for i in range(su_iter):
 print(' Done. Evaluate energy')
 
 eps1 = evalH(su,chi)
-print(f'Done, <H_AKLT> = {eps1:.1e}')
+print(f'Done, <H_AKLT> = {eps1:.4e}')
