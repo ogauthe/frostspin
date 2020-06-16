@@ -29,6 +29,7 @@ D = 3
 chi = 40
 sh = ((d,a,D,D,D,D))
 su_iter = 1000
+print(f'run simple update with d = {d}, a = {a}, D = {D}, converge CTM with chi = {chi}')
 
 tau = 0.01
 gates = [lg.expm(-tau*H_AKLT)]*4
