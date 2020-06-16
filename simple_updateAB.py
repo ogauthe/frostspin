@@ -59,6 +59,16 @@ class SimpleUpdateAB(object):
     """
 
     self._d, self._a, self._Du, self._Dr, self._Dd, self._Dl = sh
+
+    if self._Du*self._d > self._a*self._Dr*self._Dd*self._Dl:
+      raise ValueError('up bond: D_eff > D_cst, cannot reshape')
+    if self._Dr*self._d > self._a*self._Du*self._Dd*self._Dl:
+      raise ValueError('right bond: D_eff > D_cst, cannot reshape')
+    if self._Dd*self._d > self._a*self._Du*self._Dr*self._Dl:
+      raise ValueError('down bond: D_eff > D_cst, cannot reshape')
+    if self._Dl*self._d > self._a*self._Du*self._Dr*self._Dd:
+      raise ValueError('left bond: D_eff > D_cst, cannot reshape')
+
     if A0 is not None:
       if A0.shape is not sh:
         raise ValueError("invalid shape for A0")
