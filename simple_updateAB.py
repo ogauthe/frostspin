@@ -117,7 +117,7 @@ class SimpleUpdateAB(object):
     """
     if self._hamilt is not None:
       g = lg.expm(-tau*self._hamilt)
-      self._gu, self._gr, self_gd, self_gl = [g]*4
+      self._gu, self._gr, self._gd, self._gl = [g]*4
     else:
       self._gu = lg.expm(-tau*self._hu)
       self._gr = lg.expm(-tau*self._hr)
