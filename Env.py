@@ -50,7 +50,6 @@ class Env(object):
     tensors: list-like containing tensors.
     tiling: string. Tiling pattern.
     """
-    self._tensors = list(tensors)
     tiling1 = tiling.strip()
     letters = list(tiling1.replace('\n','').replace(' ',''))
     tensors_str = sorted(set(letters))
