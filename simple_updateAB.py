@@ -96,7 +96,7 @@ class SimpleUpdateAB(object):
       if self._hl.shape != shH:
         raise ValueError('invalid shape for left Hamilt')
     else:
-      if hamilt.shape != shH
+      if hamilt.shape != shH:
         raise ValueError('invalid shape for Hamiltonian')
       self._hamilt = hamilt
 
