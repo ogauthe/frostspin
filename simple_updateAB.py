@@ -73,13 +73,17 @@ class SimpleUpdateAB(object):
     if A0 is not None:
       if A0.shape is not sh:
         raise ValueError("invalid shape for A0")
+      self._gammaA = A0
     else:
-      A0 = np.random.random(sh)
+      self._gammaA = np.random.random(sh)
     if B0 is not None:
       if B0.shape is not (self._d,self._a,self._Dd,self._Dl,self._Du,self._Dr):
         raise ValueError("invalid shape for B0")
+      self._gammaB = B0
     else:
-      B0 = np.random.random((self._d,self._a,self._Dd,self._Dl,self._Du,self._Dr))
+      self._gammaB = np.random.random((self._d,self._a,self._Dd,self._Dl,self._Du,self._Dr))
+    self._gammaA /= lg.norm(self._gammaA)
+    self._gammaB /= lg.norm(self._gammaB)
 
     # hamilt can be either 1 unique numpy array for all bonds or a list/tuple
     # of 4 bond-dependant Hamiltonians
@@ -101,10 +105,6 @@ class SimpleUpdateAB(object):
       self._hamilt = hamilt
 
     self.set_tau(tau)
-
-    self._gammaA = A0
-    self._gammaB = B0
-    # using structure to store lambdas just makes code unclear and not much more versatile.
     self._lambda_u = np.ones(self._Du)
     self._lambda_r = np.ones(self._Dr)
     self._lambda_d = np.ones(self._Dd)
