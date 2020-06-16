@@ -38,6 +38,7 @@ def svd_SU(M_A, M_B, lambda_dir, gate, D_cst, d, D_dir):
 
   # 4) renormalize link dimension
   s = s[:D_dir]
+  s /= s.sum()  # singular values are positive
 
   # 5) start reconstruction of new gammaA and gammaB by unifying cst and eff
   M_A = M_A[:,:D_dir].reshape(D_eff, d*D_dir)
@@ -112,6 +113,8 @@ class SimpleUpdateAB(object):
     l = np.sqrt(self._lambda_l)
     A = np.einsum('paurdl,u,r,d,l->paurdl',self._gammaA,u,r,d,l)
     B = np.einsum('paurdl,u,r,d,l->paurdl',self._gammaB,d,l,u,r)
+    A /= lg.norm(A)
+    B /= lg.norm(B)
     return A,B
 
 
@@ -124,14 +127,14 @@ class SimpleUpdateAB(object):
     self.update_right()
     self.update_down()
     self.update_left()
+    # 2nd order Trotter by reversing order
+    self.update_left()
+    self.update_down()
+    self.update_right()
+    self.update_up()
+
     self._gammaA /= lg.norm(self._gammaA)
     self._gammaB /= lg.norm(self._gammaB)
-    n = np.sqrt(lg.norm(self._lambda_u)**2 + lg.norm(self._lambda_r)**2 + lg.norm(self._lambda_d)**2 + lg.norm(self._lambda_l)**2)
-    self._lambda_u /= n
-    self._lambda_r /= n
-    self._lambda_d /= n
-    self._lambda_l /= n
-
 
   def update_right(self):
     """
