@@ -64,8 +64,8 @@ def rdm_1x2(C1, T1l, T1r, C2, T4, Al, Ar, T2, C4, T3l, T3r, C3):
   #   |          |                |             |
   #   C4-1     2-T3-1           2-T3-1       1-C3
 
-  left = np.dot(C1,T4.reshape(T4.shape[0],T4.shape[1]*T4.shape[2])).reshape(C1.shape[0]*T4.shape[0], T4.shape[1])
-  left = np.dot(left,C4).reshape(C1.shape[0]*T4.shape[0], C4.shape[1])
+  left = np.dot(C1,T4.reshape(T4.shape[0],T4.shape[1]*T4.shape[2])).reshape(C1.shape[0]*T4.shape[1], T4.shape[2])
+  left = np.dot(left,C4)
   left = np.dot(left,T3l.transpose(2, 0, 1).reshape(T3l.shape[2], T3l.shape[0]*T3l.shape[1])).reshape(C1.shape[0], Al.shape[4], Al.shape[4], Al.shape[3], Al.shape[3], T3l.shape[1])
   left = left.transpose(3, 1, 0, 5, 4, 2).reshape(Al.shape[3]*Al.shape[4], C1.shape[0]*T3l.shape[1]*Al.shape[3]*Al.shape[4])
   #   L-0            L-2
@@ -168,27 +168,27 @@ def rdm_2x2(C1,T1l,T1r,C2,T4u,Aul,Aur,T2u,T4d,Adl,Adr,T2d,C4,T3l,T3r,C3):
   ul = np.dot(T1l.reshape(T1l.shape[0]*T1l.shape[1], T1l.shape[2]),C1)
   ul = np.dot(ul,T4u.reshape(T4u.shape[0], T4u.shape[1]*T4u.shape[2])).reshape(T1l.shape[0]*Aul.shape[1], Aul.shape[1], Aul.shape[4], Aul.shape[4], T4u.shape[2])
   ul = ul.transpose(0, 2, 4, 1, 3).reshape(T1l.shape[0]*Aul2.shape[0]*T4u.shape[2], Aul2.shape[0])
-  ul = np.dot(ul,Aul.conj()).reshape(T1l.shape[0], Aul2.shape[0], T4u.shape[2]*Aul2.shape[1])
+  ul = np.dot(ul,Aul2.conj()).reshape(T1l.shape[0], Aul2.shape[0], T4u.shape[2]*Aul2.shape[1])
   ul = ul.swapaxes(1,2).reshape(T1l.shape[0]*T4u.shape[2]*Aul2.shape[1], Aul2.shape[0])
-  ul = np.dot(ul,Aul).reshape(T1l.shape[0], T4u.shape[2], Aul.shape[0]*Aul.shape[2], Aul.shape[3], Aul.shape[0]*Aul.shape[2], Aul.shape[3])
+  ul = np.dot(ul,Aul2).reshape(T1l.shape[0], T4u.shape[2], Aul.shape[0]*Aul.shape[2], Aul.shape[3], Aul.shape[0]*Aul.shape[2], Aul.shape[3])
   ul = ul.transpose(0, 2, 4, 1, 5, 3).reshape(T1l.shape[0]*(Aul.shape[0]*Aul.shape[2])**2, T4u.shape[2]*Aul.shape[3]**2)
   left = np.dot(ul,dl).reshape(T1l.shape[0], Aul.shape[0], Aul.shape[2], Aul.shape[0], Aul.shape[2], T3l.shape[1], Adl.shape[0], Adl.shape[2], Adl.shape[0], Adl.shape[2])
   del ul,dl
   left = left.transpose(0, 4, 2, 7, 9, 5, 1, 3, 6, 8).reshape(T1l.shape[0]*Aul.shape[2]**2*Adl.shape[2]**2*T3l.shape[1], (Aul.shape[0]*Adl.shape[0])**2)
 
   ur = np.dot(C2,T1r.reshape(T1r.shape[0], T1r.shape[1]*T1r.shape[2]))
-  ur = np.dot(ur.T,T2u.reshape(T2r.shape[0], T2r.shape[1]*T2r.shape[2])).reshape(Aur.shape[1], Aur.shape[1]*T1r.shape[2]*T2r.shape[1], Aur.shape[2], Aur.shape[2])
-  ur = ur.transpose(1, 3, 0, 2).reshape(Aur2.shape[0]*T1r.shape[2]*T2r.shape[1], Aur2.shape[0])
-  ur = np.dot(ur,Aur2).reshape(Aur.shape[1], T1r.shape[2]*T2r.shape[1], Aur.shape[2], Aur2.shape[1])
-  ur = ur.transpose(1, 3, 0, 2).reshape(T1r.shape[2]*T2r.shape[1]*Aur2.shape[1], Aur2.shape[0])
-  ur = np.dot(ur,Aur2.conj()).reshape(T1r.shape[2], T2r.shape[1], Aur.shape[0], Aur.shape[3], Aur.shape[4]*Aur.shape[0], Aur.shape[3], Aur.shape[4])
-  ur = ur.transpose(3, 5, 1, 0, 2, 4, 6).reshape(Aur.shape[3]**2*T2r.shape[1], T1r.shape[2]*(Aur.shape[0]*Aur.shape[4])**2)
+  ur = np.dot(ur.T,T2u.reshape(T2u.shape[0], T2u.shape[1]*T2u.shape[2])).reshape(Aur.shape[1], Aur.shape[1]*T1r.shape[2]*T2u.shape[1], Aur.shape[2], Aur.shape[2])
+  ur = ur.transpose(1, 3, 0, 2).reshape(Aur.shape[1]*T1r.shape[2]*T2u.shape[1]*Aur.shape[2], Aur2.shape[0])
+  ur = np.dot(ur,Aur2).reshape(Aur.shape[1], T1r.shape[2]*T2u.shape[1], Aur.shape[2], Aur2.shape[1])
+  ur = ur.transpose(1, 3, 0, 2).reshape(T1r.shape[2]*T2u.shape[1]*Aur2.shape[1], Aur2.shape[0])
+  ur = np.dot(ur,Aur2.conj()).reshape(T1r.shape[2], T2u.shape[1], Aur.shape[0], Aur.shape[3], Aur.shape[4]*Aur.shape[0], Aur.shape[3], Aur.shape[4])
+  ur = ur.transpose(3, 5, 1, 0, 2, 4, 6).reshape(Aur.shape[3]**2*T2u.shape[1], T1r.shape[2]*(Aur.shape[0]*Aur.shape[4])**2)
   dr = np.dot(C3,T3r.swapaxes(0,1).reshape(T3r.shape[1], T3r.shape[0]*T3r.shape[2]))
   dr = np.dot(dr.T,T2d.swapaxes(0,1).reshape(T2d.shape[1], T2d.shape[0]*T2d.shape[2])).reshape(Adr.shape[3], Adr.shape[3]*T3r.shape[2]*T2d.shape[0], Adr.shape[2], Adr.shape[2])
   dr = dr.transpose(1, 3, 2, 0).reshape(Adr.shape[3]*T3r.shape[2]*T2d.shape[0]*Adr.shape[2], Adr2.shape[0])
   dr = np.dot(dr,Adr2).reshape(Adr.shape[3], T3r.shape[2]*T2d.shape[0], Adr.shape[2], Adr2.shape[1])
   dr = dr.transpose(1, 3, 2, 0).reshape(T3r.shape[2]*T2d.shape[0]*Adr2.shape[1], Adr2.shape[0])
-  dr = np.dot(dr,Adr.conj()).reshape(T3r.shape[2], T2d.shape[0], Adr.shape[0], Adr.shape[1], Adr.shape[4]*Adr.shape[0], Adr.shape[1], Adr.shape[4])
+  dr = np.dot(dr,Adr2.conj()).reshape(T3r.shape[2], T2d.shape[0], Adr.shape[0], Adr.shape[1], Adr.shape[4]*Adr.shape[0], Adr.shape[1], Adr.shape[4])
   dr = dr.transpose(0, 2, 4, 6, 3, 5, 1).reshape(T3r.shape[2]*(Adr.shape[4]*Adr.shape[0])**2, ur.shape[0])
   right = np.dot(dr,ur).reshape(T3r.shape[2], Adr.shape[0], Adr.shape[4], Adr.shape[0], Adr.shape[4], T1r.shape[2], Aur.shape[0], Aur.shape[4], Aur.shape[0], Aur.shape[4])
   del dr, ur
