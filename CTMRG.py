@@ -17,15 +17,13 @@ class CTMRG(object):
   #    C4-T3-T3-C3
 
   def __init__(self,tensors,tiling,chi,verbosity=0):
-    self._D = tensors[0].shape[1]
     self.verbosity = verbosity
     if self.verbosity > 0:
-      print(f'initalize CTMRG with D = {self._D}, chi = {chi}, verbosity = {verbosity} and tiling = {tiling}')
+      print(f'initalize CTMRG with chi = {chi}, verbosity = {verbosity} and tiling = {tiling}')
     self.chi = chi
     self._env = Env.Env(tensors,tiling,chi)
     self._neq_coords = self._env.neq_coords
     self._Nneq = len(self._neq_coords)
-    self._D2 = self._D**2
     if self.verbosity > 0:
       print('CTMRG constructed')
 
