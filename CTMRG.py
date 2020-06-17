@@ -213,29 +213,29 @@ class CTMRG(object):
   def compute_rdm1x1(self,x=0,y=0):
     if self.verbosity > 0:
       print(f'Compute rdm 1x1 with C1 coord = ({x},{y})')
-    return rdm.rdm_1site(self._env.get_C1(x,y), self._env.get_T1(x+1,y),
+    return rdm.rdm_1x1(self._env.get_C1(x,y), self._env.get_T1(x+1,y),
                          self._env.get_C2(x+2,y), self._env.get_T4(x,y+1),
                          self._env.get_A(x+1,y+1), self._env.get_T2(x+2,y+1),
-                         self._env.get_C4(x,y+2), self._env.get_C3(x+2,y+2),
-                         self._env.get_T3(x+1,y+2))
+                         self._env.get_C4(x,y+2), self._env.get_T3(x+1,y+2),
+                         self._env.get_C3(x+2,y+2))
 
 
   def compute_rdm1x2(self,x=0,y=0):
     if self.verbosity > 0:
       print(f'Compute rdm 1x2 with C1 coord = ({x},{y})')
-    return rdm.rdm_2sites(self._env.get_C1(x,y), self._env.get_T1(x+1,y),
+    return rdm.rdm_1x2(self._env.get_C1(x,y), self._env.get_T1(x+1,y),
                           self._env.get_T1(x+2,y), self._env.get_C2(x+3,y),
                           self._env.get_T4(x,y+1), self._env.get_A(x+1,y+1),
                           self._env.get_A(x+2,y+1), self._env.get_T2(x+3,y+1),
-                          self._env.get_C3(x+3,y+2), self._env.get_T3(x+2,y+2),
-                          self._env.get_T3(x+1,y+2), self._env.get_C4(x,y+2))
+                          self._env.get_C4(x,y+2), self._env.get_T3(x+1,y+2),
+                          self._env.get_T3(x+2,y+2), self._env.get_C3(x+3,y+2))
 
 
 
   def compute_rdm2x1(self,x=0,y=0):
     if self.verbosity > 0:
       print(f'Compute rdm 2x1 with C1 coord = ({x},{y})')
-    return rdm.rdm_2sites(self._env.get_C1(x,y), self._env.get_T1(x+1,y),
+    return rdm.rdm_2x1(self._env.get_C1(x,y), self._env.get_T1(x+1,y),
                           self._env.get_C2(x+2,y), self._env.get_T4(x,y+1),
                           self._env.get_A(x+1,y+1), self._env.get_T2(x+2,y+1),
                           self._env.get_T4(x,y+2), self._env.get_A(x+1,y+2),
@@ -247,10 +247,10 @@ class CTMRG(object):
     if self.verbosity > 0:
       print(f'Compute rdm 2x2 with C1 coord = ({x},{y})')
     return rdm.rdm_2x2(self._env.get_C1(x,y), self._env.get_T1(x+1,y),
-                       self._env.get_T1(x+2,y), self._env.get_C2(x+2,y),
+                       self._env.get_T1(x+2,y), self._env.get_C2(x+3,y),
                        self._env.get_T4(x,y+1), self._env.get_A(x+1,y+1),
                        self._env.get_A(x+2,y+1), self._env.get_T2(x+3,y+1),
-                       self._env.get_T4(x,y+2), self._env.get_A(x+2,y+2),
-                       self._env.get_A(x+1,y+2), self._env.get_T2(x+3,y+2),
+                       self._env.get_T4(x,y+2), self._env.get_A(x+1,y+2),
+                       self._env.get_A(x+2,y+2), self._env.get_T2(x+3,y+2),
                        self._env.get_C4(x,y+3), self._env.get_T3(x+1,y+3),
                        self._env.get_T3(x+2,y+3), self._env.get_C3(x+3,y+3))
