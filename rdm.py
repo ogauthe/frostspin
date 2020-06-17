@@ -1,6 +1,6 @@
 import numpy as np
 
-def rdm_1x1(C1,T1,C2,T4,A,T2,C4,T3,C3)
+def rdm_1x1(C1,T1,C2,T4,A,T2,C4,T3,C3):
   """
   Compute 1-site reduced density matrix from CTMRG environment tensors
   """
@@ -42,7 +42,7 @@ def rdm_1x1(C1,T1,C2,T4,A,T2,C4,T3,C3)
   return rdm/np.trace(rdm)
 
 
-def rdm_1x2(C1, T1l, T1r, C2, T4, Al, Ar, T2, C4, T3l, T3r, C3)
+def rdm_1x2(C1, T1l, T1r, C2, T4, Al, Ar, T2, C4, T3l, T3r, C3):
   """
   Compute reduced density matrix for 2 sites in a row
   """
@@ -119,7 +119,7 @@ def rdm_1x2(C1, T1l, T1r, C2, T4, Al, Ar, T2, C4, T3l, T3r, C3)
   return rdm
 
 
-def rdm_2x1(C1,T1,C2,T4u,Au,T2u,T4d,Ad,T2d,C4,T3,C3)
+def rdm_2x1(C1,T1,C2,T4u,Au,T2u,T4d,Ad,T2d,C4,T3,C3):
   """
   Compute reduced density matrix for 2 sites in a column
   """
@@ -130,7 +130,7 @@ def rdm_2x1(C1,T1,C2,T4u,Au,T2u,T4d,Ad,T2d,C4,T3,C3)
                  T4d.transpose(1,2,0),C4.T)
 
 
-def rdm_2x2sites(C1,T1l,T1r,C2,T4u,Aul,Aur,T2u,T4d,Adl,Adr,T2d,C4,T3l,T3r,C3)
+def rdm_2x2(C1,T1l,T1r,C2,T4u,Aul,Aur,T2u,T4d,Adl,Adr,T2d,C4,T3l,T3r,C3):
   #
   #   C1-0     2-T1-0           2-T1-0       1-C2
   #   |          |                |             |
