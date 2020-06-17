@@ -4,7 +4,7 @@ def rdm_1x1(C1,T1,C2,T4,A,T2,C4,T3,C3):
   """
   Compute 1-site reduced density matrix from CTMRG environment tensors
   """
-  #   C1-0       3-T1-0         1-C2
+  #   C1-0       2-T1-0         1-C2
   #   |            ||              |
   #   1            11'             0
   #         0        0
@@ -12,11 +12,11 @@ def rdm_1x1(C1,T1,C2,T4,A,T2,C4,T3,C3):
   #   |       \|       \|          |
   #   T4-1   4-A--2   4-A*-2   2--T2
   #   | \1'    |        |      2'/ |
-  #   3        3        3          1
+  #   2        3        3          1
   #
   #   0           00'              0
   #   |           ||               |
-  #   C4-1      3-T3-2          1-C3
+  #   C4-1      2-T3-1          1-C3
 
   # bypassing tensordot makes code conceptually simpler and memory efficient but unreadable
   T3C3 = T3.swapaxes(1,2).reshape(T3.shape[0]*T3.shape[2], T3.shape[1])
