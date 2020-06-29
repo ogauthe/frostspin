@@ -71,19 +71,19 @@ class SimpleUpdateAB(object):
       raise ValueError('left bond: D_eff > D_cst, cannot reshape')
 
     if A0 is not None:
-      if A0.shape is not sh:
+      if A0.shape != sh:
         raise ValueError("invalid shape for A0")
       self._gammaA = A0
     else:
       self._gammaA = np.random.random(sh)
     if B0 is not None:
-      if B0.shape is not (self._d,self._a,self._Dd,self._Dl,self._Du,self._Dr):
+      if B0.shape != (self._d,self._a,self._Dd,self._Dl,self._Du,self._Dr):
         raise ValueError("invalid shape for B0")
       self._gammaB = B0
     else:
       self._gammaB = np.random.random((self._d,self._a,self._Dd,self._Dl,self._Du,self._Dr))
-    self._gammaA /= lg.norm(self._gammaA)
-    self._gammaB /= lg.norm(self._gammaB)
+    self._gammaA = self._gammaA/lg.norm(self._gammaA)
+    self._gammaB = self._gammaB/lg.norm(self._gammaB)
 
     # hamilt can be either 1 unique numpy array for all bonds or a list/tuple
     # of 4 bond-dependant Hamiltonians
