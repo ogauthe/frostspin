@@ -8,19 +8,19 @@ def svd_SU(M_A, M_B, lambda_dir, gate, D_cst, d, D_dir):
   to gammaA and gammaB. Cut it using SVD.
   """
 
-  D_eff = D_dir*d
-
   # 1) SVD cut between constant tensors and effective tensor to update
   # hence reduce main SVD to dimension D_eff*d < D_cst*d
   #     \|        \|
   #     -A-    -> -W==M-
   #      |\        |   \
-  M_A = M_A.reshape(D_cst, D_eff)
+  M_A = M_A.reshape(D_cst, d*D_dir)
   W_A, sA, M_A = lg.svd(M_A, full_matrices=False)
-  M_A = np.einsum('i,ij->ij', sA, M_A)
-  M_B = M_B.reshape(D_eff, D_cst)
+  D_effA = len(sA)
+  M_A *= sA[:,None]
+  M_B = M_B.reshape(D_dir*d, D_cst)
   M_B, sB, W_B = lg.svd(M_B, full_matrices=False)
-  M_B = np.einsum('ij,j->ij', M_B, sB)
+  D_effB = len(sB)
+  M_B *= sB
 
   # 2) construct matrix theta with gate g
   #
@@ -29,13 +29,13 @@ def svd_SU(M_A, M_B, lambda_dir, gate, D_cst, d, D_dir):
   #   theta =       gg
   #                /  \
   theta = M_A.reshape(D_eff*d, D_dir)
-  theta = np.einsum('ij,j->ij', theta, lambda_dir)
-  theta = np.dot(theta, M_B.reshape(D_dir, d*D_eff) )
-  theta = theta.reshape(D_eff, d, d, D_eff).transpose(0,3,1,2).reshape(D_eff**2, d**2)
+  theta *= lambda_dir
+  theta = np.dot(theta, M_B.reshape(D_dir, d*D_effB) )
+  theta = theta.reshape(D_eff, d, d, D_eff).transpose(0,3,1,2).reshape(D_effA*D_effB, d**2)
   theta = np.dot(theta, gate)
 
   # 3) cut theta with SVD
-  theta = theta.reshape(D_eff, D_eff, d, d).swapaxes(1,2).reshape(D_eff*d, D_eff*d)
+  theta = theta.reshape(D_effA, D_effB, d, d).swapaxes(1,2).reshape(D_effA*d, D_effB*d)
   M_A,s,M_B = lg.svd(theta)
 
   # 4) renormalize link dimension
@@ -43,9 +43,9 @@ def svd_SU(M_A, M_B, lambda_dir, gate, D_cst, d, D_dir):
   s /= s.sum()  # singular values are positive
 
   # 5) start reconstruction of new gammaA and gammaB by unifying cst and eff
-  M_A = M_A[:,:D_dir].reshape(D_eff, d*D_dir)
+  M_A = M_A[:,:D_dir].reshape(D_effA, d*D_dir)
   M_A = np.dot(W_A, M_A)
-  M_B = M_B[:D_dir].reshape(D_dir*d, D_eff)
+  M_B = M_B[:D_dir].reshape(D_dir,DeffB,d).swapaxes(1,2).reshape(D_dir*d, D_effB)
   M_B = np.dot(M_B, W_B)
   return M_A, s, M_B
 
