@@ -28,10 +28,10 @@ def svd_SU(M_A, M_B, lambda_dir, gate, D_cst, d, D_dir):
   #                \  /
   #   theta =       gg
   #                /  \
-  theta = M_A.reshape(D_eff*d, D_dir)
+  theta = M_A.reshape(D_effA*d, D_dir)
   theta *= lambda_dir
   theta = np.dot(theta, M_B.reshape(D_dir, d*D_effB) )
-  theta = theta.reshape(D_eff, d, d, D_eff).transpose(0,3,1,2).reshape(D_effA*D_effB, d**2)
+  theta = theta.reshape(D_effA, d, d, D_effB).transpose(0,3,1,2).reshape(D_effA*D_effB, d**2)
   theta = np.dot(theta, gate)
 
   # 3) cut theta with SVD
@@ -45,7 +45,7 @@ def svd_SU(M_A, M_B, lambda_dir, gate, D_cst, d, D_dir):
   # 5) start reconstruction of new gammaA and gammaB by unifying cst and eff
   M_A = M_A[:,:D_dir].reshape(D_effA, d*D_dir)
   M_A = np.dot(W_A, M_A)
-  M_B = M_B[:D_dir].reshape(D_dir,DeffB,d).swapaxes(1,2).reshape(D_dir*d, D_effB)
+  M_B = M_B[:D_dir].reshape(D_dir,D_effB,d).swapaxes(1,2).reshape(D_dir*d, D_effB)
   M_B = np.dot(M_B, W_B)
   return M_A, s, M_B
 
