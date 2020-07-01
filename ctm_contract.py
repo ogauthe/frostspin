@@ -1,59 +1,59 @@
 import numpy as np
-import scipy.linalg as lg
 
 
 ###############################################################################
 #  construct 2x2 corners
 ###############################################################################
 
-def construct_UL_corner(env,x,y,verbosity=0):
-  #                     0
-  #                     |
-  #  2-T1-0    C1-0     T4-1
-  #    |       |        |
-  #    1       1        2
-  T4 = env.get_T4(x,y+1)
-  C1 = env.get_C1(x,y)
-  T1 = env.get_T1(x+1,y)
-  a = env.get_a(x+1,y+1)
-  if verbosity > 1:
-    print('construct_UL_corner: T4.shape =', T4.shape, 'C1.shape =', C1.shape,
-          'T1.shape =',T1.shape)
-
-  #  C1-02-T1-0
-  #  |     |
-  #  1->2  1
-  cornerUL = np.tensordot(T1,C1,((2,),(0,)))
+def construct_UL_corner(C1,T1,T4,A):
+  #  C1-03-T1-0
+  #  |     ||
+  #  1->2  12
+  cornerUL = np.dot(T1.reshape(T1.shape[0]*T1.shape[1]**2),C1).reshape(T1.shape[0]*T1.shape[1]**2,C1.shape[1])
 
   #  C1---T1-0
-  #  |     |
-  #  2     1
+  #  |    ||
+  #  2    12
   #  0
   #  |
-  #  T4-1 -> 2
+  #  T4=1,2 -> 3,4
   #  |
-  #  2 -> 3
-  cornerUL = np.tensordot(cornerUL,T4,((2,),(0,)))
+  #  3 -> 5
+  cornerUL = np.dot(cornerUL,T4.reshape(T4.shape[1]**2*T4.shape[3])).reshape(
+       T1.shape[0],T1.shape[1],T1.shape[2],T4.shape[1],T4.shape[2],T4.shape[3])
+  cornerUL = cornerUL.transpose(0,5,2,4,1,3).reshape(T1.shape[0]*T4.shape[3]*T1.shape[2]*T4.shape[2], T1.shape[1]*T4.shape[1])
+  temp = A.transpose(2,5,0,1,3,4).reshape(A.shape[2]*A.shape[5], A.shape[0]*A.shape[1]*A.shape[3]*A.shape[4])
 
   #  C1----T1-0
-  #  |     |
-  #  |     1
-  #  |     0
-  #  |     |
-  #  T4-23-a-1->2
-  #  |     |
-  #  3->1  2->3
-  cornerUL = np.tensordot(cornerUL,a,((1,2),(0,3)))
+  #  |     ||
+  #  |     42
+  #  |   2 0
+  #  |    \|
+  #  T4-51-A-4
+  #  | \3  |\3
+  #  1     5
+  cornerUL = np.dot(cornerUL,temp).reshape(T1.shape[0],T4.shape[0],T1.shape[2],T4.shape[2],A.shape[0],A.shape[1],A.shape[3],A.shape[4])
+  cornerUL = cornerUL.transpose(0,1,6,7,2,3,4,5).reshape(T1.shape[0]*T4.shape[0]*A.shape[3]*A.shape[4],
+                                                       T1.shape[2]*T4.shape[2]*A.shape[0]*A.shape[1])
+  #  C1----T1-0
+  #  |     ||
+  #  |     |4
+  #  |   6 |        2 0
+  #  |    \|         \|
+  #  T4----A-2      1-A*-4
+  #  | \5  |\7        |\
+  #  1     3          5 3
+  cornerUL = np.dot(cornerUL,temp.reshape(cornerUL.shap[1],A.shape[3]*A.shape[4].conj()).reshape(T1.shape[0],T4.shape[0],A.shape[3],A.shape[4], A.shape[3],A.shape[4])
 
-  #  C1-T1-0---\
-  #  |  |       0
-  #  T4-a-2->1 /
-  #  |  |
-  #  1  3
-  #  2  3
+  #  C1-T1-0--------\
+  #  |  ||           0
+  #  T4=AA=2,4->1,2-/
+  #  |  ||
+  #  1  35
+  #  3  45
   #  \ /
   #   1
-  cornerUL = cornerUL.swapaxes(1,2).reshape(T1.shape[0]*a.shape[1],T4.shape[2]*a.shape[2])
+  cornerUL = cornerUL.transpose(0,2,4,1,3,5).reshape(T1.shape[0]*A.shape[3]**2, T4.shape[2]*A.shape[4]**2)
   return cornerUL
 
 
@@ -218,18 +218,18 @@ def construct_DL_corner(env,x,y,verbosity=0):
 # construct halves from corners
 ###############################################################################
 
-def construct_U_half(env,x,y,verbosity=0):
-  cornerUL = construct_UL_corner(env,x,y,verbosity)
-  cornerUR = construct_UR_corner(env,x,y,verbosity)
+def construct_U_half(C1,T1l,T1r,C2,T4,Al,Ar,T2):
+  cornerUL = construct_UL_corner(C1,T1l,T4,Al)
+  cornerUR = construct_UR_corner(T1r,C2,Ar,T2)
   #  UL-01-UR
   #  |      |
   #  1      0
   return cornerUR @ cornerUL
 
 
-def construct_L_half(env,x,y,verbosity=0):
-  cornerUL = construct_UL_corner(env,x,y,verbosity)
-  cornerDL = construct_DL_corner(env,x,y,verbosity)
+def construct_L_half(C1,T1,T4u,Au,T4d,Ad,C4,T3):
+  cornerUL = construct_UL_corner(C1,T1,T4u,Au)
+  cornerDL = construct_DL_corner(T4d,Ad,C4,T3)
   #  UL-0
   #  |
   #  1
@@ -239,9 +239,9 @@ def construct_L_half(env,x,y,verbosity=0):
   return cornerUL @ cornerDL
 
 
-def construct_D_half(env,x,y,verbosity=0):
-  cornerDL = construct_DL_corner(env,x,y,verbosity)
-  cornerDR = construct_DR_corner(env,x,y,verbosity)
+def construct_D_half(T4,Al,Ar,T2,C4,T3l,T3r,C3):
+  cornerDL = construct_DL_corner(T4,Al,C4,T3l)
+  cornerDR = construct_DR_corner(Ar,T2,T3r,C3)
   #  0      1
   #  0      0
   #  |      |
@@ -249,9 +249,9 @@ def construct_D_half(env,x,y,verbosity=0):
   return cornerDL @ cornerDR.T
 
 
-def construct_R_half(env,x,y,verbosity=0):
-  cornerDR = construct_DR_corner(env,x,y,verbosity)
-  cornerUR = construct_UR_corner(env,x,y,verbosity)
+def construct_R_half(T1,C2,Au,T2u,Ad,T2d,T3,C3)
+  cornerDR = construct_DR_corner(Ad,T2d,T3,C3)
+  cornerUR = construct_UR_corner(T1,C2,Au,T2u)
   #      1-UR
   #         |
   #         0

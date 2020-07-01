@@ -52,17 +52,19 @@ class CTMRG(object):
     # 1) compute isometries for every non-equivalent sites
     # convention : for every move, leg 0 of R and Rt are to be contracted
     for x,y in self._neq_coords:
-      #      1-R
-      #        R     0
-      #        R  => R
-      #      0-R     1
-      R = construct_R_half(self._env,x,y,self.verbosity).T
-      #        L-0
-      #        L          0
-      #        L    =>    Rt
-      #        L-1        1
-      Rt = construct_L_half(self._env,x,y)
-      P,Pt = construct_projectors(R,Rt,self.chi,self.verbosity)
+      R = construct_R_half(self._env.get_T1(x+2,y),  self._env.get_C2(x+3,y),
+                           self._env.get_A(x+2,y+1), self._env.get_T2(x+3,y+1),
+                           self._env.get_A(x+2,y+2), self._env.get_T2(x+3,y+2),
+                           self._env.get_T4(x+2,y+3),self._env.get_C4(x+3,y+3))
+      Rt = construct_L_half(self._env.get_C1(x,y),   self._env.get_T1(x+1,y),
+                            self._env.get_T4(x,y+1), self._env.get_A(x+1,y+1),
+                            self._env.get_T4(x,y+2), self._env.get_A(x+1,y+3),
+                            self._env.get_C4(x,y+4),self._env.get_T3(x+1,y+4))
+      #        L-0  == 1-R
+      #        L         R
+      #        L         R  => transpose R
+      #        L-1     0-R
+      P,Pt = construct_projectors(R.T, Rt, self.chi, self.verbosity)
       self._env.set_projectors(x+1,y,P,Pt)
       del R, Rt
 
