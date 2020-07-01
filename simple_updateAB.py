@@ -104,17 +104,16 @@ class SimpleUpdateAB(object):
         raise ValueError('invalid shape for Hamiltonian')
       self._hamilt = hamilt
 
-    self.set_tau(tau)
+    self.tau = tau
     self._lambda_u = np.ones(self._Du)
     self._lambda_r = np.ones(self._Dr)
     self._lambda_d = np.ones(self._Dd)
     self._lambda_l = np.ones(self._Dl)
 
 
-  def set_tau(self, tau):
-    """
-    set imaginary time step value
-    """
+  @tau.setter
+  def tau(self, tau):
+    self._tau = tau
     if self._hamilt is not None:
       g = lg.expm(-tau*self._hamilt)
       self._gu, self._gr, self._gd, self._gl = [g]*4
