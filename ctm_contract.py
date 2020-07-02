@@ -5,7 +5,7 @@ import numpy as np
 #  construct 2x2 corners
 ###############################################################################
 
-def construct_UL_corner(C1,T1,T4,A):
+def contract_UL_corner(C1,T1,T4,A):
   #  C1-03-T1-0
   #  |     ||
   #  1->2  12
@@ -57,19 +57,12 @@ def construct_UL_corner(C1,T1,T4,A):
   return cornerUL
 
 
-def construct_UR_corner(env,x,y,verbosity=0):
+def contract_UR_corner(T1,C2,A,T2):
   #                      0
   #                      |
   #  2-T1-0   1-C2    2-T2
   #    |         |       |
   #    1         0       1
-  T1 = env.get_T1(x+2,y)
-  C2 = env.get_C2(x+3,y)
-  T2 = env.get_T2(x+3,y+1)
-  a = env.get_a(x+2,y+1)
-  if verbosity > 1:
-    print('construct_UR_corner: T1.shape =', T1.shape, 'C2.shape =', C2.shape,
-          'T2.shape =',T2.shape)
   #  2-T1-01-C2
   #    |      |
   #    1      0
@@ -106,7 +99,7 @@ def construct_UR_corner(env,x,y,verbosity=0):
 
 
 
-def construct_DR_corner(env,x,y,verbosity=0):
+def contract_DR_corner(env,x,y,verbosity=0):
   #     0       0       0
   #     |       |       |
   #  2-T2    1-C3     2-T3-1
@@ -117,7 +110,7 @@ def construct_DR_corner(env,x,y,verbosity=0):
   T3 = env.get_T3(x+2,y+3)
   a = env.get_a(x+2,y+2)
   if verbosity > 1:
-    print('construct_DR_corner: T2.shape =', T2.shape, 'C3.shape =', C3.shape,
+    print('contract_DR_corner: T2.shape =', T2.shape, 'C3.shape =', C3.shape,
           'T3.shape =',T3.shape)
 
   #         0      0->2
@@ -157,7 +150,7 @@ def construct_DR_corner(env,x,y,verbosity=0):
   return cornerDR
 
 
-def construct_DL_corner(env,x,y,verbosity=0):
+def contract_DL_corner(env,x,y,verbosity=0):
   #    0      0        0
   #    |      |        |
   #  2-T3-1   C4-1     T4-1
@@ -168,7 +161,7 @@ def construct_DL_corner(env,x,y,verbosity=0):
   T4 = env.get_T4(x,y+2)
   a = env.get_a(x+1,y+2)
   if verbosity > 1:
-    print('construct_DL_corner: T3.shape =', T3.shape, 'C4.shape =', C4.shape,
+    print('contract_DL_corner: T3.shape =', T3.shape, 'C4.shape =', C4.shape,
           'T4.shape =',T4.shape)
 
   #      0
@@ -218,18 +211,18 @@ def construct_DL_corner(env,x,y,verbosity=0):
 # construct halves from corners
 ###############################################################################
 
-def construct_U_half(C1,T1l,T1r,C2,T4,Al,Ar,T2):
-  cornerUL = construct_UL_corner(C1,T1l,T4,Al)
-  cornerUR = construct_UR_corner(T1r,C2,Ar,T2)
+def contract_U_half(C1,T1l,T1r,C2,T4,Al,Ar,T2):
+  cornerUL = contract_UL_corner(C1,T1l,T4,Al)
+  cornerUR = contract_UR_corner(T1r,C2,Ar,T2)
   #  UL-01-UR
   #  |      |
   #  1      0
   return cornerUR @ cornerUL
 
 
-def construct_L_half(C1,T1,T4u,Au,T4d,Ad,C4,T3):
-  cornerUL = construct_UL_corner(C1,T1,T4u,Au)
-  cornerDL = construct_DL_corner(T4d,Ad,C4,T3)
+def contract_L_half(C1,T1,T4u,Au,T4d,Ad,C4,T3):
+  cornerUL = contract_UL_corner(C1,T1,T4u,Au)
+  cornerDL = contract_DL_corner(T4d,Ad,C4,T3)
   #  UL-0
   #  |
   #  1
@@ -239,9 +232,9 @@ def construct_L_half(C1,T1,T4u,Au,T4d,Ad,C4,T3):
   return cornerUL @ cornerDL
 
 
-def construct_D_half(T4,Al,Ar,T2,C4,T3l,T3r,C3):
-  cornerDL = construct_DL_corner(T4,Al,C4,T3l)
-  cornerDR = construct_DR_corner(Ar,T2,T3r,C3)
+def contract_D_half(T4,Al,Ar,T2,C4,T3l,T3r,C3):
+  cornerDL = contract_DL_corner(T4,Al,C4,T3l)
+  cornerDR = contract_DR_corner(Ar,T2,T3r,C3)
   #  0      1
   #  0      0
   #  |      |
@@ -249,9 +242,9 @@ def construct_D_half(T4,Al,Ar,T2,C4,T3l,T3r,C3):
   return cornerDL @ cornerDR.T
 
 
-def construct_R_half(T1,C2,Au,T2u,Ad,T2d,T3,C3)
-  cornerDR = construct_DR_corner(Ad,T2d,T3,C3)
-  cornerUR = construct_UR_corner(T1,C2,Au,T2u)
+def contract_R_half(T1,C2,Au,T2u,Ad,T2d,T3,C3)
+  cornerDR = contract_DR_corner(Ad,T2d,T3,C3)
+  cornerUR = contract_UR_corner(T1,C2,Au,T2u)
   #      1-UR
   #         |
   #         0
