@@ -4,31 +4,32 @@ import scipy.linalg as lg
 
 def initialize_env(A):
   #
-  #   C1-0  2-T1-0  1-C2            0
-  #   |       |        |             \ 1
-  #   1       1        0              \|
-  #                                  4-A-2
-  #   0       0        0               |
-  #   |       |        |               3
-  #   T4-1  3-a--1  2-T2
-  #   |       |        |
-  #   2       2        1
+  #   C1-0  3-T1-0  1-C2            0
+  #   |       ||       |             \ 2
+  #   1       12       0              \|
+  #                                  5-A-3
+  #   0       0        0               |\
+  #   |       |        |               4 1
+  #   T4=1  3-a--1  2=T2
+  #   |  2    |     3  |
+  #   3       2        1
   #
-  #   0       0        0
-  #   |       |        |
-  #   C4-1  2-T3-1  1-C3
+  #   0       01       0
+  #   |       ||       |
+  #   C4-1  3-T3-2  1-C3
   #
   D = A.shape[1]   # do not consider the case Dx != Dy
-  a = np.tensordot(A,A.conj(),(0,0)).transpose(0,4,1,5,2,6,3,7).reshape(D**2,D**2,D**2,D**2)
-  C1 = np.einsum('iijkll->jk', a.reshape(D,D,D**2,D**2,D,D))
-  T1 = np.einsum('iijkl->jkl', a.reshape(D,D,D**2,D**2,D**2))
-  C2 = np.einsum('iijjkl->kl', a.reshape(D,D,D,D,D**2,D**2))
-  T2 = np.einsum('ijjkl->ikl', a.reshape(D**2,D,D,D**2,D**2))
-  C3 = np.einsum('ijjkkl->il', a.reshape(D**2,D,D,D,D,D**2))
-  T3 = np.einsum('ijkkl->ijl', a.reshape(D**2,D**2,D,D,D**2))
-  C4 = np.einsum('ijkkll->ij', a.reshape(D**2,D**2,D,D,D,D))
-  T4 = np.einsum('ijkll->ijk', a.reshape(D**2,D**2,D**2,D,D))
-  return a,C1,T1,C2,T2,C3,T3,C4,T4
+  a = np.tensordot(A,A.conj(),((0,1),(0,1))).transpose(0,4,1,5,2,6,3,7).copy()
+  C1 = np.einsum('aacdefgg->cdef', a).reshape(D**2,D**2)
+  T1 = np.einsum('aacdefgh->cdefgh', a).reshape(D**2,D,D,D**2)
+  C2 = np.einsum('aaccefgh->efgh', a).reshape(D**2,D**2)
+  T2 = np.einsum('abccefgh->abefgh', a).reshape(D**2,D**2,D,D)
+  C3 = np.einsum('abcceegh->abgh', a).reshape(D**2,D**2)
+  T3 = np.einsum('abcdeegh->abcdgh', a).reshape(D,D,D**2,D**2)
+  C4 = np.einsum('abcdeegg->abcd', a).reshape(D**2,D**2)
+  T4 = np.einsum('abcdefgg->abcdef', a).reshape(D**2,D**2,D,D)
+  a = a.reshape(D**2,D**2,D**2,D**2)
+  return C1,T1,C2,T4,a,T2,C4,T3,C3
 
 
 class Env(object):
@@ -83,7 +84,7 @@ class Env(object):
 
     self._neq_As = np.ascontiguousarray(tensors)
     for A in tensors:
-      a,C1,T1,C2,T2,C3,T3,C4,T4 = initialize_env(A)
+      C1,T1,C2,T4,a,T2,C4,T3,C3 = initialize_env(A)
       self._neq_as.append(a)
       self._neq_C1s.append(C1)
       self._neq_T1s.append(T1)
