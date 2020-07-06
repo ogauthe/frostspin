@@ -111,6 +111,11 @@ class SimpleUpdateAB(object):
     self._lambda_l = np.ones(self._Dl)
 
 
+  @property
+  def tau(self):
+    return self._tau
+
+
   @tau.setter
   def tau(self, tau):
     self._tau = tau
