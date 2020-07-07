@@ -79,9 +79,9 @@ def dotU1(a, rc_a, cc_a, b, cc_b):
 
 
 def combine_colors(*colors):
-  combined = np.zeros(1,dtype=np.int8)
-  for c in colors:
-    combined = (combined[:,None]+c).reshape(len(combined)*len(c))
+  combined = colors[0]
+  for c in colors[1:]:
+    combined = (combined[:,None]+c).ravel()
   return combined
 
 
