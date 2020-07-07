@@ -4,19 +4,19 @@ def rdm_1x1(C1,T1,C2,T4,A,T2,C4,T3,C3):
   """
   Compute 1-site reduced density matrix from CTMRG environment tensors
   """
-  #   C1-0       2-T1-0         1-C2
+  #   C1-0       3-T1-0         1-C2
   #   |            ||              |
-  #   1            11'             0
+  #   1            12              0
   #         0        0
-  #   0      \ 1      \ 1          0
+  #   0      \ 2      \ 2          0
   #   |       \|       \|          |
-  #   T4-1   4-A--2   4-A*-2   2--T2
-  #   | \1'    |        |      2'/ |
-  #   2        3        3          1
+  #   T4-1   5-A--3   5-A*-1    2-T2
+  #   | \2     |\       |\      3/ |
+  #   3        4 1      4 1        1
   #
-  #   0           00'              0
+  #   0           01               0
   #   |           ||               |
-  #   C4-1      2-T3-1          1-C3
+  #   C4-1      3-T3-2          1-C3
 
   # bypassing tensordot makes code conceptually simpler and memory efficient but unreadable
   T3C3 = T3.swapaxes(1,2).reshape(T3.shape[0]*T3.shape[2], T3.shape[1])
@@ -26,8 +26,8 @@ def rdm_1x1(C1,T1,C2,T4,A,T2,C4,T3,C3):
   rdm = np.dot(rdm,T3C3).reshape(T4.shape[0], A.shape[4], A.shape[4], A.shape[3], A.shape[3]*C3.shape[0])
   del T3C3
   rdm = rdm.transpose(3, 1, 0, 2, 4).reshape(A.shape[3]*A.shape[4], T4.shape[0]*A.shape[4]*A.shape[3]*C3.shape[0])
-  rdm = np.dot(A.reshape(A.shape[0]*A.shape[1]*A.shape[2], A.shape[3]*A.shape[4]),rdm)
-  rdm = rdm.reshape(A.shape[0], A.shape[1]*A.shape[2], T4.shape[0], A.shape[4]*A.shape[3], C3.shape[0])
+  rdm = np.dot(A.reshape(A.shape[0]*A.shape[1]*A.shape[2]*A.shape[3], rdm.shape[1]),rdm)
+  rdm = rdm.reshape(A.shape[0], A.shape[1]*A.shape[2]*A.shape[3], T4.shape[0], A.shape[4]*A.shape[3], C3.shape[0])
   rdm = rdm.transpose(2, 1, 4, 3, 0).reshape(T4.shape[0]*A.shape[1]*A.shape[2]*C3.shape[0], A.shape[4]*A.shape[3]*A.shape[0])
   T1C1 = np.dot(T1.reshape(T1.shape[0]*T1.shape[1], T1.shape[2]),C1).reshape(T1.shape[0], T1.shape[1]*C1.shape[1])
   T2C2 = T2.transpose(1, 2, 0).reshape(T2.shape[1]*T2.shape[2], T2.shape[0])
