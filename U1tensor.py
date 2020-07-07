@@ -82,63 +82,46 @@ def tensordotU1(a, colors_a, ax_a, b, colors_b, ax_b):
     raise ValueError("axes for a do not match array")
   if len(ax_b) > b.ndim:
     raise ValueError("axes for b do not match array")
+  dim_contract = tuple(a.shape[ax] for ax in ax_a)
+  if dim_contract != tuple(b.shape[ax] for ax in ax_b):
+    raise ValueError("dimensions for a and b do not match")
 
   notin_a = tuple(k for k in range(a.ndim) if k not in ax_a)  # free leg indices
-  free_a = tuple(a.shape[ax] for ax in notin_a)
-  contract = tuple(a.shape[ax] for ax in ax_a)
-  at = a.transpose(notin_a + ax_a)
-  cumprod_a = np.array([*free_a,1])[:0:-1].cumprod()[::-1]
-  cumprod_mid = np.array([*contract,1])[:0:-1].cumprod()[::-1]
+  notin_b = tuple([k for k in range(b.ndim) if k not in ax_b])  # free leg indices
+  dim_free_a = tuple(a.shape[ax] for ax in notin_a)
+  dim_free_b = tuple(b.shape[ax] for ax in notin_b)
+  cp_a = np.array([*a.shape,1])[:0:-1].cumprod()[::-1][np.array(notin_a+ax_a)]
+  cp_b = np.array([*a.shape,1])[:0:-1].cumprod()[::-1][np.array(ax_b+notin_b)]
 
-  notin_b = [k for k in range(b.ndim) if k not in ax_b]  # free leg indices
-  free_b = tuple(b.shape[ax] for ax in notin_b)
-  bt = b.transpose(ax_b + notin_b)
-  cumprod_b = np.array([*free_b,1])[:0:-1].cumprod()[::-1]
+  rc_a = combine_colors(*[colors_a[ax] for ax in notin_a])
+  cc_a = combine_colors(*[colors_a[ax] for ax in ax_a])
+  cc_b = combine_colors(*[colors_b[ax] for ax in notin_b])
 
-  rc_a = combine_colors(*[colors_a[i] for i in notin_a])
-  cc_a = combine_colors(*[colors_a[i] for i in ax_a])
-  cc_b = combine_colors(*[colors_b[i] for i in notin_b])
+  # avoid construction of at and bt = b.transpose(ax_b + notin_b)
+  sh_at = dim_free_a + dim_contract
+  prod_a = np.prod(dim_contract)
+  div_a = np.array([*sh_at,1])[:0:-1].cumprod()[::-1]
 
-  res = np.zeros((np.prod(free_a), np.prod(free_b)))
+  prod_b = np.prod(dim_free_b)
+  sh_bt = dim_contract + dim_free_b
+  div_b = np.array([*sh_bt,1])[:0:-1].cumprod()[::-1]
+
+  res = np.zeros(dim_free_a + dim_free_b)
   for c in set(-rc_a).intersection(set(cc_a)).intersection(set(cc_b)):
-    ri = (rc_a == -c).nonzero()[0][:,None]//cumprod_a%free_a
-    mid = (cc_a == c).nonzero()[0][:,None]//cumprod_mid%contract
-    ci = (cc_b == c).nonzero()[0][:,None]//cumprod_b%free_b
-    ind_at = np.ix_(*ri,*mid)
-    ind_bt = np.ix_(*mid,*ci)
-    res[ri,ci] = at[ind_at].reshape(len(ri),len(mid)) @ bt[ind_b].reshape(len(mid),len(ci))
-  return res.reshape(free_a + free_b)
+    ri = (rc_a == -c).nonzero()[0][:,None]
+    mid = (cc_a == c).nonzero()[0]
+    ci = (cc_b == c).nonzero()[0]
+    ind_a = ((ri*prod_a + mid)[:,:,None]//div_a%sh_at) @ cp_a
+    ind_b = ((mid[:,None]*prod_b + ci)[:,:,None]//div_b%sh_bt) @ cp_b
+    res.flat[ri*prod_b + ci] = a.flat[ind_a] @ b.flat[ind_b]
+  return res
 
-ind = ((rc_a == -c).nonzero()[0][:,None]*np.prod(contract) + (cc_a == c).nonzero()[0]).ravel()[:,None]//np.array([*at.shape,1])[:0:-1].cumprod()[::-1]%at.shape
-a[np.array(ind0[0]),np.array(ind0[1]),np.array(ind0[2]),np.array(ind0[3])].reshape(3,2)
-ind0 = (((rc_a == -c).nonzero()[0][:,None]*np.prod(contract) + (cc_a == c).nonzero()[0]).ravel()[:,None]//np.array([*at.shape,1])[:0:-1].cumprod()[::-1]%at.shape)[:,(notin_a + ax_a)[::-1]].T
-at[np.array(ind[:,0]),np.array(ind[:,1]),np.array(ind[:,2]),np.array(ind[:,3])].reshape(3,2)
 
 
 # obligé de repasser en format 1D transposé pour combiner les indices ri et mid
 # transposition nécessaire pour traiter séparément à gauche ri et à droite contracted
 # ensuite repasse aux indices de a en multipliant par les dimensions transposées à l'inverse
-ind_ax = (notin_a + ax_a)[::-1]
-sh_at = free_a + contract
-prod_a = np.prod(contract)
-div_a = np.array([*sh_at,1])[:0:-1].cumprod()[::-1]
-cp_a = np.array([*a.shape,1])[:0:-1].cumprod()[np.array((notin_a+ax_a)[::-1])]
 
-prod_b = np.prod(free_b)
-sh_bt = contract + free_b
-div_b = np.array([*sh_bt,1])[:0:-1].cumprod()[::-1]
-cp_b = np.array([*b.shape,1])[:0:-1].cumprod()[np.array((ax_b+notin_b)[::-1])]
-
-c = c
-ri = (rc_a == -c).nonzero()[0][:,None]
-mid = (cc_a == c).nonzero()[0]
-ci = (cc_b == c).nonzero()[0]
-#ind0 = ((ri*np.prod(contract) + mid)[:,:,None]//div%sh)[:,:,ind_ax]   # keep matrix form, list of 2D integer inputs
-#ind1 = ((ri*np.prod(contract) + mid).reshape(len(ri)*len(mid),1)//div%sh)[:,ind_ax]
-ind_a = ((ri*prod_a + mid)[:,:,None]//div_a%sh_at) @ cp_a
-ind_b = ((mid[:,None]*prod_b + ci)[:,:,None]//div_b%sh_bt) @ cp_b
-res[ri//cumprod_a%free_a,ci[:,None]//cumprod_b%free_b] = a.flat[ind_a] @ b.flat[ind_b]
-res.flat[ri*prod_b + ci] = a.flat[ind_a] @ b.flat[ind_b]
 # générer directement indices 1D valables de a en multipliant ri et mid par ce qui va bien
 # plus besoin de repasser en multi-indice pr transposer
 # donner directement à a.flat
