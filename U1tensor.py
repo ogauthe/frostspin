@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.linalg as lg
+from toolsU1 import checkU1, tensordotU1
 
 
 class U1tensor(object):
@@ -63,93 +64,3 @@ class U1tensor(object):
     return checkU1(self._ar, self._colors, tol)
 
 
-def dotU1(a, rc_a, cc_a, b, cc_b):
-  if a.ndim == b.ndim != 2:
-    raise ValueError("ndim must be 2 to use dot")
-  if a.shape[1] != b.shape[0]:
-    raise ValueError("a col number must be equal to a rows")
-
-  res = np.zeros((a.shape[0], b.shape[1]))
-  for c in set(-rc_a).intersection(set(cc_a)).intersection(set(cc_b)):
-    ri = (rc_a == -c).nonzero()[0][:,None]
-    mid = (cc_a == c).nonzero()[0]
-    ci = cc_b == c
-    res[ri,ci] = a[ri,mid] @ b[mid[:,None],ci]
-  return res
-
-
-def combine_colors(*colors):
-  combined = colors[0]
-  for c in colors[1:]:
-    combined = (combined[:,None]+c).ravel()
-  return combined
-
-
-def checkU1(T,colorsT,tol=1e-14):
-  nn = np.transpose((np.abs(T) > 1e-16).nonzero())
-  for ind in nn:
-    if sum(colorsT[i][c] for i,c in enumerate(ind)) != 0:
-      return False, ind, T[tuple(ind)]
-  return True, None, 0
-
-
-def tensordotU1(a, colors_a, ax_a, b, colors_b, ax_b):
-  if len(ax_a) != len(ax_b):
-    raise ValueError("axes for a and b must match")
-  if len(ax_a) > a.ndim:
-    raise ValueError("axes for a do not match array")
-  if len(ax_b) > b.ndim:
-    raise ValueError("axes for b do not match array")
-  dim_contract = tuple(a.shape[ax] for ax in ax_a)
-  if dim_contract != tuple(b.shape[ax] for ax in ax_b):
-    raise ValueError("dimensions for a and b do not match")
-
-  # copy np.tensordot
-  notin_a = tuple(k for k in range(a.ndim) if k not in ax_a) # free leg indices
-  notin_b = tuple([k for k in range(b.ndim) if k not in ax_b])
-  dim_free_a = tuple(a.shape[ax] for ax in notin_a)
-  dim_free_b = tuple(b.shape[ax] for ax in notin_b)
-
-  # construct merged colors of a free legs, contracted legs and b free legs
-  rc_a = combine_colors(*[colors_a[ax] for ax in notin_a])
-  cc_a = combine_colors(*[colors_a[ax] for ax in ax_a])
-  cc_b = combine_colors(*[colors_b[ax] for ax in notin_b])
-
-  # np.tensordot algorithm transposes a and b to put contracted axes
-  # at end of a and begining of b, reshapes to matrices and compute matrix prod
-  # here avoid complete construction of at and bt which requires copy
-  # compute indices of relevant coeff (depending on colors) of at and bt, then
-  # transform them into (flat) indices of a and b. Copy only relevant blocks
-  # into small matrices and compute dot product
-  # (cannot compute directly indices of a and b because of merged legs)
-  sh_at = dim_free_a + dim_contract   # shape of a.transpose(free_a + ax_a)
-  prod_a = np.prod(dim_contract)      # offset of free at indices
-  div_a = np.array([*sh_at,1])[:0:-1].cumprod()[::-1] # 1D index -> multi-index
-  # multi-index of at -> 1D index of a by product with transposed shape
-  cp_a = np.array([*a.shape,1])[:0:-1].cumprod()[::-1][np.array(notin_a+ax_a)]
-
-  prod_b = np.prod(dim_free_b)
-  sh_bt = dim_contract + dim_free_b
-  div_b = np.array([*sh_bt,1])[:0:-1].cumprod()[::-1]
-  cp_b = np.array([*a.shape,1])[:0:-1].cumprod()[::-1][np.array(ax_b+notin_b)]
-
-  res = np.zeros(dim_free_a + dim_free_b)
-  for c in set(-rc_a).intersection(set(cc_a)).intersection(set(cc_b)):
-    ri = (rc_a == -c).nonzero()[0][:,None]
-    mid = (cc_a == c).nonzero()[0]
-    ci = (cc_b == c).nonzero()[0]
-    ind_a = ((ri*prod_a + mid)[:,:,None]//div_a%sh_at) @ cp_a
-    ind_b = ((mid[:,None]*prod_b + ci)[:,:,None]//div_b%sh_bt) @ cp_b
-    res.flat[ri*prod_b + ci] = a.flat[ind_a] @ b.flat[ind_b]
-  return res
-
-
-
-# obligé de repasser en format 1D transposé pour combiner les indices ri et mid
-# transposition nécessaire pour traiter séparément à gauche ri et à droite contracted
-# ensuite repasse aux indices de a en multipliant par les dimensions transposées à l'inverse
-
-# générer directement indices 1D valables de a en multipliant ri et mid par ce qui va bien
-# plus besoin de repasser en multi-indice pr transposer
-# donner directement à a.flat
-# Q : est-ce que liste 1D obtenue nécessite transposition avant reshape matrice ?
