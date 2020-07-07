@@ -1,92 +1,9 @@
 import numpy as np
 import scipy.linalg as lg
 from simple_updateAB import SimpleUpdateAB
+from toolsU1 import checkU1, svdU1
 from test_tools import construct_genSU2_s
 
-def svdU1(M, row_colors, col_colors):
-  """
-  Singular value decomposition for a U(1) symmetric matrix M.
-
-  Parameters
-  ----------
-  M : (m,n) ndarray
-    Matrix to decompose.
-  row_colors : (m,) integer ndarray
-    U(1) quantum numbers of the rows.
-  col_colors : (n,) integer ndarray
-    U(1) quantum numbers of the columns.
-
-  Returns
-  -------
-  U : (m,k) ndarray
-    Left singular vectors.
-  s : (k,) ndarray
-    Singular values.
-  V : (k,n) right singular vectors
-  colors : (k,) integer ndarray
-    U(1) quantum numbers of U columns and V rows.
-
-  Note that k may be < min(m,n) if row and column colors do not match on more
-  than min(m,n) values. If k = 0 (no matching color), an error is raised to
-  avoid messy zero-length arrays (implies M=0, all singular values are 0)
-  """
-  if M.ndim != 2:
-    raise ValueError("M has to be a matrix")
-  if row_colors.shape != (M.shape[0],):
-    raise ValueError("row_colors has to be (M.shape[0])")
-  if col_colors.shape != (M.shape[1],):
-    raise ValueError("col_colors has to be (M.shape[1])")
-
-  row_sort = np.argsort(row_colors)
-  sorted_row_colors = row_colors[row_sort]
-  col_sort = np.argsort(col_colors)
-  sorted_col_colors = col_colors[col_sort]
-  row_inds = [0, *((sorted_row_colors[:-1] != sorted_row_colors[1:]
-                    ).nonzero()[0] + 1), M.shape[0]]
-  col_inds = [0, *((sorted_col_colors[:-1] != sorted_col_colors[1:]
-                    ).nonzero()[0] + 1), M.shape[1]]
-  dmin = min(M.shape)
-  U = np.zeros((M.shape[0],dmin))
-  s = np.empty(dmin)
-  V = np.zeros((dmin,M.shape[1]))
-  colors = np.empty(dmin,dtype=np.int8)
-
-  # match blocks with same color and compute SVD inside those blocks only
-  k,br,bc,brmax,bcmax = 0,0,0,len(row_inds)-1,len(col_inds)-1
-  while br < brmax and bc < bcmax:
-    if sorted_row_colors[row_inds[br]] == sorted_col_colors[col_inds[bc]]:
-      ir,jr = row_inds[br:br+2]
-      ic,jc = col_inds[bc:bc+2]
-      m = M[row_sort[ir:jr,None], col_sort[ic:jc]]
-      d = min(m.shape)
-      U[row_sort[ir:jr],k:k+d], s[k:k+d], V[k:k+d,col_sort[ic:jc]] = lg.svd(
-                                                         m,full_matrices=False)
-      colors[k:k+d] = sorted_row_colors[row_inds[br]]
-      k += d
-      br += 1
-      bc += 1
-    elif sorted_row_colors[br] < sorted_col_colors[bc]:
-      br += 1
-    else:
-      bc += 1
-
-  if k < dmin: # if U(1) sectors do not match for more than dmin values
-    if k == 0: # pathological case with 0 matching colors.
-      raise ValueError("No sector matching, M has to be zero")
-    s = s[:k]
-  s_sort = np.argsort(s)[::-1]
-  U = U[:,s_sort]
-  s = s[s_sort]
-  V = V[s_sort]
-  colors = colors[s_sort]
-  return U,s,V,colors
-
-def checkU1(T,colorsT,tol=1e-14):
-  nn = np.transpose((np.abs(T) > 1e-16).nonzero())
-  for ind in nn:
-    if sum(colorsT[i][c] for i,c in enumerate(ind)) != 0:
-      return False, ind, T[tuple(ind)]
-  return True, None, 0
 
 D = 7
 d = 2

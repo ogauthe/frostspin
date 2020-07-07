@@ -64,3 +64,84 @@ class U1tensor(object):
     return checkU1(self._ar, self._colors, tol)
 
 
+
+
+tRVB2_13 = np.zeros((2,3,3,3,3),dtype=np.int8)
+tRVB2_13[0,0,2,2,2] = 1
+tRVB2_13[0,2,0,2,2] = 1
+tRVB2_13[0,2,2,0,2] = 1
+tRVB2_13[0,2,2,2,0] = 1
+tRVB2_13[1,1,2,2,2] = 1
+tRVB2_13[1,2,1,2,2] = 1
+tRVB2_13[1,2,2,1,2] = 1
+tRVB2_13[1,2,2,2,1] = 1
+
+tRVB2_31_A1 = np.zeros((2, 3, 3, 3, 3),dtype=np.int8)
+tRVB2_31_A1[0,0,0,1,2] = -1
+tRVB2_31_A1[0,0,0,2,1] = -1
+tRVB2_31_A1[0,0,1,0,2] = 2
+tRVB2_31_A1[0,0,1,2,0] = -1
+tRVB2_31_A1[0,0,2,0,1] = 2
+tRVB2_31_A1[0,0,2,1,0] = -1
+tRVB2_31_A1[0,1,0,0,2] = -1
+tRVB2_31_A1[0,1,0,2,0] = 2
+tRVB2_31_A1[0,1,2,0,0] = -1
+tRVB2_31_A1[0,2,0,0,1] = -1
+tRVB2_31_A1[0,2,0,1,0] = 2
+tRVB2_31_A1[0,2,1,0,0] = -1
+tRVB2_31_A1[1,0,1,1,2] = 1
+tRVB2_31_A1[1,0,1,2,1] = -2
+tRVB2_31_A1[1,0,2,1,1] = 1
+tRVB2_31_A1[1,1,0,1,2] = -2
+tRVB2_31_A1[1,1,0,2,1] = 1
+tRVB2_31_A1[1,1,1,0,2] = 1
+tRVB2_31_A1[1,1,1,2,0] = 1
+tRVB2_31_A1[1,1,2,0,1] = 1
+tRVB2_31_A1[1,1,2,1,0] = -2
+tRVB2_31_A1[1,2,0,1,1] = 1
+tRVB2_31_A1[1,2,1,0,1] = -2
+tRVB2_31_A1[1,2,1,1,0] = 1
+
+tRVB2_31_A2 = np.zeros((2, 3, 3, 3, 3),dtype=np.int8)
+tRVB2_31_A2[0,0,0,1,2] = -1
+tRVB2_31_A2[0,0,0,2,1] = 1
+tRVB2_31_A2[0,0,1,2,0] = -1
+tRVB2_31_A2[0,0,2,1,0] = 1
+tRVB2_31_A2[0,1,0,0,2] = 1
+tRVB2_31_A2[0,1,2,0,0] = -1
+tRVB2_31_A2[0,2,0,0,1] = -1
+tRVB2_31_A2[0,2,1,0,0] = 1
+tRVB2_31_A2[1,0,1,1,2] = -1
+tRVB2_31_A2[1,0,2,1,1] = 1
+tRVB2_31_A2[1,1,0,2,1] = 1
+tRVB2_31_A2[1,1,1,0,2] = 1
+tRVB2_31_A2[1,1,1,2,0] = -1
+tRVB2_31_A2[1,1,2,0,1] = -1
+tRVB2_31_A2[1,2,0,1,1] = -1
+tRVB2_31_A2[1,2,1,1,0] = 1
+
+
+coef = np.random.random(3)
+tA = coef[0]*tRVB2_13 + coef[1]*tRVB2_31_A1 + coef[2]*tRVB2_31_A2
+pcol = np.array([1,-1])
+vcol = np.array([1,-1,0])
+colsA = [-pcol,vcol,vcol,vcol,vcol]
+
+p22to1 = np.array([[0,1],[-1,0]])
+# tB = np.tensordot(p22to1,tA,(1,0))
+tB = tA
+colsB = [pcol,-vcol,-vcol,-vcol,-vcol]
+print(checkU1(tA,colsA))
+print(checkU1(tB,colsB))
+
+raw = np.tensordot(tA,tB,((0,),(0,)))
+res = tensordotU1(tA,colsA,(0,), tB, colsB,(0,))
+print(lg.norm(raw - res))
+
+raw = np.tensordot(tA,tB,((2,),(4,)))
+res = tensordotU1(tA,colsA,(2,), tB, colsB,(4,))
+print(lg.norm(raw - res))
+
+raw = np.tensordot(tA,tB,((2,3,4),(4,1,3)))
+res = tensordotU1(tA,colsA,(2,3,4), tB, colsB,(4,1,3))
+print(lg.norm(raw - res))
