@@ -104,25 +104,34 @@ def tensordotU1(a, colors_a, ax_a, b, colors_b, ax_b):
   if dim_contract != tuple(b.shape[ax] for ax in ax_b):
     raise ValueError("dimensions for a and b do not match")
 
-  notin_a = tuple(k for k in range(a.ndim) if k not in ax_a)  # free leg indices
-  notin_b = tuple([k for k in range(b.ndim) if k not in ax_b])  # free leg indices
+  # copy np.tensordot
+  notin_a = tuple(k for k in range(a.ndim) if k not in ax_a) # free leg indices
+  notin_b = tuple([k for k in range(b.ndim) if k not in ax_b])
   dim_free_a = tuple(a.shape[ax] for ax in notin_a)
   dim_free_b = tuple(b.shape[ax] for ax in notin_b)
-  cp_a = np.array([*a.shape,1])[:0:-1].cumprod()[::-1][np.array(notin_a+ax_a)]
-  cp_b = np.array([*a.shape,1])[:0:-1].cumprod()[::-1][np.array(ax_b+notin_b)]
 
+  # construct merged colors of a free legs, contracted legs and b free legs
   rc_a = combine_colors(*[colors_a[ax] for ax in notin_a])
   cc_a = combine_colors(*[colors_a[ax] for ax in ax_a])
   cc_b = combine_colors(*[colors_b[ax] for ax in notin_b])
 
-  # avoid construction of at and bt = b.transpose(ax_b + notin_b)
-  sh_at = dim_free_a + dim_contract
-  prod_a = np.prod(dim_contract)
-  div_a = np.array([*sh_at,1])[:0:-1].cumprod()[::-1]
+  # np.tensordot algorithm transposes a and b to put contracted axes
+  # at end of a and begining of b, reshapes to matrices and compute matrix prod
+  # here avoid complete construction of at and bt which requires copy
+  # compute indices of relevant coeff (depending on colors) of at and bt, then
+  # transform them into (flat) indices of a and b. Copy only relevant blocks
+  # into small matrices and compute dot product
+  # (cannot compute directly indices of a and b because of merged legs)
+  sh_at = dim_free_a + dim_contract   # shape of a.transpose(free_a + ax_a)
+  prod_a = np.prod(dim_contract)      # offset of free at indices
+  div_a = np.array([*sh_at,1])[:0:-1].cumprod()[::-1] # 1D index -> multi-index
+  # multi-index of at -> 1D index of a by product with transposed shape
+  cp_a = np.array([*a.shape,1])[:0:-1].cumprod()[::-1][np.array(notin_a+ax_a)]
 
   prod_b = np.prod(dim_free_b)
   sh_bt = dim_contract + dim_free_b
   div_b = np.array([*sh_bt,1])[:0:-1].cumprod()[::-1]
+  cp_b = np.array([*a.shape,1])[:0:-1].cumprod()[::-1][np.array(ax_b+notin_b)]
 
   res = np.zeros(dim_free_a + dim_free_b)
   for c in set(-rc_a).intersection(set(cc_a)).intersection(set(cc_b)):
