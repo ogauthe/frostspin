@@ -18,17 +18,16 @@ def initialize_env(A):
   #   |       ||       |
   #   C4-1  3-T3-2  1-C3
   #
-  D = A.shape[1]   # do not consider the case Dx != Dy
   a = np.tensordot(A,A.conj(),((0,1),(0,1))).transpose(0,4,1,5,2,6,3,7).copy()
-  C1 = np.einsum('aacdefgg->cdef', a).reshape(D**2,D**2)
-  T1 = np.einsum('aacdefgh->cdefgh', a).reshape(D**2,D,D,D**2)
-  C2 = np.einsum('aaccefgh->efgh', a).reshape(D**2,D**2)
-  T2 = np.einsum('abccefgh->abefgh', a).reshape(D**2,D**2,D,D)
-  C3 = np.einsum('abcceegh->abgh', a).reshape(D**2,D**2)
-  T3 = np.einsum('abcdeegh->abcdgh', a).reshape(D,D,D**2,D**2)
-  C4 = np.einsum('abcdeegg->abcd', a).reshape(D**2,D**2)
-  T4 = np.einsum('abcdefgg->abcdef', a).reshape(D**2,D**2,D,D)
-  a = a.reshape(D**2,D**2,D**2,D**2)
+  C1 = np.einsum('aacdefgg->cdef', a).reshape(A.shape[3]**2,A.shape[4]**2)
+  T1 = np.einsum('aacdefgh->cdefgh', a).reshape(A.shape[3]**2,A.shape[4],A.shape[4],A.shape[5]**2)
+  C2 = np.einsum('aaccefgh->efgh', a).reshape(A.shape[4]**2,A.shape[5]**2)
+  T2 = np.einsum('abccefgh->abefgh', a).reshape(A.shape[2]**2,A.shape[4]**2,A.shape[5],A.shape[5])
+  C3 = np.einsum('abcceegh->abgh', a).reshape(A.shape[2]**2,A.shape[5]**2)
+  T3 = np.einsum('abcdeegh->abcdgh', a).reshape(A.shape[2],A.shape[2],A.shape[3]**2,A.shape[5]**2)
+  C4 = np.einsum('abcdeegg->abcd', a).reshape(A.shape[2]**2,A.shape[3]**2)
+  T4 = np.einsum('abcdefgg->abcdef', a).reshape(A.shape[2]**2,A.shape[3],A.shape[3],A.shape[4]**2)
+  a = a.reshape(A.shape[2]**2,A.shape[3]**2,A.shape[4]**2,A.shape[5]**2)
   return C1,T1,C2,T4,a,T2,C4,T3,C3
 
 
