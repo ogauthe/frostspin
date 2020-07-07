@@ -50,19 +50,19 @@ def rdm_1x2(C1, T1l, T1r, C2, T4, Al, Ar, T2, C4, T3l, T3r, C3):
   # assume chi is the same everywhere (not actually compulsory in CTMRG iterations)
 
   #
-  #   C1-0     2-T1-0           2-T1-0       1-C2
-  #   |          |                |             |
-  #   1          1                1             0
+  #   C1-0     3-T1-0           3-T1-0       1-C2
+  #   |          ||               ||            |
+  #   1          12               12            0
   #        0       0        0       0
-  #   0     \ 1     \ 1      \ 1     \ 1        0
+  #   0     \ 2     \ 2      \ 2     \ 2        0
   #   |      \|      \|       \|      \|        |
-  #   T4-1  4-A--2  4-A*-2   4-A--2  4-A*-2  2-T2
-  #   |       |       |        |       |        |
-  #   2       3       3        3       3        1
+  #   T4-1  5-A--3  5-A*-3   5-A--3  5-A*-3  2-T2
+  #   | \2    |\      |\       |\      |\    3/ |
+  #   3       4 1     4 1      4 1     4 1      1
   #
-  #   0          0                0             0
-  #   |          |                |             |
-  #   C4-1     2-T3-1           2-T3-1       1-C3
+  #   0          01               01            0
+  #   |          ||               ||            |
+  #   C4-1     3-T3-2           3-T3-2       1-C3
 
   left = np.dot(C1,T4.reshape(T4.shape[0],T4.shape[1]*T4.shape[2])).reshape(C1.shape[0]*T4.shape[1], T4.shape[2])
   left = np.dot(left,C4)
@@ -132,25 +132,26 @@ def rdm_2x1(C1,T1,C2,T4u,Au,T2u,T4d,Ad,T2d,C4,T3,C3):
 
 def rdm_2x2(C1,T1l,T1r,C2,T4u,Aul,Aur,T2u,T4d,Adl,Adr,T2d,C4,T3l,T3r,C3):
   #
-  #   C1-0     2-T1-0           2-T1-0       1-C2
-  #   |          |                |             |
-  #   1          1                1             0
+  #   C1-0     3-T1-0           3-T1-0       1-C2
+  #   |          ||               ||            |
+  #   1          12               12            0
   #        0       0        0       0
-  #   0     \ 1     \ 1      \ 1     \ 1        0
+  #   0     \ 2     \ 2      \ 2     \ 2        0
   #   |      \|      \|       \|      \|        |
-  #   T4-1  4-A--2  4-A*-2   4-A--2  4-A*-2  2-T2
-  #   |       |       |        |       |        |
-  #   2       3       3        3       3        1
+  #   T4-1  5-A--3  5-A*-3   5-A--3  5-A*-3  2-T2
+  #   | \2    |\      |\       |\      |\    3/ |
+  #   3       4 1     4 1      4 1     4 1      1
   #
   #        0       0        0       0
-  #   0     \ 1     \ 1      \ 1     \ 1        0
+  #   0     \ 2     \ 2      \ 2     \ 2        0
   #   |      \|      \|       \|      \|        |
-  #   T4-1  4-A--2  4-A*-2   4-A--2  4-A*-2  2-T2
-  #   |       |       |        |       |        |
-  #   2       3       3        3       3        1
-  #   0          0                0             0
-  #   |          |                |             |
-  #   C4-1     2-T3-1           2-T3-1       1-C3
+  #   T4-1  5-A--3  5-A*-3   5-A--3  5-A*-3  2-T2
+  #   | \2    |\      |\       |\      |\    3/ |
+  #   3       4 1     4 1      4 1     4 1      1
+  #
+  #   0          01               01            0
+  #   |          ||               ||            |
+  #   C4-1     3-T3-2           3-T3-2       1-C3
 
   Adl2 = Adl.transpose(4, 3, 0, 1, 2).reshape(Adl.shape[4]*Adl.shape[3], Adl.shape[0]*Adl.shape[1]*Adl.shape[2])
   Aul2 = Aul.transpose(1, 4, 0, 2, 3).reshape(Aul.shape[1]*Aul.shape[4], Aul.shape[0]*Aul.shape[2]*Aul.shape[3])
