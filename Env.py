@@ -83,6 +83,8 @@ class Env(object):
 
     self._neq_As = np.ascontiguousarray(tensors)
     for A in tensors:
+      if A.ndim == 5:  # if no ancila, add 1
+        A = A.reshape(A.shape[0],1,A.shape[1],A.shape[2],A.shape[3],A.shape[4])
       C1,T1,C2,T4,a,T2,C4,T3,C3 = initialize_env(A)
       self._neq_as.append(a)
       self._neq_C1s.append(C1)
