@@ -124,10 +124,10 @@ def rdm_2x1(C1,T1,C2,T4u,Au,T2u,T4d,Ad,T2d,C4,T3,C3):
   Compute reduced density matrix for 2 sites in a column
   """
   # contract using 1x2 with swapped tensors and legs
-  return rdm_1x2(C2, T2u.transpose(1,2,0), T2d.transpose(1,2,0), C3.T, T1,
-                 Au.transpose(0,2,3,4,1), Ad.transpose(0,2,3,4,1),
-                 T3.transpose(1,2,0), C1, T4u.transpose(1,2,0),
-                 T4d.transpose(1,2,0),C4.T)
+  return rdm_1x2(C2, T2u.transpose(1,2,3,0), T2d.transpose(1,2,3,0), C3.T, T1,
+                 Au.transpose(0,1,3,4,5,2), Ad.transpose(0,1,3,4,5,2),
+                 T3.transpose(2,3,0,1), C1, T4u.transpose(1,2,3,0),
+                 T4d.transpose(1,2,3,0),C4.T)
 
 
 def rdm_2x2(C1,T1l,T1r,C2,T4u,Aul,Aur,T2u,T4d,Adl,Adr,T2d,C4,T3l,T3r,C3):
