@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.linalg as lg
 
 
 class U1tensor(object):
@@ -34,7 +35,7 @@ class U1tensor(object):
     colors = [self._colors[i] for i in axes]
     return U1tensor(self._ar.transpose(axes), colors, False)
 
-  def reshape(self,sh, nc)
+  def reshape(self,sh, nc):
     return U1tensor(self._ar.reshape(sh),nc)
 
   def copy(self):
@@ -43,7 +44,6 @@ class U1tensor(object):
   def dot(self,other):
     if self._ar.ndim == other._ar.ndim != 2:
       raise ValueError("ndim must be 2 to use dot")
-
     res = np.zeros((self._ar.shape[0],other._ar.shape[1]))
     for c in set(self._colors[0]):
       ri = (self._colors[0] == c).nonzero()[0][:,None]
@@ -51,7 +51,17 @@ class U1tensor(object):
       mid = (self._colors[1]==-c).nonzero()[0]
       assert( ((other._colors[0] == c) == mid).all()), "Colors do not match"
       res[ri,ci] = self._ar[ri,mid] @ other._ar[mid[:,None],ci]
-   return res
+    return res
+
+  def tensordot(self,b,ax,ax_b):
+    ar = tensordotU1(self._ar, self._colors, ax, b._ar, b._colors, ax_b)
+    cols = [self._colors[k] for k in range(self._ar.ndim) if k not in ax]\
+           + [b._colors[k] for k in range(b._ar.ndim) if k not in ax_b]
+    return U1tensor(ar, cols, False)
+
+  def checkU1(self):
+    return checkU1(self._ar, self._colors, tol)
+
 
 def dotU1(a, rc_a, cc_a, b, cc_b):
   if a.ndim == b.ndim != 2:
@@ -65,7 +75,7 @@ def dotU1(a, rc_a, cc_a, b, cc_b):
     mid = (cc_a == c).nonzero()[0]
     ci = cc_b == c
     res[ri,ci] = a[ri,mid] @ b[mid[:,None],ci]
- return res
+  return res
 
 
 def combine_colors(*colors):
@@ -73,6 +83,14 @@ def combine_colors(*colors):
   for c in colors:
     combined = (combined[:,None]+c).reshape(len(combined)*len(c))
   return combined
+
+
+def checkU1(T,colorsT,tol=1e-14):
+  nn = np.transpose((np.abs(T) > 1e-16).nonzero())
+  for ind in nn:
+    if sum(colorsT[i][c] for i,c in enumerate(ind)) != 0:
+      return False, ind, T[tuple(ind)]
+  return True, None, 0
 
 
 def tensordotU1(a, colors_a, ax_a, b, colors_b, ax_b):
