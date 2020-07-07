@@ -3,13 +3,37 @@ import scipy.linalg as lg
 
 
 def checkU1(T,colorsT,tol=1e-14):
-  for ind in np.array((np.abs(T) > 1e-16).nonzero()).T:
+  """
+  Check tensor has U(1) symmetry up to tolerance
+  """
+  for ind in np.array((np.abs(T) > tol).nonzero()).T:
     if sum(colorsT[i][c] for i,c in enumerate(ind)) != 0:
       return False, ind, T[tuple(ind)]
   return True, None, 0
 
 
 def dotU1(a, rc_a, cc_a, b, cc_b):
+  """
+  Optimized matrix product for U(1) symmetric matrices.
+
+  Parameters
+  ----------
+  a : (m,l) ndarray
+    First argument.
+  rc_a : (m,) integer ndarray
+    U(1) quantum numbers of a rows.
+  cc_a : (l,) integer ndarray
+    U(1) quantum numbers of a columns. Must be the opposite of b row colors.
+  b : (l,n) ndarray
+    Second argument.
+  cc_b : (n,) integer ndarray
+    U(1) quantum numbers of b columns.
+
+  Returns
+  -------
+  output : (m,n) ndarray
+    dot product of a and b.
+  """
   if a.ndim == b.ndim != 2:
     raise ValueError("ndim must be 2 to use dot")
   if a.shape[1] != b.shape[0]:
@@ -25,6 +49,9 @@ def dotU1(a, rc_a, cc_a, b, cc_b):
 
 
 def combine_colors(*colors):
+  """
+  Construct colors of merged tensor legs from every leg colors.
+  """
   combined = colors[0]
   for c in colors[1:]:
     combined = (combined[:,None]+c).ravel()
@@ -32,6 +59,24 @@ def combine_colors(*colors):
 
 
 def tensordotU1(a, colors_a, ax_a, b, colors_b, ax_b):
+  """
+  Optimized tensor dot product along specified axes for U(1) symmetric tensors.
+
+  Parameters
+  ----------
+  a,b : ndarray
+    tensors to contract.
+  colors_a, colors_b : list of a.ndim and b.ndim integer arrays.
+    U(1) quantum numbers of a and b axes.
+  ax_a, ax_b : tuple of integers
+    axes to contract for tensors a and b
+
+  Returns
+  -------
+  output : ndarray
+    Tensor dot product of a and b.
+
+  """
   if len(ax_a) != len(ax_b):
     raise ValueError("axes for a and b must match")
   if len(ax_a) > a.ndim:
