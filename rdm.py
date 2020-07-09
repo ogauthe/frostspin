@@ -19,26 +19,15 @@ def rdm_1x1(C1,T1,C2,T4,A,T2,C4,T3,C3):
   #   C4-1      3-T3-2          1-C3
 
   # bypassing tensordot makes code conceptually simpler and memory efficient but unreadable
-  T3C3 = T3.swapaxes(1,2).reshape(T3.shape[0]*T3.shape[2], T3.shape[1])
-  T3C3 = np.dot(T3C3,C3.T).reshape(T3.shape[0], T3.shape[2], C3.shape[0])
-  T3C3 = T3C3.swapaxes(0,1).reshape(T3.shape[2], T3.shape[0]*C3.shape[0])
-  rdm = np.dot(T4.reshape(T4.shape[0]*T4.shape[1], T4.shape[2]),C4)
-  rdm = np.dot(rdm,T3C3).reshape(T4.shape[0], A.shape[4], A.shape[4], A.shape[3], A.shape[3]*C3.shape[0])
-  del T3C3
-  rdm = rdm.transpose(3, 1, 0, 2, 4).reshape(A.shape[3]*A.shape[4], T4.shape[0]*A.shape[4]*A.shape[3]*C3.shape[0])
-  rdm = np.dot(A.reshape(A.shape[0]*A.shape[1]*A.shape[2]*A.shape[3], rdm.shape[1]),rdm)
-  rdm = rdm.reshape(A.shape[0], A.shape[1]*A.shape[2]*A.shape[3], T4.shape[0], A.shape[4]*A.shape[3], C3.shape[0])
-  rdm = rdm.transpose(2, 1, 4, 3, 0).reshape(T4.shape[0]*A.shape[1]*A.shape[2]*C3.shape[0], A.shape[4]*A.shape[3]*A.shape[0])
-  T1C1 = np.dot(T1.reshape(T1.shape[0]*T1.shape[1], T1.shape[2]),C1).reshape(T1.shape[0], T1.shape[1]*C1.shape[1])
-  T2C2 = T2.transpose(1, 2, 0).reshape(T2.shape[1]*T2.shape[2], T2.shape[0])
-  T2C2 = np.dot(T2C2,C2)
-  T2C2T1C1 = np.dot(T2C2,T1C1).reshape(T2.shape[1], A.shape[2], A.shape[2], A.shape[1], A.shape[1]*C1.shape[1])
-  del T2C2, T1C1
-  T2C2T1C1 = T2C2T1C1.transpose(2, 4, 3, 1, 0).reshape(A.shape[2]*A.shape[1], rdm.shape[0])
-  rdm = np.dot(T2C2T1C1,rdm).reshape(A.shape[2], A.shape[1], A.shape[4], A.shape[3], A.shape[0])
-  del T2C2T1C1
-  rdm = rdm.transpose(4, 1, 0, 3, 2).reshape(A.shape[0], A.shape[1]*A.shape[2]*A.shape[3]*A.shape[4])
-  rdm = np.dot(rdm,A.reshape(A.shape[0],rdm.shape[1]).T.conj()).reshape(A.shape[0], A.shape[0])
+  rdm = np.tensordot(T4, C1, ((0,),(1,)))
+  rdm = np.tensordot(rdm, C4, ((2,),(0,)))
+  rdm = np.tensordot(rdm, T1, ((2,),(3,)))
+  rdm = np.tensordot(rdm, A, ((4, 0),(2, 5)))
+  dr = np.tensordot(T2, C2, ((0,),(0,)))
+  dr = np.tensordot(dr, C3, ((0,),(0,)))
+  dr = np.tensordot(dr, T3, ((3,),(2,)))
+  rdm = np.tensordot(dr, rdm, ((2, 0, 3, 5),(2, 6, 7, 1)))
+  rdm = np.tensordot(rdm, A.conj(), ((3, 2, 0, 1, 5),(2, 5, 3, 4, 1)))
   return rdm/np.trace(rdm)
 
 
