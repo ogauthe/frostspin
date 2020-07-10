@@ -27,8 +27,7 @@ def initialize_env(A):
   T3 = np.einsum('abcdeegh->abcdgh', a).reshape(A.shape[2],A.shape[2],A.shape[3]**2,A.shape[5]**2)
   C4 = np.einsum('abcdeegg->abcd', a).reshape(A.shape[2]**2,A.shape[3]**2)
   T4 = np.einsum('abcdefgg->abcdef', a).reshape(A.shape[2]**2,A.shape[3],A.shape[3],A.shape[4]**2)
-  a = a.reshape(A.shape[2]**2,A.shape[3]**2,A.shape[4]**2,A.shape[5]**2)
-  return C1,T1,C2,T4,a,T2,C4,T3,C3
+  return C1,T1,C2,T4,T2,C4,T3,C3
 
 
 class Env(object):
@@ -71,7 +70,6 @@ class Env(object):
       self._neq_coords[i] = ind//self._Ly, ind%self._Lx
 
     self._indices = indices.reshape(self._Lx,self._Ly)
-    self._neq_as = []
     self._neq_C1s = []
     self._neq_T1s = []
     self._neq_C2s = []
@@ -85,8 +83,7 @@ class Env(object):
     for A in tensors:
       if A.ndim == 5:  # if no ancila, add 1
         A = A.reshape(A.shape[0],1,A.shape[1],A.shape[2],A.shape[3],A.shape[4])
-      C1,T1,C2,T4,a,T2,C4,T3,C3 = initialize_env(A)
-      self._neq_as.append(a)
+      C1,T1,C2,T4,T2,C4,T3,C3 = initialize_env(A)
       self._neq_C1s.append(C1)
       self._neq_T1s.append(T1)
       self._neq_C2s.append(C2)
