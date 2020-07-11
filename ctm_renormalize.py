@@ -25,15 +25,11 @@ def construct_projectors(R,Rt,chi,verbosity=0):
 #              renormalize_T(Pt,T,A,P)
 ###############################################################################
 
-
 def renormalize_C1_up(C1,T4,P):
   """
   Renormalize corner C1 from an up move using projector P
   CPU: 2*chi**3*D**2
   """
-  #T4 = env.get_T4(x,y+1)
-  #C1 = env.get_C1(x,y)
-  #P = env.get_P(x+1,y)
   #  C1-0
   #  |
   #  1
@@ -48,7 +44,7 @@ def renormalize_C1_up(C1,T4,P):
   #  T4=1,2-/
   #  |
   #  3 -> 1
-  nC1 = nC1.reshape(len(P),T4.shape[3])
+  nC1 = nC1.reshape(P.shape[0],T4.shape[3])
   #  C1-\
   #  |   00=P-1 ->0
   #  T4-/
@@ -87,10 +83,6 @@ def renormalize_C2_up(C2,T2,Pt):
   Renormalize corner C2 from an up move using projector Pt
   CPU: 2*chi**3*D**2
   """
-  #C2 = env.get_C2(x,y)
-  #T2 = env.get_T2(x,y+1)
-  #Pt = env.get_Pt(x,y)
-
   #    0<-1-C2
   #          |
   #          0
@@ -117,14 +109,6 @@ def renormalize_C2_right(C2,T1,P):
   Renormalize corner C2 from right move using projector P
   CPU: 2*chi**3*D**2
   """
-  #                      0
-  #                      ||
-  #  1-C2     3-T1-0     P
-  #     |       ||       |
-  #     0       12       1
-  #C2 = env.get_C2(x,y)
-  #T1 = env.get_T1(x-1,y)
-  #P = env.get_P(x,y+1)
   #   1<- 3-T1-01-C2
   #         ||     |
   #         12     0
@@ -149,10 +133,6 @@ def renormalize_T2(Pt,A,T2,P):
   Renormalize edge T2 using projectors P and Pt
   CPU: 2*chi**2*D**4*(d*a*D**2 + chi)
   """
-  #T2 = env.get_T2(x,y)
-  #a = env.get_a(x-1,y)
-  #P = env.get_P(x,y+1)
-  #Pt = env.get_Pt(x,y)
   #       1
   #       |
   #       Pt
@@ -176,14 +156,12 @@ def renormalize_T2(Pt,A,T2,P):
   nT2 = nT2.transpose(0,3,1,2)/lg.norm(nT2)
   return nT2
 
+
 def renormalize_C3_right(C3,T3,Pt):
   """
   Renormalize corner C3 from right move using projector Pt
   CPU: 2*chi**3*D**2
   """
-  #C3 = env.get_C3(x,y)
-  #T3 = env.get_T3(x-1,y)
-  #Pt = env.get_Pt(x,y)
   #       01     0
   #       ||     |
   #     3-T3-21-C3
@@ -208,9 +186,6 @@ def renormalize_C3_down(C3,T2,P):
   Renormalize corner C3 from down move using projector P
   CPU: 2*chi**3*D**2
   """
-  #C3 = env.get_C3(x,y)
-  #T2 = env.get_T2(x,y-1)
-  #P = env.get_P(x-1,y)
   #         0
   #         |
   #     12=T2
@@ -249,11 +224,6 @@ def renormalize_T3(Pt,T3,A,P):
   #        \    01    /
   #         \   ||   /
   #          03-T3-20
-  #T3 = env.get_T3(x,y)
-  #a = env.get_a(x,y-1)
-  #P = env.get_P(x-1,y)
-  #Pt = env.get_Pt(x,y)
-
   nT3 = np.tensordot(T3, P.reshape(T3.shape[0],A.shape[5],A.shape[5],P.shape[1]), ((3,),(0,)))
   nT3 = np.tensordot(A, nT3, ((4, 5),(0, 3)))
   nT3 = np.tensordot(nT3, A.conj(), ((0, 1, 6, 4),(0, 1, 5, 4)))
@@ -268,9 +238,6 @@ def renormalize_C4_down(C4,T4,Pt):
   Renormalize corner C4 from a down move using projector Pt
   CPU: 2*chi**3*D**2
   """
-  #C4 = env.get_C4(x,y)
-  #T4 = env.get_T4(x,y-1)
-  #Pt = env.get_Pt(x,y)
   #   0
   #   |
   #   T4=1,2
@@ -296,10 +263,6 @@ def renormalize_C4_left(C4,T3,P):
   Renormalize corner C4 from a left move using projector P
   CPU: 2*chi**3*D**2
   """
-  #C4 = env.get_C4(x,y)
-  #T3 = env.get_T3(x+1,y)
-  #P = env.get_P(x,y-1)
-
   #           12
   #     0     01
   #     |     ||
@@ -341,10 +304,6 @@ def renormalize_T4(Pt,T4,A,P):
   #       Pt
   #       |
   #       1
-  #P = env.get_P(x,y-1)
-  #T4 = env.get_T4(x,y)
-  #a = env.get_a(x+1,y)
-  #Pt = env.get_Pt(x,y)
   nT4 = np.tensordot(P.reshape(T4.shape[0],A.shape[2],A.shape[2],P.shape[1]), T4, ((0,),(0,)))
   nT4 = np.tensordot(nT4, A, ((0, 3),(2, 5)))
   nT4 = np.tensordot(nT4, A.conj(), ((0, 2, 4, 5),(2, 5, 0, 1)))
@@ -359,10 +318,6 @@ def renormalize_C1_left(C1,T1,Pt):
   Renormalize corner C1 from a left move using projector Pt
   CPU: 2*chi**3*D**2
   """
-  #C1 = env.get_C1(x,y)
-  #T1 = env.get_T1(x+1,y)
-  #Pt = env.get_Pt(x,y)
-
   #  C1-03-T1-0
   #  |     ||
   #  1     12

@@ -2,7 +2,7 @@ import numpy as np
 import scipy.linalg as lg
 
 import Env
-from ctm_contract import construct_U_half, construct_L_half, construct_D_half, construct_R_half
+from ctm_contract import contract_U_half, contract_L_half, contract_D_half, contract_R_half
 from ctm_renormalize import *
 import rdm
 
@@ -38,6 +38,7 @@ class CTMRG(object):
   @property
   def env(self):
     return self._env
+
 
   def iterate(self):
     self.up_move()
@@ -77,9 +78,14 @@ class CTMRG(object):
       j = self._env.get_neq_index(x,y+1)
       if self.verbosity > 1:
         print(f'x = {x}, y = {y}, i = {i}, j = {j}')
-      nC1s[j] = renormalize_C1_up(self._env,x,y,self.verbosity)
-      nT1s[j] = renormalize_T1(self._env,x,y,self.verbosity)
-      nC2s[j] = renormalize_C2_up(self._env,x,y,self.verbosity)
+      nC1s[j] = renormalize_C1_up(self._env.get_C1(x,y),
+                                self._env.get_T4(x,y+1),self._env.get_P(x+1,y))
+
+      nT1s[j] = renormalize_T1(self._env.get_Pt(x,y), self._env.get_T1(x,y),
+                                self._env.get_A(x,y+1), self._env.get_P(x+1,y))
+
+      nC2s[j] = renormalize_C2_up(self._env.get_C2(x,y),
+                                self._env.get_T2(x,y+1), self._env.get_Pt(x,y))
 
     # 3) store renormalized tensors in the environment
     # renormalization reads C1[x,y] but writes C1[x,y+1]
@@ -88,9 +94,9 @@ class CTMRG(object):
     self._env.neq_C1s = nC1s
     self._env.neq_T1s = nT1s
     self._env.neq_C2s = nC2s
-
     if self.verbosity > 0:
       print('up move completed')
+
 
   def right_move(self):
     if self.verbosity > 0:
@@ -117,16 +123,20 @@ class CTMRG(object):
       j = self._env.get_neq_index(x-1,y)
       if self.verbosity > 1:
         print(f'x = {x}, y = {y}, i = {i}, j = {j}')
-      nC2s[j] = renormalize_C2_right(self._env,x,y,self.verbosity)
-      nT2s[j] = renormalize_T2(self._env,x,y,self.verbosity)
-      nC3s[j] = renormalize_C3_right(self._env,x,y,self.verbosity)
+      nC2s[j] = renormalize_C2_right(self._env.get_C2(x,y),
+                               self._env.get_T1(x-1,y), self._env.get_P(x,y+1))
+
+      nT2s[j] = renormalize_T2(self._env.get_Pt(x,y), self._env.get_A(x-1,y),
+                                 self._env.get_T2(x,y), self._env.get_P(x,y+1))
+
+      nC3s[j] = renormalize_C3_right(self._env.get_C3(x,y),
+                                self._env.get_T3(x-1,y), self._env.get_Pt(x,y))
 
     # 3) store renormalized tensors in the environment
     self._env.reset_projectors()
     self._env.neq_C2s = nC2s
     self._env.neq_T2s = nT2s
     self._env.neq_C3s = nC3s
-
     if self.verbosity > 0:
       print('right move completed')
 
@@ -158,9 +168,14 @@ class CTMRG(object):
       j = self._env.get_neq_index(x,y-1)
       if self.verbosity > 1:
         print(f'x = {x}, y = {y}, i = {i}, j = {j}')
-      nC3s[j] = renormalize_C3_down(self._env,x,y,self.verbosity)
-      nT3s[j] = renormalize_T3(self._env,x,y,self.verbosity)
-      nC4s[j] = renormalize_C4_down(self._env,x,y,self.verbosity)
+      nC3s[j] = renormalize_C3_down(self._env.get_C3(x,y),
+                               self._env.get_T2(x,y-1), self._env.get_P(x-1,y))
+
+      nT3s[j] = renormalize_T3(self._env.get_T3(x,y), self._env.get_A(x,y-1),
+                                 self._env.get_P(x-1,y), self._env.get_Pt(x,y))
+
+      nC4s[j] = renormalize_C4_down(self._env.get_C4(x,y),
+                                self._env.get_T4(x,y-1), self._env.get_Pt(x,y))
 
     # 3) store renormalized tensors in the environment
     self._env.reset_projectors()
@@ -168,7 +183,6 @@ class CTMRG(object):
     self._env.neq_C3s = nC3s
     self._env.neq_T3s = nT3s
     self._env.neq_C4s = nC4s
-
     if self.verbosity > 0:
       print('down move completed')
 
@@ -198,9 +212,14 @@ class CTMRG(object):
       j = self._env.get_neq_index(x+1,y)
       if self.verbosity > 1:
         print(f'x = {x}, y = {y}, i = {i}, j = {j}')
-      nC4s[j] = renormalize_C4_left(self._env,x,y,self.verbosity)
-      nT4s[j] = renormalize_T4(self._env,x,y,self.verbosity)
-      nC1s[j] = renormalize_C1_left(self._env,x,y,self.verbosity)
+      nC4s[j] = renormalize_C4_left(self._env.get_C4(x,y),
+                               self._env.get_T3(x+1,y), self._env.get_P(x,y-1))
+
+      nT4s[j] = renormalize_T4(self._env.get_Pt(x,y), self._env.get_T4(x,y),
+                                self._env.get_A(x+1,y), self._env.get_P(x,y-1))
+
+      nC1s[j] = renormalize_C1_left(self._env.get_C1(x,y),
+                                self._env.get_T1(x+1,y), self._env.get_Pt(x,y))
 
     # 3) store renormalized tensors in the environment
     self._env.reset_projectors()
