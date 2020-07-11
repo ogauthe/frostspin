@@ -4,8 +4,6 @@ import scipy.linalg as lg
 
 def construct_projectors(R,Rt,chi):
   assert(R.shape[0] == Rt.shape[0])
-  if verbosity > 1:
-    print('construct projectors: R.shape =',R.shape, 'Rt.shape =', Rt.shape)
   # convention : for every move, leg 0 of R and Rt are to be contracted
   U,s,V = lg.svd(R.T @ Rt)
   s12 = 1/np.sqrt(s[:chi])

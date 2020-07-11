@@ -19,7 +19,7 @@ class CTMRG(object):
   def __init__(self,tensors,tiling,chi,verbosity=0):
     self.verbosity = verbosity
     if self.verbosity > 0:
-      print(f'initalize CTMRG with chi = {chi}, verbosity = {verbosity} and tiling = {tiling}')
+      print(f'initalize CTMRG with chi = {chi}, self.verbosity = {self.verbosity} and tiling = {tiling}')
     self.chi = chi
     self._env = Env.Env(tensors,tiling,chi)
     self._neq_coords = self._env.neq_coords
