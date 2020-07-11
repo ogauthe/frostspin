@@ -71,8 +71,8 @@ def renormalize_T1(Pt,T1,A,P):
   nT1 = np.tensordot(T1, Pt.reshape(T1.shape[3],A.shape[5],A.shape[5],Pt.shape[1]), ((3,),(0,)))
   nT1 = np.tensordot(nT1, A, ((1, 3),(2, 5)))
   nT1 = np.tensordot(nT1, A.conj(), ((1, 2, 4, 5),(2, 5, 0, 1)))
-  nT1 = nT1.transpose(1,3,5,0,2,4).reshape(Pt.shape[1]*A.shape[3]*A.shape[4],P.shape[0])
-  nT1 = (nT1 @ P).reshape(Pt.shape[1],A.shape[3],A.shape[4],P.shape[1])
+  nT1 = nT1.transpose(1,3,5,0,2,4).reshape(Pt.shape[1]*A.shape[4]**2,P.shape[0])
+  nT1 = (nT1 @ P).reshape(Pt.shape[1],A.shape[4],A.shape[4],P.shape[1])
   nT1 /= lg.norm(nT1)
   return nT1
 
@@ -226,8 +226,8 @@ def renormalize_T3(Pt,T3,A,P):
   nT3 = np.tensordot(T3, P.reshape(T3.shape[3],A.shape[5],A.shape[5],P.shape[1]), ((3,),(0,)))
   nT3 = np.tensordot(A, nT3, ((4, 5),(0, 3)))
   nT3 = np.tensordot(nT3, A.conj(), ((0, 1, 4, 6),(0, 1, 4, 5)))
-  nT3 = nT3.transpose(0,4,3,2,1,5).reshape(A.shape[3]**2*P.shape[1],Pt.shape[0])
-  nT3 = np.dot(nT3, Pt).reshape(A.shape[3],A.shape[3],P.shape[1],Pt.shape[1])
+  nT3 = nT3.transpose(0,4,3,2,1,5).reshape(A.shape[2]**2*P.shape[1],Pt.shape[0])
+  nT3 = np.dot(nT3, Pt).reshape(A.shape[2],A.shape[2],P.shape[1],Pt.shape[1])
   nT3 = nT3.swapaxes(2,3)/lg.norm(T3)
   return nT3
 

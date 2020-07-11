@@ -32,8 +32,8 @@ def contract_UL_corner(C1,T1,T4,A):
   #  T4-51-A-4
   #  | \3  |\3
   #  1     5
-  cornerUL = np.dot(cornerUL,temp).reshape(T1.shape[0],T4.shape[0],T1.shape[2],T4.shape[2],A.shape[0],A.shape[1],A.shape[3],A.shape[4])
-  cornerUL = cornerUL.transpose(0,1,6,7,2,3,4,5).reshape(T1.shape[0]*T4.shape[0]*A.shape[3]*A.shape[4],
+  cornerUL = np.dot(cornerUL,temp).reshape(T1.shape[0],T4.shape[3],T1.shape[2],T4.shape[2],A.shape[0],A.shape[1],A.shape[3],A.shape[4])
+  cornerUL = cornerUL.transpose(0,1,6,7,2,3,4,5).reshape(T1.shape[0]*T4.shape[3]*A.shape[3]*A.shape[4],
                                                        T1.shape[2]*T4.shape[2]*A.shape[0]*A.shape[1])
   #  C1----T1-0
   #  |     ||
@@ -43,7 +43,7 @@ def contract_UL_corner(C1,T1,T4,A):
   #  T4----A-2      1-A*-4
   #  | \5  |\7        |\
   #  1     3          5 3
-  cornerUL = np.dot(cornerUL,temp.reshape(cornerUL.shape[1],A.shape[3]*A.shape[4]).conj()).reshape(T1.shape[0],T4.shape[0],A.shape[3],A.shape[4], A.shape[3],A.shape[4])
+  cornerUL = np.dot(cornerUL,temp.reshape(cornerUL.shape[1],A.shape[3]*A.shape[4]).conj()).reshape(T1.shape[0],T4.shape[3],A.shape[3],A.shape[4], A.shape[3],A.shape[4])
 
   #  C1-T1-0--------\
   #  |  ||           0
