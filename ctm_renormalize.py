@@ -112,39 +112,6 @@ def renormalize_C2_up(C2,T2,Pt):
   return nC2
 
 
-def renormalize_T2(Pt,A,T2,P):
-  """
-  Renormalize edge T2 using projectors P and Pt
-  CPU: 2*chi**2*D**4*(d*a*D**2 + chi)
-  """
-  #T2 = env.get_T2(x,y)
-  #a = env.get_a(x-1,y)
-  #P = env.get_P(x,y+1)
-  #Pt = env.get_Pt(x,y)
-  #       1
-  #       |
-  #       Pt
-  #     /   \
-  #    0'    0
-  #  0 2     0
-  #   \|     |
-  #  5-A-32-T2
-  #    |\ 3/ |
-  #    4 1   1
-  #    0'    0
-  #     \   /
-  #       P
-  #       |
-  #       1
-  nT2 = np.tensordot(T2, Pt.reshape(T2.shape[0],A.shape[2],A.shape[2],Pt.shape[1]), ((0,),(0,)))
-  nT2 = np.tensordot(T2, A, ((3, 1),(2, 3)))
-  nT2 = np.tensordot(nT2, A.conj(), ((2, 1, 4, 5),(2, 3, 0, 1)))
-  nT2 = nT2.transpose(1,3,5,2,4,0).reshape(Pt.shape[1]*A.shape[5]**2,P.shape[0])
-  nT2 = np.dot(nT2, P).reshape(Pt.shape[1],A.shape[5],A.shape[5],P.shape[1])
-  nT2 = nT2.transpose(0,3,1,2)/lg.norm(nT2)
-  return nT2
-
-
 def renormalize_C2_right(C2,T1,P):
   """
   Renormalize corner C2 from right move using projector P
@@ -176,6 +143,38 @@ def renormalize_C2_right(C2,T1,P):
   nC2 /= lg.norm(nC2)
   return nC2
 
+
+def renormalize_T2(Pt,A,T2,P):
+  """
+  Renormalize edge T2 using projectors P and Pt
+  CPU: 2*chi**2*D**4*(d*a*D**2 + chi)
+  """
+  #T2 = env.get_T2(x,y)
+  #a = env.get_a(x-1,y)
+  #P = env.get_P(x,y+1)
+  #Pt = env.get_Pt(x,y)
+  #       1
+  #       |
+  #       Pt
+  #     /   \
+  #    0'    0
+  #  0 2     0
+  #   \|     |
+  #  5-A-32-T2
+  #    |\ 3/ |
+  #    4 1   1
+  #    0'    0
+  #     \   /
+  #       P
+  #       |
+  #       1
+  nT2 = np.tensordot(T2, Pt.reshape(T2.shape[0],A.shape[2],A.shape[2],Pt.shape[1]), ((0,),(0,)))
+  nT2 = np.tensordot(T2, A, ((3, 1),(2, 3)))
+  nT2 = np.tensordot(nT2, A.conj(), ((2, 1, 4, 5),(2, 3, 0, 1)))
+  nT2 = nT2.transpose(1,3,5,2,4,0).reshape(Pt.shape[1]*A.shape[5]**2,P.shape[0])
+  nT2 = np.dot(nT2, P).reshape(Pt.shape[1],A.shape[5],A.shape[5],P.shape[1])
+  nT2 = nT2.transpose(0,3,1,2)/lg.norm(nT2)
+  return nT2
 
 def renormalize_C3_right(C3,T3,Pt):
   """
