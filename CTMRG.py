@@ -59,8 +59,8 @@ class CTMRG(object):
                            self._env.get_T3(x+2,y+3),self._env.get_C3(x+3,y+3))
       Rt = contract_L_half(self._env.get_C1(x,y),   self._env.get_T1(x+1,y),
                             self._env.get_T4(x,y+1), self._env.get_A(x+1,y+1),
-                            self._env.get_T4(x,y+2), self._env.get_A(x+1,y+3),
-                            self._env.get_C4(x,y+4),self._env.get_T3(x+1,y+4))
+                            self._env.get_T4(x,y+2), self._env.get_A(x+1,y+2),
+                            self._env.get_C4(x,y+3),self._env.get_T3(x+1,y+3))
       #        L-0  == 1-R
       #        L         R
       #        L         R  => transpose R
@@ -162,8 +162,8 @@ class CTMRG(object):
       #        L-1      L-0
       R = contract_L_half(self._env.get_C1(x,y),     self._env.get_T1(x+1,y),
                             self._env.get_T4(x,y+1), self._env.get_A(x+1,y+1),
-                            self._env.get_T4(x,y+2), self._env.get_A(x+1,y+3),
-                            self._env.get_C4(x,y+4), self._env.get_T3(x+1,y+4))
+                            self._env.get_T4(x,y+2), self._env.get_A(x+1,y+2),
+                            self._env.get_C4(x,y+3), self._env.get_T3(x+1,y+3))
       #      1-R
       #        R
       #        R
