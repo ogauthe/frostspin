@@ -129,7 +129,7 @@ chi = 17
 niter = 10
 tensors = [tRVB2]
 tiling = """
-A
+#A
 """
 
 ctm = CTMRG(tensors,tiling,chi,verbosity=0)
@@ -144,4 +144,4 @@ for i in range(10):
   rdm2x1 = ctm.compute_rdm2x1()
   print(f'trace(SdS_22b @ rdm1x2) = {np.trace(SdS_22b @ rdm1x2):.5e}')
   print(f'trace(SdS_22b @ rdm2x1) = {np.trace(SdS_22b @ rdm2x1):.5e}')
-
+"""
