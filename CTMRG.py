@@ -65,7 +65,9 @@ class CTMRG(object):
       #        L         R
       #        L         R  => transpose R
       #        L-1     0-R
-      P,Pt = construct_projectors(R.T, Rt, self.chi, self.verbosity)
+      P,Pt = construct_projectors(R.T, Rt, self.chi)
+      if self.verbosity > 1:
+        print(f'constructed projectors: R.shape = {R.shape}, Rt.shape = {Rt.shape}, P.shape = {P.shape}, Pt.shape = {Pt.shape}')
       self._env.set_projectors(x+1,y,P,Pt)
       del R, Rt
 
@@ -118,6 +120,8 @@ class CTMRG(object):
                            self._env.get_T4(x,y+1),  self._env.get_A(x+1,y+1),
                            self._env.get_A(x+2,y+1), self._env.get_T2(x+3,y+1))
       P,Pt = construct_projectors(R.T,Rt,self.chi)
+      if self.verbosity > 1:
+        print(f'constructed projectors: R.shape = {R.shape}, Rt.shape = {Rt.shape}, P.shape = {P.shape}, Pt.shape = {Pt.shape}')
       self._env.set_projectors(x,y+1,P,Pt)
       del R, Rt
 
@@ -169,7 +173,9 @@ class CTMRG(object):
                            self._env.get_A(x+2,y+2), self._env.get_T2(x+3,y+2),
                            self._env.get_T3(x+2,y+3),self._env.get_C3(x+3,y+3))
 
-      P,Pt = construct_projectors(R.T,Rt,self.chi,self.verbosity)
+      P,Pt = construct_projectors(R.T,Rt,self.chi)
+      if self.verbosity > 1:
+        print(f'constructed projectors: R.shape = {R.shape}, Rt.shape = {Rt.shape}, P.shape = {P.shape}, Pt.shape = {Pt.shape}')
       self._env.set_projectors(x+1,y+3,P,Pt)
       del R, Rt
 
@@ -219,7 +225,9 @@ class CTMRG(object):
                           self._env.get_A(x+2,y+2),  self._env.get_T2(x+3,y+2),
                           self._env.get_C4(x,y+3),   self._env.get_T3(x+1,y+3),
                           self._env.get_T3(x+2,y+3), self._env.get_C3(x+3,y+3))
-      P,Pt = construct_projectors(R.T,Rt,self.chi,self.verbosity)
+      P,Pt = construct_projectors(R.T,Rt,self.chi)
+      if self.verbosity > 1:
+        print(f'constructed projectors: R.shape = {R.shape}, Rt.shape = {Rt.shape}, P.shape = {P.shape}, Pt.shape = {Pt.shape}')
       self._env.set_projectors(x+3,y+1,P,Pt)
       del R, Rt
 

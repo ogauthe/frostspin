@@ -2,7 +2,7 @@ import numpy as np
 import scipy.linalg as lg
 
 
-def construct_projectors(R,Rt,chi,verbosity=0):
+def construct_projectors(R,Rt,chi):
   assert(R.shape[0] == Rt.shape[0])
   if verbosity > 1:
     print('construct projectors: R.shape =',R.shape, 'Rt.shape =', Rt.shape)
