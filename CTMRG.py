@@ -53,11 +53,11 @@ class CTMRG(object):
     # 1) compute isometries for every non-equivalent sites
     # convention : for every move, leg 0 of R and Rt are to be contracted
     for x,y in self._neq_coords:
-      R = construct_R_half(self._env.get_T1(x+2,y),  self._env.get_C2(x+3,y),
+      R = contract_R_half(self._env.get_T1(x+2,y),  self._env.get_C2(x+3,y),
                            self._env.get_A(x+2,y+1), self._env.get_T2(x+3,y+1),
                            self._env.get_A(x+2,y+2), self._env.get_T2(x+3,y+2),
-                           self._env.get_T4(x+2,y+3),self._env.get_C4(x+3,y+3))
-      Rt = construct_L_half(self._env.get_C1(x,y),   self._env.get_T1(x+1,y),
+                           self._env.get_T3(x+2,y+3),self._env.get_C3(x+3,y+3))
+      Rt = contract_L_half(self._env.get_C1(x,y),   self._env.get_T1(x+1,y),
                             self._env.get_T4(x,y+1), self._env.get_A(x+1,y+1),
                             self._env.get_T4(x,y+2), self._env.get_A(x+1,y+3),
                             self._env.get_C4(x,y+4),self._env.get_T3(x+1,y+4))
@@ -76,8 +76,6 @@ class CTMRG(object):
       print('Projectors constructed, renormalize tensors')
     for i, (x,y) in enumerate(self._neq_coords):
       j = self._env.get_neq_index(x,y+1)
-      if self.verbosity > 1:
-        print(f'x = {x}, y = {y}, i = {i}, j = {j}')
       nC1s[j] = renormalize_C1_up(self._env.get_C1(x,y),
                                 self._env.get_T4(x,y+1),self._env.get_P(x+1,y))
 
@@ -86,6 +84,8 @@ class CTMRG(object):
 
       nC2s[j] = renormalize_C2_up(self._env.get_C2(x,y),
                                 self._env.get_T2(x,y+1), self._env.get_Pt(x,y))
+      if self.verbosity > 1:
+        print(f'(x,y) = ({x},{y}) i = {i}, j = {j}, C1.shape = {nC1s[j].shape}, T1.shape = {nT1s[j].shape}, C2.shape = {nC2s[j].shape}')
 
     # 3) store renormalized tensors in the environment
     # renormalization reads C1[x,y] but writes C1[x,y+1]
@@ -106,12 +106,18 @@ class CTMRG(object):
       #      0  1    0
       #      |  | => R
       #      DDDD    1
-      R = construct_D_half(self._env,x,y,self.verbosity).T
+      R = contract_D_half(self._env.get_T4(x,y+2),   self._env.get_A(x+1,y+2),
+                          self._env.get_A(x+2,y+2),  self._env.get_T2(x+3,y+2),
+                          self._env.get_C4(x,y+3),   self._env.get_T3(x+1,y+3),
+                          self._env.get_T3(x+2,y+3), self._env.get_C3(x+3,y+3))
       #      UUUU     0
       #      |  | =>  Rt
       #      1  0     1
-      Rt = construct_U_half(self._env,x,y,self.verbosity)
-      P,Pt = construct_projectors(R,Rt,self.chi,self.verbosity)
+      Rt = contract_U_half(self._env.get_C1(x,y),    self._env.get_T1(x+1,y),
+                           self._env.get_T1(x+2,y),  self._env.get_C2(x+3,y),
+                           self._env.get_T4(x,y+1),  self._env.get_A(x+1,y+1),
+                           self._env.get_A(x+2,y+1), self._env.get_T2(x+3,y+1))
+      P,Pt = construct_projectors(R.T,Rt,self.chi)
       self._env.set_projectors(x,y+1,P,Pt)
       del R, Rt
 
@@ -121,8 +127,6 @@ class CTMRG(object):
       print('Projectors constructed, renormalize tensors')
     for i, (x,y) in enumerate(self._neq_coords):
       j = self._env.get_neq_index(x-1,y)
-      if self.verbosity > 1:
-        print(f'x = {x}, y = {y}, i = {i}, j = {j}')
       nC2s[j] = renormalize_C2_right(self._env.get_C2(x,y),
                                self._env.get_T1(x-1,y), self._env.get_P(x,y+1))
 
@@ -131,6 +135,8 @@ class CTMRG(object):
 
       nC3s[j] = renormalize_C3_right(self._env.get_C3(x,y),
                                 self._env.get_T3(x-1,y), self._env.get_Pt(x,y))
+      if self.verbosity > 1:
+        print(f'(x,y) = ({x},{y}) i = {i}, j = {j}, C2.shape = {nC2s[j].shape}, T2.shape = {nT2s[j].shape}, C3.shape = {nC3s[j].shape}')
 
     # 3) store renormalized tensors in the environment
     self._env.reset_projectors()
@@ -150,13 +156,20 @@ class CTMRG(object):
       #        L        L
       #        L    =>  L
       #        L-1      L-0
-      R = construct_L_half(self._env,x,y,self.verbosity).T
+      R = contract_L_half(self._env.get_C1(x,y),     self._env.get_T1(x+1,y),
+                            self._env.get_T4(x,y+1), self._env.get_A(x+1,y+1),
+                            self._env.get_T4(x,y+2), self._env.get_A(x+1,y+3),
+                            self._env.get_C4(x,y+4), self._env.get_T3(x+1,y+4))
       #      1-R
       #        R
       #        R
       #      0-R
-      Rt = construct_R_half(self._env,x,y,self.verbosity)
-      P,Pt = construct_projectors(R,Rt,self.chi,self.verbosity)
+      Rt = contract_R_half(self._env.get_T1(x+2,y),  self._env.get_C2(x+3,y),
+                           self._env.get_A(x+2,y+1), self._env.get_T2(x+3,y+1),
+                           self._env.get_A(x+2,y+2), self._env.get_T2(x+3,y+2),
+                           self._env.get_T3(x+2,y+3),self._env.get_C3(x+3,y+3))
+
+      P,Pt = construct_projectors(R.T,Rt,self.chi,self.verbosity)
       self._env.set_projectors(x+1,y+3,P,Pt)
       del R, Rt
 
@@ -166,16 +179,16 @@ class CTMRG(object):
       print('Projectors constructed, renormalize tensors')
     for i, (x,y) in enumerate(self._neq_coords):
       j = self._env.get_neq_index(x,y-1)
-      if self.verbosity > 1:
-        print(f'x = {x}, y = {y}, i = {i}, j = {j}')
       nC3s[j] = renormalize_C3_down(self._env.get_C3(x,y),
                                self._env.get_T2(x,y-1), self._env.get_P(x-1,y))
 
-      nT3s[j] = renormalize_T3(self._env.get_T3(x,y), self._env.get_A(x,y-1),
-                                 self._env.get_P(x-1,y), self._env.get_Pt(x,y))
+      nT3s[j] = renormalize_T3(self._env.get_Pt(x,y), self._env.get_T3(x,y),
+                                 self._env.get_A(x,y-1), self._env.get_P(x-1,y))
 
       nC4s[j] = renormalize_C4_down(self._env.get_C4(x,y),
                                 self._env.get_T4(x,y-1), self._env.get_Pt(x,y))
+      if self.verbosity > 1:
+        print(f'(x,y) = ({x},{y}) i = {i}, j = {j}, C3.shape = {nC3s[j].shape}, T3.shape = {nT3s[j].shape}, C4.shape = {nC4s[j].shape}')
 
     # 3) store renormalized tensors in the environment
     self._env.reset_projectors()
@@ -195,12 +208,18 @@ class CTMRG(object):
       #      UUUU      1
       #      |  |  =>  R
       #      1  0      0
-      R = construct_U_half(self._env,x,y,self.verbosity).T
+      R = contract_U_half(self._env.get_C1(x,y),    self._env.get_T1(x+1,y),
+                           self._env.get_T1(x+2,y),  self._env.get_C2(x+3,y),
+                           self._env.get_T4(x,y+1),  self._env.get_A(x+1,y+1),
+                           self._env.get_A(x+2,y+1), self._env.get_T2(x+3,y+1))
       #      0  1
       #      |  |
       #      DDDD
-      Rt = construct_D_half(self._env,x,y,self.verbosity)
-      P,Pt = construct_projectors(R,Rt,self.chi,self.verbosity)
+      Rt = contract_D_half(self._env.get_T4(x,y+2),   self._env.get_A(x+1,y+2),
+                          self._env.get_A(x+2,y+2),  self._env.get_T2(x+3,y+2),
+                          self._env.get_C4(x,y+3),   self._env.get_T3(x+1,y+3),
+                          self._env.get_T3(x+2,y+3), self._env.get_C3(x+3,y+3))
+      P,Pt = construct_projectors(R.T,Rt,self.chi,self.verbosity)
       self._env.set_projectors(x+3,y+1,P,Pt)
       del R, Rt
 
@@ -210,8 +229,6 @@ class CTMRG(object):
       print('Projectors constructed, renormalize tensors')
     for i, (x,y) in enumerate(self._neq_coords):
       j = self._env.get_neq_index(x+1,y)
-      if self.verbosity > 1:
-        print(f'x = {x}, y = {y}, i = {i}, j = {j}')
       nC4s[j] = renormalize_C4_left(self._env.get_C4(x,y),
                                self._env.get_T3(x+1,y), self._env.get_P(x,y-1))
 
@@ -220,6 +237,8 @@ class CTMRG(object):
 
       nC1s[j] = renormalize_C1_left(self._env.get_C1(x,y),
                                 self._env.get_T1(x+1,y), self._env.get_Pt(x,y))
+      if self.verbosity > 1:
+        print(f'(x,y) = ({x},{y}) i = {i}, j = {j}, C4.shape = {nC4s[j].shape}, T4.shape = {nT4s[j].shape}, C1.shape = {nC1s[j].shape}')
 
     # 3) store renormalized tensors in the environment
     self._env.reset_projectors()
