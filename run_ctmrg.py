@@ -29,8 +29,12 @@ AB
 BA
 """
 
+A = np.random.random((2,3,4,5,6,7))
+B = np.random.random((2,3,6,7,4,5))
+tensors = [A,B]
+chi = 8
 
-ctm = CTMRG(tensors,tiling,chi,verbosity=0)
+ctm = CTMRG(tensors,tiling,chi,verbosity=2)
 print('CTM constructed, tensors shapes are:')
 print('T1 shape =', ctm.env.get_T1(0,0).shape)
 print('C1 shape =', ctm.env.get_C1(0,0).shape)
@@ -40,13 +44,24 @@ print('T3 shape =', ctm.env.get_T3(0,0).shape)
 print('C3 shape =', ctm.env.get_C3(0,0).shape)
 print('T4 shape =', ctm.env.get_T4(0,0).shape)
 print('C4 shape =', ctm.env.get_C4(0,0).shape)
+print()
 
-print('\ntry 2 iterations:')
+#print(f'norm(T1A-T1B): {lg.norm(ctm._env._neq_T1s[0]-ctm._env._neq_T1s[1]):.1e}')
+print('try 2 iterations:')
 ctm.iterate()
+print('1st done')
+#print(f'norm(T1A-T1B): {lg.norm(ctm._env._neq_T1s[0]-ctm._env._neq_T1s[1]):.1e}')
 ctm.iterate()
+print('2nd done, change chi')
+#print(f'norm(T1A-T1B): {lg.norm(ctm._env._neq_T1s[0]-ctm._env._neq_T1s[1]):.1e}')
+T1s = ctm._env._neq_T1s
 ctm.chi = 10
 ctm.iterate()
-print('done')
+print('3rd iteration done')
+#print(f'norm(T1A-T1B): {lg.norm(ctm._env._neq_T1s[0]-ctm._env._neq_T1s[1]):.1e}')
+ctm.iterate()
+print('4th done, change chi')
+#print(f'norm(T1A-T1B): {lg.norm(ctm._env._neq_T1s[0]-ctm._env._neq_T1s[1]):.1e}')
 
 ctm.chi = 6
 for i in range(20):
@@ -61,7 +76,7 @@ print(f'rdm1x1 is hermitian: {lg.norm(rdm1x1-rdm1x1.T.conj()):.1e}')
 print(f'rdm1x2 is hermitian: {lg.norm(rdm1x2-rdm1x2.T.conj()):.1e}')
 print(f'rdm2x1 is hermitian: {lg.norm(rdm2x1-rdm2x1.T.conj()):.1e}')
 print(f'rdm2x2 is hermitian: {lg.norm(rdm2x2-rdm2x2.T.conj()):.1e}')
-
+"""
 print(f'trace(H_AKLT @ rdm1x2) = {np.trace(H_AKLT @ rdm1x2):.1e}')
 print(f'trace(H_AKLT @ rdm2x1) = {np.trace(H_AKLT @ rdm2x1):.1e}')
 
