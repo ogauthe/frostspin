@@ -40,11 +40,29 @@ class CTMRG(object):
     return self._env
 
 
+  def print_tensor_shapes(self):
+    print("C1 T1 C2 // T4 A T2 // C4 T3 C4")
+    for (x,y) in self._neq_coords:
+      print(f'({x},{y}):', self._env.get_C1(x,y).shape,
+      self._env.get_T1(x+1,y).shape,    self._env.get_C2(x+2,y).shape,
+      self._env.get_T4(x,y+1).shape,    self._env.get_A(x+1,y+1).shape,
+      self._env.get_T2(x+2,y+1).shape,  self._env.get_C4(x,y+3).shape,
+      self._env.get_T3(x+1,y+2).shape,  self._env.get_C3(x+2,y+2).shape)
+
+
   def iterate(self):
     self.up_move()
+    if self.verbosity > 1:
+      self.print_tensor_shapes()
     self.right_move()
+    if self.verbosity > 1:
+      self.print_tensor_shapes()
     self.down_move()
+    if self.verbosity > 1:
+      self.print_tensor_shapes()
     self.left_move()
+    if self.verbosity > 1:
+      self.print_tensor_shapes()
 
 
   def up_move(self):
