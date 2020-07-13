@@ -228,7 +228,7 @@ def renormalize_T3(Pt,T3,A,P):
   nT3 = np.tensordot(nT3, A.conj(), ((0, 1, 4, 6),(0, 1, 4, 5)))
   nT3 = nT3.transpose(0,4,3,2,1,5).reshape(A.shape[2]**2*P.shape[1],Pt.shape[0])
   nT3 = np.dot(nT3, Pt).reshape(A.shape[2],A.shape[2],P.shape[1],Pt.shape[1])
-  nT3 = nT3.swapaxes(2,3)/lg.norm(T3)
+  nT3 = nT3.swapaxes(2,3)/lg.norm(nT3)
   return nT3
 
 
