@@ -29,38 +29,30 @@ AB
 BA
 """
 
-A = np.random.random((2,3,4,5,6,7))
-B = np.random.random((2,3,6,7,4,5))
+A = np.random.random((6,7,4,5,2,3))
+B = np.random.random((6,7,2,3,4,5))
+
 tensors = [A,B]
 chi = 8
 
 ctm = CTMRG(tensors,tiling,chi,verbosity=2)
-print('CTM constructed, tensors shapes are:')
-print('T1 shape =', ctm.env.get_T1(0,0).shape)
-print('C1 shape =', ctm.env.get_C1(0,0).shape)
-print('T2 shape =', ctm.env.get_T2(0,0).shape)
-print('C2 shape =', ctm.env.get_C2(0,0).shape)
-print('T3 shape =', ctm.env.get_T3(0,0).shape)
-print('C3 shape =', ctm.env.get_C3(0,0).shape)
-print('T4 shape =', ctm.env.get_T4(0,0).shape)
-print('C4 shape =', ctm.env.get_C4(0,0).shape)
-print()
+ctm.print_tensor_shapes()
 
 #print(f'norm(T1A-T1B): {lg.norm(ctm._env._neq_T1s[0]-ctm._env._neq_T1s[1]):.1e}')
 print('try 2 iterations:')
 ctm.iterate()
-print('1st done')
+print("#"*40,'  1st done  ',"#"*40,sep="")
 #print(f'norm(T1A-T1B): {lg.norm(ctm._env._neq_T1s[0]-ctm._env._neq_T1s[1]):.1e}')
 ctm.iterate()
-print('2nd done, change chi')
+print("#"*40,'  2nd done, change chi  ',"#"*35,sep="")
 #print(f'norm(T1A-T1B): {lg.norm(ctm._env._neq_T1s[0]-ctm._env._neq_T1s[1]):.1e}')
 T1s = ctm._env._neq_T1s
 ctm.chi = 10
 ctm.iterate()
-print('3rd iteration done')
+print("#"*40,'  3rd done  ',"#"*40,sep="")
 #print(f'norm(T1A-T1B): {lg.norm(ctm._env._neq_T1s[0]-ctm._env._neq_T1s[1]):.1e}')
 ctm.iterate()
-print('4th done, change chi')
+print("#"*40,'  4th done, change chi  ',"#"*40,sep="")
 #print(f'norm(T1A-T1B): {lg.norm(ctm._env._neq_T1s[0]-ctm._env._neq_T1s[1]):.1e}')
 
 ctm.chi = 6
