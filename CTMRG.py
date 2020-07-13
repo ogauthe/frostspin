@@ -86,7 +86,7 @@ class CTMRG(object):
       P,Pt = construct_projectors(R.T, Rt, self.chi)
       if self.verbosity > 1:
         print(f'constructed projectors: R.shape = {R.shape}, Rt.shape = {Rt.shape}, P.shape = {P.shape}, Pt.shape = {Pt.shape}')
-      self._env.set_projectors(x+1,y,P,Pt)
+      self._env.set_projectors(x,y,P,Pt)
       del R, Rt
 
     # 2) renormalize every non-equivalent C1, T1 and C2
@@ -246,7 +246,7 @@ class CTMRG(object):
       P,Pt = construct_projectors(R.T,Rt,self.chi)
       if self.verbosity > 1:
         print(f'constructed projectors: R.shape = {R.shape}, Rt.shape = {Rt.shape}, P.shape = {P.shape}, Pt.shape = {Pt.shape}')
-      self._env.set_projectors(x+3,y+1,P,Pt)
+      self._env.set_projectors(x,y+1,P,Pt)
       del R, Rt
 
     # 2) renormalize every non-equivalent C4, T4 and C1
