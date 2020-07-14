@@ -149,8 +149,8 @@ def renormalize_T2(Pt,A,T2,P):
   #       1
   nT2 = np.tensordot(T2, Pt.reshape(T2.shape[0],A.shape[2],A.shape[2],Pt.shape[1]), ((0,),(0,)))
   nT2 = np.tensordot(nT2, A, ((3, 1),(2, 3)))
-  nT2 = np.tensordot(nT2, A.conj(), ((2, 1, 4, 5),(2, 3, 0, 1)))
-  nT2 = nT2.transpose(1,3,5,2,4,0).reshape(Pt.shape[1]*A.shape[5]**2,P.shape[0])
+  nT2 = np.tensordot(nT2, A.conj(), ((4, 5, 2, 1),(0, 1, 2, 3)))
+  nT2 = nT2.transpose(1,3,5,0,2,4).reshape(Pt.shape[1]*A.shape[5]**2,P.shape[0])
   nT2 = np.dot(nT2, P).reshape(Pt.shape[1],A.shape[5],A.shape[5],P.shape[1])
   nT2 = nT2.transpose(0,3,1,2)/lg.norm(nT2)
   return nT2
