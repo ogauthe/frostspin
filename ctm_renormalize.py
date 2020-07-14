@@ -15,7 +15,7 @@ def construct_projectors(R,Rt,chi):
   #  |        ||
   #  1        00'
   Pt = Rt @ V[:chi].conj().T*s12
-  P = R @ U[:,:chi]*s12
+  P = R @ U[:,:chi].conj()*s12
   return P,Pt
 
 ###############################################################################
