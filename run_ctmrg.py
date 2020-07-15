@@ -26,11 +26,17 @@ CAB
 tiling = tilingAB
 tensors = [tAKLT2.copy(),tAKLT2.copy()]
 #tensors = [tRVB2.copy()]
-"""
 A = np.random.random((6,9,4,5,2,3))
 B = np.random.random((7,8,2,3,4,5))
 tensors = [A,B]
 tiling = tilingAB
+"""
+
+A = np.random.random((10,11,2,3,4,5))
+B = np.random.random((12,13,4,6,7,3))
+C = np.random.random((8,9,7,5,2,6))
+tensors = [A,B,C]
+tiling = tilingABC
 
 ctm = CTMRG(tensors,tiling,chi,verbosity=2)
 ctm.print_tensor_shapes()
@@ -48,7 +54,7 @@ ctm.iterate()
 print("#"*40,'  4th done, change chi  ',"#"*40,sep="")
 
 ctm.chi = 6
-for i in range(20):
+for i in range(5):
   ctm.iterate()
 
 rdm1x1 = ctm.compute_rdm1x1()
@@ -104,7 +110,7 @@ C4s = ctm._env._neq_C4s
 print('\nC4s are all the same:', end=' ')
 for t in C4s[1:]:
   print(f'{lg.norm(t-C4s[0]):.1e}', end=', ')
-"""
+
 
 
 ###############################################################################
@@ -128,3 +134,4 @@ for i in range(30):
   #print(f'trace(SdS_22b @ rdm2x1) = {np.trace(SdS_22b @ rdm2x1):.5e}')
   ctm.iterate()
 
+"""
