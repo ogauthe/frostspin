@@ -69,7 +69,8 @@ class Env(object):
       ind = np.argmax(indices==i)
       self._neq_coords[i] = ind//self._Ly, ind%self._Lx
 
-    self._indices = indices.reshape(self._Lx,self._Ly)
+    # [row,col] indices are transposed from (x,y) coordinates
+    self._indices = indices.reshape(self._Lx,self._Ly).T.copy()
     self._neq_As = []
     self._neq_C1s = []
     self._neq_T1s = []
