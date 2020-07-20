@@ -222,7 +222,7 @@ class SimpleUpdateABCD(object):
     M_A = np.einsum('paurdl,r,d,l->ardlpu', self._gammaA, self._lambda2, self._lambda3,
                     self._lambda4).reshape(self._a*self._D2*self._D3*self._D4, self._d*self._D1)
     M_C = np.einsum('paurdl,u,r,l->dpaurl', self._gammaC, self._lambda3, self._lambda8,
-                     self._lambda7).reshape(self._D1*self._d, self._a*self._D3*self._D8*self._D7)
+                    self._lambda7).reshape(self._D1*self._d, self._a*self._D3*self._D8*self._D7)
 
     # construct matrix theta, renormalize bond dimension and get back tensors
     M_A, self._lambda1, M_C = svd_SU(M_A, M_C, self._lambda1, self._g1, self._d)
@@ -256,9 +256,9 @@ class SimpleUpdateABCD(object):
     update lambda3 between A and C by applying gate to A down bond
     """
     M_A = np.einsum('paurdl,u,r,l->aurlpd', self._gammaA, self._lambda1, self._lambda2,
-                    self._lambda4).reshape(self._a, self._D1, self._D2, self._D3, self._d, self._D3)
+                    self._lambda4).reshape(self._a*self._D1*self._D2*self._D3, self._d*self._D3)
     M_C = np.einsum('paurdl,r,d,l->upardl', self._gammaC, self._lambda8, self._lambda1,
-                    self._lambda7).reshape(self._D3, self._d, self._D8, self._D1, self._D7)
+                    self._lambda7).reshape(self._D3*self._d, self._a*self._D8*self._D1*self._D7)
 
     M_A, self._lambda3, M_B = svd_SU(M_A, M_C, self._lambda3, self._g1, self._d)
 
@@ -272,8 +272,10 @@ class SimpleUpdateABCD(object):
     """
     update lambda4 between A and B by applying gate to A right bond
     """
-    M_A = np.einsum('paurdl,u,r,d->aurdpl', self._gammaA, self._lambda1, self._lambda2, self._lambda3)
-    M_B = np.einsum('paurdl,u,d,l->rpaudl', self._gammaB, self._lambda5, self._lambda6, self._lambda2)
+    M_A = np.einsum('paurdl,u,r,d->aurdpl', self._gammaA, self._lambda1, self._lambda2,
+                    self._lambda3).reshape(self._a*self._D1*self._D2*self._D3, self._d*self._D4)
+    M_B = np.einsum('paurdl,u,d,l->rpaudl', self._gammaB, self._lambda5, self._lambda6,
+                    self._lambda2).reshape(self._D4*self._d, self._a*self._D5*self._D6*self._D2)
 
     M_A, self._lambda4, M_B = svd_SU(M_A, M_B, self._lambda4, self._g1, self._d)
     M_A = M_A.reshape(self._a, self._D1, self._D2, self._D3, self._d, self._D4)
