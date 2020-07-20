@@ -297,3 +297,65 @@ class SimpleUpdateABCD(object):
     self._gammaB = np.einsum('rpaudl,u,d,l->paurdl', M_B, self._lambda5**-1, self._lambda6**-1, self._lambda2**-1)
 
 
+  def update_bond5(self):
+    """
+    update lambda5 between B and D by applying gate to B upper bond
+    """
+    M_B = np.einsum('paurdl,r,d,l->ardlpu', self._gammaB, self._lambda4, self._lambda6,
+                    self._lambda2).reshape(self._a*self._D4*self._D6*self._D2, self._d*self._D5)
+    M_D = np.einsum('paurdl,u,r,l->dpaurl', self._gammaD, self._lambda6, self._lambda8,
+                    self._lambda7).reshape(self._D5*self._d, self._a*self._D6*self._D8*self._D7)
+
+    M_B, self._lambda5, M_D = svd_SU(M_B, M_D, self._lambda5, self._g1, self._d)
+    M_B = M_B.reshape(self._a, self._D4, self._D6, self._D2, self._d, self._D5)
+    self._gammaB = np.einsum('ardlpu,r,d,l->paurdl', M_B, self._lambda4**-1, self._lambda6**-1, self._lambda2**-1)
+    M_D = M_D.reshape(self._D5, self._d, self._a, self._D6, self._D8, self._D7)
+    self._gammaD = np.einsum('dpaurl,u,r,l->paurdl', M_D, self._lambda6**-1, self._lambda8**-1, self._lambda7**-1)
+
+
+  def update_bond6(self):
+    """
+    update lambda6 between B and D by applying gate to B down bond
+    """
+    M_B = np.einsum('paurdl,u,r,l->aurlpd', self._gammaB, self._lambda5, self._lambda4,
+                    self._lambda2).reshape(self._a*self._D5*self._D4*self._D2, self._d*self._D6)
+    M_D = np.einsum('paurdl,r,d,l->upardl', self._gammaD, self._lambda8, self._lambda5,
+                    self._lambda7).reshape(self._D6*self._d, self._a*self._D8*self._D5*self._D7)
+
+    M_B, self._lambda6, M_D = svd_SU(M_B, M_D, self._lambda6, self._g1, self._d)
+    M_B = M_B.reshape(self._a, self._D5, self._D5, self._D2, self._d, self._D6)
+    self._gammaB = np.einsum('aurlpd,u,r,l->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda2**-1)
+    M_D = M_D.reshape(self._D6, self._d, self._a, self._D8, self._D5, self._D7)
+    self._gammaD = np.einsum('upardl,r,d,l->paurdl', M_D, self._lambda8**-1, self._lambda5**-1, self._lambda7**-1)
+
+
+  def update_bond7(self):
+    """
+    update lambda7 between C and D by applying gate to C right bond
+    """
+    M_C = np.einsum('paurdl,u,d,l->audlpr', self._gammaC, self._lambda3, self._lambda1,
+                    self._lambda8).reshape(self._a*self._D3*self._D1*self._D8, self._d*self._D7)
+    M_D = np.einsum('paurdl,u,r,d->lpaurd', self._gammaD, self._lambda6, self._lambda8,
+                    self._lambda5).reshape(self._D7*self._d, self._a*self._D6*self._D8*self._D5)
+
+    M_C, self._lambda7, M_D = svd_SU(M_C, M_D, self._lambda7, self._g1, self._d)
+    M_C = M_C.reshape(self._a, self._D3, self._D1, self._D8, self._d, self._D7)
+    self._gammaC = np.einsum('audlpr,u,d,l->paurdl', M_C, self._lambda3**-1, self._lambda1**-1, self._lambda8**-1)
+    M_D = M_D.reshape(self._D7, self._d, self._a, self._D6, self._D8, self._D5)
+    self._gammaD = np.einsum('lpaurd,u,r,d->paurdl', M_D, self._lambda6**-1, self._lambda8**-1, self._lambda5**-1)
+
+
+  def update_bond8(self):
+    """
+    update lambda8 between C and D by applying gate to C left bond
+    """
+    M_C = np.einsum('paurdl,u,r,d->aurdpl', self._gammaC, self._lambda3, self._lambda7,
+                    self._lambda1).reshape(self._a*self._D3*self._D7*self._D1, self._d*self._D8)
+    M_D = np.einsum('paurdl,u,d,l->rpaudl', self._gammaD, self._lambda6, self._lambda5,
+                    self._lambda7).reshape(self._D8*self._d, self._a*self._D6*self._D5*self._D7)
+
+    M_C, self._lambda8, M_D = svd_SU(M_C, M_D, self._lambda8, self._g1, self._d)
+    M_C = M_C.reshape(self._a, self._D3, self._D7, self._D1, self._d, self._D8)
+    self._gammaC = np.einsum('aurdpl,u,r,d->paurdl', M_C, self._lambda3**-1, self._lambda7**-1, self._lambda1**-1)
+    M_D = M_D.reshape(self._D8, self._d, self._a, self._D6, self._D5, self._D7)
+    self._gammaD = np.einsum('rpaudl,u,d,l->paurdl', M_D, self._lambda6**-1, self._lambda5**-1, self._lambda7**-1)
