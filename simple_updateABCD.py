@@ -1,52 +1,52 @@
 import numpy as np
 import scipy.linalg as lg
 
-def svd_SU(M_A, M_B, lambda_dir, gate, d):
+def update_first_neighbor(M_X, M_Y, lambda_dir, gate, d):
   """
-  utilitary function
-  Construct matrix theta from tensors M_A and M_B, where lambda have been added
-  to gammaA and gammaB. Cut it using SVD.
+  Direction-agnostic first neighbor simple update.
+  Construct matrix theta from matrices M_X and M_Y, obtained by adding lambdas
+  to relevant legs and reshaping to matrices gammaX and gammaY.
   """
 
   # 1) SVD cut between constant tensors and effective tensor to update
   # hence reduce main SVD to dimension D*d < a*D**3
   #     \|        \|
-  #     -A-    -> -W==M-
+  #     -X-    -> -W==M-
   #      |\        |   \
   D_dir = lambda_dir.shape[0]
-  W_A, sA, M_A = lg.svd(M_A, full_matrices=False)
-  D_effA = sA.shape[0]
-  M_A *= sA[:,None]
-  M_B, sB, W_B = lg.svd(M_B, full_matrices=False)
-  D_effB = sB.shape[0]
-  M_B *= sB
+  W_X, sX, M_X = lg.svd(M_X, full_matrices=False)
+  D_effX = sX.shape[0]
+  M_X *= sX[:,None]
+  M_Y, sY, W_Y = lg.svd(M_Y, full_matrices=False)
+  D_effY = sY.shape[0]
+  M_Y *= sY
 
   # 2) construct matrix theta with gate g
   #
-  #             =MA-lr-MB=
+  #             =MX-lr-MY=
   #                \  /
   #   theta =       gg
   #                /  \
-  theta = M_A.reshape(D_effA*d, D_dir)
+  theta = M_X.reshape(D_effX*d, D_dir)
   theta *= lambda_dir
-  theta = np.dot(theta, M_B.reshape(D_dir, d*D_effB) )
-  theta = theta.reshape(D_effA, d, d, D_effB).transpose(0,3,1,2).reshape(D_effA*D_effB, d**2)
+  theta = np.dot(theta, M_Y.reshape(D_dir, d*D_effY) )
+  theta = theta.reshape(D_effX, d, d, D_effY).transpose(0,3,1,2).reshape(D_effX*D_effY, d**2)
   theta = np.dot(theta, gate)
 
   # 3) cut theta with SVD
-  theta = theta.reshape(D_effA, D_effB, d, d).swapaxes(1,2).reshape(D_effA*d, D_effB*d)
-  M_A,s,M_B = lg.svd(theta)
+  theta = theta.reshape(D_effX, D_effY, d, d).swapaxes(1,2).reshape(D_effX*d, D_effY*d)
+  M_X,new_lambda,M_Y = lg.svd(theta, full_matrices=False)
 
   # 4) renormalize link dimension
-  s = s[:D_dir]
-  s /= s.sum()  # singular values are positive
+  new_lambda = new_lambda[:D_dir]
+  new_lambda /= new_lambda.sum()  # singular values are positive
 
-  # 5) start reconstruction of new gammaA and gammaB by unifying cst and eff
-  M_A = M_A[:,:D_dir].reshape(D_effA, d*D_dir)
-  M_A = np.dot(W_A, M_A)
-  M_B = M_B[:D_dir].reshape(D_dir,D_effB,d).swapaxes(1,2).reshape(D_dir*d, D_effB)
-  M_B = np.dot(M_B, W_B)
-  return M_A, s, M_B
+  # 5) start reconstruction of new gammaX and gammaY by unifying cst and eff parts
+  M_X = M_X[:,:D_dir].reshape(D_effX, d*D_dir)
+  M_X = np.dot(W_X, M_X)
+  M_Y = M_Y[:D_dir].reshape(D_dir,D_effY,d).swapaxes(1,2).reshape(D_dir*d, D_effY)
+  M_Y = np.dot(M_Y, W_Y)
+  return M_X, new_lambda, M_Y
 
 
 class SimpleUpdateABCD(object):
@@ -227,6 +227,9 @@ class SimpleUpdateABCD(object):
     self.update_bonds57() # through D
 
 
+###############################################################################
+# first neighbor updates
+###############################################################################
   def update_bond1(self):
     """
     update lambda1 between A and C by applying gate g1 to A upper bond
@@ -238,7 +241,7 @@ class SimpleUpdateABCD(object):
                     self._lambda8).reshape(self._D1*self._d, self._a*self._D3*self._D7*self._D8)
 
     # construct matrix theta, renormalize bond dimension and get back tensors
-    M_A, self._lambda1, M_C = svd_SU(M_A, M_C, self._lambda1, self._g1, self._d)
+    M_A, self._lambda1, M_C = update_first_neighbor(M_A, M_C, self._lambda1, self._g1, self._d)
 
     # define new gammaA and gammaC from renormalized M_A and M_C
     M_A = M_A.reshape(self._a, self._D2, self._D3, self._D4, self._d, self._D1)
@@ -256,7 +259,7 @@ class SimpleUpdateABCD(object):
     M_B = np.einsum('paurdl,u,r,d->lpaurd', self._gammaB, self._lambda5, self._lambda4,
                     self._lambda6).reshape(self._D2*self._d, self._a*self._D5*self._D4*self._D6)
 
-    M_A, self._lambda2, M_B = svd_SU(M_A, M_B, self._lambda2, self._g1, self._d)
+    M_A, self._lambda2, M_B = update_first_neighbor(M_A, M_B, self._lambda2, self._g1, self._d)
 
     M_A = M_A.reshape(self._a, self._D1, self._D3, self._D4, self._d, self._D2)
     self._gammaA = np.einsum('audlpr,u,d,l->paurdl', M_A, self._lambda1**-1, self._lambda3**-1, self._lambda3**-1)
@@ -273,7 +276,7 @@ class SimpleUpdateABCD(object):
     M_C = np.einsum('paurdl,r,d,l->upardl', self._gammaC, self._lambda7, self._lambda1,
                     self._lambda8).reshape(self._D3*self._d, self._a*self._D7*self._D1*self._D8)
 
-    M_A, self._lambda3, M_B = svd_SU(M_A, M_C, self._lambda3, self._g1, self._d)
+    M_A, self._lambda3, M_B = update_first_neighbor(M_A, M_C, self._lambda3, self._g1, self._d)
 
     M_A = M_A.reshape(self._a, self._D1, self._D2, self._D4, self._d, self._D3)
     self._gammaA = np.einsum('aurlpd,u,r,l->paurdl', M_A, self._lambda1**-1, self._lambda2**-1, self._lambda4**-1)
@@ -290,7 +293,7 @@ class SimpleUpdateABCD(object):
     M_B = np.einsum('paurdl,u,d,l->rpaudl', self._gammaB, self._lambda5, self._lambda6,
                     self._lambda2).reshape(self._D4*self._d, self._a*self._D5*self._D6*self._D2)
 
-    M_A, self._lambda4, M_B = svd_SU(M_A, M_B, self._lambda4, self._g1, self._d)
+    M_A, self._lambda4, M_B = update_first_neighbor(M_A, M_B, self._lambda4, self._g1, self._d)
     M_A = M_A.reshape(self._a, self._D1, self._D2, self._D3, self._d, self._D4)
     self._gammaA = np.einsum('aurdpl,u,r,d->paurdl', M_A, self._lambda1**-1, self._lambda2**-1, self._lambda3**-1)
     M_B = M_B.reshape(self._D4, self._d, self._a, self._D5, self._D6, self._D2)
@@ -306,7 +309,7 @@ class SimpleUpdateABCD(object):
     M_D = np.einsum('paurdl,u,r,l->dpaurl', self._gammaD, self._lambda6, self._lambda8,
                     self._lambda7).reshape(self._D5*self._d, self._a*self._D6*self._D8*self._D7)
 
-    M_B, self._lambda5, M_D = svd_SU(M_B, M_D, self._lambda5, self._g1, self._d)
+    M_B, self._lambda5, M_D = update_first_neighbor(M_B, M_D, self._lambda5, self._g1, self._d)
     M_B = M_B.reshape(self._a, self._D4, self._D6, self._D2, self._d, self._D5)
     self._gammaB = np.einsum('ardlpu,r,d,l->paurdl', M_B, self._lambda4**-1, self._lambda6**-1, self._lambda2**-1)
     M_D = M_D.reshape(self._D5, self._d, self._a, self._D6, self._D8, self._D7)
@@ -322,7 +325,7 @@ class SimpleUpdateABCD(object):
     M_D = np.einsum('paurdl,r,d,l->upardl', self._gammaD, self._lambda8, self._lambda5,
                     self._lambda7).reshape(self._D6*self._d, self._a*self._D8*self._D5*self._D7)
 
-    M_B, self._lambda6, M_D = svd_SU(M_B, M_D, self._lambda6, self._g1, self._d)
+    M_B, self._lambda6, M_D = update_first_neighbor(M_B, M_D, self._lambda6, self._g1, self._d)
     M_B = M_B.reshape(self._a, self._D5, self._D5, self._D2, self._d, self._D6)
     self._gammaB = np.einsum('aurlpd,u,r,l->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda2**-1)
     M_D = M_D.reshape(self._D6, self._d, self._a, self._D8, self._D5, self._D7)
@@ -338,7 +341,7 @@ class SimpleUpdateABCD(object):
     M_D = np.einsum('paurdl,u,r,d->lpaurd', self._gammaD, self._lambda6, self._lambda8,
                     self._lambda5).reshape(self._D7*self._d, self._a*self._D6*self._D8*self._D5)
 
-    M_C, self._lambda7, M_D = svd_SU(M_C, M_D, self._lambda7, self._g1, self._d)
+    M_C, self._lambda7, M_D = update_first_neighbor(M_C, M_D, self._lambda7, self._g1, self._d)
     M_C = M_C.reshape(self._a, self._D3, self._D1, self._D8, self._d, self._D7)
     self._gammaC = np.einsum('audlpr,u,d,l->paurdl', M_C, self._lambda3**-1, self._lambda1**-1, self._lambda8**-1)
     M_D = M_D.reshape(self._D7, self._d, self._a, self._D6, self._D8, self._D5)
@@ -354,8 +357,100 @@ class SimpleUpdateABCD(object):
     M_D = np.einsum('paurdl,u,d,l->rpaudl', self._gammaD, self._lambda6, self._lambda5,
                     self._lambda7).reshape(self._D8*self._d, self._a*self._D6*self._D5*self._D7)
 
-    M_C, self._lambda8, M_D = svd_SU(M_C, M_D, self._lambda8, self._g1, self._d)
+    M_C, self._lambda8, M_D = update_first_neighbor(M_C, M_D, self._lambda8, self._g1, self._d)
     M_C = M_C.reshape(self._a, self._D3, self._D7, self._D1, self._d, self._D8)
     self._gammaC = np.einsum('aurdpl,u,r,d->paurdl', M_C, self._lambda3**-1, self._lambda7**-1, self._lambda1**-1)
     M_D = M_D.reshape(self._D8, self._d, self._a, self._D6, self._D5, self._D7)
     self._gammaD = np.einsum('rpaudl,u,d,l->paurdl', M_D, self._lambda6**-1, self._lambda5**-1, self._lambda7**-1)
+
+
+###############################################################################
+# second neighbor updates
+###############################################################################
+
+  def update_bonds26(self):
+    """
+    update lambda2 and lambda6 by applying gate to A down-right next nearest
+    neighbor bond with D through tensor B.
+    """
+    M_A = np.einsum('paurdl,u,d,l->audlpr', self._gammaA, self._lambda1, self._lambda3,
+                    self._lambda4).reshape(self._a*self._D1*self._D3*self._D4, self._d*self._D2)
+    M_B = np.einsum('paurdl,u,r->ldpaur', self._gammaB, self._lambda5, self._lambda4).reshape(
+                                           self._D2*self._D6, self._d*self._a*self._D5*self._D4)
+    M_D = np.einsum('paurdl,r,d,l->upardl', self._gammaD, self._lambda8, self._lambda5,
+                    self._lambda7).reshape(self._D6*self._d, self._a*self._D8*self._D5*self._D7)
+    M_A, M_B, M_D, self._lambda2, self._lambda_6 = update_second_neighbor(
+                                       M_A, M_B, M_D, self._lambda2, self._lambda6, g2, self._d)
+    M_A = M_A.reshape(self._a, self._D1, self._D3, self._D4, self._d, self._D2)
+    self._gammaA = np.einsum('audlpr,u,d,l->paurdl', M_A, self._lambda1**-1, self._lambda3**-1, self._lambda4**-1)
+    M_B = M_B.reshape(self._D2, self._D6, self._d, self._a, self._D5, self._D4)
+    self._gammaB = np.einsum('ldpaur,u,r->paurdl', M_B, self._lambda5**-1, self._lambda4**-1)
+    M_D = M_D.reshape(self._D6, self._d, self._a, self._D8, self._D5, self._D7)
+    self._gammaD = np.einsum('upardl,r,d,l->paurdl', M_D, self._lambda8**-1, self._lambda5**-1, self._lambda7**-1)
+
+
+def update_second_neighbor(M_left, M_mid, M_right, lambda_L, lambda_R, gate, d):
+  """
+  Direction-agnostic second (or third) neighbor simple update.
+  Construct matrix theta from matrices M_left, M_mid and M_right, obtained
+  by adding lambdas to relevant legs and reshaping to matrices tensors gammas
+
+  For clarity, a 1D geometry
+  M_left -- lambda_left -- M_mid -- lambda_right -- M_right
+  is considered in the notations, but the code works for any geometry with two
+  extremity tensors linked by a middle one.
+  """
+  assert(gate.shape == (d**2,d**2)), "gate dimension do not agree with d"
+  Dl, Dr = lambda_L.shape[0], lambda_R.shape[0]
+
+  # 1) SVD cut between constant tensors and effective tensors to update
+  #     \|        \|
+  #     -L-    -> -cstL==effL-lambda_left- (Dl)
+  #      |\        |       \
+  cst_L, s_L, eff_L = lg.svd(M_Left, full_matrices=False)
+  D_eff_L = s_L.shape[0]
+  eff_L = (s_L[:,None]*eff_L).reshape(D_effl*d, Dl)*lambda_L  # add lambda
+  #                       \|/|
+  #                       cstM
+  #     \|                 ||
+  #     -M-   ->  (Dl) - effM - (Dr)
+  #      |\
+  eff_m, s_m, cst_m = lg.svd(M_mid, full_matrices=False)
+  D_eff_m = s_m.shape[0]
+  eff_m = (eff_m*s_m).reshape(Dl, Dr*D_effm)
+  #     \|                                 \|
+  #     -R-   ->  (Dr)  lambda_Right-effR==cstR
+  #      |\                                 |\
+  eff_R, s_R, cst_R = lg.svd(M_Right, full_matrices=False)
+  D_eff_R = s_R.shape[0]
+  eff_R = (eff_R*s_R).reshape(Dr, d, D_eff_R)*lambda_R[:,None,None]
+
+  # contract tensor network
+  theta = np.dot(eff_L, eff_m).reshape(D_eff_L,d,Dr,D_eff_m)
+  theta = np.tensordot(theta, eff_R, ((2,),(0,))) # shape(D_eff_L,d,D_eff_m,d,D_eff_R)
+  theta = theta.transpose(0,2,4,1,3).reshape(D_eff_L*D_eff_m*D_eff_R,d**2)
+  theta = np.dot(theta, g2).reshape(D_eff_L,D_eff_m,D_eff_R,d,d)
+  theta = theta.transpose(0,3,1,2,4).reshape(D_eff_L*d, D_eff_m*D_eff_R*d)
+
+  # first SVD: cut left part
+  new_L, new_lambda_L, theta = lg.svd(theta, full_matrices=False)
+  new_L = newL[:,:Dl].reshape(D_eff_L,d*Dl)
+  new_lambda_L = new_lambda_L[:Dl]
+  new_lambda_L /= new_lambda_L.sum()
+
+  # second SVD: split middle and right parts
+  theta = (new_lambda_L[:,None]*theta[:Dl]).reshape(Dl*D_eff_m,D_eff_R*d)
+  new_mid, new_lambda_R, new_R = lg.svd(theta, full_matrices=False)
+  new_mid = new_mid[:,:Dr].reshape(Dl,D_eff_m,Dr)
+  new_R = new_R[:Dr].reshape(Dr,D_eff_R,d)
+  new_lambda_R = new_lambda_R[:Dr]
+  new_lambda_R /= new_lambda_R.sum()
+
+  # bring back constant parts
+  new_L = np.dot(cst_L,new_L)
+  new_mid = new_mid.swapaxes(1,2).reshape(Dl*Dr,D_eff_m)
+  new_mid = np.dot(new_mid,cst_m)
+  new_R = new_R.swapaxes(1,2).reshape(Dr*d,D_eff_R)
+  new_R = np.dot(new_R, cst_R)
+
+  return new_L, new_mid, new_R, new_lambda_L, new_lambda_R
