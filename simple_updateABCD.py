@@ -72,6 +72,19 @@ class SimpleUpdateABCD(object):
       Imaginary time step.
     tensors : otional, enumerable of 4 ndarrays with shapes (d,a,D,D,D,D)
       Initial tensors. If not provided, random tensors are taken.
+
+
+    Conventions for leg ordering
+    ----------------------------
+          1     5
+          |     |
+       4--A--2--B--4
+          |     |
+          3     6
+          |     |
+       8--C--7--D--8
+          |     |
+          1     5
     """
 
     # allowing for different D on each bond is uncommon but allows easy debug.
@@ -89,19 +102,19 @@ class SimpleUpdateABCD(object):
         raise ValueError("invalid shape for A0")
       if B0.shape != (d,a,self._D5,self._D4,self._D6,self._D2):
         raise ValueError("invalid shape for B0")
-      if C0.shape != (d,a,self._D3,self._D8,self._D1,self._D7):
+      if C0.shape != (d,a,self._D3,self._D7,self._D1,self._D8):
         raise ValueError("invalid shape for C0")
-      if D0.shape != (d,a,self._D6,self._D7,self._D5,self._D8):
+      if D0.shape != (d,a,self._D6,self._D8,self._D5,self._D7):
         raise ValueError("invalid shape for D0")
     else:
       A0 = np.random.random((d,a,self._D1,self._D2,self._D3,self._D4)) - 0.5
       B0 = np.random.random((d,a,self._D5,self._D4,self._D6,self._D2)) - 0.5
-      C0 = np.random.random((d,a,self._D3,self._D8,self._D1,self._D7)) - 0.5
-      D0 = np.random.random((d,a,self._D6,self._D7,self._D5,self._D8)) - 0.5
-    self._gammaA /= lg.norm(A0)
-    self._gammaB /= lg.norm(B0)
-    self._gammaC /= lg.norm(C0)
-    self._gammaD /= lg.norm(D0)
+      C0 = np.random.random((d,a,self._D3,self._D7,self._D1,self._D8)) - 0.5
+      D0 = np.random.random((d,a,self._D6,self._D8,self._D5,self._D7)) - 0.5
+    self._gammaA = A0/lg.norm(A0)
+    self._gammaB = B0/lg.norm(B0)
+    self._gammaC = C0/lg.norm(C0)
+    self._gammaD = D0/lg.norm(D0)
 
     # hamilt can be either 1 unique numpy array for all bonds or a list/tuple
     # of 4 bond-dependant Hamiltonians
@@ -161,8 +174,8 @@ class SimpleUpdateABCD(object):
     sl8 = np.sqrt(self._lambda8)
     A = np.einsum('paurdl,u,r,d,l->paurdl',self._gammaA,sl1,sl2,sl3,sl4)
     B = np.einsum('paurdl,u,r,d,l->paurdl',self._gammaB,sl5,sl4,sl6,sl2)
-    C = np.einsum('paurdl,u,r,d,l->paurdl',self._gammaC,sl3,sl8,sl1,sl7)
-    D = np.einsum('paurdl,u,r,d,l->paurdl',self._gammaD,sl6,sl7,sl5,sl8)
+    C = np.einsum('paurdl,u,r,d,l->paurdl',self._gammaC,sl3,sl7,sl1,sl8)
+    D = np.einsum('paurdl,u,r,d,l->paurdl',self._gammaD,sl6,sl8,sl5,sl7)
     A /= lg.norm(A)
     B /= lg.norm(B)
     C /= lg.norm(C)
@@ -189,29 +202,29 @@ class SimpleUpdateABCD(object):
 
     # link AD right up
     self.update_bonds25() # through B
-    self.update_bonds18() # through C
+    self.update_bonds17() # through C
     # link AD right down
     self.update_bonds26() # through B
-    self.update_bonds38() # through C
+    self.update_bonds37() # through C
     # link AD left down
     self.update_bonds46() # through B
-    self.update_bonds37() # through C
+    self.update_bonds38() # through C
     # link AD left up
     self.update_bonds45() # through B
-    self.update_bonds17() # through C
+    self.update_bonds18() # through C
 
     # link BC right up
     self.update_bonds41() # through A
-    self.update_bonds57() # through D
+    self.update_bonds58() # through D
     # link BC right down
     self.update_bonds43() # through A
-    self.update_bond67() # through D
+    self.update_bonds68() # through D
     # link BC left down
     self.update_bonds23() # through A
-    self.update_bonds68() # through D
+    self.update_bonds67() # through D
     # link BC left up
     self.update_bonds21() # through A
-    self.update_bonds58() # through D
+    self.update_bonds57() # through D
 
 
   def update_bond1(self):
@@ -221,8 +234,8 @@ class SimpleUpdateABCD(object):
     # add diagonal weights to gammaA and gammaC
     M_A = np.einsum('paurdl,r,d,l->ardlpu', self._gammaA, self._lambda2, self._lambda3,
                     self._lambda4).reshape(self._a*self._D2*self._D3*self._D4, self._d*self._D1)
-    M_C = np.einsum('paurdl,u,r,l->dpaurl', self._gammaC, self._lambda3, self._lambda8,
-                    self._lambda7).reshape(self._D1*self._d, self._a*self._D3*self._D8*self._D7)
+    M_C = np.einsum('paurdl,u,r,l->dpaurl', self._gammaC, self._lambda3, self._lambda7,
+                    self._lambda8).reshape(self._D1*self._d, self._a*self._D3*self._D7*self._D8)
 
     # construct matrix theta, renormalize bond dimension and get back tensors
     M_A, self._lambda1, M_C = svd_SU(M_A, M_C, self._lambda1, self._g1, self._d)
@@ -230,8 +243,8 @@ class SimpleUpdateABCD(object):
     # define new gammaA and gammaC from renormalized M_A and M_C
     M_A = M_A.reshape(self._a, self._D2, self._D3, self._D4, self._d, self._D1)
     self._gammaA = np.einsum('ardlpu,r,d,l->paurdl', M_A, self._lambda2**-1, self._lambda3**-1, self._lambda4**-1)
-    M_C = M_C.reshape(self._D1, self._d, self._a, self._D3, self._D8, self._D7)
-    self._gammaC = np.einsum('dpaurl,u,r,l->paurdl', M_C, self._lambda3**-1, self._lambda8**-1, self._lambda7**-1)
+    M_C = M_C.reshape(self._D1, self._d, self._a, self._D3, self._D7, self._D8)
+    self._gammaC = np.einsum('dpaurl,u,r,l->paurdl', M_C, self._lambda3**-1, self._lambda7**-1, self._lambda8**-1)
 
 
   def update_bond2(self):
@@ -257,15 +270,15 @@ class SimpleUpdateABCD(object):
     """
     M_A = np.einsum('paurdl,u,r,l->aurlpd', self._gammaA, self._lambda1, self._lambda2,
                     self._lambda4).reshape(self._a*self._D1*self._D2*self._D3, self._d*self._D3)
-    M_C = np.einsum('paurdl,r,d,l->upardl', self._gammaC, self._lambda8, self._lambda1,
-                    self._lambda7).reshape(self._D3*self._d, self._a*self._D8*self._D1*self._D7)
+    M_C = np.einsum('paurdl,r,d,l->upardl', self._gammaC, self._lambda7, self._lambda1,
+                    self._lambda8).reshape(self._D3*self._d, self._a*self._D7*self._D1*self._D8)
 
     M_A, self._lambda3, M_B = svd_SU(M_A, M_C, self._lambda3, self._g1, self._d)
 
     M_A = M_A.reshape(self._a, self._D1, self._D2, self._D4, self._d, self._D3)
     self._gammaA = np.einsum('aurlpd,u,r,l->paurdl', M_A, self._lambda1**-1, self._lambda2**-1, self._lambda4**-1)
-    M_C = M_C.reshape(self._D3, self._d, self._a, self._D8, self._D1, self._D7)
-    self._gammaC = np.einsum('upardl,r,d,l->paurdl', M_C, self._lambda8**-1, self._lambda1**-1, self._lambda7**-1)
+    M_C = M_C.reshape(self._D3, self._d, self._a, self._D7, self._D1, self._D8)
+    self._gammaC = np.einsum('upardl,r,d,l->paurdl', M_C, self._lambda7**-1, self._lambda1**-1, self._lambda8**-1)
 
 
   def update_bond4(self):
