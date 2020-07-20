@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.linalg as lg
 
-def svd_SU(M_A, M_B, lambda_dir, gate, D_cst, d, D_dir):
+def svd_SU(M_A, M_B, lambda_dir, gate, D_cst, d):
   """
   utilitary function
   Construct matrix theta from tensors M_A and M_B, where lambda have been added
@@ -13,6 +13,7 @@ def svd_SU(M_A, M_B, lambda_dir, gate, D_cst, d, D_dir):
   #     \|        \|
   #     -A-    -> -W==M-
   #      |\        |   \
+  D_dir = lambda_dir.shape[0]
   M_A = M_A.reshape(D_cst, d*D_dir)
   W_A, sA, M_A = lg.svd(M_A, full_matrices=False)
   D_effA = len(sA)
@@ -169,7 +170,7 @@ class SimpleUpdateAB(object):
     M_B = np.einsum('paurdl,u,r,d->lpaurd', self._gammaB, self._lambda_d, self._lambda_l, self._lambda_u)
 
     # construct matrix theta, renormalize bond dimension and get back tensors
-    M_A, self._lambda_r, M_B = svd_SU(M_A, M_B, self._lambda_r, self._gr, self._a*self._Du*self._Dd*self._Dl, self._d, self._Dr)
+    M_A, self._lambda_r, M_B = svd_SU(M_A, M_B, self._lambda_r, self._gr, self._a*self._Du*self._Dd*self._Dl, self._d)
 
     # define new gammaA and gammaB from renormalized M_A and M_B
     M_A = M_A.reshape(self._a, self._Du, self._Dd, self._Dl, self._d, self._Dr)
@@ -185,7 +186,7 @@ class SimpleUpdateAB(object):
     """
     M_A = np.einsum('paurdl,u,r,l->aurlpd', self._gammaA, self._lambda_u, self._lambda_r, self._lambda_l)
     M_B = np.einsum('paurdl,r,d,l->upardl', self._gammaB, self._lambda_l, self._lambda_u, self._lambda_r)
-    M_A, self._lambda_d, M_B = svd_SU(M_A, M_B, self._lambda_d, self._gd, self._a*self._Du*self._Dr*self._Dl, self._d, self._Dd)
+    M_A, self._lambda_d, M_B = svd_SU(M_A, M_B, self._lambda_d, self._gd, self._a*self._Du*self._Dr*self._Dl, self._d)
     M_A = M_A.reshape(self._a, self._Du, self._Dr, self._Dl, self._d, self._Dd)
     self._gammaA = np.einsum('aurlpd,u,r,l->paurdl', M_A, self._lambda_u**-1, self._lambda_r**-1, self._lambda_l**-1)
     M_B = M_B.reshape(self._Dd, self._d, self._a, self._Dl, self._Du, self._Dr)
@@ -199,7 +200,7 @@ class SimpleUpdateAB(object):
     """
     M_A = np.einsum('paurdl,u,r,d->aurdpl', self._gammaA, self._lambda_u, self._lambda_r, self._lambda_d)
     M_B = np.einsum('paurdl,u,d,l->rpaudl', self._gammaB, self._lambda_d, self._lambda_u, self._lambda_r)
-    M_A, self._lambda_l, M_B = svd_SU(M_A, M_B, self._lambda_l, self._gl, self._a*self._Du*self._Dr*self._Dd, self._d, self._Dl)
+    M_A, self._lambda_l, M_B = svd_SU(M_A, M_B, self._lambda_l, self._gl, self._a*self._Du*self._Dr*self._Dd, self._d)
     M_A = M_A.reshape(self._a, self._Du, self._Dr, self._Dd, self._d, self._Dl)
     self._gammaA = np.einsum('aurdpl,u,r,d->paurdl', M_A, self._lambda_u**-1, self._lambda_r**-1, self._lambda_d**-1)
     M_B = M_B.reshape(self._Dl, self._d, self._a, self._Dd, self._Du, self._Dr)
@@ -213,7 +214,7 @@ class SimpleUpdateAB(object):
     """
     M_A = np.einsum('paurdl,r,d,l->ardlpu', self._gammaA, self._lambda_r, self._lambda_d, self._lambda_l)
     M_B = np.einsum('paurdl,u,r,l->dpaurl', self._gammaB, self._lambda_d, self._lambda_l, self._lambda_r)
-    M_A, self._lambda_u, M_B = svd_SU(M_A, M_B, self._lambda_u, self._gu, self._a*self._Dr*self._Dd*self._Dl, self._d, self._Du)
+    M_A, self._lambda_u, M_B = svd_SU(M_A, M_B, self._lambda_u, self._gu, self._a*self._Dr*self._Dd*self._Dl, self._d)
     M_A = M_A.reshape(self._a, self._Dr, self._Dd, self._Dl, self._d, self._Du)
     self._gammaA = np.einsum('ardlpu,r,d,l->paurdl', M_A, self._lambda_r**-1, self._lambda_d**-1, self._lambda_l**-1)
     M_B = M_B.reshape(self._Du, self._d, self._a, self._Dd, self._Dl, self._Dr)
