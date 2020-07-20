@@ -264,8 +264,8 @@ class SimpleUpdateABCD(object):
 
     M_A = M_A.reshape(self._a, self._D1, self._D2, self._D4, self._d, self._D3)
     self._gammaA = np.einsum('aurlpd,u,r,l->paurdl', M_A, self._lambda1**-1, self._lambda2**-1, self._lambda4**-1)
-    M_B = M_B.reshape(self._D3, self._d, self._a, self._D8, self._D1, self._D7)
-    self._gammaB = np.einsum('upardl,r,d,l->paurdl', M_B, self._lambda8**-1, self._lambda1**-1, self._lambda7**-1)
+    M_C = M_C.reshape(self._D3, self._d, self._a, self._D8, self._D1, self._D7)
+    self._gammaC = np.einsum('upardl,r,d,l->paurdl', M_C, self._lambda8**-1, self._lambda1**-1, self._lambda7**-1)
 
 
   def update_bond4(self):
