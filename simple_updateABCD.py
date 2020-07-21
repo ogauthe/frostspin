@@ -101,12 +101,12 @@ def update_second_neighbor(M0_L, M0_mid, M0_R, lambda_L, lambda_R, gate, d):
   theta = np.dot(eff_L, eff_m).reshape(D_effL, d, D_R, D_effm)
   theta = np.tensordot(theta, eff_R, ((2,),(0,)))
   theta = theta.transpose(0,2,4,1,3).reshape(D_effL*D_effm*D_effR, d**2)
-  theta = np.dot(theta, g2).reshape(D_effL, D_effm, D_effR, d, d)
+  theta = np.dot(theta, gate).reshape(D_effL, D_effm, D_effR, d, d)
   theta = theta.transpose(0,3,1,2,4).reshape(D_effL*d, D_effm*D_effR*d)
 
   # first SVD: cut left part
   new_L, new_lambda_L, theta = lg.svd(theta, full_matrices=False)
-  new_L = newL[:,:D_L].reshape(D_effL, d*D_L)
+  new_L = new_L[:,:D_L].reshape(D_effL, d*D_L)
   new_lambda_L = new_lambda_L[:D_L]
   new_lambda_L /= new_lambda_L.sum()
 
@@ -114,7 +114,7 @@ def update_second_neighbor(M0_L, M0_mid, M0_R, lambda_L, lambda_R, gate, d):
   theta = (new_lambda_L[:,None]*theta[:D_L]).reshape(D_L*D_effm, D_effR*d)
   new_mid, new_lambda_R, new_R = lg.svd(theta, full_matrices=False)
   new_mid = new_mid[:,:D_R].reshape(D_L, D_effm, D_R)
-  new_R = new_R[:D_R].reshape(D_R, D_eff_R, d)
+  new_R = new_R[:D_R].reshape(D_R, D_effR, d)
   new_lambda_R = new_lambda_R[:D_R]
   new_lambda_R /= new_lambda_R.sum()
 
@@ -468,7 +468,7 @@ class SimpleUpdateABCD(object):
     M_D = np.einsum('paurdl,u,r,l->dpaurl', self._gammaD, self._lambda6, self._lambda8,
                     self._lambda7).reshape(self._D5*self._d, self._a*self._D6*self._D8*self._D7)
     M_A, M_B, M_D, self._lambda2, self._lambda_5 = update_second_neighbor(
-                                       M_A, M_B, M_D, self._lambda2, self._lambda5, g2, self._d)
+                                       M_A, M_B, M_D, self._lambda2, self._lambda5, self._g2, self._d)
     M_A = M_A.reshape(self._a, self._D1, self._D3, self._D4, self._d, self._D2)
     self._gammaA = np.einsum('audlpr,u,d,l->paurdl', M_A, self._lambda1**-1, self._lambda3**-1, self._lambda4**-1)
     M_B = M_B.reshape(self._D2, self._D5, self._d, self._a, self._D4, self._D6)
@@ -489,7 +489,7 @@ class SimpleUpdateABCD(object):
     M_D = np.einsum('paurdl,u,r,d->lpaurd', self._gammaD, self._lambda6, self._lambda8,
                     self._lambda5).reshape(self._D7*self._d, self._a*self._D6*self._D8*self._D5)
     M_A, M_C, M_D, self._lambda1, self._lambda_7 = update_second_neighbor(
-                                       M_A, M_C, M_D, self._lambda1, self._lambda7, g2, self._d)
+                                       M_A, M_C, M_D, self._lambda1, self._lambda7, self._g2, self._d)
     M_A = M_A.reshape(self._a, self._D2, self._D3, self._D4, self._d, self._D1)
     self._gammaA = np.einsum('ardlpu,r,d,l->paurdl', M_A, self._lambda2**-1, self._lambda3**-1, self._lambda4**-1)
     M_C = M_C.reshape(self._D1, self._D7, self._d, self._a, self._D3, self._D8)
@@ -510,7 +510,7 @@ class SimpleUpdateABCD(object):
     M_D = np.einsum('paurdl,r,d,l->upardl', self._gammaD, self._lambda8, self._lambda5,
                     self._lambda7).reshape(self._D6*self._d, self._a*self._D8*self._D5*self._D7)
     M_A, M_B, M_D, self._lambda2, self._lambda_6 = update_second_neighbor(
-                                       M_A, M_B, M_D, self._lambda2, self._lambda6, g2, self._d)
+                                       M_A, M_B, M_D, self._lambda2, self._lambda6, self._g2, self._d)
     M_A = M_A.reshape(self._a, self._D1, self._D3, self._D4, self._d, self._D2)
     self._gammaA = np.einsum('audlpr,u,d,l->paurdl', M_A, self._lambda1**-1, self._lambda3**-1, self._lambda4**-1)
     M_B = M_B.reshape(self._D2, self._D6, self._d, self._a, self._D5, self._D4)
@@ -531,7 +531,7 @@ class SimpleUpdateABCD(object):
     M_D = np.einsum('paurdl,u,r,d->lpaurd', self._gammaD, self._lambda6, self._lambda8,
                     self._lambda5).reshape(self._D7*self._d, self._a*self._D6*self._D8*self._D5)
     M_A, M_C, M_D, self._lambda3, self._lambda_7 = update_second_neighbor(
-                                       M_A, M_C, M_D, self._lambda3, self._lambda7, g2, self._d)
+                                       M_A, M_C, M_D, self._lambda3, self._lambda7, self._g2, self._d)
     M_A = M_A.reshape(self._a, self._D1, self._D2, self._D4, self._d, self._D3)
     self._gammaA = np.einsum('aurlpd,u,r,l->paurdl', M_A, self._lambda1**-1, self._lambda2**-1, self._lambda4**-1)
     M_C = M_C.reshape(self._D3, self._D7, self._d, self._a, self._D1, self._D8)
@@ -552,7 +552,7 @@ class SimpleUpdateABCD(object):
     M_D = np.einsum('paurdl,r,d,l->upardl', self._gammaD, self._lambda8, self._lambda5,
                     self._lambda7).reshape(self._D6*self._d, self._a*self._D8*self._D5*self._D7)
     M_A, M_B, M_D, self._lambda4, self._lambda_6 = update_second_neighbor(
-                                       M_A, M_B, M_D, self._lambda4, self._lambda6, g2, self._d)
+                                       M_A, M_B, M_D, self._lambda4, self._lambda6, self._g2, self._d)
     M_A = M_A.reshape(self._a, self._D1, self._D2, self._D3, self._d, self._D4)
     self._gammaA = np.einsum('aurdpl,u,r,d->paurdl', M_A, self._lambda1**-1, self._lambda2**-1, self._lambda3**-1)
     M_B = M_B.reshape(self._D4, self._D6, self._d, self._a, self._D5, self._D2)
@@ -573,13 +573,13 @@ class SimpleUpdateABCD(object):
     M_D = np.einsum('paurdl,u,d,l->rpaudl', self._gammaD, self._lambda6, self._lambda5,
                     self._lambda7).reshape(self._D8*self._d, self._a*self._D6*self._D5*self._D7)
     M_A, M_C, M_D, self._lambda3, self._lambda_8 = update_second_neighbor(
-                                       M_A, M_C, M_D, self._lambda3, self._lambda8, g2, self._d)
+                                       M_A, M_C, M_D, self._lambda3, self._lambda8, self._g2, self._d)
     M_A = M_A.reshape(self._a, self._D1, self._D2, self._D4, self._d, self._D3)
     self._gammaA = np.einsum('aurlpd,u,r,l->paurdl', M_A, self._lambda1**-1, self._lambda2**-1, self._lambda4**-1)
     M_C = M_C.reshape(self._D3, self._D8, self._d, self._a, self._D7, self._D1)
-    self._gammaC = np.einsum('ulpard,r,d->paurdl', M_C, self._lambda7**-1, sef._lambda1**-1)
+    self._gammaC = np.einsum('ulpard,r,d->paurdl', M_C, self._lambda7**-1, self._lambda1**-1)
     M_D = M_D.reshape(self._D8, self._d, self._a, self._D6, self._D5, self._D7)
-    self._gammaD = np.einsum('rpaudl,u,r,d->paurdl', M_D, self._lambda6**-1, self._lambda5**-1, self._lambda7**-1)
+    self._gammaD = np.einsum('rpaudl,u,d,l->paurdl', M_D, self._lambda6**-1, self._lambda5**-1, self._lambda7**-1)
 
 
   def update_bonds45(self):
@@ -594,7 +594,7 @@ class SimpleUpdateABCD(object):
     M_D = np.einsum('paurdl,u,r,l->dpaurl', self._gammaD, self._lambda6, self._lambda8,
                     self._lambda7).reshape(self._D5*self._d, self._a*self._D6*self._D8*self._D7)
     M_A, M_B, M_D, self._lambda4, self._lambda_5 = update_second_neighbor(
-                                       M_A, M_B, M_D, self._lambda4, self._lambda5, g2, self._d)
+                                       M_A, M_B, M_D, self._lambda4, self._lambda5, self._g2, self._d)
     M_A = M_A.reshape(self._a, self._D1, self._D2, self._D3, self._d, self._D4)
     self._gammaA = np.einsum('aurdpl,u,r,d->paurdl', M_A, self._lambda1**-1, self._lambda2**-1, self._lambda3**-1)
     M_B = M_B.reshape(self._D4, self._D5, self._d, self._a, self._D6, self._D2)
@@ -615,13 +615,13 @@ class SimpleUpdateABCD(object):
     M_D = np.einsum('paurdl,u,d,l->rpaudl', self._gammaD, self._lambda6, self._lambda5,
                     self._lambda7).reshape(self._D8*self._d, self._a*self._D6*self._D5*self._D7)
     M_A, M_C, M_D, self._lambda1, self._lambda_8 = update_second_neighbor(
-                                       M_A, M_C, M_D, self._lambda1, self._lambda8, g2, self._d)
+                                       M_A, M_C, M_D, self._lambda1, self._lambda8, self._g2, self._d)
     M_A = M_A.reshape(self._a, self._D2, self._D3, self._D4, self._d, self._D1)
     self._gammaA = np.einsum('ardlpu,r,d,l->paurdl', M_A, self._lambda2**-1, self._lambda3**-1, self._lambda4**-1)
     M_C = M_C.reshape(self._D1, self._D8, self._d, self._a, self._D3, self._D7)
-    self._gammaC = np.einsum('dlpaur,u,r->paurdl', M_C, self._lambda3**-1, sef._lambda7**-1)
+    self._gammaC = np.einsum('dlpaur,u,r->paurdl', M_C, self._lambda3**-1, self._lambda7**-1)
     M_D = M_D.reshape(self._D8, self._d, self._a, self._D6, self._D5, self._D7)
-    self._gammaD = np.einsum('rpaudl,u,r,d->paurdl', M_D, self._lambda6**-1, self._lambda5**-1, self._lambda7**-1)
+    self._gammaD = np.einsum('rpaudl,u,d,l->paurdl', M_D, self._lambda6**-1, self._lambda5**-1, self._lambda7**-1)
 
 
 
@@ -639,7 +639,7 @@ class SimpleUpdateABCD(object):
     M_C = np.einsum('paurdl,u,r,l->dpaurl', self._gammaC, self._lambda3, self._lambda7,
                     self._lambda8).reshape(self._D1*self._d, self._a*self._D3*self._D7*self._D8)
     M_B, M_A, M_C, self._lambda4, self._lambda_1 = update_second_neighbor(
-                                       M_B, M_A, M_C, self._lambda4, self._lambda1, g2, self._d)
+                                       M_B, M_A, M_C, self._lambda4, self._lambda1, self._g2, self._d)
     M_B = M_B.reshape(self._a, self._D5, self._D6, self._D2, self._d, self._D4)
     self._gammaB = np.einsum('audlpr,u,d,l->paurdl', M_B, self._lambda5**-1, self._lambda6**-1, self._lambda2**-1)
     M_A = M_A.reshape(self._D4, self._D1, self._d, self._a, self._D2, self._D3)
@@ -653,14 +653,14 @@ class SimpleUpdateABCD(object):
     update lambda2 and lambda6 by applying gate to B upper-right next nearest
     neighbor bond with C through tensor D. Twin of 41.
     """
-    M_B = np.einsum('paurdl,r,d,l->ardlpu', self._gammaB, self._lambda2, self._lambda3,
-                    self._lambda4).reshape(self._a*self._D4*self._D6*self._D2, self._d*self._D5)
+    M_B = np.einsum('paurdl,r,d,l->ardlpu', self._gammaB, self._lambda4, self._lambda6,
+                    self._lambda2).reshape(self._a*self._D4*self._D6*self._D2, self._d*self._D5)
     M_D = np.einsum('paurdl,u,l->drpaul', self._gammaD, self._lambda6, self._lambda7).reshape(
                                            self._D5*self._D8, self._d*self._a*self._D6*self._D7)
     M_C = np.einsum('paurdl,u,r,d->lpaurd', self._gammaC, self._lambda3, self._lambda7,
                     self._lambda1).reshape(self._D8*self._d, self._a*self._D3*self._D7*self._D1)
     M_B, M_D, M_C, self._lambda5, self._lambda_8 = update_second_neighbor(
-                                       M_B, M_D, M_C, self._lambda5, self._lambda8, g2, self._d)
+                                       M_B, M_D, M_C, self._lambda5, self._lambda8, self._g2, self._d)
     M_B = M_B.reshape(self._a, self._D4, self._D6, self._D2, self._d, self._D5)
     self._gammaB = np.einsum('ardlpu,r,d,l->paurdl', M_B, self._lambda4**-1, self._lambda6**-1, self._lambda2**-1)
     M_D = M_D.reshape(self._D5, self._D8, self._d, self._a, self._D6, self._D7)
@@ -681,7 +681,7 @@ class SimpleUpdateABCD(object):
     M_C = np.einsum('paurdl,r,d,l->upardl', self._gammaC, self._lambda7, self._lambda1,
                     self._lambda8).reshape(self._D3*self._d, self._a*self._D7*self._D1*self._D8)
     M_B, M_A, M_C, self._lambda4, self._lambda_3 = update_second_neighbor(
-                                       M_B, M_A, M_C, self._lambda4, self._lambda3, g2, self._d)
+                                       M_B, M_A, M_C, self._lambda4, self._lambda3, self._g2, self._d)
     M_B = M_B.reshape(self._a, self._D5, self._D6, self._D2, self._d, self._D4)
     self._gammaB = np.einsum('audlpr,u,d,l->paurdl', M_B, self._lambda5**-1, self._lambda6**-1, self._lambda2**-1)
     M_A = M_A.reshape(self._D4, self._D3, self._d, self._a, self._D1, self._D2)
@@ -702,7 +702,7 @@ class SimpleUpdateABCD(object):
     M_C = np.einsum('paurdl,u,r,d->lpaurd', self._gammaC, self._lambda3, self._lambda7,
                     self._lambda1).reshape(self._D8*self._d, self._a*self._D3*self._D7*self._D1)
     M_B, M_D, M_C, self._lambda6, self._lambda_8 = update_second_neighbor(
-                                       M_B, M_D, M_C, self._lambda6, self._lambda8, g2, self._d)
+                                       M_B, M_D, M_C, self._lambda6, self._lambda8, self._g2, self._d)
     M_B = M_B.reshape(self._a, self._D5, self._D4, self._D2, self._d, self._D6)
     self._gammaB = np.einsum('aurlpd,u,r,l->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda2**-1)
     M_D = M_D.reshape(self._D6, self._D8, self._d, self._a, self._D5, self._D7)
@@ -723,11 +723,11 @@ class SimpleUpdateABCD(object):
     M_C = np.einsum('paurdl,r,d,l->upardl', self._gammaC, self._lambda7, self._lambda1,
                     self._lambda8).reshape(self._D3*self._d, self._a*self._D7*self._D1*self._D8)
     M_B, M_A, M_C, self._lambda2, self._lambda_3 = update_second_neighbor(
-                                       M_B, M_A, M_C, self._lambda2, self._lambda3, g2, self._d)
+                                       M_B, M_A, M_C, self._lambda2, self._lambda3, self._g2, self._d)
     M_B = M_B.reshape(self._a, self._D5, self._D4, self._D6, self._d, self._D2)
-    self._gammaB = np.einsum('aurdpl,u,r,l->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda6**-1)
+    self._gammaB = np.einsum('aurdpl,u,r,d->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda6**-1)
     M_A = M_A.reshape(self._D2, self._D3, self._d, self._a, self._D1, self._D4)
-    self._gammaA = np.einsum('rdpaul,u,l->paurdl', M_A, self._lambda1**-1, self._lambda2**-1)
+    self._gammaA = np.einsum('rdpaul,u,l->paurdl', M_A, self._lambda1**-1, self._lambda4**-1)
     M_C = M_C.reshape(self._D3, self._d, self._a, self._D7, self._D1, self._D8)
     self._gammaC = np.einsum('upardl,r,d,l->paurdl', M_C, self._lambda7**-1, self._lambda1**-1, self._lambda8**-1)
 
@@ -744,7 +744,7 @@ class SimpleUpdateABCD(object):
     M_C = np.einsum('paurdl,u,d,l->rpaudl', self._gammaC, self._lambda3, self._lambda1,
                     self._lambda8).reshape(self._D7*self._d, self._a*self._D3*self._D1*self._D8)
     M_B, M_D, M_C, self._lambda6, self._lambda_7 = update_second_neighbor(
-                                       M_B, M_D, M_C, self._lambda6, self._lambda7, g2, self._d)
+                                       M_B, M_D, M_C, self._lambda6, self._lambda7, self._g2, self._d)
     M_B = M_B.reshape(self._a, self._D5, self._D4, self._D2, self._d, self._D6)
     self._gammaB = np.einsum('aurlpd,u,r,l->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda2**-1)
     M_D = M_D.reshape(self._D6, self._D7, self._d, self._a, self._D8, self._D5)
@@ -760,16 +760,16 @@ class SimpleUpdateABCD(object):
     """
     M_B = np.einsum('paurdl,u,r,d->aurdpl', self._gammaB, self._lambda5, self._lambda4,
                     self._lambda6).reshape(self._a*self._D5*self._D4*self._D6, self._d*self._D2)
-    M_A = np.einsum('paurdl,d,r->lupadr', self._gammaA, self._lambda3, self._lambda4).reshape(
+    M_A = np.einsum('paurdl,d,l->rupadl', self._gammaA, self._lambda3, self._lambda4).reshape(
                                            self._D2*self._D1, self._d*self._a*self._D3*self._D4)
     M_C = np.einsum('paurdl,u,r,l->dpaurl', self._gammaC, self._lambda3, self._lambda7,
                     self._lambda8).reshape(self._D1*self._d, self._a*self._D3*self._D7*self._D8)
     M_B, M_A, M_C, self._lambda2, self._lambda_1 = update_second_neighbor(
-                                       M_B, M_A, M_C, self._lambda2, self._lambda1, g2, self._d)
+                                       M_B, M_A, M_C, self._lambda2, self._lambda1, self._g2, self._d)
     M_B = M_B.reshape(self._a, self._D5, self._D4, self._D6, self._d, self._D2)
-    self._gammaB = np.einsum('aurdpl,u,r,l->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda6**-1)
+    self._gammaB = np.einsum('aurdpl,u,r,d->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda6**-1)
     M_A = M_A.reshape(self._D2, self._D1, self._d, self._a, self._D3, self._D4)
-    self._gammaA = np.einsum('lupadr,d,r->paurdl', M_A, self._lambda3**-1, self._lambda4**-1)
+    self._gammaA = np.einsum('rupadl,d,l->paurdl', M_A, self._lambda3**-1, self._lambda4**-1)
     M_C = M_C.reshape(self._D1, self._d, self._a, self._D3, self._D7, self._D8)
     self._gammaC = np.einsum('dpaurl,u,r,l->paurdl', M_C, self._lambda3**-1, self._lambda7**-1, self._lambda8**-1)
 
@@ -779,14 +779,14 @@ class SimpleUpdateABCD(object):
     update lambda6 and lambda7 by applying gate to B down-left next nearest
     neighbor bond with C through tensor D. Twin of 21.
     """
-    M_B = np.einsum('paurdl,r,d,l->ardlpu', self._gammaB, self._lambda2, self._lambda3,
-                    self._lambda4).reshape(self._a*self._D4*self._D6*self._D2, self._d*self._D5)
+    M_B = np.einsum('paurdl,r,d,l->ardlpu', self._gammaB, self._lambda4, self._lambda6,
+                    self._lambda2).reshape(self._a*self._D4*self._D6*self._D2, self._d*self._D5)
     M_D = np.einsum('paurdl,u,r->dlpaur', self._gammaD, self._lambda6, self._lambda8).reshape(
                                            self._D5*self._D7, self._d*self._a*self._D6*self._D8)
     M_C = np.einsum('paurdl,u,d,l->rpaudl', self._gammaC, self._lambda3, self._lambda1,
                     self._lambda8).reshape(self._D7*self._d, self._a*self._D3*self._D1*self._D8)
     M_B, M_D, M_C, self._lambda5, self._lambda_7 = update_second_neighbor(
-                                       M_B, M_D, M_C, self._lambda5, self._lambda7, g2, self._d)
+                                       M_B, M_D, M_C, self._lambda5, self._lambda7, self._g2, self._d)
     M_B = M_B.reshape(self._a, self._D4, self._D6, self._D2, self._d, self._D5)
     self._gammaB = np.einsum('ardlpu,r,d,l->paurdl', M_B, self._lambda4**-1, self._lambda6**-1, self._lambda2**-1)
     M_D = M_D.reshape(self._D5, self._D7, self._d, self._a, self._D6, self._D8)
