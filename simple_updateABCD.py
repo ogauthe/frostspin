@@ -455,10 +455,53 @@ class SimpleUpdateABCD(object):
 # second neighbor updates
 ###############################################################################
 
+###############################   links A-D   #################################
+  def update_bonds25(self):
+    """
+    update lambda2 and lambda6 by applying gate to A upper-right next nearest
+    neighbor bond with D through tensor B. Twin of 17.
+    """
+    M_A = np.einsum('paurdl,u,d,l->audlpr', self._gammaA, self._lambda1, self._lambda3,
+                    self._lambda4).reshape(self._a*self._D1*self._D3*self._D4, self._d*self._D2)
+    M_B = np.einsum('paurdl,r,d->lupard', self._gammaB, self._lambda4, self._lambda6).reshape(
+                                           self._D2*self._D5, self._d*self._a*self._D4*self._D6)
+    M_D = np.einsum('paurdl,u,r,l->dpaurl', self._gammaD, self._lambda6, self._lambda8,
+                    self._lambda7).reshape(self._D5*self._d, self._a*self._D6*self._D8*self._D7)
+    M_A, M_B, M_D, self._lambda2, self._lambda_5 = update_second_neighbor(
+                                       M_A, M_B, M_D, self._lambda2, self._lambda5, g2, self._d)
+    M_A = M_A.reshape(self._a, self._D1, self._D3, self._D4, self._d, self._D2)
+    self._gammaA = np.einsum('audlpr,u,d,l->paurdl', M_A, self._lambda1**-1, self._lambda3**-1, self._lambda4**-1)
+    M_B = M_B.reshape(self._D2, self._D5, self._d, self._a, self._D4, self._D6)
+    self._gammaB = np.einsum('lupard,r,d->paurdl', M_B, self._lambda4**-1, self._lambda6**-1)
+    M_D = M_D.reshape(self._D5, self._d, self._a, self._D6, self._D8, self._D7)
+    self._gammaD = np.einsum('dpaurl,u,r,l->paurdl', M_D, self._lambda6**-1, self._lambda8**-1, self._lambda7**-1)
+
+
+  def update_bonds17(self):
+    """
+    update lambda2 and lambda6 by applying gate to A upper-right next nearest
+    neighbor bond with D through tensor C. Twin of 25.
+    """
+    M_A = np.einsum('paurdl,r,d,l->ardlpu', self._gammaA, self._lambda2, self._lambda3,
+                    self._lambda4).reshape(self._a*self._D2*self._D3*self._D4, self._d*self._D1)
+    M_C = np.einsum('paurdl,u,l->drpaul', self._gammaC, self._lambda3, self._lambda8).reshape(
+                                           self._D1*self._D7, self._d*self._a*self._D3*self._D8)
+    M_D = np.einsum('paurdl,u,r,d->lpaurd', self._gammaD, self._lambda6, self._lambda8,
+                    self._lambda5).reshape(self._D7*self._d, self._a*self._D6*self._D8*self._D5)
+    M_A, M_C, M_D, self._lambda1, self._lambda_7 = update_second_neighbor(
+                                       M_A, M_C, M_D, self._lambda1, self._lambda7, g2, self._d)
+    M_A = M_A.reshape(self._a, self._D2, self._D3, self._D4, self._d, self._D1)
+    self._gammaA = np.einsum('ardlpu,r,d,l->paurdl', M_A, self._lambda2**-1, self._lambda3**-1, self._lambda4**-1)
+    M_C = M_C.reshape(self._D1, self._D7, self._d, self._a, self._D3, self._D8)
+    self._gammaC = np.einsum('drpaul,u,l->paurdl', M_C, self._lambda3**-1, self._lambda8**-1)
+    M_D = M_D.reshape(self._D7, self._d, self._a, self._D6, self._D8, self._D5)
+    self._gammaD = np.einsum('lpaurd,u,r,d->paurdl', M_D, self._lambda6**-1, self._lambda8**-1, self._lambda5**-1)
+
+
   def update_bonds26(self):
     """
     update lambda2 and lambda6 by applying gate to A down-right next nearest
-    neighbor bond with D through tensor B.
+    neighbor bond with D through tensor B. Twin of 37.
     """
     M_A = np.einsum('paurdl,u,d,l->audlpr', self._gammaA, self._lambda1, self._lambda3,
                     self._lambda4).reshape(self._a*self._D1*self._D3*self._D4, self._d*self._D2)
@@ -476,3 +519,277 @@ class SimpleUpdateABCD(object):
     self._gammaD = np.einsum('upardl,r,d,l->paurdl', M_D, self._lambda8**-1, self._lambda5**-1, self._lambda7**-1)
 
 
+  def update_bonds37(self):
+    """
+    update lambda2 and lambda6 by applying gate to A down-right next nearest
+    neighbor bond with D through tensor C. Twin of 26.
+    """
+    M_A = np.einsum('paurdl,u,r,l->aurlpd', self._gammaA, self._lambda1, self._lambda2,
+                    self._lambda4).reshape(self._a*self._D1*self._D2*self._D4, self._d*self._D3)
+    M_C = np.einsum('paurdl,d,l->urpadl', self._gammaC, self._lambda1, self._lambda8).reshape(
+                                           self._D3*self._D7, self._d*self._a*self._D1*self._D8)
+    M_D = np.einsum('paurdl,u,r,d->lpaurd', self._gammaD, self._lambda6, self._lambda8,
+                    self._lambda5).reshape(self._D7*self._d, self._a*self._D6*self._D8*self._D5)
+    M_A, M_C, M_D, self._lambda3, self._lambda_7 = update_second_neighbor(
+                                       M_A, M_C, M_D, self._lambda3, self._lambda7, g2, self._d)
+    M_A = M_A.reshape(self._a, self._D1, self._D2, self._D4, self._d, self._D3)
+    self._gammaA = np.einsum('aurlpd,u,r,l->paurdl', M_A, self._lambda1**-1, self._lambda2**-1, self._lambda4**-1)
+    M_C = M_C.reshape(self._D3, self._D7, self._d, self._a, self._D1, self._D8)
+    self._gammaC = np.einsum('urpadl,d,l->paurdl', M_C, self._lambda1**-1, self._lambda8**-1)
+    M_D = M_D.reshape(self._D7, self._d, self._a, self._D6, self._D8, self._D5)
+    self._gammaD = np.einsum('lpaurd,u,r,d->paurdl', M_D, self._lambda6**-1, self._lambda8**-1, self._lambda5**-1)
+
+
+  def update_bonds46(self):
+    """
+    update lambda4 and lambda6 by applying gate to A down-left next nearest
+    neighbor bond with D through tensor B. Twin of 38.
+    """
+    M_A = np.einsum('paurdl,u,r,d->aurdpl', self._gammaA, self._lambda1, self._lambda2,
+                    self._lambda3).reshape(self._a*self._D1*self._D2*self._D3, self._d*self._D4)
+    M_B = np.einsum('paurdl,u,l->rdpaul', self._gammaB, self._lambda5, self._lambda2).reshape(
+                                           self._D4*self._D6, self._d*self._a*self._D5*self._D2)
+    M_D = np.einsum('paurdl,r,d,l->upardl', self._gammaD, self._lambda8, self._lambda5,
+                    self._lambda7).reshape(self._D6*self._d, self._a*self._D8*self._D5*self._D7)
+    M_A, M_B, M_D, self._lambda4, self._lambda_6 = update_second_neighbor(
+                                       M_A, M_B, M_D, self._lambda4, self._lambda6, g2, self._d)
+    M_A = M_A.reshape(self._a, self._D1, self._D2, self._D3, self._d, self._D4)
+    self._gammaA = np.einsum('aurdpl,u,r,d->paurdl', M_A, self._lambda1**-1, self._lambda2**-1, self._lambda3**-1)
+    M_B = M_B.reshape(self._D4, self._D6, self._d, self._a, self._D5, self._D2)
+    self._gammaB = np.einsum('rdpaul,u,l->paurdl', M_B, self._lambda5**-1, self._lambda2**-1)
+    M_D = M_D.reshape(self._D6, self._d, self._a, self._D8, self._D5, self._D7)
+    self._gammaD = np.einsum('upardl,r,d,l->paurdl', M_D, self._lambda8**-1, self._lambda5**-1, self._lambda7**-1)
+
+
+  def update_bonds38(self):
+    """
+    update lambda2 and lambda6 by applying gate to A down-left next nearest
+    neighbor bond with D through tensor C. Twin of 46.
+    """
+    M_A = np.einsum('paurdl,u,r,l->aurlpd', self._gammaA, self._lambda1, self._lambda2,
+                    self._lambda4).reshape(self._a*self._D1*self._D2*self._D4, self._d*self._D3)
+    M_C = np.einsum('paurdl,r,d->ulpard', self._gammaC, self._lambda7, self._lambda1).reshape(
+                                           self._D3*self._D8, self._d*self._a*self._D7*self._D1)
+    M_D = np.einsum('paurdl,u,d,l->rpaudl', self._gammaD, self._lambda6, self._lambda5,
+                    self._lambda7).reshape(self._D8*self._d, self._a*self._D6*self._D5*self._D7)
+    M_A, M_C, M_D, self._lambda3, self._lambda_8 = update_second_neighbor(
+                                       M_A, M_C, M_D, self._lambda3, self._lambda8, g2, self._d)
+    M_A = M_A.reshape(self._a, self._D1, self._D2, self._D4, self._d, self._D3)
+    self._gammaA = np.einsum('aurlpd,u,r,l->paurdl', M_A, self._lambda1**-1, self._lambda2**-1, self._lambda4**-1)
+    M_C = M_C.reshape(self._D3, self._D8, self._d, self._a, self._D7, self._D1)
+    self._gammaC = np.einsum('ulpard,r,d->paurdl', M_C, self._lambda7**-1, sef._lambda1**-1)
+    M_D = M_D.reshape(self._D8, self._d, self._a, self._D6, self._D5, self._D7)
+    self._gammaD = np.einsum('rpaudl,u,r,d->paurdl', M_D, self._lambda6**-1, self._lambda5**-1, self._lambda7**-1)
+
+
+  def update_bonds45(self):
+    """
+    update lambda4 and lambda5 by applying gate to A upper-left next nearest
+    neighbor bond with D through tensor B. Twin of 18.
+    """
+    M_A = np.einsum('paurdl,u,r,d->aurdpl', self._gammaA, self._lambda1, self._lambda2,
+                    self._lambda3).reshape(self._a*self._D1*self._D2*self._D3, self._d*self._D4)
+    M_B = np.einsum('paurdl,d,l->rupadl', self._gammaB, self._lambda6, self._lambda2).reshape(
+                                           self._D4*self._D5, self._d*self._a*self._D6*self._D2)
+    M_D = np.einsum('paurdl,u,r,l->dpaurl', self._gammaD, self._lambda6, self._lambda8,
+                    self._lambda7).reshape(self._D5*self._d, self._a*self._D6*self._D8*self._D7)
+    M_A, M_B, M_D, self._lambda4, self._lambda_5 = update_second_neighbor(
+                                       M_A, M_B, M_D, self._lambda4, self._lambda5, g2, self._d)
+    M_A = M_A.reshape(self._a, self._D1, self._D2, self._D3, self._d, self._D4)
+    self._gammaA = np.einsum('aurdpl,u,r,d->paurdl', M_A, self._lambda1**-1, self._lambda2**-1, self._lambda3**-1)
+    M_B = M_B.reshape(self._D4, self._D5, self._d, self._a, self._D6, self._D2)
+    self._gammaB = np.einsum('rupadl,d,l->paurdl', M_B, self._lambda6**-1, self._lambda2**-1)
+    M_D = M_D.reshape(self._D5, self._d, self._a, self._D6, self._D8, self._D7)
+    self._gammaD = np.einsum('dpaurl,u,r,l->paurdl', M_D, self._lambda6**-1, self._lambda8**-1, self._lambda7**-1)
+
+
+  def update_bonds18(self):
+    """
+    update lambda1 and lambda8 by applying gate to A upper-left next nearest
+    neighbor bond with D through tensor C. Twin of 45.
+    """
+    M_A = np.einsum('paurdl,r,d,l->ardlpu', self._gammaA, self._lambda2, self._lambda3,
+                    self._lambda4).reshape(self._a*self._D2*self._D3*self._D4, self._d*self._D1)
+    M_C = np.einsum('paurdl,u,r->dlpaur', self._gammaC, self._lambda3, self._lambda7).reshape(
+                                           self._D1*self._D8, self._d*self._a*self._D3*self._D7)
+    M_D = np.einsum('paurdl,u,d,l->rpaudl', self._gammaD, self._lambda6, self._lambda5,
+                    self._lambda7).reshape(self._D8*self._d, self._a*self._D6*self._D5*self._D7)
+    M_A, M_C, M_D, self._lambda1, self._lambda_8 = update_second_neighbor(
+                                       M_A, M_C, M_D, self._lambda1, self._lambda8, g2, self._d)
+    M_A = M_A.reshape(self._a, self._D2, self._D3, self._D4, self._d, self._D1)
+    self._gammaA = np.einsum('ardlpu,r,d,l->paurdl', M_A, self._lambda2**-1, self._lambda3**-1, self._lambda4**-1)
+    M_C = M_C.reshape(self._D1, self._D8, self._d, self._a, self._D3, self._D7)
+    self._gammaC = np.einsum('dlpaur,u,r->paurdl', M_C, self._lambda3**-1, sef._lambda7**-1)
+    M_D = M_D.reshape(self._D8, self._d, self._a, self._D6, self._D5, self._D7)
+    self._gammaD = np.einsum('rpaudl,u,r,d->paurdl', M_D, self._lambda6**-1, self._lambda5**-1, self._lambda7**-1)
+
+
+
+
+###############################   links B-C   #################################
+  def update_bonds41(self):
+    """
+    update lambda4 and lambda1 by applying gate to B upper-right next nearest
+    neighbor bond with C through tensor A. Twin of 58.
+    """
+    M_B = np.einsum('paurdl,u,d,l->audlpr', self._gammaB, self._lambda5, self._lambda6,
+                    self._lambda2).reshape(self._a*self._D5*self._D6*self._D2, self._d*self._D4)
+    M_A = np.einsum('paurdl,r,d->lupard', self._gammaA, self._lambda2, self._lambda3).reshape(
+                                           self._D4*self._D1, self._d*self._a*self._D2*self._D3)
+    M_C = np.einsum('paurdl,u,r,l->dpaurl', self._gammaC, self._lambda3, self._lambda7,
+                    self._lambda8).reshape(self._D1*self._d, self._a*self._D3*self._D7*self._D8)
+    M_B, M_A, M_C, self._lambda4, self._lambda_1 = update_second_neighbor(
+                                       M_B, M_A, M_C, self._lambda4, self._lambda1, g2, self._d)
+    M_B = M_B.reshape(self._a, self._D5, self._D6, self._D2, self._d, self._D4)
+    self._gammaB = np.einsum('audlpr,u,d,l->paurdl', M_B, self._lambda5**-1, self._lambda6**-1, self._lambda2**-1)
+    M_A = M_A.reshape(self._D4, self._D1, self._d, self._a, self._D2, self._D3)
+    self._gammaA = np.einsum('lupard,r,d->paurdl', M_A, self._lambda2**-1, self._lambda3**-1)
+    M_C = M_C.reshape(self._D1, self._d, self._a, self._D3, self._D7, self._D8)
+    self._gammaC = np.einsum('dpaurl,u,r,l->paurdl', M_C, self._lambda3**-1, self._lambda7**-1, self._lambda8**-1)
+
+
+  def update_bonds58(self):
+    """
+    update lambda2 and lambda6 by applying gate to B upper-right next nearest
+    neighbor bond with C through tensor D. Twin of 41.
+    """
+    M_B = np.einsum('paurdl,r,d,l->ardlpu', self._gammaB, self._lambda2, self._lambda3,
+                    self._lambda4).reshape(self._a*self._D4*self._D6*self._D2, self._d*self._D5)
+    M_D = np.einsum('paurdl,u,l->drpaul', self._gammaD, self._lambda6, self._lambda7).reshape(
+                                           self._D5*self._D8, self._d*self._a*self._D6*self._D7)
+    M_C = np.einsum('paurdl,u,r,d->lpaurd', self._gammaC, self._lambda3, self._lambda7,
+                    self._lambda1).reshape(self._D8*self._d, self._a*self._D3*self._D7*self._D1)
+    M_B, M_D, M_C, self._lambda5, self._lambda_8 = update_second_neighbor(
+                                       M_B, M_D, M_C, self._lambda5, self._lambda8, g2, self._d)
+    M_B = M_B.reshape(self._a, self._D4, self._D6, self._D2, self._d, self._D5)
+    self._gammaB = np.einsum('ardlpu,r,d,l->paurdl', M_B, self._lambda4**-1, self._lambda6**-1, self._lambda2**-1)
+    M_D = M_D.reshape(self._D5, self._D8, self._d, self._a, self._D6, self._D7)
+    self._gammaD = np.einsum('drpaul,u,l->paurdl', M_D, self._lambda6**-1, self._lambda7**-1)
+    M_C = M_C.reshape(self._D8, self._d, self._a, self._D3, self._D7, self._D1)
+    self._gammaC = np.einsum('lpaurd,u,r,d->paurdl', M_C, self._lambda3**-1, self._lambda7**-1, self._lambda1**-1)
+
+
+  def update_bonds43(self):
+    """
+    update lambda4 and lambda3 by applying gate to B down-right next nearest
+    neighbor bond with C through tensor A. Twin of 68.
+    """
+    M_B = np.einsum('paurdl,u,d,l->audlpr', self._gammaB, self._lambda5, self._lambda6,
+                    self._lambda2).reshape(self._a*self._D5*self._D6*self._D2, self._d*self._D4)
+    M_A = np.einsum('paurdl,u,r->ldpaur', self._gammaA, self._lambda1, self._lambda2).reshape(
+                                           self._D4*self._D3, self._d*self._a*self._D1*self._D2)
+    M_C = np.einsum('paurdl,r,d,l->upardl', self._gammaC, self._lambda7, self._lambda1,
+                    self._lambda8).reshape(self._D3*self._d, self._a*self._D7*self._D1*self._D8)
+    M_B, M_A, M_C, self._lambda4, self._lambda_3 = update_second_neighbor(
+                                       M_B, M_A, M_C, self._lambda4, self._lambda3, g2, self._d)
+    M_B = M_B.reshape(self._a, self._D5, self._D6, self._D2, self._d, self._D4)
+    self._gammaB = np.einsum('audlpr,u,d,l->paurdl', M_B, self._lambda5**-1, self._lambda6**-1, self._lambda2**-1)
+    M_A = M_A.reshape(self._D4, self._D3, self._d, self._a, self._D1, self._D2)
+    self._gammaA = np.einsum('ldpaur,u,r->paurdl', M_A, self._lambda1**-1, self._lambda2**-1)
+    M_C = M_C.reshape(self._D3, self._d, self._a, self._D7, self._D1, self._D8)
+    self._gammaC = np.einsum('upardl,r,d,l->paurdl', M_C, self._lambda7**-1, self._lambda1**-1, self._lambda8**-1)
+
+
+  def update_bonds68(self):
+    """
+    update lambda2 and lambda6 by applying gate to B down-right next nearest
+    neighbor bond with C through tensor D. Twin of 43.
+    """
+    M_B = np.einsum('paurdl,u,r,l->aurlpd', self._gammaB, self._lambda5, self._lambda4,
+                    self._lambda2).reshape(self._a*self._D5*self._D4*self._D2, self._d*self._D6)
+    M_D = np.einsum('paurdl,d,l->urpadl', self._gammaD, self._lambda5, self._lambda7).reshape(
+                                           self._D6*self._D8, self._d*self._a*self._D5*self._D7)
+    M_C = np.einsum('paurdl,u,r,d->lpaurd', self._gammaC, self._lambda3, self._lambda7,
+                    self._lambda1).reshape(self._D8*self._d, self._a*self._D3*self._D7*self._D1)
+    M_B, M_D, M_C, self._lambda6, self._lambda_8 = update_second_neighbor(
+                                       M_B, M_D, M_C, self._lambda6, self._lambda8, g2, self._d)
+    M_B = M_B.reshape(self._a, self._D5, self._D4, self._D2, self._d, self._D6)
+    self._gammaB = np.einsum('aurlpd,u,r,l->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda2**-1)
+    M_D = M_D.reshape(self._D6, self._D8, self._d, self._a, self._D5, self._D7)
+    self._gammaD = np.einsum('urpadl,d,l->paurdl', M_D, self._lambda5**-1, self._lambda7**-1)
+    M_C = M_C.reshape(self._D8, self._d, self._a, self._D3, self._D7, self._D1)
+    self._gammaC = np.einsum('lpaurd,u,r,d->paurdl', M_C, self._lambda3**-1, self._lambda7**-1, self._lambda1**-1)
+
+
+  def update_bonds23(self):
+    """
+    update lambda2 and lambda3 by applying gate to B down-left next nearest
+    neighbor bond with C through tensor A. Twin of 67.
+    """
+    M_B = np.einsum('paurdl,u,r,d->aurdpl', self._gammaB, self._lambda5, self._lambda4,
+                    self._lambda6).reshape(self._a*self._D5*self._D4*self._D6, self._d*self._D2)
+    M_A = np.einsum('paurdl,u,l->rdpaul', self._gammaA, self._lambda1, self._lambda4).reshape(
+                                           self._D2*self._D3, self._d*self._a*self._D1*self._D4)
+    M_C = np.einsum('paurdl,r,d,l->upardl', self._gammaC, self._lambda7, self._lambda1,
+                    self._lambda8).reshape(self._D3*self._d, self._a*self._D7*self._D1*self._D8)
+    M_B, M_A, M_C, self._lambda2, self._lambda_3 = update_second_neighbor(
+                                       M_B, M_A, M_C, self._lambda2, self._lambda3, g2, self._d)
+    M_B = M_B.reshape(self._a, self._D5, self._D4, self._D6, self._d, self._D2)
+    self._gammaB = np.einsum('aurdpl,u,r,l->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda6**-1)
+    M_A = M_A.reshape(self._D2, self._D3, self._d, self._a, self._D1, self._D4)
+    self._gammaA = np.einsum('rdpaul,u,l->paurdl', M_A, self._lambda1**-1, self._lambda2**-1)
+    M_C = M_C.reshape(self._D3, self._d, self._a, self._D7, self._D1, self._D8)
+    self._gammaC = np.einsum('upardl,r,d,l->paurdl', M_C, self._lambda7**-1, self._lambda1**-1, self._lambda8**-1)
+
+
+  def update_bonds67(self):
+    """
+    update lambda6 and lambda7 by applying gate to B down-left next nearest
+    neighbor bond with C through tensor D. Twin of 23.
+    """
+    M_B = np.einsum('paurdl,u,r,l->aurlpd', self._gammaB, self._lambda5, self._lambda4,
+                    self._lambda2).reshape(self._a*self._D5*self._D4*self._D2, self._d*self._D6)
+    M_D = np.einsum('paurdl,r,d->ulpard', self._gammaD, self._lambda8, self._lambda5).reshape(
+                                           self._D6*self._D7, self._d*self._a*self._D8*self._D5)
+    M_C = np.einsum('paurdl,u,d,l->rpaudl', self._gammaC, self._lambda3, self._lambda1,
+                    self._lambda8).reshape(self._D7*self._d, self._a*self._D3*self._D1*self._D8)
+    M_B, M_D, M_C, self._lambda6, self._lambda_7 = update_second_neighbor(
+                                       M_B, M_D, M_C, self._lambda6, self._lambda7, g2, self._d)
+    M_B = M_B.reshape(self._a, self._D5, self._D4, self._D2, self._d, self._D6)
+    self._gammaB = np.einsum('aurlpd,u,r,l->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda2**-1)
+    M_D = M_D.reshape(self._D6, self._D7, self._d, self._a, self._D8, self._D5)
+    self._gammaD = np.einsum('ulpard,r,d->paurdl', M_D, self._lambda8**-1, self._lambda5**-1)
+    M_C = M_C.reshape(self._D7, self._d, self._a, self._D3, self._D1, self._D8)
+    self._gammaC = np.einsum('rpaudl,u,d,l->paurdl', M_C, self._lambda3**-1, self._lambda1**-1, self._lambda8**-1)
+
+
+  def update_bonds21(self):
+    """
+    update lambda2 and lambda1 by applying gate to B upper-left next nearest
+    neighbor bond with C through tensor A. Twin of 57.
+    """
+    M_B = np.einsum('paurdl,u,r,d->aurdpl', self._gammaB, self._lambda5, self._lambda4,
+                    self._lambda6).reshape(self._a*self._D5*self._D4*self._D6, self._d*self._D2)
+    M_A = np.einsum('paurdl,d,r->lupadr', self._gammaA, self._lambda3, self._lambda4).reshape(
+                                           self._D2*self._D1, self._d*self._a*self._D3*self._D4)
+    M_C = np.einsum('paurdl,u,r,l->dpaurl', self._gammaC, self._lambda3, self._lambda7,
+                    self._lambda8).reshape(self._D1*self._d, self._a*self._D3*self._D7*self._D8)
+    M_B, M_A, M_C, self._lambda2, self._lambda_1 = update_second_neighbor(
+                                       M_B, M_A, M_C, self._lambda2, self._lambda1, g2, self._d)
+    M_B = M_B.reshape(self._a, self._D5, self._D4, self._D6, self._d, self._D2)
+    self._gammaB = np.einsum('aurdpl,u,r,l->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda6**-1)
+    M_A = M_A.reshape(self._D2, self._D1, self._d, self._a, self._D3, self._D4)
+    self._gammaA = np.einsum('lupadr,d,r->paurdl', M_A, self._lambda3**-1, self._lambda4**-1)
+    M_C = M_C.reshape(self._D1, self._d, self._a, self._D3, self._D7, self._D8)
+    self._gammaC = np.einsum('dpaurl,u,r,l->paurdl', M_C, self._lambda3**-1, self._lambda7**-1, self._lambda8**-1)
+
+
+  def update_bonds57(self):
+    """
+    update lambda6 and lambda7 by applying gate to B down-left next nearest
+    neighbor bond with C through tensor D. Twin of 21.
+    """
+    M_B = np.einsum('paurdl,r,d,l->ardlpu', self._gammaB, self._lambda2, self._lambda3,
+                    self._lambda4).reshape(self._a*self._D4*self._D6*self._D2, self._d*self._D5)
+    M_D = np.einsum('paurdl,u,r->dlpaur', self._gammaD, self._lambda6, self._lambda8).reshape(
+                                           self._D5*self._D7, self._d*self._a*self._D6*self._D8)
+    M_C = np.einsum('paurdl,u,d,l->rpaudl', self._gammaC, self._lambda3, self._lambda1,
+                    self._lambda8).reshape(self._D7*self._d, self._a*self._D3*self._D1*self._D8)
+    M_B, M_D, M_C, self._lambda5, self._lambda_7 = update_second_neighbor(
+                                       M_B, M_D, M_C, self._lambda5, self._lambda7, g2, self._d)
+    M_B = M_B.reshape(self._a, self._D4, self._D6, self._D2, self._d, self._D5)
+    self._gammaB = np.einsum('ardlpu,r,d,l->paurdl', M_B, self._lambda4**-1, self._lambda6**-1, self._lambda2**-1)
+    M_D = M_D.reshape(self._D5, self._D7, self._d, self._a, self._D6, self._D8)
+    self._gammaD = np.einsum('dlpaur,u,r->paurdl', M_D, self._lambda6**-1, self._lambda8**-1)
+    M_C = M_C.reshape(self._D7, self._d, self._a, self._D3, self._D1, self._D8)
+    self._gammaC = np.einsum('rpaudl,u,d,l->paurdl', M_C, self._lambda3**-1, self._lambda1**-1, self._lambda8**-1)
