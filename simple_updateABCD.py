@@ -400,7 +400,6 @@ def update_second_neighbor(M_left, M_mid, M_right, lambda_L, lambda_R, gate, d):
   is considered in the notations, but the code works for any geometry with two
   extremity tensors linked by a middle one.
   """
-  assert(gate.shape == (d**2,d**2)), "gate dimension do not agree with d"
   Dl, Dr = lambda_L.shape[0], lambda_R.shape[0]
 
   # 1) SVD cut between constant tensors and effective tensors to update
