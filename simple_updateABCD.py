@@ -207,7 +207,7 @@ class SimpleUpdateABCD(object):
     self.tau = tau
     self._lambda1 = np.ones(self._D1)
     self._lambda2 = np.ones(self._D2)
-    self._lambda2 = np.ones(self._D3)
+    self._lambda3 = np.ones(self._D3)
     self._lambda4 = np.ones(self._D4)
     self._lambda5 = np.ones(self._D5)
     self._lambda6 = np.ones(self._D6)
@@ -349,8 +349,8 @@ class SimpleUpdateABCD(object):
     M_A, self._lambda2, M_B = update_first_neighbor(M_A, M_B, self._lambda2, self._g1, self._d)
 
     M_A = M_A.reshape(self._a, self._D1, self._D3, self._D4, self._d, self._D2)
-    self._gammaA = np.einsum('audlpr,u,d,l->paurdl', M_A, self._lambda1**-1, self._lambda3**-1, self._lambda3**-1)
-    M_B = M_B.reshape(self._Dr, self._d, self._a, self._Dd, self._Dl, self._Du)
+    self._gammaA = np.einsum('audlpr,u,d,l->paurdl', M_A, self._lambda1**-1, self._lambda3**-1, self._lambda4**-1)
+    M_B = M_B.reshape(self._D2, self._d, self._a, self._D5, self._D4, self._D6)
     self._gammaB = np.einsum('lpaurd,u,r,d->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda6**-1)
 
 
@@ -359,7 +359,7 @@ class SimpleUpdateABCD(object):
     update lambda3 between A and C by applying gate to A down bond
     """
     M_A = np.einsum('paurdl,u,r,l->aurlpd', self._gammaA, self._lambda1, self._lambda2,
-                    self._lambda4).reshape(self._a*self._D1*self._D2*self._D3, self._d*self._D3)
+                    self._lambda4).reshape(self._a*self._D1*self._D2*self._D4, self._d*self._D3)
     M_C = np.einsum('paurdl,r,d,l->upardl', self._gammaC, self._lambda7, self._lambda1,
                     self._lambda8).reshape(self._D3*self._d, self._a*self._D7*self._D1*self._D8)
 
@@ -413,7 +413,7 @@ class SimpleUpdateABCD(object):
                     self._lambda7).reshape(self._D6*self._d, self._a*self._D8*self._D5*self._D7)
 
     M_B, self._lambda6, M_D = update_first_neighbor(M_B, M_D, self._lambda6, self._g1, self._d)
-    M_B = M_B.reshape(self._a, self._D5, self._D5, self._D2, self._d, self._D6)
+    M_B = M_B.reshape(self._a, self._D5, self._D4, self._D2, self._d, self._D6)
     self._gammaB = np.einsum('aurlpd,u,r,l->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda2**-1)
     M_D = M_D.reshape(self._D6, self._d, self._a, self._D8, self._D5, self._D7)
     self._gammaD = np.einsum('upardl,r,d,l->paurdl', M_D, self._lambda8**-1, self._lambda5**-1, self._lambda7**-1)
