@@ -1,52 +1,59 @@
 import numpy as np
 import scipy.linalg as lg
 
-def update_first_neighbor(M_X, M_Y, lambda_dir, gate, d):
+def update_first_neighbor(M0_L, M0_R, lambda0, gate, d):
   """
-  Direction-agnostic first neighbor simple update.
-  Construct matrix theta from matrices M_X and M_Y, obtained by adding lambdas
-  to relevant legs and reshaping to matrices gammaX and gammaY.
+  First neighbor simple update algorithm.
+  Construct matrix theta from matrices M0_L and M0_R, obtained by adding
+  diagonal weights to non-updated bonds and reshaping to matrices initial
+  tensors gammaX and gammaY
+
+  For clarity, a 1D geometry
+  =M0_L -- lambda0 -- M_R0=
+  is considered in the notations, but the function is direction-agnostic.
   """
 
   # 1) SVD cut between constant tensors and effective tensor to update
   # hence reduce main SVD to dimension D*d < a*D**3
   #     \|        \|
-  #     -X-    -> -W==M-
+  #     -L-    -> -W==ML-
   #      |\        |   \
-  D_dir = lambda_dir.shape[0]
-  W_X, sX, M_X = lg.svd(M_X, full_matrices=False)
-  D_effX = sX.shape[0]
-  M_X *= sX[:,None]
-  M_Y, sY, W_Y = lg.svd(M_Y, full_matrices=False)
-  D_effY = sY.shape[0]
-  M_Y *= sY
+  D = lambda0.shape[0]
+  W_L, sL, M_L = lg.svd(M0_L, full_matrices=False)
+  D_effL = sL.shape[0]
+  M_L *= sL[:,None]
+  #     \|            \|
+  #     -R-    -> -MR==W-
+  #      |\        /   |
+  M_R, sR, W_R = lg.svd(M0_R, full_matrices=False)
+  D_effR = sR.shape[0]
+  M_R *= sR
 
   # 2) construct matrix theta with gate g
   #
-  #             =MX-lr-MY=
+  #             =ML-l-MR=
   #                \  /
   #   theta =       gg
   #                /  \
-  theta = M_X.reshape(D_effX*d, D_dir)
-  theta *= lambda_dir
-  theta = np.dot(theta, M_Y.reshape(D_dir, d*D_effY) )
-  theta = theta.reshape(D_effX, d, d, D_effY).transpose(0,3,1,2).reshape(D_effX*D_effY, d**2)
+  theta = M_L.reshape(D_effL*d, D)*lambda0
+  theta = np.dot(theta, M_R.reshape(D, d*D_effR) )
+  theta = theta.reshape(D_effL, d, d, D_effR).transpose(0,3,1,2).reshape(D_effL*D_effR, d**2)
   theta = np.dot(theta, gate)
 
   # 3) cut theta with SVD
-  theta = theta.reshape(D_effX, D_effY, d, d).swapaxes(1,2).reshape(D_effX*d, D_effY*d)
-  M_X,new_lambda,M_Y = lg.svd(theta, full_matrices=False)
+  theta = theta.reshape(D_effL, D_effR, d, d).swapaxes(1,2).reshape(D_effL*d, D_effR*d)
+  M_L, new_lambda, M_R = lg.svd(theta, full_matrices=False)
 
   # 4) renormalize link dimension
-  new_lambda = new_lambda[:D_dir]
+  new_lambda = new_lambda[:D]
   new_lambda /= new_lambda.sum()  # singular values are positive
 
   # 5) start reconstruction of new gammaX and gammaY by unifying cst and eff parts
-  M_X = M_X[:,:D_dir].reshape(D_effX, d*D_dir)
-  M_X = np.dot(W_X, M_X)
-  M_Y = M_Y[:D_dir].reshape(D_dir,D_effY,d).swapaxes(1,2).reshape(D_dir*d, D_effY)
-  M_Y = np.dot(M_Y, W_Y)
-  return M_X, new_lambda, M_Y
+  M_L = M_L[:,:D].reshape(D_effL, d*D)
+  M_L = np.dot(W_L, M_L)
+  M_R = M_R[:D].reshape(D, D_effR, d).swapaxes(1,2).reshape(D*d, D_effR)
+  M_R = np.dot(M_R, W_R)
+  return M_L, new_lambda, M_R
 
 
 class SimpleUpdateABCD(object):
@@ -389,67 +396,69 @@ class SimpleUpdateABCD(object):
     self._gammaD = np.einsum('upardl,r,d,l->paurdl', M_D, self._lambda8**-1, self._lambda5**-1, self._lambda7**-1)
 
 
-def update_second_neighbor(M_left, M_mid, M_right, lambda_L, lambda_R, gate, d):
+def update_second_neighbor(M0_L, M0_mid, M0_R, lambda_L, lambda_R, gate, d):
   """
-  Direction-agnostic second (or third) neighbor simple update.
-  Construct matrix theta from matrices M_left, M_mid and M_right, obtained
-  by adding lambdas to relevant legs and reshaping to matrices tensors gammas
+  Second and third neighbor simple update algorithm.
+  Construct matrix theta from matrices M0_L, M0_mid and M0_R obtained by adding
+  diagonal weights to non-updated bonds and reshaping to matrices initial
+  tensors gammaX, gammaY and gammaZ.
 
   For clarity, a 1D geometry
   M_left -- lambda_left -- M_mid -- lambda_right -- M_right
-  is considered in the notations, but the code works for any geometry with two
-  extremity tensors linked by a middle one.
+  is considered in the notations, but the function is direction-agnostic and
+  works for any geometry with two extremity tensors linked by a middle one.
   """
-  Dl, Dr = lambda_L.shape[0], lambda_R.shape[0]
+
+  D_L, D_R = lambda_L.shape[0], lambda_R.shape[0]
 
   # 1) SVD cut between constant tensors and effective tensors to update
   #     \|        \|
-  #     -L-    -> -cstL==effL-lambda_left- (Dl)
+  #     -L-    -> -cstL==effL-lambda_left- (D_L)
   #      |\        |       \
-  cst_L, s_L, eff_L = lg.svd(M_Left, full_matrices=False)
-  D_eff_L = s_L.shape[0]
-  eff_L = (s_L[:,None]*eff_L).reshape(D_effl*d, Dl)*lambda_L  # add lambda
+  cst_L, s_L, eff_L = lg.svd(M0_L, full_matrices=False)
+  D_effL = s_L.shape[0]
+  eff_L = (s_L[:,None]*eff_L).reshape(D_effL*d, D_L)*lambda_L  # add lambda
   #                       \|/|
   #                       cstM
   #     \|                 ||
-  #     -M-   ->  (Dl) - effM - (Dr)
+  #     -M-   ->  (D_L) - effM - (D_R)
   #      |\
-  eff_m, s_m, cst_m = lg.svd(M_mid, full_matrices=False)
-  D_eff_m = s_m.shape[0]
-  eff_m = (eff_m*s_m).reshape(Dl, Dr*D_effm)
+  eff_m, s_m, cst_m = lg.svd(M0_mid, full_matrices=False)
+  D_effm = s_m.shape[0]
+  eff_m = (eff_m*s_m).reshape(D_L, D_R*D_effm)
   #     \|                                 \|
-  #     -R-   ->  (Dr)  lambda_Right-effR==cstR
+  #     -R-   ->  (D_R)  lambda_Right-effR==cstR
   #      |\                                 |\
-  eff_R, s_R, cst_R = lg.svd(M_Right, full_matrices=False)
-  D_eff_R = s_R.shape[0]
-  eff_R = (eff_R*s_R).reshape(Dr, d, D_eff_R)*lambda_R[:,None,None]
+  eff_R, s_R, cst_R = lg.svd(M0_R, full_matrices=False)
+  D_effR = s_R.shape[0]
+  eff_R = (eff_R*s_R).reshape(D_R, d, D_effR)*lambda_R[:,None,None]
 
   # contract tensor network
-  theta = np.dot(eff_L, eff_m).reshape(D_eff_L,d,Dr,D_eff_m)
-  theta = np.tensordot(theta, eff_R, ((2,),(0,))) # shape(D_eff_L,d,D_eff_m,d,D_eff_R)
-  theta = theta.transpose(0,2,4,1,3).reshape(D_eff_L*D_eff_m*D_eff_R,d**2)
-  theta = np.dot(theta, g2).reshape(D_eff_L,D_eff_m,D_eff_R,d,d)
-  theta = theta.transpose(0,3,1,2,4).reshape(D_eff_L*d, D_eff_m*D_eff_R*d)
+  theta = np.dot(eff_L, eff_m).reshape(D_effL, d, D_R, D_effm)
+  theta = np.tensordot(theta, eff_R, ((2,),(0,)))
+  theta = theta.transpose(0,2,4,1,3).reshape(D_effL*D_effm*D_effR, d**2)
+  theta = np.dot(theta, g2).reshape(D_effL, D_effm, D_effR, d, d)
+  theta = theta.transpose(0,3,1,2,4).reshape(D_effL*d, D_effm*D_effR*d)
 
   # first SVD: cut left part
   new_L, new_lambda_L, theta = lg.svd(theta, full_matrices=False)
-  new_L = newL[:,:Dl].reshape(D_eff_L,d*Dl)
-  new_lambda_L = new_lambda_L[:Dl]
+  new_L = newL[:,:D_L].reshape(D_effL, d*D_L)
+  new_lambda_L = new_lambda_L[:D_L]
   new_lambda_L /= new_lambda_L.sum()
 
   # second SVD: split middle and right parts
-  theta = (new_lambda_L[:,None]*theta[:Dl]).reshape(Dl*D_eff_m,D_eff_R*d)
+  theta = (new_lambda_L[:,None]*theta[:D_L]).reshape(D_L*D_effm, D_effR*d)
   new_mid, new_lambda_R, new_R = lg.svd(theta, full_matrices=False)
-  new_mid = new_mid[:,:Dr].reshape(Dl,D_eff_m,Dr)
-  new_R = new_R[:Dr].reshape(Dr,D_eff_R,d)
-  new_lambda_R = new_lambda_R[:Dr]
+  new_mid = new_mid[:,:D_R].reshape(D_L, D_effm, D_R)
+  new_R = new_R[:D_R].reshape(D_R, D_eff_R, d)
+  new_lambda_R = new_lambda_R[:D_R]
   new_lambda_R /= new_lambda_R.sum()
 
   # bring back constant parts
-  new_L = np.dot(cst_L,new_L)
-  new_mid = new_mid.swapaxes(1,2).reshape(Dl*Dr,D_eff_m)
-  new_mid = np.dot(new_mid,cst_m)
-  new_R = new_R.swapaxes(1,2).reshape(Dr*d,D_eff_R)
+  new_L = np.dot(cst_L, new_L)
+  new_mid = new_mid.swapaxes(1,2).reshape(D_L*D_R, D_effm)
+  new_mid = np.dot(new_mid, cst_m)
+  new_R = new_R.swapaxes(1,2).reshape(D_R*d, D_effR)
   new_R = np.dot(new_R, cst_R)
 
   return new_L, new_mid, new_R, new_lambda_L, new_lambda_R
