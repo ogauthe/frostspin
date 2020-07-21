@@ -95,7 +95,7 @@ class Env(object):
       self._neq_C4s.append(C4)
       self._neq_T4s.append(T4)
 
-    self.reset_projectors()
+    self._reset_projectors_temp()
 
   @property
   def cell(self):
@@ -120,9 +120,6 @@ class Env(object):
   @property
   def neq_coords(self):
     return self._neq_coords
-
-  def get_neq_index(self,x,y):
-    return self._indices[x%self._Lx, y%self._Ly]
 
   def get_A(self,x,y):
     return self._neq_As[self._indices[x%self._Lx, y%self._Ly]]
@@ -163,83 +160,44 @@ class Env(object):
   def get_Pt(self,x,y):
     return self._neq_Pt[self._indices[x%self._Lx,y%self._Ly]]
 
-  def reset_projectors(self):
+  def _reset_projectors_temp(self):
     self._neq_P = [None]*self._Nneq
     self._neq_Pt = [None]*self._Nneq
+    self._nCX = [None]*self._Nneq
+    self._nT = [None]*self._Nneq
+    self._nCY = [None]*self._Nneq
 
-  def set_projectors(self,x,y,P,Pt):
+  def store_projectors(self,x,y,P,Pt):
     j = self._indices[x%self._Lx, y%self._Ly]
     self._neq_P[j] = P
     self._neq_Pt[j] = Pt
 
-  @property
-  def neq_C1s(self):
-    return self._neq_C1s
+  def store_renormalized_tensors(self,x,y,nCX,nT,nCY):
+    j = self._indices[x%self._Lx, y%self._Ly]
+    self._nCX[j] = nCX
+    self._nT[j] = nT
+    self._nCY[j] = nCY
 
-  @neq_C1s.setter
-  def neq_C1s(self, neq_C1s):
-    assert(len(neq_C1s) == self._Nneq), 'neq_C1s length is not nneq'
-    self._neq_C1s = neq_C1s
+  def fix_renormalized_up(self):
+    self._nC1 = self._nCX
+    self._nT1 = self._nT
+    self._nC2 = self._nCY
+    self._reset_projectors_temp()
 
-  @property
-  def neq_T1s(self):
-    return self._neq_T1s
+  def fix_renormalized_right(self):
+    self._nC2 = self._nCX
+    self._nT2 = self._nT
+    self._nC3 = self._nCY
+    self._reset_projectors_temp()
 
-  @neq_T1s.setter
-  def neq_T1s(self, neq_T1s):
-    assert(len(neq_T1s) == self._Nneq), 'neq_T1s length is not nneq'
-    self._neq_T1s = neq_T1s
+  def fix_renormalized_down(self):
+    self._nC3 = self._nCX
+    self._nT3 = self._nT
+    self._nC4 = self._nCY
+    self._reset_projectors_temp()
 
-  @property
-  def neq_C2s(self):
-    return self._neq_C2s
-
-  @neq_C2s.setter
-  def neq_C2s(self, neq_C2s):
-    assert(len(neq_C2s) == self._Nneq), 'neq_C2s length is not nneq'
-    self._neq_C2s = neq_C2s
-
-  @property
-  def neq_T2s(self):
-    return self._neq_T2s
-
-  @neq_T2s.setter
-  def neq_T2s(self, neq_T2s):
-    assert(len(neq_T2s) == self._Nneq), 'neq_T2s length is not nneq'
-    self._neq_T2s = neq_T2s
-
-  @property
-  def neq_C3s(self):
-    return self._neq_C3s
-
-  @neq_C3s.setter
-  def neq_C3s(self, neq_C3s):
-    assert(len(neq_C3s) == self._Nneq), 'neq_C3s length is not nneq'
-    self._neq_C3s = neq_C3s
-
-  @property
-  def neq_T3s(self):
-    return self._neq_T3s
-
-  @neq_T3s.setter
-  def neq_T3s(self, neq_T3s):
-    assert(len(neq_T3s) == self._Nneq), 'neq_T3s length is not nneq'
-    self._neq_T3s = neq_T3s
-
-  @property
-  def neq_C4s(self):
-    return self._neq_C4s
-
-  @neq_C4s.setter
-  def neq_C4s(self, neq_C4s):
-    assert(len(neq_C4s) == self._Nneq), 'neq_C4s length is not nneq'
-    self._neq_C4s = neq_C4s
-
-  @property
-  def neq_T4s(self):
-    return self._neq_T4s
-
-  @neq_T4s.setter
-  def neq_T4s(self, neq_T4s):
-    assert(len(neq_T4s) == self._Nneq), 'neq_T4s length is not nneq'
-    self._neq_T4s = neq_T4s
+  def fix_renormalized_left(self):
+    self._nC4 = self._nCX
+    self._nT4 = self._nT
+    self._nC1 = self._nCY
+    self._reset_projectors_temp()

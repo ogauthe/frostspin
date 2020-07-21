@@ -86,32 +86,28 @@ class CTMRG(object):
       P,Pt = construct_projectors(R.T, Rt, self.chi)
       if self.verbosity > 1:
         print(f'constructed projectors: R.shape = {R.shape}, Rt.shape = {Rt.shape}, P.shape = {P.shape}, Pt.shape = {Pt.shape}')
-      self._env.set_projectors(x+2,y,P,Pt)# indices: Pt <=> renormalized T in R
+      self._env.store_projectors(x+2,y,P,Pt)# indices: Pt <=> renormalized T in R
       del R, Rt
 
     # 2) renormalize every non-equivalent C1, T1 and C2
-    # P != P_list[i] => need all projectors to be constructed at this time
-    nC1s,nT1s,nC2s = [None]*self._Nneq, [None]*self._Nneq, [None]*self._Nneq
+    # need all projectors to be constructed at this time
     if self.verbosity > 0:
       print('Projectors constructed, renormalize tensors')
     for x,y in self._neq_coords:
-      j = self._env.get_neq_index(x,y+1)
-      nC1s[j] = renormalize_C1_up(self._env.get_C1(x,y),
-                                self._env.get_T4(x,y+1),self._env.get_P(x+1,y))
+      nC1 = renormalize_C1_up(self._env.get_C1(x,y), self._env.get_T4(x,y+1),
+                              self._env.get_P(x+1,y))
 
-      nT1s[j] = renormalize_T1(self._env.get_Pt(x,y), self._env.get_T1(x,y),
-                                self._env.get_A(x,y+1), self._env.get_P(x+1,y))
+      nT1 = renormalize_T1(self._env.get_Pt(x,y), self._env.get_T1(x,y),
+                           self._env.get_A(x,y+1), self._env.get_P(x+1,y))
 
-      nC2s[j] = renormalize_C2_up(self._env.get_C2(x,y),
-                                self._env.get_T2(x,y+1), self._env.get_Pt(x,y))
+      nC2 = renormalize_C2_up(self._env.get_C2(x,y), self._env.get_T2(x,y+1),
+                              self._env.get_Pt(x,y))
+      self._env.store_renormalized_tensors(x,y+1,nC1,nT1,nC2)
 
     # 3) store renormalized tensors in the environment
     # renormalization reads C1[x,y] but writes C1[x,y+1]
     # => need to compute every renormalized tensors before storing any of them
-    self._env.reset_projectors()
-    self._env.neq_C1s = nC1s
-    self._env.neq_T1s = nT1s
-    self._env.neq_C2s = nC2s
+    self._env.fix_renormalized_up()
     if self.verbosity > 0:
       print('up move completed')
 
@@ -138,29 +134,25 @@ class CTMRG(object):
       P,Pt = construct_projectors(R.T,Rt,self.chi)
       if self.verbosity > 1:
         print(f'constructed projectors: R.shape = {R.shape}, Rt.shape = {Rt.shape}, P.shape = {P.shape}, Pt.shape = {Pt.shape}')
-      self._env.set_projectors(x+3,y+2,P,Pt)
+      self._env.store_projectors(x+3,y+2,P,Pt)
       del R, Rt
 
     # 2) renormalize tensors by absorbing column
-    nC2s,nT2s,nC3s = [None]*self._Nneq, [None]*self._Nneq, [None]*self._Nneq
     if self.verbosity > 0:
       print('Projectors constructed, renormalize tensors')
     for x,y in self._neq_coords:
-      j = self._env.get_neq_index(x-1,y)
-      nC2s[j] = renormalize_C2_right(self._env.get_C2(x,y),
-                               self._env.get_T1(x-1,y), self._env.get_P(x,y+1))
+      nC2 = renormalize_C2_right(self._env.get_C2(x,y),self._env.get_T1(x-1,y),
+                                 self._env.get_P(x,y+1))
 
-      nT2s[j] = renormalize_T2(self._env.get_Pt(x,y), self._env.get_A(x-1,y),
-                                 self._env.get_T2(x,y), self._env.get_P(x,y+1))
+      nT2 = renormalize_T2(self._env.get_Pt(x,y), self._env.get_A(x-1,y),
+                           self._env.get_T2(x,y), self._env.get_P(x,y+1))
 
-      nC3s[j] = renormalize_C3_right(self._env.get_C3(x,y),
-                                self._env.get_T3(x-1,y), self._env.get_Pt(x,y))
+      nC3 = renormalize_C3_right(self._env.get_C3(x,y),self._env.get_T3(x-1,y),
+                                 self._env.get_Pt(x,y))
+      self._env.store_renormalized_tensors(x-1,y,nC2,nT2,nC3)
 
     # 3) store renormalized tensors in the environment
-    self._env.reset_projectors()
-    self._env.neq_C2s = nC2s
-    self._env.neq_T2s = nT2s
-    self._env.neq_C3s = nC3s
+    self._env.fix_renormalized_down()
     if self.verbosity > 0:
       print('right move completed')
 
@@ -190,30 +182,25 @@ class CTMRG(object):
       P,Pt = construct_projectors(R.T,Rt,self.chi)
       if self.verbosity > 1:
         print(f'constructed projectors: R.shape = {R.shape}, Rt.shape = {Rt.shape}, P.shape = {P.shape}, Pt.shape = {Pt.shape}')
-      self._env.set_projectors(x+1,y+3,P,Pt)
+      self._env.store_projectors(x+1,y+3,P,Pt)
       del R, Rt
 
     # 2) renormalize every non-equivalent C3, T3 and C4
-    nC3s,nT3s,nC4s = [None]*self._Nneq, [None]*self._Nneq, [None]*self._Nneq
     if self.verbosity > 0:
       print('Projectors constructed, renormalize tensors')
     for x,y in self._neq_coords:
-      j = self._env.get_neq_index(x,y-1)
-      nC3s[j] = renormalize_C3_down(self._env.get_C3(x,y),
-                               self._env.get_T2(x,y-1), self._env.get_P(x-1,y))
+      nC3 = renormalize_C3_down(self._env.get_C3(x,y), self._env.get_T2(x,y-1),
+                                self._env.get_P(x-1,y))
 
-      nT3s[j] = renormalize_T3(self._env.get_Pt(x,y), self._env.get_T3(x,y),
-                                 self._env.get_A(x,y-1), self._env.get_P(x-1,y))
+      nT3 = renormalize_T3(self._env.get_Pt(x,y), self._env.get_T3(x,y),
+                           self._env.get_A(x,y-1), self._env.get_P(x-1,y))
 
-      nC4s[j] = renormalize_C4_down(self._env.get_C4(x,y),
-                                self._env.get_T4(x,y-1), self._env.get_Pt(x,y))
+      nC4 = renormalize_C4_down(self._env.get_C4(x,y), self._env.get_T4(x,y-1),
+                                self._env.get_Pt(x,y))
+      self._env.store_renormalized_tensors(x,y-1,nC3,nT3,nC4)
 
     # 3) store renormalized tensors in the environment
-    self._env.reset_projectors()
-    self._env.reset_projectors()
-    self._env.neq_C3s = nC3s
-    self._env.neq_T3s = nT3s
-    self._env.neq_C4s = nC4s
+    self._env.fix_renormalized_down()
     if self.verbosity > 0:
       print('down move completed')
 
@@ -240,30 +227,25 @@ class CTMRG(object):
       P,Pt = construct_projectors(R.T,Rt,self.chi)
       if self.verbosity > 1:
         print(f'constructed projectors: R.shape = {R.shape}, Rt.shape = {Rt.shape}, P.shape = {P.shape}, Pt.shape = {Pt.shape}')
-      self._env.set_projectors(x,y+1,P,Pt)
+      self._env.store_projectors(x,y+1,P,Pt)
       del R, Rt
 
     # 2) renormalize every non-equivalent C4, T4 and C1
-    nC4s,nT4s,nC1s = [None]*self._Nneq, [None]*self._Nneq, [None]*self._Nneq
     if self.verbosity > 0:
       print('Projectors constructed, renormalize tensors')
     for x,y in self._neq_coords:
-      j = self._env.get_neq_index(x+1,y)
-      nC4s[j] = renormalize_C4_left(self._env.get_C4(x,y),
-                               self._env.get_T3(x+1,y), self._env.get_P(x,y-1))
+      nC4 = renormalize_C4_left(self._env.get_C4(x,y), self._env.get_T3(x+1,y),
+                                self._env.get_P(x,y-1))
 
-      nT4s[j] = renormalize_T4(self._env.get_Pt(x,y), self._env.get_T4(x,y),
-                                self._env.get_A(x+1,y), self._env.get_P(x,y-1))
+      nT4 = renormalize_T4(self._env.get_Pt(x,y), self._env.get_T4(x,y),
+                           self._env.get_A(x+1,y), self._env.get_P(x,y-1))
 
-      nC1s[j] = renormalize_C1_left(self._env.get_C1(x,y),
-                                self._env.get_T1(x+1,y), self._env.get_Pt(x,y))
+      nC1 = renormalize_C1_left(self._env.get_C1(x,y), self._env.get_T1(x+1,y),
+                                self._env.get_Pt(x,y))
+      self._env.store_renormalized_tensors(x+1,y,nC4,nT4,nC1)
 
     # 3) store renormalized tensors in the environment
-    self._env.reset_projectors()
-    self._env.neq_C4s = nC4s
-    self._env.neq_T4s = nT4s
-    self._env.neq_C1s = nC1s
-
+    self._env.fix_renormalized_down()
     if self.verbosity > 0:
       print('left move completed')
 
