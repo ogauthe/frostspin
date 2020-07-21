@@ -237,6 +237,14 @@ class SimpleUpdateABCD(object):
   def Ds(self):
     return (self._D1, self._D2, self._D3, self._D4, self._D5, self._D6, self._D7, self._D8)
 
+  @property
+  def h1(self):
+    return self._h1
+
+  @property
+  def h2(self):
+    return self._h2
+
 
   def get_ABCD(self):
     """
