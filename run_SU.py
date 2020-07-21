@@ -35,6 +35,7 @@ su = SimpleUpdateABCD(d,a,Ds,SdS_22b, SdS_22b, tau)
 eps0 = evalH(su,chi,3)
 print(f'Random tensors: <h1> = {eps0:.4e}')
 
+print("test 1st neighbor updates")
 su.update_bond1()
 su.update_bond2()
 su.update_bond3()
@@ -43,6 +44,7 @@ su.update_bond5()
 su.update_bond6()
 su.update_bond7()
 su.update_bond8()
+print("done")
 
 """
 print(f'Iter simple update for {su_iter} times', end='...')
