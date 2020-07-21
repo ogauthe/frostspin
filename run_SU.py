@@ -3,44 +3,53 @@
 import numpy as np
 import scipy.linalg as lg
 from simple_updateAB import SimpleUpdateAB
-from test_tools import H_AKLT
+from simple_updateABCD import SimpleUpdateABCD
+from test_tools import SdS_22b
 from CTMRG import CTMRG
 
 
 tiling = """
 AB
-BA
+CD
 """
 
-def evalH(su,chi,niter=100):
-  A,B = su.get_AB()
-  A = A.reshape(d,D,D,D,D)   # remove ancila
-  B = B.reshape(d,D,D,D,D)
-  ctm = CTMRG((A,B),tiling,chi,verbosity=0)
+def evalH(su,chi,niter=10):
+  A,B,C,D = su.get_ABCD()
+  ctm = CTMRG((A,B,C,D),tiling,chi,verbosity=2)
   for i in range(niter):
     ctm.iterate()
 
   rdm1x2 = ctm.compute_rdm1x2()
-  return np.trace(H_AKLT @ rdm1x2)
+  return np.trace(su.h1 @ rdm1x2)
 
-d = 5
+d = 2
 a = 1
-D = 3
-chi = 40
-sh = ((d,a,D,D,D,D))
-su_iter = 1000
-print(f'run simple update with d = {d}, a = {a}, D = {D}, converge CTM with chi = {chi}')
+chi = 11
+Ds = 2,3,4,5,6,7,9,10
+su_iter = 100
+print(f'run simple update with d = {d}, a = {a}, Ds = {Ds}, converge CTM with chi = {chi}')
 
-tau = 0.01
-su = SimpleUpdateAB(sh, H_AKLT, tau)
+tau = 0.1
+su = SimpleUpdateABCD(d,a,Ds,SdS_22b, SdS_22b, tau)
 
-eps0 = evalH(su,chi)
-print(f'Random tensors: <H_AKLT> = {eps0:.4e}')
+eps0 = evalH(su,chi,3)
+print(f'Random tensors: <h1> = {eps0:.4e}')
 
+su.update_bond1()
+su.update_bond2()
+su.update_bond3()
+su.update_bond4()
+su.update_bond5()
+su.update_bond6()
+su.update_bond7()
+su.update_bond8()
+
+"""
 print(f'Iter simple update for {su_iter} times', end='...')
 for i in range(su_iter):
   su.update()
 print(' Done. Evaluate energy')
 
 eps1 = evalH(su,chi)
-print(f'Done, <H_AKLT> = {eps1:.4e}')
+print(f'Done, <h1> = {eps1:.4e}')
+"""
