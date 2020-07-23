@@ -179,25 +179,25 @@ class Env(object):
     self._nCY[j] = nCY
 
   def fix_renormalized_up(self):
-    self._nC1 = self._nCX
-    self._nT1 = self._nT
-    self._nC2 = self._nCY
+    self._neq_C1s = self._nCX
+    self._neq_T1s = self._nT
+    self._neq_C2s = self._nCY
     self._reset_projectors_temp()
 
   def fix_renormalized_right(self):
-    self._nC2 = self._nCX
-    self._nT2 = self._nT
-    self._nC3 = self._nCY
+    self._neq_C2s = self._nCX
+    self._neq_T2s = self._nT
+    self._neq_C3s = self._nCY
     self._reset_projectors_temp()
 
   def fix_renormalized_down(self):
-    self._nC3 = self._nCX
-    self._nT3 = self._nT
-    self._nC4 = self._nCY
+    self._neq_C3s = self._nCX
+    self._neq_T3s = self._nT
+    self._neq_C4s = self._nCY
     self._reset_projectors_temp()
 
   def fix_renormalized_left(self):
-    self._nC4 = self._nCX
-    self._nT4 = self._nT
-    self._nC1 = self._nCY
+    self._neq_C4s = self._nCX
+    self._neq_T4s = self._nT
+    self._neq_C1s = self._nCY
     self._reset_projectors_temp()
