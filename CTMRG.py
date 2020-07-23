@@ -152,7 +152,7 @@ class CTMRG(object):
       self._env.store_renormalized_tensors(x-1,y,nC2,nT2,nC3)
 
     # 3) store renormalized tensors in the environment
-    self._env.fix_renormalized_down()
+    self._env.fix_renormalized_right()
     if self.verbosity > 0:
       print('right move completed')
 
@@ -245,7 +245,7 @@ class CTMRG(object):
       self._env.store_renormalized_tensors(x+1,y,nC4,nT4,nC1)
 
     # 3) store renormalized tensors in the environment
-    self._env.fix_renormalized_down()
+    self._env.fix_renormalized_left()
     if self.verbosity > 0:
       print('left move completed')
 
