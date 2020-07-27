@@ -12,8 +12,8 @@ tiling = 'AB\nCD'
 
 d = 2
 a = 2
-chi = 25
-ctm_iter = 10
+chi = 35
+ctm_iter = 100
 D = 5   # 2+2+1
 Ds = (D,)*8
 print(f'run simple update with d = {d}, a = {a}, Ds = {Ds}')
@@ -22,20 +22,29 @@ beta = 1
 tau = 0.001
 su_iter = int(beta/2/tau)  # rho is quadratic in psi
 
-A = np.zeros((d,a,D,D,D,D))  # maximally entangled between physical and ancila
-A[0,1,2,2,2,2] = 1
-A[1,0,2,2,2,2] = -1
+# zero singular values lead to divide by zero when removing weights
+# to avoif this, start with tensors made of decoupled product of (2x2)->1 on
+# physical x ancila and 3^4 -> 1 (B1) on virtual legs.
+p22_3333 = np.zeros((2,2,3,3,3,3),dtype=np.int8)
+p22_3333.flat[[89,95,103,105,115,119,123,127,137,139,147,153,170,176,184,186,
+               196,200,204,208,218,220,228,234]] = [1,-1,1,-1,-1,1,1,-1,-1,1,
+                                 -1,1,-1,1,-1,1,1,-1,-1, 1,1,-1, 1,-1]
+
+A = np.zeros((d,a,D,D,D,D))
+A[:,:,:3,:3,:3,:3] = p22_3333
 B = np.tensordot(cconj2,A,((1,),(0,)))   # rotation on B sites
 C = B.copy()
 D = A.copy()
 
 su = SimpleUpdateABCD(d,a,Ds,SdS_22b, np.zeros((4,4)), tau, tensors=(A,B,C,D))
+#su = SimpleUpdateABCD(d,1,Ds,SdS_22b, np.zeros((4,4)), tau)
 
 
 print("Run simple update for spin 1/2 Heisenberg with J1=1, J2=0")
-print(f"run with tau = {tau} up to beta = 1")
-"""
-for i in range(np.rint(1/2/tau).astype(int)):
+print(f"run with tau = {tau} up to beta = {beta}")
+
+#for i in range(su_iter//2): # 2nd order Trotter
+for i in range(su_iter): # 1st order
   print(i, end=" ")
   su.update_bond1()
   su.update_bond2()
@@ -45,6 +54,7 @@ for i in range(np.rint(1/2/tau).astype(int)):
   su.update_bond6()
   su.update_bond7()
   su.update_bond8()
+"""
   su.update_bond8()
   su.update_bond7()
   su.update_bond6()
@@ -54,10 +64,23 @@ for i in range(np.rint(1/2/tau).astype(int)):
   su.update_bond2()
   su.update_bond1()
 """
-print(f"done with SU. Converge CTMRG with chi = {chi} and niter = {ctm_iter}")
-ctm = CTMRG((A,B,C,D),tiling,chi,verbosity=0)
+print(f"\ndone with SU. Converge CTMRG with chi = {chi} and niter = {ctm_iter}")
+ctm = CTMRG(su.get_ABCD(),tiling,chi,verbosity=0)
+rdmD = ctm.compute_rdm1x1(0,0)
+rdmC = ctm.compute_rdm1x1(1,0)
+rdmB = ctm.compute_rdm1x1(0,1)
+rdmA = ctm.compute_rdm1x1(1,1)
+
+rdmAB = ctm.compute_rdm1x2(0,0)
+rdmAC = ctm.compute_rdm2x1(0,0)
+rdmBA = ctm.compute_rdm1x2(1,0)
+rdmCA = ctm.compute_rdm2x1(0,1)
+
+print("before CTM, compute rdm")
+eps = 0.5*np.trace(su.h1 @ (rdmAB + rdmAC + rdmBA + rdmCA))
+print(f"epsilon = {eps}")
 for i in range(ctm_iter):
-  print(i)
+  print(i, end=" ")
   ctm.iterate()
 
 
@@ -71,10 +94,10 @@ rdmAC = ctm.compute_rdm2x1(0,0)
 rdmBA = ctm.compute_rdm1x2(1,0)
 rdmCA = ctm.compute_rdm2x1(0,1)
 
-print(lg.norm(rdmA - 0.5*np.eye(2)), lg.norm(rdmB - 0.5*np.eye(2)), lg.norm(rdmC - 0.5*np.eye(2)) ,lg.norm(rdmD - 0.5*np.eye(2)))
-print(lg.norm(rdmAB - 0.25*np.eye(4)), lg.norm(rdmAB - 0.25*np.eye(4)), lg.norm(rdmBA - 0.25*np.eye(4)) ,lg.norm(rdmCA - 0.25*np.eye(4)))
+#print(lg.norm(rdmA - 0.5*np.eye(2)), lg.norm(rdmB - 0.5*np.eye(2)), lg.norm(rdmC - 0.5*np.eye(2)) ,lg.norm(rdmD - 0.5*np.eye(2)))
+#print(lg.norm(rdmAB - 0.25*np.eye(4)), lg.norm(rdmAB - 0.25*np.eye(4)), lg.norm(rdmBA - 0.25*np.eye(4)) ,lg.norm(rdmCA - 0.25*np.eye(4)))
 
-print("done with CTM. Compute rdm")
+print("\ndone with CTM. Compute rdm")
 eps = 0.5*np.trace(su.h1 @ (rdmAB + rdmAC + rdmBA + rdmCA))
 print(f"epsilon = {eps}")
 
