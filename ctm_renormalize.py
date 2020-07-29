@@ -1,12 +1,24 @@
 import numpy as np
 import scipy.linalg as lg
+from scipy.sparse.linalg import svds
+
+
+def svd_truncate(M, chi, keep_multiplets=False, window=10, cuttol=1e-6, maxiter=1000):
+  if keep_multiplets:
+    U,s,V = svds(M, k=chi+window, maxiter=maxiter)
+    cut = chi + (s[chi:] < cuttol*s[chi-1:-1]).nonzero()[0][0]
+  else:
+    U,s,V = svds(M, k=chi, maxiter=maxiter)
+    cut = chi
+
+  cut = min(cut,(s>0).nonzero()[0][-1]+1)  # remove exact zeros
+  U,s,V = U[:,:cut], s[:cut], V[:cut]
+  return U,s,V
 
 
 def construct_projectors(R,Rt,chi):
-  assert(R.shape[0] == Rt.shape[0])
-  # convention : for every move, leg 0 of R and Rt are to be contracted
-  U,s,V = lg.svd(R.T @ Rt)
-  s12 = 1/np.sqrt(s[:chi])
+  U,s,V = svd_truncate(R.T @ Rt, chi)
+  s12 = 1/np.sqrt(s)  # s contains no 0
   # convention: projectors have shape (last_chi*D**2,chi)
   # since values of last_chi and D are not known (nor used) here
   #  00'      1
@@ -14,9 +26,9 @@ def construct_projectors(R,Rt,chi):
   #  Pt       P
   #  |        ||
   #  1        00'
-  Pt = Rt @ V[:chi].conj().T*s12
-  P = R @ U[:,:chi].conj()*s12
-  return P,Pt
+  Pt = Rt @ V.conj().T*s12
+  P = R @ U.conj()*s12
+  return P, Pt
 
 ###############################################################################
 # conventions: renormalize_C(C,T,P)
