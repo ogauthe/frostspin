@@ -43,7 +43,7 @@ B = np.random.random((12,13,4,6,7,3))
 C = np.random.random((8,9,7,5,2,6))
 tensors = [A,B,C]
 tiling = tilingABC
-"""
+
 
 
 for i in range(1,19):
@@ -76,7 +76,7 @@ for i in range(1,19):
   print(f'rdm2x1 is hermitian: {lg.norm(rdm2x1-rdm2x1.T.conj()):.1e}')
   print(f'rdm2x2 is hermitian: {lg.norm(rdm2x2-rdm2x2.T.conj()):.1e}')
 
-"""
+
 ctm = CTMRG(tensors,tiling,chi,verbosity=2)
 ctm.print_tensor_shapes()
 print('try 2 iterations:')
@@ -148,28 +148,27 @@ C4s = ctm._env._neq_C4s
 print('\nC4s are all the same:', end=' ')
 for t in C4s[1:]:
   print(f'{lg.norm(t-C4s[0]):.1e}', end=', ')
-
+"""
 
 
 ###############################################################################
 print('\n'+'#'*30 + 'RVB tensor' + '#'*30)
 
-chi = 17
+chi = 70
 niter = 0
 
 tiling = tilingA
 ctm = CTMRG([tRVB2],tilingA,chi,verbosity=0)
-print(f'chi = {chi}, launch {niter} iterations')
-for i in range(niter):
-  ctm.iterate()
+print(f'chi = {chi}, measure symmetry and Heisenberg term for rdm1x2/2x1')
+rdm1x2 = ctm.compute_rdm1x2()
+rdm2x1 = ctm.compute_rdm2x1()
+print(f'{lg.norm(rdm1x2 - rdm1x2.T):.1e}, {lg.norm(rdm2x1 - rdm2x1.T):.1e}, {np.trace(SdS_22b @ rdm1x2):.4e}, {np.trace(SdS_22b @ rdm2x1):.4e}')
 
 print('measure AF Heisenberg energy')
-for i in range(30):
+for i in range(200):
+  ctm.iterate()
   rdm1x2 = ctm.compute_rdm1x2()
   rdm2x1 = ctm.compute_rdm2x1()
   print(f'{lg.norm(rdm1x2 - rdm1x2.T):.1e}, {lg.norm(rdm2x1 - rdm2x1.T):.1e}, {np.trace(SdS_22b @ rdm1x2):.4e}, {np.trace(SdS_22b @ rdm2x1):.4e}')
-  #print(f'trace(SdS_22b @ rdm1x2 {np.trace(SdS_22b @ rdm1x2):.5e}')
-  #print(f'trace(SdS_22b @ rdm2x1) = {np.trace(SdS_22b @ rdm2x1):.5e}')
-  ctm.iterate()
 
-"""
+
