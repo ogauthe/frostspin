@@ -49,7 +49,7 @@ def renormalize_C1_up(C1,T4,P):
   #  |
   #  1
   nC1 = P.T @ nC1
-  return nC1/lg.norm(nC1)
+  return nC1/np.amax(nC1)
 
 
 def renormalize_T1(Pt,T1,A,P):
@@ -73,7 +73,7 @@ def renormalize_T1(Pt,T1,A,P):
   nT1 = np.tensordot(nT1, A.conj(), ((1, 2, 4, 5),(2, 5, 0, 1)))
   nT1 = nT1.transpose(1,3,5,0,2,4).reshape(Pt.shape[1]*A.shape[4]**2,P.shape[0])
   nT1 = (nT1 @ P).reshape(Pt.shape[1],A.shape[4],A.shape[4],P.shape[1])
-  nT1 = nT1.swapaxes(0,3)/lg.norm(nT1)
+  nT1 = nT1.swapaxes(0,3)/np.amax(nT1)
   return nT1
 
 
@@ -99,7 +99,7 @@ def renormalize_C2_up(C2,T2,Pt):
   #             1 ->0
   nC2 = nC2.swapaxes(0,1).reshape(T2.shape[1],Pt.shape[0])
   nC2 = nC2 @ Pt
-  nC2 /= lg.norm(nC2)
+  nC2 /= np.amax(nC2)
   return nC2
 
 
@@ -123,7 +123,7 @@ def renormalize_C2_right(C2,T1,P):
   #          |
   #          1
   nC2 = P.T @ nC2
-  nC2 /= lg.norm(nC2)
+  nC2 /= np.amax(C2)
   return nC2
 
 
@@ -152,7 +152,7 @@ def renormalize_T2(Pt,A,T2,P):
   nT2 = np.tensordot(nT2, A.conj(), ((4, 5, 2, 1),(0, 1, 2, 3)))
   nT2 = nT2.transpose(1,3,5,0,2,4).reshape(Pt.shape[1]*A.shape[5]**2,P.shape[0])
   nT2 = np.dot(nT2, P).reshape(Pt.shape[1],A.shape[5],A.shape[5],P.shape[1])
-  nT2 = nT2.transpose(0,3,1,2)/lg.norm(nT2)
+  nT2 = nT2.transpose(0,3,1,2)/np.amax(nT2)
   return nT2
 
 
@@ -176,7 +176,7 @@ def renormalize_C3_right(C3,T3,Pt):
   #        ||  |
   #  1<- 3-T3-C3
   nC3 = Pt.T @ nC3.reshape(Pt.shape[0],T3.shape[3])
-  nC3 /= lg.norm(nC3)
+  nC3 /= np.amax(nC3)
   return nC3
 
 
@@ -207,7 +207,7 @@ def renormalize_C3_down(C3,T2,P):
   #  1-P=01  |
   #        \-C3
   nC3 = nC3 @ P
-  return nC3/lg.norm(nC3)
+  return nC3/np.amax(nC3)
 
 
 def renormalize_T3(Pt,T3,A,P):
@@ -228,7 +228,7 @@ def renormalize_T3(Pt,T3,A,P):
   nT3 = np.tensordot(nT3, A.conj(), ((0, 1, 4, 6),(0, 1, 4, 5)))
   nT3 = nT3.transpose(0,4,3,2,1,5).reshape(A.shape[2]**2*P.shape[1],Pt.shape[0])
   nT3 = np.dot(nT3, Pt).reshape(A.shape[2],A.shape[2],P.shape[1],Pt.shape[1])
-  nT3 = nT3.swapaxes(2,3)/lg.norm(nT3)
+  nT3 = nT3.swapaxes(2,3)/np.amax(nT3)
   return nT3
 
 
@@ -253,7 +253,7 @@ def renormalize_C4_down(C4,T4,Pt):
   #   C4-31  /
   nC4 = nC4.transpose(0,3,1,2).reshape(T4.shape[0],Pt.shape[0])
   nC4 = nC4 @ Pt
-  nC4 /= lg.norm(nC4)
+  nC4 /= np.amax(nC4)
   return nC4
 
 
@@ -279,7 +279,7 @@ def renormalize_C4_left(C4,T3,P):
   #     C4----T3-3 -> 1
   nC4 = nC4.reshape(P.shape[0],T3.shape[2])
   nC4 = P.T @ nC4
-  nC4 /= lg.norm(nC4)
+  nC4 /= np.amax(nC4)
   return nC4
 
 
@@ -308,7 +308,7 @@ def renormalize_T4(Pt,T4,A,P):
   nT4 = np.tensordot(nT4, A.conj(), ((0, 2, 4, 5),(2, 5, 0, 1)))
   nT4 = nT4.transpose(0,2,4,1,3,5).reshape(P.shape[1]*A.shape[3]**2,Pt.shape[0])
   nT4 = np.dot(nT4, Pt).reshape(P.shape[1],A.shape[3],A.shape[3],Pt.shape[1])
-  nT4 /= lg.norm(nT4)
+  nT4 /= np.amax(nT4)
   return nT4
 
 
@@ -336,5 +336,5 @@ def renormalize_C1_left(C1,T1,Pt):
   #    |
   #    1
   nC1 = nC1 @ Pt
-  nC1 /= lg.norm(nC1)
+  nC1 /= np.amax(nC1)
   return nC1
