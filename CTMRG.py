@@ -1,10 +1,8 @@
 import numpy as np
-import scipy.linalg as lg
-
 import Env
+import rdm
 from ctm_contract import contract_U_half, contract_L_half, contract_D_half, contract_R_half
 from ctm_renormalize import *
-import rdm
 
 class CTMRG(object):
   # convention: legs and tensors are taken clockwise.
