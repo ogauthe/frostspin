@@ -3,6 +3,7 @@ import numpy as np
 import scipy.linalg as lg
 from CTMRG import CTMRG
 from test_tools import *
+from time import time
 
 
 print('#'*79,'\nTest asymetric CTMRG')
@@ -164,11 +165,14 @@ rdm1x2 = ctm.compute_rdm1x2()
 rdm2x1 = ctm.compute_rdm2x1()
 print(f'{lg.norm(rdm1x2 - rdm1x2.T):.1e}, {lg.norm(rdm2x1 - rdm2x1.T):.1e}, {np.trace(SdS_22b @ rdm1x2):.4e}, {np.trace(SdS_22b @ rdm2x1):.4e}')
 
-print('measure AF Heisenberg energy')
-for i in range(200):
+niter = 200
+t = time()
+for i in range(niter):
   ctm.iterate()
   rdm1x2 = ctm.compute_rdm1x2()
   rdm2x1 = ctm.compute_rdm2x1()
   print(f'{lg.norm(rdm1x2 - rdm1x2.T):.1e}, {lg.norm(rdm2x1 - rdm2x1.T):.1e}, {np.trace(SdS_22b @ rdm1x2):.4e}, {np.trace(SdS_22b @ rdm2x1):.4e}')
 
+t = time() - t
+print(f'{niter} iter done, time = {t}')
 
