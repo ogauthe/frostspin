@@ -130,7 +130,7 @@ def update_second_neighbor(M0_L, M0_mid, M0_R, lambda_L, lambda_R, gate, d):
 
 class SimpleUpdateABCD(object):
 
-  def __init__(self, d, a, Ds, h1, h2, tau, tensors=None):
+  def __init__(self, d, a, Ds, h1, h2, tau, tensors=None, verbosity=0):
     """
     Simple update algorithm on plaquette AB//CD.
 
@@ -174,6 +174,9 @@ class SimpleUpdateABCD(object):
     self._d = d
     self._a = a
     self._D1, self._D2, self._D3, self._D4, self._D5, self._D6, self._D7, self._D8 = Ds
+    self.verbosity = verbosity
+    if self.verbosity > 0:
+      print(f'construct SimpleUpdataABCD with d = {d}, a = {a} and Ds = {Ds}')
 
     if tensors is not None:
       A0,B0,C0,D0 = tensors
@@ -221,6 +224,8 @@ class SimpleUpdateABCD(object):
 
   @tau.setter
   def tau(self, tau):
+    if self.verbosity > 1:
+      print(f'set tau to  {tau}')
     self._tau = tau
     self._g1 = lg.expm(-tau*self._h1)
     self._g2 = lg.expm(-tau/2*self._h2)  # apply twice sqrt(gate)
@@ -274,6 +279,9 @@ class SimpleUpdateABCD(object):
     """
     update all links
     """
+    if self.verbosity > 0:
+      print('launch update for all bonds')
+
     # TODO: do not add and remove lambdas every time, keep some
     # TODO: merge all directional functions, fine dealing with lambda
     # goes to 2nd order Trotter by reversing order, tau twice bigger for gl
@@ -321,6 +329,8 @@ class SimpleUpdateABCD(object):
     """
     update lambda1 between A and C by applying gate g1 to A upper bond
     """
+    if self.verbosity > 1:
+      print('update bond 1')
     # add diagonal weights to gammaA and gammaC
     M_A = np.einsum('paurdl,r,d,l->ardlpu', self._gammaA, self._lambda2, self._lambda3,
                     self._lambda4).reshape(self._a*self._D2*self._D3*self._D4, self._d*self._D1)
@@ -336,11 +346,16 @@ class SimpleUpdateABCD(object):
     M_C = M_C.reshape(self._D1, self._d, self._a, self._D3, self._D7, self._D8)
     self._gammaC = np.einsum('dpaurl,u,r,l->paurdl', M_C, self._lambda3**-1, self._lambda7**-1, self._lambda8**-1)
 
+    if self.verbosity > 2:
+      print('new lambda1 =', self._lambda1)
+
 
   def update_bond2(self):
     """
     update lambda2 between A and B by applying gate to A right bond
     """
+    if self.verbosity > 1:
+      print('update bond 2')
     M_A = np.einsum('paurdl,u,d,l->audlpr', self._gammaA, self._lambda1, self._lambda3,
                     self._lambda4).reshape(self._a*self._D1*self._D3*self._D4, self._d*self._D2)
     M_B = np.einsum('paurdl,u,r,d->lpaurd', self._gammaB, self._lambda5, self._lambda4,
@@ -353,11 +368,16 @@ class SimpleUpdateABCD(object):
     M_B = M_B.reshape(self._D2, self._d, self._a, self._D5, self._D4, self._D6)
     self._gammaB = np.einsum('lpaurd,u,r,d->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda6**-1)
 
+    if self.verbosity > 2:
+      print('new lambda2 =', self._lambda2)
+
 
   def update_bond3(self):
     """
     update lambda3 between A and C by applying gate to A down bond
     """
+    if self.verbosity > 1:
+      print('update bond 3')
     M_A = np.einsum('paurdl,u,r,l->aurlpd', self._gammaA, self._lambda1, self._lambda2,
                     self._lambda4).reshape(self._a*self._D1*self._D2*self._D4, self._d*self._D3)
     M_C = np.einsum('paurdl,r,d,l->upardl', self._gammaC, self._lambda7, self._lambda1,
@@ -370,11 +390,16 @@ class SimpleUpdateABCD(object):
     M_C = M_C.reshape(self._D3, self._d, self._a, self._D7, self._D1, self._D8)
     self._gammaC = np.einsum('upardl,r,d,l->paurdl', M_C, self._lambda7**-1, self._lambda1**-1, self._lambda8**-1)
 
+    if self.verbosity > 2:
+      print('new lambda3 =', self._lambda3)
+
 
   def update_bond4(self):
     """
     update lambda4 between A and B by applying gate to A right bond
     """
+    if self.verbosity > 1:
+      print('update bond 4')
     M_A = np.einsum('paurdl,u,r,d->aurdpl', self._gammaA, self._lambda1, self._lambda2,
                     self._lambda3).reshape(self._a*self._D1*self._D2*self._D3, self._d*self._D4)
     M_B = np.einsum('paurdl,u,d,l->rpaudl', self._gammaB, self._lambda5, self._lambda6,
@@ -386,11 +411,16 @@ class SimpleUpdateABCD(object):
     M_B = M_B.reshape(self._D4, self._d, self._a, self._D5, self._D6, self._D2)
     self._gammaB = np.einsum('rpaudl,u,d,l->paurdl', M_B, self._lambda5**-1, self._lambda6**-1, self._lambda2**-1)
 
+    if self.verbosity > 2:
+      print('new lambda4 =', self._lambda4)
+
 
   def update_bond5(self):
     """
     update lambda5 between B and D by applying gate to B upper bond
     """
+    if self.verbosity > 1:
+      print('update bond 5')
     M_B = np.einsum('paurdl,r,d,l->ardlpu', self._gammaB, self._lambda4, self._lambda6,
                     self._lambda2).reshape(self._a*self._D4*self._D6*self._D2, self._d*self._D5)
     M_D = np.einsum('paurdl,u,r,l->dpaurl', self._gammaD, self._lambda6, self._lambda8,
@@ -402,11 +432,16 @@ class SimpleUpdateABCD(object):
     M_D = M_D.reshape(self._D5, self._d, self._a, self._D6, self._D8, self._D7)
     self._gammaD = np.einsum('dpaurl,u,r,l->paurdl', M_D, self._lambda6**-1, self._lambda8**-1, self._lambda7**-1)
 
+    if self.verbosity > 2:
+      print('new lambda5 =', self._lambda5)
+
 
   def update_bond6(self):
     """
     update lambda6 between B and D by applying gate to B down bond
     """
+    if self.verbosity > 1:
+      print('update bond 6')
     M_B = np.einsum('paurdl,u,r,l->aurlpd', self._gammaB, self._lambda5, self._lambda4,
                     self._lambda2).reshape(self._a*self._D5*self._D4*self._D2, self._d*self._D6)
     M_D = np.einsum('paurdl,r,d,l->upardl', self._gammaD, self._lambda8, self._lambda5,
@@ -418,11 +453,16 @@ class SimpleUpdateABCD(object):
     M_D = M_D.reshape(self._D6, self._d, self._a, self._D8, self._D5, self._D7)
     self._gammaD = np.einsum('upardl,r,d,l->paurdl', M_D, self._lambda8**-1, self._lambda5**-1, self._lambda7**-1)
 
+    if self.verbosity > 2:
+      print('new lambda6 =', self._lambda6)
+
 
   def update_bond7(self):
     """
     update lambda7 between C and D by applying gate to C right bond
     """
+    if self.verbosity > 1:
+      print('update bond 7')
     M_C = np.einsum('paurdl,u,d,l->audlpr', self._gammaC, self._lambda3, self._lambda1,
                     self._lambda8).reshape(self._a*self._D3*self._D1*self._D8, self._d*self._D7)
     M_D = np.einsum('paurdl,u,r,d->lpaurd', self._gammaD, self._lambda6, self._lambda8,
@@ -434,11 +474,16 @@ class SimpleUpdateABCD(object):
     M_D = M_D.reshape(self._D7, self._d, self._a, self._D6, self._D8, self._D5)
     self._gammaD = np.einsum('lpaurd,u,r,d->paurdl', M_D, self._lambda6**-1, self._lambda8**-1, self._lambda5**-1)
 
+    if self.verbosity > 2:
+      print('new lambda7 =', self._lambda7)
+
 
   def update_bond8(self):
     """
     update lambda8 between C and D by applying gate to C left bond
     """
+    if self.verbosity > 1:
+      print('update bond 8')
     M_C = np.einsum('paurdl,u,r,d->aurdpl', self._gammaC, self._lambda3, self._lambda7,
                     self._lambda1).reshape(self._a*self._D3*self._D7*self._D1, self._d*self._D8)
     M_D = np.einsum('paurdl,u,d,l->rpaudl', self._gammaD, self._lambda6, self._lambda5,
@@ -449,6 +494,9 @@ class SimpleUpdateABCD(object):
     self._gammaC = np.einsum('aurdpl,u,r,d->paurdl', M_C, self._lambda3**-1, self._lambda7**-1, self._lambda1**-1)
     M_D = M_D.reshape(self._D8, self._d, self._a, self._D6, self._D5, self._D7)
     self._gammaD = np.einsum('rpaudl,u,d,l->paurdl', M_D, self._lambda6**-1, self._lambda5**-1, self._lambda7**-1)
+
+    if self.verbosity > 2:
+      print('new lambda8 =', self._lambda8)
 
 
 ###############################################################################
@@ -461,6 +509,8 @@ class SimpleUpdateABCD(object):
     update lambda2 and lambda6 by applying gate to A upper-right next nearest
     neighbor bond with D through tensor B. Twin of 17.
     """
+    if self.verbosity > 1:
+      print('update bonds 2 and 5')
     M_A = np.einsum('paurdl,u,d,l->audlpr', self._gammaA, self._lambda1, self._lambda3,
                     self._lambda4).reshape(self._a*self._D1*self._D3*self._D4, self._d*self._D2)
     M_B = np.einsum('paurdl,r,d->lupard', self._gammaB, self._lambda4, self._lambda6).reshape(
@@ -476,12 +526,18 @@ class SimpleUpdateABCD(object):
     M_D = M_D.reshape(self._D5, self._d, self._a, self._D6, self._D8, self._D7)
     self._gammaD = np.einsum('dpaurl,u,r,l->paurdl', M_D, self._lambda6**-1, self._lambda8**-1, self._lambda7**-1)
 
+    if self.verbosity > 2:
+      print('new lambda2 =', self._lambda2)
+      print('new lambda5 =', self._lambda5)
+
 
   def update_bonds17(self):
     """
     update lambda2 and lambda6 by applying gate to A upper-right next nearest
     neighbor bond with D through tensor C. Twin of 25.
     """
+    if self.verbosity > 1:
+      print('update bonds 1 and 7')
     M_A = np.einsum('paurdl,r,d,l->ardlpu', self._gammaA, self._lambda2, self._lambda3,
                     self._lambda4).reshape(self._a*self._D2*self._D3*self._D4, self._d*self._D1)
     M_C = np.einsum('paurdl,u,l->drpaul', self._gammaC, self._lambda3, self._lambda8).reshape(
@@ -497,12 +553,18 @@ class SimpleUpdateABCD(object):
     M_D = M_D.reshape(self._D7, self._d, self._a, self._D6, self._D8, self._D5)
     self._gammaD = np.einsum('lpaurd,u,r,d->paurdl', M_D, self._lambda6**-1, self._lambda8**-1, self._lambda5**-1)
 
+    if self.verbosity > 2:
+      print('new lambda1 =', self._lambda1)
+      print('new lambda7 =', self._lambda7)
+
 
   def update_bonds26(self):
     """
     update lambda2 and lambda6 by applying gate to A down-right next nearest
     neighbor bond with D through tensor B. Twin of 37.
     """
+    if self.verbosity > 1:
+      print('update bonds 2 and 6')
     M_A = np.einsum('paurdl,u,d,l->audlpr', self._gammaA, self._lambda1, self._lambda3,
                     self._lambda4).reshape(self._a*self._D1*self._D3*self._D4, self._d*self._D2)
     M_B = np.einsum('paurdl,u,r->ldpaur', self._gammaB, self._lambda5, self._lambda4).reshape(
@@ -518,12 +580,18 @@ class SimpleUpdateABCD(object):
     M_D = M_D.reshape(self._D6, self._d, self._a, self._D8, self._D5, self._D7)
     self._gammaD = np.einsum('upardl,r,d,l->paurdl', M_D, self._lambda8**-1, self._lambda5**-1, self._lambda7**-1)
 
+    if self.verbosity > 2:
+      print('new lambda2 =', self._lambda2)
+      print('new lambda6 =', self._lambda6)
+
 
   def update_bonds37(self):
     """
     update lambda2 and lambda6 by applying gate to A down-right next nearest
     neighbor bond with D through tensor C. Twin of 26.
     """
+    if self.verbosity > 1:
+      print('update bonds 3 and 7')
     M_A = np.einsum('paurdl,u,r,l->aurlpd', self._gammaA, self._lambda1, self._lambda2,
                     self._lambda4).reshape(self._a*self._D1*self._D2*self._D4, self._d*self._D3)
     M_C = np.einsum('paurdl,d,l->urpadl', self._gammaC, self._lambda1, self._lambda8).reshape(
@@ -539,12 +607,18 @@ class SimpleUpdateABCD(object):
     M_D = M_D.reshape(self._D7, self._d, self._a, self._D6, self._D8, self._D5)
     self._gammaD = np.einsum('lpaurd,u,r,d->paurdl', M_D, self._lambda6**-1, self._lambda8**-1, self._lambda5**-1)
 
+    if self.verbosity > 2:
+      print('new lambda3 =', self._lambda3)
+      print('new lambda7 =', self._lambda7)
+
 
   def update_bonds46(self):
     """
     update lambda4 and lambda6 by applying gate to A down-left next nearest
     neighbor bond with D through tensor B. Twin of 38.
     """
+    if self.verbosity > 1:
+      print('update bonds 4 and 6')
     M_A = np.einsum('paurdl,u,r,d->aurdpl', self._gammaA, self._lambda1, self._lambda2,
                     self._lambda3).reshape(self._a*self._D1*self._D2*self._D3, self._d*self._D4)
     M_B = np.einsum('paurdl,u,l->rdpaul', self._gammaB, self._lambda5, self._lambda2).reshape(
@@ -560,12 +634,18 @@ class SimpleUpdateABCD(object):
     M_D = M_D.reshape(self._D6, self._d, self._a, self._D8, self._D5, self._D7)
     self._gammaD = np.einsum('upardl,r,d,l->paurdl', M_D, self._lambda8**-1, self._lambda5**-1, self._lambda7**-1)
 
+    if self.verbosity > 2:
+      print('new lambda4 =', self._lambda4)
+      print('new lambda6 =', self._lambda6)
+
 
   def update_bonds38(self):
     """
     update lambda2 and lambda6 by applying gate to A down-left next nearest
     neighbor bond with D through tensor C. Twin of 46.
     """
+    if self.verbosity > 1:
+      print('update bonds 3 and 8')
     M_A = np.einsum('paurdl,u,r,l->aurlpd', self._gammaA, self._lambda1, self._lambda2,
                     self._lambda4).reshape(self._a*self._D1*self._D2*self._D4, self._d*self._D3)
     M_C = np.einsum('paurdl,r,d->ulpard', self._gammaC, self._lambda7, self._lambda1).reshape(
@@ -581,12 +661,18 @@ class SimpleUpdateABCD(object):
     M_D = M_D.reshape(self._D8, self._d, self._a, self._D6, self._D5, self._D7)
     self._gammaD = np.einsum('rpaudl,u,d,l->paurdl', M_D, self._lambda6**-1, self._lambda5**-1, self._lambda7**-1)
 
+    if self.verbosity > 2:
+      print('new lambda3 =', self._lambda3)
+      print('new lambda8 =', self._lambda8)
+
 
   def update_bonds45(self):
     """
     update lambda4 and lambda5 by applying gate to A upper-left next nearest
     neighbor bond with D through tensor B. Twin of 18.
     """
+    if self.verbosity > 1:
+      print('update bonds 4 and 5')
     M_A = np.einsum('paurdl,u,r,d->aurdpl', self._gammaA, self._lambda1, self._lambda2,
                     self._lambda3).reshape(self._a*self._D1*self._D2*self._D3, self._d*self._D4)
     M_B = np.einsum('paurdl,d,l->rupadl', self._gammaB, self._lambda6, self._lambda2).reshape(
@@ -602,12 +688,18 @@ class SimpleUpdateABCD(object):
     M_D = M_D.reshape(self._D5, self._d, self._a, self._D6, self._D8, self._D7)
     self._gammaD = np.einsum('dpaurl,u,r,l->paurdl', M_D, self._lambda6**-1, self._lambda8**-1, self._lambda7**-1)
 
+    if self.verbosity > 2:
+      print('new lambda4 =', self._lambda4)
+      print('new lambda5 =', self._lambda5)
+
 
   def update_bonds18(self):
     """
     update lambda1 and lambda8 by applying gate to A upper-left next nearest
     neighbor bond with D through tensor C. Twin of 45.
     """
+    if self.verbosity > 1:
+      print('update bonds 1 and 8')
     M_A = np.einsum('paurdl,r,d,l->ardlpu', self._gammaA, self._lambda2, self._lambda3,
                     self._lambda4).reshape(self._a*self._D2*self._D3*self._D4, self._d*self._D1)
     M_C = np.einsum('paurdl,u,r->dlpaur', self._gammaC, self._lambda3, self._lambda7).reshape(
@@ -623,6 +715,10 @@ class SimpleUpdateABCD(object):
     M_D = M_D.reshape(self._D8, self._d, self._a, self._D6, self._D5, self._D7)
     self._gammaD = np.einsum('rpaudl,u,d,l->paurdl', M_D, self._lambda6**-1, self._lambda5**-1, self._lambda7**-1)
 
+    if self.verbosity > 2:
+      print('new lambda1 =', self._lambda1)
+      print('new lambda8 =', self._lambda8)
+
 
 
 
@@ -632,6 +728,8 @@ class SimpleUpdateABCD(object):
     update lambda4 and lambda1 by applying gate to B upper-right next nearest
     neighbor bond with C through tensor A. Twin of 58.
     """
+    if self.verbosity > 1:
+      print('update bonds 4 and 1')
     M_B = np.einsum('paurdl,u,d,l->audlpr', self._gammaB, self._lambda5, self._lambda6,
                     self._lambda2).reshape(self._a*self._D5*self._D6*self._D2, self._d*self._D4)
     M_A = np.einsum('paurdl,r,d->lupard', self._gammaA, self._lambda2, self._lambda3).reshape(
@@ -647,12 +745,18 @@ class SimpleUpdateABCD(object):
     M_C = M_C.reshape(self._D1, self._d, self._a, self._D3, self._D7, self._D8)
     self._gammaC = np.einsum('dpaurl,u,r,l->paurdl', M_C, self._lambda3**-1, self._lambda7**-1, self._lambda8**-1)
 
+    if self.verbosity > 2:
+      print('new lambda4 =', self._lambda4)
+      print('new lambda1 =', self._lambda1)
+
 
   def update_bonds58(self):
     """
     update lambda2 and lambda6 by applying gate to B upper-right next nearest
     neighbor bond with C through tensor D. Twin of 41.
     """
+    if self.verbosity > 1:
+      print('update bonds 5 and 8')
     M_B = np.einsum('paurdl,r,d,l->ardlpu', self._gammaB, self._lambda4, self._lambda6,
                     self._lambda2).reshape(self._a*self._D4*self._D6*self._D2, self._d*self._D5)
     M_D = np.einsum('paurdl,u,l->drpaul', self._gammaD, self._lambda6, self._lambda7).reshape(
@@ -668,12 +772,18 @@ class SimpleUpdateABCD(object):
     M_C = M_C.reshape(self._D8, self._d, self._a, self._D3, self._D7, self._D1)
     self._gammaC = np.einsum('lpaurd,u,r,d->paurdl', M_C, self._lambda3**-1, self._lambda7**-1, self._lambda1**-1)
 
+    if self.verbosity > 2:
+      print('new lambda5 =', self._lambda5)
+      print('new lambda8 =', self._lambda8)
+
 
   def update_bonds43(self):
     """
     update lambda4 and lambda3 by applying gate to B down-right next nearest
     neighbor bond with C through tensor A. Twin of 68.
     """
+    if self.verbosity > 1:
+      print('update bonds 4 and 3')
     M_B = np.einsum('paurdl,u,d,l->audlpr', self._gammaB, self._lambda5, self._lambda6,
                     self._lambda2).reshape(self._a*self._D5*self._D6*self._D2, self._d*self._D4)
     M_A = np.einsum('paurdl,u,r->ldpaur', self._gammaA, self._lambda1, self._lambda2).reshape(
@@ -689,12 +799,18 @@ class SimpleUpdateABCD(object):
     M_C = M_C.reshape(self._D3, self._d, self._a, self._D7, self._D1, self._D8)
     self._gammaC = np.einsum('upardl,r,d,l->paurdl', M_C, self._lambda7**-1, self._lambda1**-1, self._lambda8**-1)
 
+    if self.verbosity > 2:
+      print('new lambda4 =', self._lambda4)
+      print('new lambda3 =', self._lambda3)
+
 
   def update_bonds68(self):
     """
     update lambda2 and lambda6 by applying gate to B down-right next nearest
     neighbor bond with C through tensor D. Twin of 43.
     """
+    if self.verbosity > 1:
+      print('update bonds 6 and 8')
     M_B = np.einsum('paurdl,u,r,l->aurlpd', self._gammaB, self._lambda5, self._lambda4,
                     self._lambda2).reshape(self._a*self._D5*self._D4*self._D2, self._d*self._D6)
     M_D = np.einsum('paurdl,d,l->urpadl', self._gammaD, self._lambda5, self._lambda7).reshape(
@@ -710,12 +826,18 @@ class SimpleUpdateABCD(object):
     M_C = M_C.reshape(self._D8, self._d, self._a, self._D3, self._D7, self._D1)
     self._gammaC = np.einsum('lpaurd,u,r,d->paurdl', M_C, self._lambda3**-1, self._lambda7**-1, self._lambda1**-1)
 
+    if self.verbosity > 2:
+      print('new lambda6 =', self._lambda6)
+      print('new lambda8 =', self._lambda8)
+
 
   def update_bonds23(self):
     """
     update lambda2 and lambda3 by applying gate to B down-left next nearest
     neighbor bond with C through tensor A. Twin of 67.
     """
+    if self.verbosity > 1:
+      print('update bonds 2 and 3')
     M_B = np.einsum('paurdl,u,r,d->aurdpl', self._gammaB, self._lambda5, self._lambda4,
                     self._lambda6).reshape(self._a*self._D5*self._D4*self._D6, self._d*self._D2)
     M_A = np.einsum('paurdl,u,l->rdpaul', self._gammaA, self._lambda1, self._lambda4).reshape(
@@ -731,12 +853,18 @@ class SimpleUpdateABCD(object):
     M_C = M_C.reshape(self._D3, self._d, self._a, self._D7, self._D1, self._D8)
     self._gammaC = np.einsum('upardl,r,d,l->paurdl', M_C, self._lambda7**-1, self._lambda1**-1, self._lambda8**-1)
 
+    if self.verbosity > 2:
+      print('new lambda2 =', self._lambda2)
+      print('new lambda3 =', self._lambda3)
+
 
   def update_bonds67(self):
     """
     update lambda6 and lambda7 by applying gate to B down-left next nearest
     neighbor bond with C through tensor D. Twin of 23.
     """
+    if self.verbosity > 1:
+      print('update bonds 6 and 7')
     M_B = np.einsum('paurdl,u,r,l->aurlpd', self._gammaB, self._lambda5, self._lambda4,
                     self._lambda2).reshape(self._a*self._D5*self._D4*self._D2, self._d*self._D6)
     M_D = np.einsum('paurdl,r,d->ulpard', self._gammaD, self._lambda8, self._lambda5).reshape(
@@ -752,12 +880,18 @@ class SimpleUpdateABCD(object):
     M_C = M_C.reshape(self._D7, self._d, self._a, self._D3, self._D1, self._D8)
     self._gammaC = np.einsum('rpaudl,u,d,l->paurdl', M_C, self._lambda3**-1, self._lambda1**-1, self._lambda8**-1)
 
+    if self.verbosity > 2:
+      print('new lambda6 =', self._lambda6)
+      print('new lambda7 =', self._lambda7)
+
 
   def update_bonds21(self):
     """
     update lambda2 and lambda1 by applying gate to B upper-left next nearest
     neighbor bond with C through tensor A. Twin of 57.
     """
+    if self.verbosity > 1:
+      print('update bonds 2 and 1')
     M_B = np.einsum('paurdl,u,r,d->aurdpl', self._gammaB, self._lambda5, self._lambda4,
                     self._lambda6).reshape(self._a*self._D5*self._D4*self._D6, self._d*self._D2)
     M_A = np.einsum('paurdl,d,l->rupadl', self._gammaA, self._lambda3, self._lambda4).reshape(
@@ -773,12 +907,18 @@ class SimpleUpdateABCD(object):
     M_C = M_C.reshape(self._D1, self._d, self._a, self._D3, self._D7, self._D8)
     self._gammaC = np.einsum('dpaurl,u,r,l->paurdl', M_C, self._lambda3**-1, self._lambda7**-1, self._lambda8**-1)
 
+    if self.verbosity > 2:
+      print('new lambda2 =', self._lambda2)
+      print('new lambda1 =', self._lambda1)
+
 
   def update_bonds57(self):
     """
     update lambda6 and lambda7 by applying gate to B down-left next nearest
     neighbor bond with C through tensor D. Twin of 21.
     """
+    if self.verbosity > 1:
+      print('update bonds 5 and 7')
     M_B = np.einsum('paurdl,r,d,l->ardlpu', self._gammaB, self._lambda4, self._lambda6,
                     self._lambda2).reshape(self._a*self._D4*self._D6*self._D2, self._d*self._D5)
     M_D = np.einsum('paurdl,u,r->dlpaur', self._gammaD, self._lambda6, self._lambda8).reshape(
@@ -793,3 +933,7 @@ class SimpleUpdateABCD(object):
     self._gammaD = np.einsum('dlpaur,u,r->paurdl', M_D, self._lambda6**-1, self._lambda8**-1)
     M_C = M_C.reshape(self._D7, self._d, self._a, self._D3, self._D1, self._D8)
     self._gammaC = np.einsum('rpaudl,u,d,l->paurdl', M_C, self._lambda3**-1, self._lambda1**-1, self._lambda8**-1)
+
+    if self.verbosity > 2:
+      print('new lambda5 =', self._lambda5)
+      print('new lambda7 =', self._lambda7)
