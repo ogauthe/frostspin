@@ -1,7 +1,10 @@
 import numpy as np
 import scipy.linalg as lg
+from toolsU1 import default_color, dotU1, combine_colors, svdU1
 
-def update_first_neighbor(M0_L, M0_R, lambda0, gate, d):
+
+def update_first_neighbor(M0_L, M0_R, lambda0, gate, d, col_L=default_color,
+             col_R=default_color, col_bond=default_color, col_d=default_color):
   """
   First neighbor simple update algorithm.
   Construct matrix theta from matrices M0_L and M0_R, obtained by adding
@@ -19,13 +22,13 @@ def update_first_neighbor(M0_L, M0_R, lambda0, gate, d):
   #     -L-    -> -W==ML-
   #      |\        |   \
   D = lambda0.shape[0]
-  W_L, sL, M_L = lg.svd(M0_L, full_matrices=False)
+  W_L, sL, M_L, col_sL = svdU1(M0_L, col_L, -combine_colors(col_d, col_bond))
   D_effL = sL.shape[0]
   M_L *= sL[:,None]
   #     \|            \|
   #     -R-    -> -MR==W-
   #      |\        /   |
-  M_R, sR, W_R = lg.svd(M0_R, full_matrices=False)
+  M_R, sR, W_R, col_sR = svdU1(M0_R, -combine_colors(col_bond, col_d), -col_R)
   D_effR = sR.shape[0]
   M_R *= sR
 
@@ -35,28 +38,33 @@ def update_first_neighbor(M0_L, M0_R, lambda0, gate, d):
   #                \  /
   #   theta =       gg
   #                /  \
+  row_col = combine_colors(col_sL,col_d)
+  col_gate = combine_colors(col_d, -col_d)  # opposite sublattice
   theta = M_L.reshape(D_effL*d, D)*lambda0
-  theta = np.dot(theta, M_R.reshape(D, d*D_effR) )
+  theta = dotU1(theta, M_R.reshape(D, d*D_effR), row_col, col_bond, combine_colors(-col_d,col_sR) )
   theta = theta.reshape(D_effL, d, d, D_effR).transpose(0,3,1,2).reshape(D_effL*D_effR, d**2)
-  theta = np.dot(theta, gate)
+  theta = dotU1(theta, gate, combine_colors(col_sL,col_sR), col_gate, col_gate)
 
   # 3) cut theta with SVD
   theta = theta.reshape(D_effL, D_effR, d, d).swapaxes(1,2).reshape(D_effL*d, D_effR*d)
-  M_L, new_lambda, M_R = lg.svd(theta, full_matrices=False)
+  M_L, new_lambda, M_R, new_col_lambda = svdU1(theta,row_col,combine_colors(col_sR,col_d))
 
   # 4) renormalize link dimension
   new_lambda = new_lambda[:D]
   new_lambda /= new_lambda.sum()  # singular values are positive
+  new_col_lambda = new_col_lambda[:D]
 
   # 5) start reconstruction of new gammaX and gammaY by unifying cst and eff parts
   M_L = M_L[:,:D].reshape(D_effL, d*D)
-  M_L = np.dot(W_L, M_L)
+  M_L = dotU1(W_L, M_L, col_L, col_sL, new_col_lambda)
   M_R = M_R[:D].reshape(D, D_effR, d).swapaxes(1,2).reshape(D*d, D_effR)
-  M_R = np.dot(M_R, W_R)
-  return M_L, new_lambda, M_R
+  M_R = dotU1(M_R, W_R, -new_col_lambda, col_sR, col_R)
+  return M_L, new_lambda, M_R, new_col_lambda
 
 
-def update_second_neighbor(M0_L, M0_mid, M0_R, lambda_L, lambda_R, gate, d):
+def update_second_neighbor(M0_L, M0_mid, M0_R, lambda_L, lambda_R, gate, d,
+             col_L=default_color, col_mid=default_color, col_R=default_color,
+             col_bL=default_color, col_bR=default_color, col_d=default_color):
   """
   Second and third neighbor simple update algorithm.
   Construct matrix theta from matrices M0_L, M0_mid and M0_R obtained by adding
@@ -75,7 +83,7 @@ def update_second_neighbor(M0_L, M0_mid, M0_R, lambda_L, lambda_R, gate, d):
   #     \|        \|
   #     -L-    -> -cstL==effL-lambda_L- (D_L)
   #      |\        |       \
-  cst_L, s_L, eff_L = lg.svd(M0_L, full_matrices=False)
+  cst_L, s_L, eff_L, col_sL = svdU1(M0_L, col_L, -combine_colors(col_d, col_bL))
   D_effL = s_L.shape[0]
   eff_L = (s_L[:,None]*eff_L).reshape(D_effL*d, D_L)*lambda_L  # add lambda
   #                       \|/|
@@ -83,13 +91,14 @@ def update_second_neighbor(M0_L, M0_mid, M0_R, lambda_L, lambda_R, gate, d):
   #     \|                 ||
   #     -M-   ->  (D_L) - effM - (D_R)
   #      |\
-  eff_m, s_m, cst_m = lg.svd(M0_mid, full_matrices=False)
+  eff_m, s_m, cst_m, col_sm = svdU1(M0_mid, combine_colors(col_bL,-col_bR), col_mid)
   D_effm = s_m.shape[0]
   eff_m = (eff_m*s_m).reshape(D_L, D_R*D_effm)
   #     \|                              \|
   #     -R-   ->  (D_R)  lambda_R-effR==cstR
   #      |\                              |\
-  eff_R, s_R, cst_R = lg.svd(M0_R, full_matrices=False)
+  col_effR = combine_colors(col_bR, col_d)
+  eff_R, s_R, cst_R, col_sR = svdU1(M0_R, -col_effR, col_R)
   D_effR = s_R.shape[0]
   eff_R = (eff_R*s_R).reshape(D_R, d, D_effR)*lambda_R[:,None,None]
 
@@ -98,39 +107,45 @@ def update_second_neighbor(M0_L, M0_mid, M0_R, lambda_L, lambda_R, gate, d):
   #    =effL-lambdaL -- eff_mid -- lambdaR-effR=
   #         \                             /
   #          \----------- gate ----------/
-  theta = np.dot(eff_L, eff_m).reshape(D_effL, d, D_R, D_effm)
-  theta = np.tensordot(theta, eff_R, ((2,),(0,)))
+  theta = dotU1(eff_L, eff_m, col_sL, col_bL, combine_colors(col_bR,col_m)).reshape(D_effL, d, D_R, D_effm)
+  col_th = [col_sL, col_d, col_bR, col_sm]
+  col_gate = combine_colors(col_d, col_d)  # same sublattice
+  theta = tensordotU1(theta, eff_R, ((2,),(0,)), col_th, [col_effR, col_sR])
   theta = theta.transpose(0,2,4,1,3).reshape(D_effL*D_effm*D_effR, d**2)
-  theta = np.dot(theta, gate).reshape(D_effL, D_effm, D_effR, d, d)
+  col_th = combine_colors(col_sL, col_sm, col_sR)
+  theta = dotU1(theta, gate, col_th, col_gate, col_gate).reshape(D_effL, D_effm, D_effR, d, d)
   theta = theta.transpose(0,3,1,2,4).reshape(D_effL*d, D_effm*D_effR*d)
 
   # first SVD: cut left part
-  new_L, new_lambda_L, theta = lg.svd(theta, full_matrices=False)
+  new_L, new_lambda_L, theta, col_nbL = svdU1(theta, combine_colors(col_sL, col_d), combine_colors(col_sm, col_sR, col_d))
   new_L = new_L[:,:D_L].reshape(D_effL, d*D_L)
   new_lambda_L = new_lambda_L[:D_L]
   new_lambda_L /= new_lambda_L.sum()
+  col_nbL = col_nbL[:D_L]
 
   # second SVD: split middle and right parts
   theta = (new_lambda_L[:,None]*theta[:D_L]).reshape(D_L*D_effm, D_effR*d)
-  new_mid, new_lambda_R, new_R = lg.svd(theta, full_matrices=False)
+  col_th = combine_colors(col_nbL,col_sm)
+  new_mid, new_lambda_R, new_R, col_nbR = svdU1(theta, col_th, combine_colors(col_sR,col_d))
   new_mid = new_mid[:,:D_R].reshape(D_L, D_effm, D_R)
   new_R = new_R[:D_R].reshape(D_R, D_effR, d)
   new_lambda_R = new_lambda_R[:D_R]
   new_lambda_R /= new_lambda_R.sum()
 
   # bring back constant parts
-  new_L = np.dot(cst_L, new_L)
+  new_L = dotU1(cst_L, new_L, col_L, col_sL, col_nbL)
   new_mid = new_mid.swapaxes(1,2).reshape(D_L*D_R, D_effm)
-  new_mid = np.dot(new_mid, cst_m)
+  new_mid = dotU1(new_mid, cst_m, combine_colors(col_nbL, col_nbR), col_sm)
   new_R = new_R.swapaxes(1,2).reshape(D_R*d, D_effR)
-  new_R = np.dot(new_R, cst_R)
+  new_R = dotU1(new_R, cst_R, combine_colors(col_nbR, col_d), col_sR, col_R)
 
-  return new_L, new_mid, new_R, new_lambda_L, new_lambda_R
+  return new_L, new_mid, new_R, new_lambda_L, new_lambda_R, col_nbL, col_nbR
 
 
 class SimpleUpdateABCD(object):
 
-  def __init__(self, d, a, Ds, h1, h2, tau, tensors=None, verbosity=0):
+  def __init__(self, d, a, Ds, h1, h2, tau, tensors=None, colors=None,
+                verbosity=0):
     """
     Simple update algorithm on plaquette AB//CD.
 
@@ -149,8 +164,11 @@ class SimpleUpdateABCD(object):
       Second neigbor Hamltionian.
     tau : float
       Imaginary time step.
-    tensors : otional, enumerable of 4 ndarrays with shapes (d,a,D,D,D,D)
+    tensors : optional, enumerable of 4 ndarrays with shapes (d,a,D,D,D,D)
       Initial tensors. If not provided, random tensors are taken.
+    colors : optional, quantum numbers for physical, ancila and virtual legs.
+    verbosity : int
+      level of log verbosity. Default is no log.
 
 
     Conventions for leg ordering
@@ -197,6 +215,52 @@ class SimpleUpdateABCD(object):
     self._gammaB = B0/lg.norm(B0)
     self._gammaC = C0/lg.norm(C0)
     self._gammaD = D0/lg.norm(D0)
+
+    if colors is not None:
+      if len(colors) != 10:
+        raise ValueError('colors must be [colors_p, colors_a, colors_1...8]')
+      if len(colors[0]) != d:
+        raise ValueError('physical leg colors length is not d')
+      self._colors_p = np.asarray(colors[0], dtype=np.int8)
+      if len(colors[1]) != a:
+        raise ValueError('ancila leg colors length is not a')
+      self._colors_a = np.asarray(colors[1], dtype=np.int8)
+      if len(colors[2]) != self._D1:
+        raise ValueError('virtual leg 1 colors length is not D1')
+      self._colors1 = np.asarray(colors[2], dtype=np.int8)
+      if len(colors[3]) != self._D2:
+        raise ValueError('virtual leg 2 colors length is not D2')
+      self._colors2 = np.asarray(colors[3], dtype=np.int8)
+      if len(colors[4]) != self._D3:
+        raise ValueError('virtual leg 3 colors length is not D3')
+      self._colors3 = np.asarray(colors[4], dtype=np.int8)
+      if len(colors[5]) != self._D4:
+        raise ValueError('virtual leg 4 colors length is not D4')
+      self._colors4 = np.asarray(colors[5], dtype=np.int8)
+      if len(colors[6]) != self._D5:
+        raise ValueError('virtual leg 5 colors length is not D5')
+      self._colors5 = np.asarray(colors[6], dtype=np.int8)
+      if len(colors[7]) != self._D6:
+        raise ValueError('virtual leg 6 colors length is not D6')
+      self._colors6 = np.asarray(colors[7], dtype=np.int8)
+      if len(colors[8]) != self._D7:
+        raise ValueError('virtual leg 7 colors length is not D7')
+      self._colors7 = np.asarray(colors[8], dtype=np.int8)
+      if len(colors[9]) != self._D8:
+        raise ValueError('virtual leg 8 colors length is not D8')
+      self._colors8 = np.asarray(colors[9], dtype=np.int8)
+
+    else:
+      self._colors_p = default_color
+      self._colors_a = default_color
+      self._colors1 = default_color
+      self._colors2 = default_color
+      self._colors3 = default_color
+      self._colors4 = default_color
+      self._colors5 = default_color
+      self._colors6 = default_color
+      self._colors7 = default_color
+      self._colors8 = default_color
 
     # hamilt can be either 1 unique numpy array for all bonds or a list/tuple
     # of 4 bond-dependant Hamiltonians
@@ -337,8 +401,11 @@ class SimpleUpdateABCD(object):
     M_C = np.einsum('paurdl,u,r,l->dpaurl', self._gammaC, self._lambda3, self._lambda7,
                     self._lambda8).reshape(self._D1*self._d, self._a*self._D3*self._D7*self._D8)
 
+    col_L = combine_colors(self._colors_a, self._colors2, self._colors3, self._colors4)
+    col_R = -combine_colors(self._colors_a, self._colors3, self._colors7, self._colors8)
     # construct matrix theta, renormalize bond dimension and get back tensors
-    M_A, self._lambda1, M_C = update_first_neighbor(M_A, M_C, self._lambda1, self._g1, self._d)
+    M_A, self._lambda1, M_C, self._colors1 = update_first_neighbor(M_A, M_C, self._lambda1, self._g1, self._d,
+             col_L=col_L, col_R=col_R, col_bond=self._colors1, col_d=self._colors_p)
 
     # define new gammaA and gammaC from renormalized M_A and M_C
     M_A = M_A.reshape(self._a, self._D2, self._D3, self._D4, self._d, self._D1)
@@ -361,7 +428,10 @@ class SimpleUpdateABCD(object):
     M_B = np.einsum('paurdl,u,r,d->lpaurd', self._gammaB, self._lambda5, self._lambda4,
                     self._lambda6).reshape(self._D2*self._d, self._a*self._D5*self._D4*self._D6)
 
-    M_A, self._lambda2, M_B = update_first_neighbor(M_A, M_B, self._lambda2, self._g1, self._d)
+    col_L = combine_colors(self._colors_a, self._colors1, self._colors3, self._colors4)
+    col_R = -combine_colors(self._colors_a, self._colors5, self._colors4, self._colors6)
+    M_A, self._lambda2, M_B, self._colors2 = update_first_neighbor(M_A, M_B, self._lambda2, self._g1, self._d,
+          col_L=col_L, col_R=col_R, col_bond=self._colors2, col_d=self._colors_p)
 
     M_A = M_A.reshape(self._a, self._D1, self._D3, self._D4, self._d, self._D2)
     self._gammaA = np.einsum('audlpr,u,d,l->paurdl', M_A, self._lambda1**-1, self._lambda3**-1, self._lambda4**-1)
@@ -383,7 +453,10 @@ class SimpleUpdateABCD(object):
     M_C = np.einsum('paurdl,r,d,l->upardl', self._gammaC, self._lambda7, self._lambda1,
                     self._lambda8).reshape(self._D3*self._d, self._a*self._D7*self._D1*self._D8)
 
-    M_A, self._lambda3, M_B = update_first_neighbor(M_A, M_C, self._lambda3, self._g1, self._d)
+    col_L = combine_colors(self._colors_a, self._colors1, self._colors2, self._colors4)
+    col_R = -combine_colors(self._colors_a, self._colors7, self._colors1, self._colors8)
+    M_A, self._lambda3, M_B, self._colors3 = update_first_neighbor(M_A, M_C, self._lambda3, self._g1, self._d,
+         col_L=col_L, col_R=col_R, col_bond=self._colors3, col_d=self._colors_p)
 
     M_A = M_A.reshape(self._a, self._D1, self._D2, self._D4, self._d, self._D3)
     self._gammaA = np.einsum('aurlpd,u,r,l->paurdl', M_A, self._lambda1**-1, self._lambda2**-1, self._lambda4**-1)
@@ -405,7 +478,10 @@ class SimpleUpdateABCD(object):
     M_B = np.einsum('paurdl,u,d,l->rpaudl', self._gammaB, self._lambda5, self._lambda6,
                     self._lambda2).reshape(self._D4*self._d, self._a*self._D5*self._D6*self._D2)
 
-    M_A, self._lambda4, M_B = update_first_neighbor(M_A, M_B, self._lambda4, self._g1, self._d)
+    col_L = combine_colors(self._colors_a, self._colors1, self._colors2, self._colors3)
+    col_R = -combine_colors(self._colors_a, self._colors5, self._colors6, self._colors2)
+    M_A, self._lambda4, M_B, self._colors4 = update_first_neighbor(M_A, M_B, self._lambda4, self._g1, self._d,
+             col_L=col_L, col_R=col_R, col_bond=self._colors4, col_d=self._colors_p)
     M_A = M_A.reshape(self._a, self._D1, self._D2, self._D3, self._d, self._D4)
     self._gammaA = np.einsum('aurdpl,u,r,d->paurdl', M_A, self._lambda1**-1, self._lambda2**-1, self._lambda3**-1)
     M_B = M_B.reshape(self._D4, self._d, self._a, self._D5, self._D6, self._D2)
@@ -426,7 +502,11 @@ class SimpleUpdateABCD(object):
     M_D = np.einsum('paurdl,u,r,l->dpaurl', self._gammaD, self._lambda6, self._lambda8,
                     self._lambda7).reshape(self._D5*self._d, self._a*self._D6*self._D8*self._D7)
 
-    M_B, self._lambda5, M_D = update_first_neighbor(M_B, M_D, self._lambda5, self._g1, self._d)
+    col_L = -combine_colors(self._colors_a, self._colors4, self._colors6, self._colors2)
+    col_R = combine_colors(self._colors_a, self._colors6, self._colors8, self._colors7)
+    M_B, self._lambda5, M_D, self._colors5 = update_first_neighbor(M_B, M_D, self._lambda5, self._g1, self._d,
+             col_L=col_L, col_R=col_R, col_bond=self._colors5, col_d=-self._colors_p)
+    self._colors5 *= -1
     M_B = M_B.reshape(self._a, self._D4, self._D6, self._D2, self._d, self._D5)
     self._gammaB = np.einsum('ardlpu,r,d,l->paurdl', M_B, self._lambda4**-1, self._lambda6**-1, self._lambda2**-1)
     M_D = M_D.reshape(self._D5, self._d, self._a, self._D6, self._D8, self._D7)
@@ -447,7 +527,11 @@ class SimpleUpdateABCD(object):
     M_D = np.einsum('paurdl,r,d,l->upardl', self._gammaD, self._lambda8, self._lambda5,
                     self._lambda7).reshape(self._D6*self._d, self._a*self._D8*self._D5*self._D7)
 
-    M_B, self._lambda6, M_D = update_first_neighbor(M_B, M_D, self._lambda6, self._g1, self._d)
+    col_L = -combine_colors(self._colors_a, self._colors5, self._colors4, self._colors2)
+    col_R = combine_colors(self._colors_a, self._colors8, self._colors5, self._colors7)
+    M_B, self._lambda6, M_D, self._colors6 = update_first_neighbor(M_B, M_D, self._lambda6, self._g1, self._d,
+             col_L=col_L, col_R=col_R, col_bond=self._colors6, col_d=-self._colors_p)
+    self._colors6 *= -1
     M_B = M_B.reshape(self._a, self._D5, self._D4, self._D2, self._d, self._D6)
     self._gammaB = np.einsum('aurlpd,u,r,l->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda2**-1)
     M_D = M_D.reshape(self._D6, self._d, self._a, self._D8, self._D5, self._D7)
@@ -468,7 +552,11 @@ class SimpleUpdateABCD(object):
     M_D = np.einsum('paurdl,u,r,d->lpaurd', self._gammaD, self._lambda6, self._lambda8,
                     self._lambda5).reshape(self._D7*self._d, self._a*self._D6*self._D8*self._D5)
 
-    M_C, self._lambda7, M_D = update_first_neighbor(M_C, M_D, self._lambda7, self._g1, self._d)
+    col_L = -combine_colors(self._colors_a, self._colors3, self._colors1, self._colors8)
+    col_R = combine_colors(self._colors_a, self._colors6, self._colors6, self._colors5)
+    M_C, self._lambda7, M_D, self._colors7 = update_first_neighbor(M_C, M_D, self._lambda7, self._g1, self._d,
+             col_L=col_L, col_R=col_R, col_bond=self._colors7, col_d=-self._colors_p)
+    self._colors7 *= -1
     M_C = M_C.reshape(self._a, self._D3, self._D1, self._D8, self._d, self._D7)
     self._gammaC = np.einsum('audlpr,u,d,l->paurdl', M_C, self._lambda3**-1, self._lambda1**-1, self._lambda8**-1)
     M_D = M_D.reshape(self._D7, self._d, self._a, self._D6, self._D8, self._D5)
@@ -489,7 +577,11 @@ class SimpleUpdateABCD(object):
     M_D = np.einsum('paurdl,u,d,l->rpaudl', self._gammaD, self._lambda6, self._lambda5,
                     self._lambda7).reshape(self._D8*self._d, self._a*self._D6*self._D5*self._D7)
 
-    M_C, self._lambda8, M_D = update_first_neighbor(M_C, M_D, self._lambda8, self._g1, self._d)
+    col_L = -combine_colors(self._colors_a, self._colors3, self._colors7, self._colors1)
+    col_R = combine_colors(self._colors_a, self._colors6, self._colors5, self._colors7)
+    M_C, self._lambda8, M_D, self._colors8 = update_first_neighbor(M_C, M_D, self._lambda8, self._g1, self._d,
+             col_L=col_L, col_R=col_R, col_bond=self._colors8, col_d=-self._colors_p)
+    self._colors8 *= -1
     M_C = M_C.reshape(self._a, self._D3, self._D7, self._D1, self._d, self._D8)
     self._gammaC = np.einsum('aurdpl,u,r,d->paurdl', M_C, self._lambda3**-1, self._lambda7**-1, self._lambda1**-1)
     M_D = M_D.reshape(self._D8, self._d, self._a, self._D6, self._D5, self._D7)
