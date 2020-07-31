@@ -1,6 +1,9 @@
 import numpy as np
 import scipy.linalg as lg
 
+# cannot use None as default color since -default_color or default_color[:l]
+# need not to crash.
+default_color = np.array([],dtype=np.int8)
 
 def checkU1(T,colorsT,tol=1e-14):
   """
@@ -12,20 +15,21 @@ def checkU1(T,colorsT,tol=1e-14):
   return True, None, 0
 
 
-def dotU1(a, rc_a, cc_a, b, cc_b):
+def dotU1(a, b, rc_a=default_color, cc_a=default_color, cc_b=default_color):
   """
-  Optimized matrix product for U(1) symmetric matrices.
+  Optimized matrix product for U(1) symmetric matrices. If colors are not
+  provided, revert to standard matmul.
 
   Parameters
   ----------
   a : (m,l) ndarray
     First argument.
+  b : (l,n) ndarray
+    Second argument.
   rc_a : (m,) integer ndarray
     U(1) quantum numbers of a rows.
   cc_a : (l,) integer ndarray
     U(1) quantum numbers of a columns. Must be the opposite of b row colors.
-  b : (l,n) ndarray
-    Second argument.
   cc_b : (n,) integer ndarray
     U(1) quantum numbers of b columns.
 
@@ -34,10 +38,20 @@ def dotU1(a, rc_a, cc_a, b, cc_b):
   output : (m,n) ndarray
     dot product of a and b.
   """
+  # revert to standard matmul if colors are missing
+  if not rc_a.size or not cc_a.size or not cc_b.size:
+    return a @ b
+
   if a.ndim == b.ndim != 2:
     raise ValueError("ndim must be 2 to use dot")
+  if a.shape[0] != rc_a.shape[0]:
+    raise ValueError('a rows and row colors shape mismatch')
+  if a.shape[1] != cc_a.shape[0]:
+    raise ValueError('a columns and column colors shape mismatch')
+  if b.shape[1] != cc_b.shape[0]:
+    raise ValueError('b columns and column colors shape mismatch')
   if a.shape[1] != b.shape[0]:
-    raise ValueError("a col number must be equal to a rows")
+    raise ValueError("shape mismatch between a columns and b rows")
 
   res = np.zeros((a.shape[0], b.shape[1]))
   for c in set(-rc_a).intersection(set(cc_a)).intersection(set(cc_b)):
@@ -50,26 +64,30 @@ def dotU1(a, rc_a, cc_a, b, cc_b):
 
 def combine_colors(*colors):
   """
-  Construct colors of merged tensor legs from every leg colors.
+  Construct colors of merged tensor legs from every leg colors. If input is
+  None, avoid crash and return None
   """
+  if not colors[0].size:
+    return default_color
   combined = colors[0]
   for c in colors[1:]:
     combined = (combined[:,None]+c).ravel()
   return combined
 
 
-def tensordotU1(a, colors_a, ax_a, b, colors_b, ax_b):
+def tensordotU1(a, b, axes, colors_a=default_color, colors_b=default_color):
   """
   Optimized tensor dot product along specified axes for U(1) symmetric tensors.
+  If colors are not provided, revert to numpy tensordot.
 
   Parameters
   ----------
   a,b : ndarray
     tensors to contract.
+  axes : tuple (ax_a, ax_b), where ax_a, ax_b are tuple of integers. Axes
+    to contract for tensors a and b.
   colors_a, colors_b : list of a.ndim and b.ndim integer arrays.
     U(1) quantum numbers of a and b axes.
-  ax_a, ax_b : tuple of integers
-    axes to contract for tensors a and b
 
   Returns
   -------
@@ -77,6 +95,11 @@ def tensordotU1(a, colors_a, ax_a, b, colors_b, ax_b):
     Tensor dot product of a and b.
 
   """
+  # call np.tensordot if colors are not provided
+  if not colors_a.size  or not colors_b.size:
+    return np.tensordot(a,b,axes)
+
+  ax_a, ax_b = axes
   if len(ax_a) != len(ax_b):
     raise ValueError("axes for a and b must match")
   if len(ax_a) > a.ndim:
@@ -127,9 +150,10 @@ def tensordotU1(a, colors_a, ax_a, b, colors_b, ax_b):
   return res
 
 
-def svdU1(M, row_colors, col_colors):
+def svdU1(M, row_colors=default_color, col_colors=default_color):
   """
-  Singular value decomposition for a U(1) symmetric matrix M.
+  Singular value decomposition for a U(1) symmetric matrix M. Revert to
+  standard svd if colors are not provided.
 
   Parameters
   ----------
@@ -154,6 +178,12 @@ def svdU1(M, row_colors, col_colors):
   than min(m,n) values. If k = 0 (no matching color), an error is raised to
   avoid messy zero-length arrays (implies M=0, all singular values are 0)
   """
+
+  # revert to lg.svd if colors are not provided
+  if not row_colors.size or not col_colors.size:
+    U,s,V = lg.svd(M, full_matrices=False)
+    return U,s,V,default_color
+
   if M.ndim != 2:
     raise ValueError("M has to be a matrix")
   if row_colors.shape != (M.shape[0],):
