@@ -141,7 +141,7 @@ def tensordotU1(a, b, axes, colors_a=None, colors_b=None, check=False):
   prod_b = np.prod(dim_free_b)
   sh_bt = dim_contract + dim_free_b
   div_b = np.array([*sh_bt,1])[:0:-1].cumprod()[::-1]
-  cp_b = np.array([*a.shape,1])[:0:-1].cumprod()[::-1][np.array(ax_b+notin_b)]
+  cp_b = np.array([*b.shape,1])[:0:-1].cumprod()[::-1][np.array(ax_b+notin_b)]
 
   res = np.zeros(dim_free_a + dim_free_b)
   for c in set(-rc_a).intersection(set(cc_a)).intersection(set(cc_b)):
