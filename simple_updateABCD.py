@@ -454,8 +454,8 @@ class SimpleUpdateABCD(object):
                     self._lambda8).reshape(self._D3*self._d, self._a*self._D7*self._D1*self._D8)
 
     col_L = combine_colors(self._colors_a, self._colors1, self._colors2, self._colors4)
-    col_R = -combine_colors(self._colors_a, self._colors7, self._colors1, self._colors8)
-    M_A, self._lambda3, M_B, self._colors3 = update_first_neighbor(M_A, M_C, self._lambda3, self._g1, self._d,
+    col_R = combine_colors(self._colors_a, self._colors7, self._colors1, self._colors8)
+    M_A, self._lambda3, M_C, self._colors3 = update_first_neighbor(M_A, M_C, self._lambda3, self._g1, self._d,
          col_L=col_L, col_R=col_R, col_bond=self._colors3, col_d=self._colors_p)
 
     M_A = M_A.reshape(self._a, self._D1, self._D2, self._D4, self._d, self._D3)
