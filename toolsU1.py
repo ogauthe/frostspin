@@ -15,7 +15,7 @@ def checkU1(T,colorsT,tol=1e-14):
   return True, None, 0
 
 
-def dotU1(a, b, rc_a=default_color, cc_a=default_color, cc_b=default_color):
+def dotU1(a, b, rc_a=default_color, cc_a=default_color, cc_b=default_color, check=False):
   """
   Optimized matrix product for U(1) symmetric matrices. If colors are not
   provided, revert to standard matmul.
@@ -40,6 +40,7 @@ def dotU1(a, b, rc_a=default_color, cc_a=default_color, cc_b=default_color):
   """
   # revert to standard matmul if colors are missing
   if not rc_a.size or not cc_a.size or not cc_b.size:
+    print('dotU1 revert to np.__matmul__')
     return a @ b
 
   if a.ndim == b.ndim != 2:
@@ -59,6 +60,8 @@ def dotU1(a, b, rc_a=default_color, cc_a=default_color, cc_b=default_color):
     mid = (cc_a == c).nonzero()[0]
     ci = cc_b == c
     res[ri,ci] = a[ri,mid] @ b[mid[:,None],ci]
+  if check:
+    print(f"dotU1: \033[33m{lg.norm(res-a@b)/lg.norm(res):.1e}\033[0m")
   return res
 
 
@@ -75,7 +78,7 @@ def combine_colors(*colors):
   return combined
 
 
-def tensordotU1(a, b, axes, colors_a=default_color, colors_b=default_color):
+def tensordotU1(a, b, axes, colors_a=None, colors_b=None, check=False):
   """
   Optimized tensor dot product along specified axes for U(1) symmetric tensors.
   If colors are not provided, revert to numpy tensordot.
@@ -96,7 +99,8 @@ def tensordotU1(a, b, axes, colors_a=default_color, colors_b=default_color):
 
   """
   # call np.tensordot if colors are not provided
-  if not colors_a.size  or not colors_b.size:
+  if colors_a is None  or colors_b is None:
+    print('tensordotU1 reverted to np.tensordot')
     return np.tensordot(a,b,axes)
 
   ax_a, ax_b = axes
@@ -147,10 +151,12 @@ def tensordotU1(a, b, axes, colors_a=default_color, colors_b=default_color):
     ind_a = ((ri*prod_a + mid)[:,:,None]//div_a%sh_at) @ cp_a
     ind_b = ((mid[:,None]*prod_b + ci)[:,:,None]//div_b%sh_bt) @ cp_b
     res.flat[ri*prod_b + ci] = a.flat[ind_a] @ b.flat[ind_b]
+  if check:
+    print(f"tensordotU1: \033[33m{lg.norm(res-np.tensordot(a,b,axes))/lg.norm(res):.1e}\033[0m")
   return res
 
 
-def svdU1(M, row_colors=default_color, col_colors=default_color):
+def svdU1(M, row_colors=default_color, col_colors=default_color, check=False):
   """
   Singular value decomposition for a U(1) symmetric matrix M. Revert to
   standard svd if colors are not provided.
@@ -181,6 +187,7 @@ def svdU1(M, row_colors=default_color, col_colors=default_color):
 
   # revert to lg.svd if colors are not provided
   if not row_colors.size or not col_colors.size:
+    print("svdU1 reverted to lg.svd")
     U,s,V = lg.svd(M, full_matrices=False)
     return U,s,V,default_color
 
@@ -233,5 +240,7 @@ def svdU1(M, row_colors=default_color, col_colors=default_color):
   s = s[s_sort]
   V = V[s_sort]
   colors = colors[s_sort]
+  if check:
+    print(f"svdU1: \033[33m{lg.norm(U*s@V-M)/lg.norm(M):.1e}\033[0m")
   return U,s,V,colors
 
