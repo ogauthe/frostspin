@@ -11,8 +11,8 @@ def checkU1(T,colorsT,tol=1e-14):
   """
   for ind in np.array((np.abs(T) > tol).nonzero()).T:
     if sum(colorsT[i][c] for i,c in enumerate(ind)) != 0:
-      return False, ind, T[tuple(ind)]
-  return True, None, 0
+      return ind, T[tuple(ind)]
+  return None, 0
 
 
 def dotU1(a, b, rc_a=default_color, cc_a=default_color, cc_b=default_color, check=False):
