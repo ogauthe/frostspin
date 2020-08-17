@@ -61,7 +61,8 @@ def dotU1(a, b, rc_a=default_color, cc_a=default_color, cc_b=default_color, chec
     ci = cc_b == c
     res[ri,ci] = a[ri,mid] @ b[mid[:,None],ci]
   if check:
-    print(f"dotU1: \033[33m{lg.norm(res-a@b)/lg.norm(res):.1e}\033[0m")
+    ex = a @ b
+    print(f"dotU1: \033[33m{lg.norm(res-ex)/lg.norm(ex):.1e}\033[0m")
   return res
 
 
@@ -150,7 +151,8 @@ def tensordotU1(a, b, ax_a, ax_b, colors_a=None, colors_b=None, check=False):
     ind_b = ((mid[:,None]*prod_b + ci)[:,:,None]//div_b%sh_bt) @ cp_b
     res.flat[ri*prod_b + ci] = a.flat[ind_a] @ b.flat[ind_b]
   if check:
-    print(f"tensordotU1: \033[33m{lg.norm(res-np.tensordot(a,b,axes))/lg.norm(res):.1e}\033[0m")
+    ex = np.tensordot(a,b,(ax_a,ax_b))
+    print(f"tensordotU1: \033[33m{lg.norm(res-ex)/lg.norm(ex):.1e}\033[0m")
   return res
 
 
