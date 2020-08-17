@@ -77,7 +77,7 @@ def combine_colors(*colors):
   return combined
 
 
-def tensordotU1(a, b, axes, colors_a=None, colors_b=None, check=False):
+def tensordotU1(a, b, ax_a, ax_b, colors_a=None, colors_b=None, check=False):
   """
   Optimized tensor dot product along specified axes for U(1) symmetric tensors.
   If colors are not provided, revert to numpy tensordot.
@@ -86,8 +86,8 @@ def tensordotU1(a, b, axes, colors_a=None, colors_b=None, check=False):
   ----------
   a,b : ndarray
     tensors to contract.
-  axes : tuple (ax_a, ax_b), where ax_a, ax_b are tuple of integers. Axes
-    to contract for tensors a and b.
+  ax_a, ax_b : tuple of integers.
+    Axes to contract for tensors a and b.
   colors_a, colors_b : list of a.ndim and b.ndim integer arrays.
     U(1) quantum numbers of a and b axes.
 
@@ -100,9 +100,8 @@ def tensordotU1(a, b, axes, colors_a=None, colors_b=None, check=False):
   # call np.tensordot if colors are not provided
   if colors_a is None  or colors_b is None:
     print('tensordotU1 reverted to np.tensordot')
-    return np.tensordot(a,b,axes)
+    return np.tensordot(a, b, ax_a, ax_b)
 
-  ax_a, ax_b = axes
   if len(ax_a) != len(ax_b):
     raise ValueError("axes for a and b must match")
   if len(ax_a) > a.ndim:
