@@ -67,8 +67,7 @@ def dotU1(a, b, rc_a=default_color, cc_a=default_color, cc_b=default_color, chec
 
 def combine_colors(*colors):
   """
-  Construct colors of merged tensor legs from every leg colors. If input is
-  None, avoid crash and return None
+  Construct colors of merged tensor legs from every leg colors.
   """
   if not colors[0].size:
     return default_color
