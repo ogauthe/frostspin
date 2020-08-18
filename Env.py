@@ -1,4 +1,5 @@
 import numpy as np
+from toolsU1 import default_color, combine_colors
 
 
 def initialize_env(A):
@@ -43,7 +44,7 @@ class Env(object):
      C4-T3-T3-C3
   """
 
-  def __init__(self, tensors, tiling, chi):
+  def __init__(self, tensors, tiling, chi, colors=None):
     """
     tensors: list-like containing tensors.
     tiling: string. Tiling pattern.
@@ -94,6 +95,49 @@ class Env(object):
       self._neq_C4s.append(C4)
       self._neq_T4s.append(T4)
 
+    if colors is not None:
+      if len(colors) != len(tensors):
+        raise ValueError("Colors numbers do not match tensors")
+      self._colors_A = []
+      # more convenient to store separetly row and column colors of corners
+      self._colors_C1_r = []
+      self._colors_C1_c = []
+      self._colors_C2_r = []
+      self._colors_C2_c = []
+      self._colors_C3_r = []
+      self._colors_C3_c = []
+      self._colors_C4_r = []
+      self._colors_C4_c = []
+      for A,colA in zip(tensors,colors):
+        if tuple(len(c) for c in colA) != A.ndim:
+          raise ValueError("Colors do not match tensors")
+        if len(colA) == 5:  # add empty ancila
+          colA = (colA[0],np.zeros(1,dtype=np.int8),*colA[1:])
+        c2 = combine_colors(colA[2],-colA[2])
+        c3 = combine_colors(colA[3],-colA[3])
+        c4 = combine_colors(colA[4],-colA[4])
+        c5 = combine_colors(colA[5],-colA[5])
+        self._colors_A.append(colA)
+        self._colors_C1_r.append(c3)
+        self._colors_C1_c.append(c4)
+        self._colors_C2_r.append(c4)
+        self._colors_C2_c.append(c5)
+        self._colors_C3_r.append(c2)
+        self._colors_C3_c.append(c5)
+        self._colors_C4_r.append(c2)
+        self._colors_C4_c.append(c3)
+      self._colors_A = tuple(self._colors_A)
+    else:
+      self._colors_A = ((default_colors,),)*self._Nneq
+      self._colors_C1_r = [(default_colors,)]*self._Nneq
+      self._colors_C1_c = [(default_colors,)]*self._Nneq
+      self._colors_C2_r = [(default_colors,)]*self._Nneq
+      self._colors_C2_c = [(default_colors,)]*self._Nneq
+      self._colors_C3_r = [(default_colors,)]*self._Nneq
+      self._colors_C3_c = [(default_colors,)]*self._Nneq
+      self._colors_C4_r = [(default_colors,)]*self._Nneq
+      self._colors_C4_c = [(default_colors,)]*self._Nneq
+
     self._reset_projectors_temp()
 
   @property
@@ -123,11 +167,17 @@ class Env(object):
   def get_A(self,x,y):
     return self._neq_As[self._indices[x%self._Lx, y%self._Ly]]
 
+  def get_colors_A(self,x,y):
+    return self._colors_A[self._indices[x%self._Lx, y%self._Ly]]
+
   def get_tensor_type(self,x,y):
     return self._cell[x%self._Lx, y%self._Ly]
 
   def get_C1(self,x,y):
     return self._neq_C1s[self._indices[x%self._Lx,y%self._Ly]]
+
+  def get_colors_C1(self,x,y):
+    return self._colors_C1[self._indices[x%self._Lx, y%self._Ly]]
 
   def get_T1(self,x,y):
     return self._neq_T1s[self._indices[x%self._Lx,y%self._Ly]]
@@ -135,11 +185,17 @@ class Env(object):
   def get_C2(self,x,y):
     return self._neq_C2s[self._indices[x%self._Lx, y%self._Ly]]
 
+  def get_colors_C2(self,x,y):
+    return self._colors_C2[self._indices[x%self._Lx, y%self._Ly]]
+
   def get_T2(self,x,y):
     return self._neq_T2s[self._indices[x%self._Lx,y%self._Ly]]
 
   def get_C3(self,x,y):
     return self._neq_C3s[self._indices[x%self._Lx,y%self._Ly]]
+
+  def get_colors_C3(self,x,y):
+    return self._colors_C3[self._indices[x%self._Lx, y%self._Ly]]
 
   def get_T3(self,x,y):
     return self._neq_T3s[self._indices[x%self._Lx,y%self._Ly]]
@@ -147,26 +203,40 @@ class Env(object):
   def get_C4(self,x,y):
     return self._neq_C4s[self._indices[x%self._Lx,y%self._Ly]]
 
+  def get_colors_C4(self,x,y):
+    return self._colors_C4[self._indices[x%self._Lx, y%self._Ly]]
+
   def get_T4(self,x,y):
     return self._neq_T4s[self._indices[x%self._Lx,y%self._Ly]]
 
   def get_P(self,x,y):
     return self._neq_P[self._indices[x%self._Lx,y%self._Ly]]
 
+  def get_color_P(self,x,y):
+    return self._colors_P[self._indices[x%self._Lx,y%self._Ly]]
+
   def get_Pt(self,x,y):
     return self._neq_Pt[self._indices[x%self._Lx,y%self._Ly]]
 
+  def get_color_Pt(self,x,y):
+    return self._colors_Pt[self._indices[x%self._Lx,y%self._Ly]]
+
   def _reset_projectors_temp(self):
+    # free projectors memory, other arrays are stored anyway. Is it worth it?
     self._neq_P = [None]*self._Nneq
     self._neq_Pt = [None]*self._Nneq
     self._nCX = [None]*self._Nneq
     self._nT = [None]*self._Nneq
     self._nCY = [None]*self._Nneq
+    self._colors_P = [None]*self._Nneq
+    self._colors_Pt = [None]*self._Nneq
 
-  def store_projectors(self,x,y,P,Pt):
+  def store_projectors(self,x,y,P,Pt,color_P=default_color,color_Pt=default_color):
     j = self._indices[x%self._Lx, y%self._Ly]
     self._neq_P[j] = P
     self._neq_Pt[j] = Pt
+    self._colors_P[j] = color_P
+    self._colors_Pt[j] = color_Pt
 
   def store_renormalized_tensors(self,x,y,nCX,nT,nCY):
     j = self._indices[x%self._Lx, y%self._Ly]
@@ -178,22 +248,30 @@ class Env(object):
     self._neq_C1s = self._nCX
     self._neq_T1s = self._nT
     self._neq_C2s = self._nCY
+    self._colors_C1_r = self._colors_P
+    self._colors_C2_c = self._colors_Pt
     self._reset_projectors_temp()
 
   def fix_renormalized_right(self):
     self._neq_C2s = self._nCX
     self._neq_T2s = self._nT
     self._neq_C3s = self._nCY
+    self._colors_C2_r = self._colors_P
+    self._colors_C3_c = self._colors_Pt
     self._reset_projectors_temp()
 
   def fix_renormalized_down(self):
     self._neq_C3s = self._nCX
     self._neq_T3s = self._nT
     self._neq_C4s = self._nCY
+    self._colors_C3_r = self._colors_P
+    self._colors_C4_c = self._colors_Pt
     self._reset_projectors_temp()
 
   def fix_renormalized_left(self):
     self._neq_C4s = self._nCX
     self._neq_T4s = self._nT
     self._neq_C1s = self._nCY
+    self._colors_C4_r = self._colors_P
+    self._colors_C1_c = self._colors_Pt
     self._reset_projectors_temp()
