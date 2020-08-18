@@ -65,6 +65,7 @@ tRVB2[1,2,2,2,1] = 1.
 
 gen2 = construct_genSU2_s(1/2)
 cconj2 = np.rint(lg.expm(-1j*np.pi*gen2[1]).real)  # SU(2) charge conjugation = pi-rotation over y
+SdS_22 = np.tensordot(gen2, gen2, (0,0)).real.swapaxes(1,2).reshape(4,4)
 SdS_22b = np.tensordot(gen2, -gen2.conj(), (0,0)).real.swapaxes(1,2).reshape(4,4)
 
 
