@@ -42,7 +42,8 @@ def dotU1(a, b, rc_a=default_color, cc_a=default_color, cc_b=default_color, chec
   """
   # revert to standard matmul if colors are missing
   if not rc_a.size or not cc_a.size or not cc_b.size:
-    print('dotU1 revert to np.__matmul__')
+    if check:
+      print('dotU1 revert to np.__matmul__')
     return a @ b
 
   if a.ndim == b.ndim != 2:
@@ -103,9 +104,10 @@ def tensordotU1(a, b, ax_a, ax_b, colors_a=None, colors_b=None, check=False):
 
   """
   # call np.tensordot if colors are not provided
-  if colors_a is None  or colors_b is None:
-    print('tensordotU1 reverted to np.tensordot')
-    return np.tensordot(a, b, ax_a, ax_b)
+  if colors_a is None or colors_b is None or not colors_a[0].size or not colors_b[0].size:
+    if check:
+      print('tensordotU1 reverted to np.tensordot')
+    return np.tensordot(a, b, (ax_a, ax_b))
 
   if len(ax_a) != len(ax_b):
     raise ValueError("axes for a and b must match")
@@ -193,7 +195,8 @@ def svdU1(M, row_colors=default_color, col_colors=default_color, check=False):
 
   # revert to lg.svd if colors are not provided
   if not row_colors.size or not col_colors.size:
-    print("svdU1 reverted to lg.svd")
+    if check:
+      print("svdU1 reverted to lg.svd")
     U,s,V = lg.svd(M, full_matrices=False)
     return U,s,V,default_color
 
