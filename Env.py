@@ -123,9 +123,6 @@ class Env(object):
   def get_A(self,x,y):
     return self._neq_As[self._indices[x%self._Lx, y%self._Ly]]
 
-  def get_a(self,x,y):
-    return self._neq_as[self._indices[x%self._Lx, y%self._Ly]]
-
   def get_tensor_type(self,x,y):
     return self._cell[x%self._Lx, y%self._Ly]
 
