@@ -2,9 +2,9 @@
 
 import numpy as np
 import scipy.linalg as lg
-from simple_updateAB import SimpleUpdateAB
+from time import time
 from simple_updateABCD import SimpleUpdateABCD
-from test_tools import SdS_22b, cconj2
+from test_tools import SdS_22, SdS_22b
 from CTMRG import CTMRG
 from toolsU1 import checkU1, combine_colors
 
@@ -20,7 +20,7 @@ Ds = (D,)*8
 print(f'run simple update with d = {d}, a = {a}, Ds = {Ds}')
 
 beta = 1
-tau = 0.001
+tau = 0.01
 su_iter = int(beta/2/tau)  # rho is quadratic in psi
 
 # zero singular values lead to divide by zero when removing weights
@@ -33,7 +33,6 @@ p22_3333.flat[[89,95,103,105,115,119,123,127,137,139,147,153,170,176,184,186,
 
 A = np.zeros((d,a,D,D,D,D))
 A[:,:,:3,:3,:3,:3] = p22_3333
-#B = np.tensordot(cconj2,A,((1,),(0,)))   # rotation on B sites
 B = A.copy()
 C = B.copy()
 D = A.copy()
@@ -47,75 +46,30 @@ D = A.copy()
 pcol = np.array([1,-1],dtype=np.int8)
 vcol = np.array([2,0,-2,0,0],dtype=np.int8)
 colors = [pcol,pcol,vcol,vcol,vcol,vcol,vcol,vcol,vcol,vcol]
-#su = SimpleUpdateABCD(d,a,Ds,SdS_22b, np.zeros((4,4)), tau, tensors=(A,B,C,D), verbosity=10)
 print(checkU1(A,[pcol,pcol,vcol,vcol,vcol,vcol]))
 print(checkU1(B,[-pcol,-pcol,-vcol,-vcol,-vcol,-vcol]))
 print(checkU1(SdS_22b,[combine_colors(pcol,-pcol),-combine_colors(pcol,-pcol)]))
-#print(checkU1(B,[pcol,-pcol,-vcol,-vcol,-vcol,-vcol]))
-su = SimpleUpdateABCD(d,a,Ds,SdS_22b, np.zeros((4,4)), tau, tensors=(A,B,C,D), colors=colors, verbosity=10)
+#su = SimpleUpdateABCD(d,a,Ds,SdS_22b, SdS_22, tau, tensors=(A,B,C,D), colors=colors, verbosity=10)
 
-print("#"*79)
-su.update_bond1()
-su.update_bond2()
-su.update_bond3()
-su.update_bond4()
-su.update_bond5()
-su.update_bond6()
-su.update_bond7()
-su.update_bond8()
-print("#"*79)
-su.update_bond8()
-su.update_bond7()
-su.update_bond6()
-su.update_bond5()
-su.update_bond4()
-su.update_bond3()
-su.update_bond2()
-su.update_bond1()
-print("#"*79)
-su.update_bond1()
-su.update_bond2()
-su.update_bond3()
-su.update_bond4()
-su.update_bond5()
-su.update_bond6()
-su.update_bond7()
-su.update_bond8()
-print("#"*79)
-su.update_bond8()
-su.update_bond7()
-su.update_bond6()
-su.update_bond5()
-su.update_bond4()
-su.update_bond3()
-su.update_bond2()
-su.update_bond1()
+print(f'color SU, 100 iter, tau = {tau}')
+t = time()
+su1 = SimpleUpdateABCD(d,a,Ds,SdS_22b, SdS_22, tau, tensors=(A,B,C,D), colors=colors)
+for i in range(100):
+  su1.update()
+print(f"done, time = {time()-t}")
 
-"""
+print("no color")
+t = time()
+su2 = SimpleUpdateABCD(d,a,Ds,SdS_22b, SdS_22, tau, tensors=(A,B,C,D))
+for i in range(100):
+  su2.update()
+print(f"done, time = {time()-t}")
+print("#"*79)
 print("Run simple update for spin 1/2 Heisenberg with J1=1, J2=0")
 print(f"run with tau = {tau} up to beta = {beta}")
-
-#for i in range(su_iter//2): # 2nd order Trotter
-for i in range(5): # 1st order
-  print("iter", i)
-  su.update_bond1()
-  su.update_bond2()
-  su.update_bond3()
-  su.update_bond4()
-  su.update_bond5()
-  su.update_bond6()
-  su.update_bond7()
-  su.update_bond8()
-
-  su.update_bond8()
-  su.update_bond7()
-  su.update_bond6()
-  su.update_bond5()
-  su.update_bond4()
-  su.update_bond3()
-  su.update_bond2()
-  su.update_bond1()
-
+"""
+for i in range(su_iter//2): # 2nd order Trotter
+  su.update()
 print(f"\ndone with SU. Converge CTMRG with chi = {chi} and niter = {ctm_iter}")
 ctm = CTMRG(su.get_ABCD(),tiling,chi,verbosity=0)
 rdmD = ctm.compute_rdm1x1(0,0)
@@ -154,41 +108,5 @@ eps = 0.5*np.trace(su.h1 @ (rdmAB + rdmAC + rdmBA + rdmCA))
 print(f"epsilon = {eps}")
 
 
-su.update_bonds25() # through B
-su.update_bonds17() # through C
-su.update_bonds26() # through B
-su.update_bonds37() # through C
-su.update_bonds46() # through B
-su.update_bonds38() # through C
-su.update_bonds45() # through B
-su.update_bonds18() # through C
-
-su.update_bonds41() # through A
-su.update_bonds58() # through D
-su.update_bonds43() # through A
-su.update_bonds68() # through D
-su.update_bonds23() # through A
-su.update_bonds67() # through D
-su.update_bonds21() # through A
-su.update_bonds57() # through D
-
-su.update_bonds57() # through D
-su.update_bonds21() # through A
-su.update_bonds67() # through D
-su.update_bonds23() # through A
-su.update_bonds68() # through D
-su.update_bonds43() # through A
-su.update_bonds58() # through D
-su.update_bonds41() # through A
-
-su.update_bonds18() # through C
-su.update_bonds45() # through B
-su.update_bonds38() # through C
-su.update_bonds46() # through B
-su.update_bonds37() # through C
-su.update_bonds26() # through B
-su.update_bonds17() # through C
-su.update_bonds25() # through B
 print("done")
-
 """
