@@ -108,9 +108,9 @@ def update_second_neighbor(M0_L, M0_mid, M0_R, lambda_L, lambda_R, gate, d,
   #          \----------- gate ----------/
   theta = dotU1(eff_L, eff_m, combine_colors(col_sL,col_d), col_bL, -combine_colors(col_bR,col_sm))
   theta = theta.reshape(D_effL, d, D_R, D_effm)
-  col_th = [col_sL, col_d, -col_bR, -col_sm]
+  col_th = (col_sL, col_d, -col_bR, -col_sm)
   col_gate = combine_colors(col_d, col_d)  # same sublattice
-  theta = tensordotU1(theta, eff_R, (2,), (0,), col_th, [col_bR, col_d, col_sR])
+  theta = tensordotU1(theta, eff_R, (2,), (0,), col_th, (col_bR, col_d, col_sR))
   theta = theta.transpose(0,2,4,1,3).reshape(D_effL*D_effm*D_effR, d**2)
   col_th = combine_colors(col_sL, -col_sm, col_sR)
   theta = dotU1(theta, gate, col_th, col_gate, col_gate).reshape(D_effL, D_effm, D_effR, d, d)
