@@ -32,6 +32,8 @@ def dotU1(a, b, rc_a=default_color, cc_a=default_color, cc_b=default_color, chec
     U(1) quantum numbers of a columns. Must be the opposite of b row colors.
   cc_b : (n,) integer ndarray
     U(1) quantum numbers of b columns.
+  check : bool (debug only)
+    Wether to check results by displaying norm(dotU1-np.dot)/norm(dot).
 
   Returns
   -------
@@ -91,6 +93,8 @@ def tensordotU1(a, b, ax_a, ax_b, colors_a=None, colors_b=None, check=False):
     Axes to contract for tensors a and b.
   colors_a, colors_b : list of a.ndim and b.ndim integer arrays.
     U(1) quantum numbers of a and b axes.
+  check : bool (debug only)
+    Wether to check results by displaying norm(tensordotU1-np.tensordot)
 
   Returns
   -------
@@ -169,6 +173,8 @@ def svdU1(M, row_colors=default_color, col_colors=default_color, check=False):
     U(1) quantum numbers of the rows.
   col_colors : (n,) integer ndarray
     U(1) quantum numbers of the columns.
+  check : bool (debug only)
+    Wether to check results by display norm(U@s@V-M)/norm(s)
 
   Returns
   -------
