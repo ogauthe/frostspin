@@ -21,15 +21,13 @@ def update_first_neighbor(M0_L, M0_R, lambda0, gate, d, col_L=default_color,
   #     -L-    -> -W==ML-
   #      |\        |   \
   D = lambda0.shape[0]
-  W_L, sL, M_L, col_sL = svdU1(M0_L, col_L, -combine_colors(col_d, col_bond), check=True)
-  #print(1,checkU1(M_L,[col_sL,combine_colors(col_d, col_bond)]))
+  W_L, sL, M_L, col_sL = svdU1(M0_L, col_L, -combine_colors(col_d, col_bond))
   D_effL = sL.shape[0]
   M_L *= sL[:,None]
   #     \|            \|
   #     -R-    -> -MR==W-
   #      |\        /   |
-  M_R, sR, W_R, col_sR = svdU1(M0_R, combine_colors(-col_bond, -col_d), col_R, check=True)
-  #print(2,checkU1(M_R,[combine_colors(-col_bond, -col_d), -col_sR]))
+  M_R, sR, W_R, col_sR = svdU1(M0_R, combine_colors(-col_bond, -col_d), col_R)
   D_effR = sR.shape[0]
   M_R *= sR
 
@@ -42,18 +40,13 @@ def update_first_neighbor(M0_L, M0_R, lambda0, gate, d, col_L=default_color,
   row_col = combine_colors(col_sL, col_d)
   col_gate = combine_colors(-col_d, col_d)  # opposite sublattice
   theta = M_L.reshape(D_effL*d, D)*lambda0
-  #print(3,checkU1(theta,[row_col, col_bond]))
-  #print(4,checkU1(M_R.reshape(D, d*D_effR),[-col_bond, combine_colors(-col_d,-col_sR)]))
-  theta = dotU1(theta, M_R.reshape(D, d*D_effR), row_col, col_bond, combine_colors(-col_d,-col_sR), check=True)
-  #print(5,checkU1(theta,[row_col, combine_colors(-col_d,-col_sR)]))
-  #print(6,checkU1(gate,[-col_gate,col_gate]))
+  theta = dotU1(theta, M_R.reshape(D, d*D_effR), row_col, col_bond, combine_colors(-col_d,-col_sR))
   theta = theta.reshape(D_effL, d, d, D_effR).transpose(0,3,1,2).reshape(D_effL*D_effR, d**2)
-  #print(7,checkU1(theta,[combine_colors(col_sL, -col_sR), combine_colors(col_d,-col_d)]))
-  theta = dotU1(theta, gate, combine_colors(col_sL,-col_sR), -col_gate, -col_gate, check=True)
+  theta = dotU1(theta, gate, combine_colors(col_sL,-col_sR), -col_gate, -col_gate)
 
   # 3) cut theta with SVD
   theta = theta.reshape(D_effL, D_effR, d, d).swapaxes(1,2).reshape(D_effL*d, D_effR*d)
-  M_L, new_lambda, M_R, new_col_lambda = svdU1(theta,row_col,-combine_colors(-col_sR,-col_d), check=True)
+  M_L, new_lambda, M_R, new_col_lambda = svdU1(theta,row_col,-combine_colors(-col_sR,-col_d))
 
   # 4) renormalize link dimension
   new_lambda = new_lambda[:D]
@@ -62,9 +55,9 @@ def update_first_neighbor(M0_L, M0_R, lambda0, gate, d, col_L=default_color,
 
   # 5) start reconstruction of new gammaX and gammaY by unifying cst and eff parts
   M_L = M_L[:,:D].reshape(D_effL, d*D)
-  M_L = dotU1(W_L, M_L, col_L, -col_sL, combine_colors(col_d,new_col_lambda), check=True)
+  M_L = dotU1(W_L, M_L, col_L, -col_sL, combine_colors(col_d,new_col_lambda))
   M_R = M_R[:D].reshape(D, D_effR, d).swapaxes(1,2).reshape(D*d, D_effR)
-  M_R = dotU1(M_R, W_R, combine_colors(-new_col_lambda,-col_d), -col_sR, -col_R, check=True)
+  M_R = dotU1(M_R, W_R, combine_colors(-new_col_lambda,-col_d), -col_sR, -col_R)
   return M_L, new_lambda, M_R, new_col_lambda
 
 
@@ -89,8 +82,7 @@ def update_second_neighbor(M0_L, M0_mid, M0_R, lambda_L, lambda_R, gate, d,
   #     \|        \|
   #     -L-    -> -cstL==effL-lambda_L- (D_L)
   #      |\        |       \
-  cst_L, s_L, eff_L, col_sL = svdU1(M0_L, col_L, -combine_colors(col_d, col_bL), check=True)
-  #print(1,checkU1(eff_L,[col_sL,combine_colors(col_d, col_bL)]))
+  cst_L, s_L, eff_L, col_sL = svdU1(M0_L, col_L, -combine_colors(col_d, col_bL))
   D_effL = s_L.shape[0]
   eff_L = (s_L[:,None]*eff_L).reshape(D_effL*d, D_L)*lambda_L  # add lambda
   #                       \|/|
@@ -98,16 +90,14 @@ def update_second_neighbor(M0_L, M0_mid, M0_R, lambda_L, lambda_R, gate, d,
   #     \|                 ||
   #     -M-   ->  (D_L) - effM - (D_R)
   #      |\
-  eff_m, s_m, cst_m, col_sm = svdU1(M0_mid, -combine_colors(col_bL,col_bR), col_mid, check=True)
-  #print(2,checkU1(eff_m,[-combine_colors(col_bL,col_bR), -col_sm]))
+  eff_m, s_m, cst_m, col_sm = svdU1(M0_mid, -combine_colors(col_bL,col_bR), col_mid)
   D_effm = s_m.shape[0]
   eff_m = (eff_m*s_m).reshape(D_L, D_R*D_effm)
   #     \|                              \|
   #     -R-   ->  (D_R)  lambda_R-effR==cstR
   #      |\                              |\
   col_effR = combine_colors(col_bR, col_d)
-  eff_R, s_R, cst_R, col_sR = svdU1(M0_R, -col_effR, col_R, check=True)
-  #print(3,checkU1(eff_R,[-col_effR, -col_sR]))
+  eff_R, s_R, cst_R, col_sR = svdU1(M0_R, -col_effR, col_R)
   D_effR = s_R.shape[0]
   eff_R = (eff_R*s_R).reshape(D_R, d, D_effR)*lambda_R[:,None,None]
 
@@ -116,25 +106,18 @@ def update_second_neighbor(M0_L, M0_mid, M0_R, lambda_L, lambda_R, gate, d,
   #    =effL-lambdaL -- eff_mid -- lambdaR-effR=
   #         \                             /
   #          \----------- gate ----------/
-  #print(4,checkU1(eff_L,[combine_colors(col_sL,col_d), col_bL]))
-  #print(5,checkU1(eff_m,[-col_bL,-combine_colors(col_bR,col_sm)]))
-  theta = dotU1(eff_L, eff_m, combine_colors(col_sL,col_d), col_bL, -combine_colors(col_bR,col_sm), check=True)
+  theta = dotU1(eff_L, eff_m, combine_colors(col_sL,col_d), col_bL, -combine_colors(col_bR,col_sm))
   theta = theta.reshape(D_effL, d, D_R, D_effm)
   col_th = [col_sL, col_d, -col_bR, -col_sm]
-  #print(6,checkU1(theta,col_th))
   col_gate = combine_colors(col_d, col_d)  # same sublattice
-  #print(7,checkU1(gate,[col_gate, -col_gate]))
-  #print(8,checkU1(eff_R,[col_bR, col_d, col_sR]))
-  theta = tensordotU1(theta, eff_R, (2,), (0,), col_th, [col_bR, col_d, col_sR], check=True)
+  theta = tensordotU1(theta, eff_R, (2,), (0,), col_th, [col_bR, col_d, col_sR])
   theta = theta.transpose(0,2,4,1,3).reshape(D_effL*D_effm*D_effR, d**2)
-  #print(9,checkU1(theta,[combine_colors(col_sL, -col_sm,col_sR), col_gate]))
   col_th = combine_colors(col_sL, -col_sm, col_sR)
-  theta = dotU1(theta, gate, col_th, col_gate, col_gate, check=True).reshape(D_effL, D_effm, D_effR, d, d)
+  theta = dotU1(theta, gate, col_th, col_gate, col_gate).reshape(D_effL, D_effm, D_effR, d, d)
   theta = theta.transpose(0,3,1,2,4).reshape(D_effL*d, D_effm*D_effR*d)
-  #print(10,checkU1(theta,[combine_colors(col_sL, col_d), combine_colors(-col_sm,col_sR,col_d)]))
 
   # first SVD: cut left part
-  new_L, new_lambda_L, theta, col_nbL = svdU1(theta, combine_colors(col_sL, col_d), -combine_colors(-col_sm, col_sR, col_d), check=True)
+  new_L, new_lambda_L, theta, col_nbL = svdU1(theta, combine_colors(col_sL, col_d), -combine_colors(-col_sm, col_sR, col_d))
   new_L = new_L[:,:D_L].reshape(D_effL, d*D_L)
   new_lambda_L = new_lambda_L[:D_L]
   new_lambda_L /= new_lambda_L.sum()
@@ -143,7 +126,7 @@ def update_second_neighbor(M0_L, M0_mid, M0_R, lambda_L, lambda_R, gate, d,
   # second SVD: split middle and right parts
   theta = (new_lambda_L[:,None]*theta[:D_L]).reshape(D_L*D_effm, D_effR*d)
   col_th = combine_colors(col_nbL,-col_sm)
-  new_mid, new_lambda_R, new_R, col_nbR = svdU1(theta, col_th, -combine_colors(col_sR,col_d), check=True)
+  new_mid, new_lambda_R, new_R, col_nbR = svdU1(theta, col_th, -combine_colors(col_sR,col_d))
   new_mid = new_mid[:,:D_R].reshape(D_L, D_effm, D_R)
   new_R = new_R[:D_R].reshape(D_R, D_effR, d)
   new_lambda_R = new_lambda_R[:D_R]
@@ -151,17 +134,11 @@ def update_second_neighbor(M0_L, M0_mid, M0_R, lambda_L, lambda_R, gate, d,
   col_nbR = col_nbR[:D_R]
 
   # bring back constant parts
-  #print(11,checkU1(cst_L,[col_L,-col_sL]))
-  #print(12,checkU1(new_L,[col_sL,combine_colors(col_d,-col_nbL)]))
-  new_L = dotU1(cst_L, new_L, col_L, -col_sL, combine_colors(col_d,-col_nbL), check=True)
+  new_L = dotU1(cst_L, new_L, col_L, -col_sL, combine_colors(col_d,-col_nbL))
   new_mid = new_mid.swapaxes(1,2).reshape(D_L*D_R, D_effm)
-  #print(13,checkU1(new_mid,[combine_colors(col_nbL, -col_nbR), -col_sm]))
-  #print(14,checkU1(cst_m,[col_sm,-col_mid]))
-  new_mid = dotU1(new_mid, cst_m, combine_colors(col_nbL, -col_nbR), -col_sm, -col_mid, check=True)
+  new_mid = dotU1(new_mid, cst_m, combine_colors(col_nbL, -col_nbR), -col_sm, -col_mid)
   new_R = new_R.swapaxes(1,2).reshape(D_R*d, D_effR)
-  #print(15,checkU1(new_R,[combine_colors(col_nbR, col_d), col_sR]))
-  #print(16,checkU1(cst_R,[-col_sR,col_R]))
-  new_R = dotU1(new_R, cst_R, combine_colors(col_nbR, col_d), col_sR, col_R, check=True)
+  new_R = dotU1(new_R, cst_R, combine_colors(col_nbR, col_d), col_sR, col_R)
 
   return new_L, new_mid, new_R, new_lambda_L, new_lambda_R, -col_nbL, col_nbR
 
