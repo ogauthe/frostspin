@@ -109,7 +109,7 @@ class Env(object):
       self._colors_C4_r = []
       self._colors_C4_c = []
       for A,colA in zip(tensors,colors):
-        if tuple(len(c) for c in colA) != A.ndim:
+        if tuple(len(c) for c in colA) != A.shape:
           raise ValueError("Colors do not match tensors")
         if len(colA) == 5:  # add empty ancila
           colA = (colA[0],np.zeros(1,dtype=np.int8),*colA[1:])
