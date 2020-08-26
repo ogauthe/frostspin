@@ -128,7 +128,7 @@ class Env(object):
         self._colors_C4_r.append(c3)
       self._colors_A = tuple(self._colors_A)
     else:
-      self._colors_A = ((default_color,)*6)*self._Nneq
+      self._colors_A = ((default_color,)*6,)*self._Nneq
       self._colors_C1_r = [default_color]*self._Nneq
       self._colors_C1_d = [default_color]*self._Nneq
       self._colors_C2_d = [default_color]*self._Nneq
@@ -185,6 +185,15 @@ class Env(object):
   def get_T1(self,x,y):
     return self._neq_T1s[self._indices[x%self._Lx,y%self._Ly]]
 
+  def get_color_T1_r(self,x,y):
+    return -self._colors_C2_l[self._indices[(x+1)%self._Lx, y%self._Ly]]
+
+  def get_color_T1_d(self,x,y):
+    return -self._colors_A[self._indices[x%self._Lx, (y-1)%self._Ly]][2]
+
+  def get_color_T1_l(self,x,y):
+    return -self._colors_C1_r[self._indices[(x-1)%self._Lx, y%self._Ly]]
+
   def get_C2(self,x,y):
     return self._neq_C2s[self._indices[x%self._Lx,y%self._Ly]]
 
@@ -196,6 +205,15 @@ class Env(object):
 
   def get_T2(self,x,y):
     return self._neq_T2s[self._indices[x%self._Lx,y%self._Ly]]
+
+  def get_color_T2_u(self,x,y):
+    return -self._colors_C2_d[self._indices[x%self._Lx, (y+1)%self._Ly]]
+
+  def get_color_T2_d(self,x,y):
+    return -self._colors_C3_u[self._indices[x%self._Lx, (y-1)%self._Ly]]
+
+  def get_color_T2_l(self,x,y):
+    return -self._colors_A[self._indices[(x-1)%self._Lx, y%self._Ly]][3]
 
   def get_C3(self,x,y):
     return self._neq_C3s[self._indices[x%self._Lx,y%self._Ly]]
@@ -209,6 +227,15 @@ class Env(object):
   def get_T3(self,x,y):
     return self._neq_T3s[self._indices[x%self._Lx,y%self._Ly]]
 
+  def get_color_T3_u(self,x,y):
+    return -self._colors_A[self._indices[x%self._Lx, (y+1)%self._Ly]][4]
+
+  def get_color_T3_r(self,x,y):
+    return -self._colors_C3_l[self._indices[(x+1)%self._Lx, y%self._Ly]]
+
+  def get_color_T3_l(self,x,y):
+    return -self._colors_C4_r[self._indices[(x-1)%self._Lx, y%self._Ly]]
+
   def get_C4(self,x,y):
     return self._neq_C4s[self._indices[x%self._Lx,y%self._Ly]]
 
@@ -220,6 +247,15 @@ class Env(object):
 
   def get_T4(self,x,y):
     return self._neq_T4s[self._indices[x%self._Lx,y%self._Ly]]
+
+  def get_color_T4_u(self,x,y):
+    return -self._colors_C1_d[self._indices[x%self._Lx, (y+1)%self._Ly]]
+
+  def get_color_T4_r(self,x,y):
+    return -self._colors_A[self._indices[(x+1)%self._Lx, y%self._Ly]][5]
+
+  def get_color_T4_d(self,x,y):
+    return -self._colors_C4_u[self._indices[x%self._Lx, (y-1)%self._Ly]]
 
   def get_P(self,x,y):
     return self._neq_P[self._indices[x%self._Lx,y%self._Ly]]
@@ -243,12 +279,12 @@ class Env(object):
     self._colors_P = [None]*self._Nneq
     self._colors_Pt = [None]*self._Nneq
 
-  def store_projectors(self,x,y,P,Pt,color_P=default_color,color_Pt=default_color):
+  def store_projectors(self,x,y,P,Pt,color_P=default_color):
     j = self._indices[x%self._Lx, y%self._Ly]
     self._neq_P[j] = P
     self._neq_Pt[j] = Pt
     self._colors_P[j] = color_P
-    self._colors_Pt[j] = color_Pt
+    self._colors_Pt[j] = -color_P  # cannot set sign on list colors_P
 
   def store_renormalized_tensors(self,x,y,nCX,nT,nCY):
     j = self._indices[x%self._Lx, y%self._Ly]
