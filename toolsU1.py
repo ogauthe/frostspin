@@ -40,6 +40,7 @@ def dotU1(a, b, rc_a=default_color, cc_a=default_color, cc_b=default_color, chec
   output : (m,n) ndarray
     dot product of a and b.
   """
+  return np.dot(a,b)
   # revert to standard matmul if colors are missing
   if not rc_a.size or not cc_a.size or not cc_b.size:
     if check:
@@ -103,6 +104,7 @@ def tensordotU1(a, b, ax_a, ax_b, colors_a=None, colors_b=None, check=False):
     Tensor dot product of a and b.
 
   """
+  return np.tensordot(a, b, (ax_a, ax_b))
   # call np.tensordot if colors are not provided
   if colors_a is None or colors_b is None or not colors_a[0].size or not colors_b[0].size:
     if check:
