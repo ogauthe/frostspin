@@ -9,6 +9,8 @@ def checkU1(T,colorsT,tol=1e-14):
   """
   Check tensor has U(1) symmetry up to tolerance
   """
+  if tuple(len(c) for c in colorsT) != T.shape:
+    raise ValueError("Color dimensions do not match tensor")
   for ind in np.array((np.abs(T) > tol).nonzero()).T:
     if sum(colorsT[i][c] for i,c in enumerate(ind)) != 0:
       return ind, T[tuple(ind)]
