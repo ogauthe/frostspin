@@ -1,9 +1,12 @@
 import numpy as np
-from svd_tools import svd_truncate
+from svd_tools import svdU1_truncate
+from toolsU1 import default_color
 
 
-def construct_projectors(R,Rt,chi):
-  U,s,V = svd_truncate(R.T @ Rt, chi)
+def construct_projectors(R,Rt,chi,color=default_color):
+  # row and column colors are the same since contraction can be done on the
+  # 2 other legs of R and Rt
+  U,s,V,col = svdU1_truncate(R.T @ Rt, chi, color, -color)
   s12 = 1/np.sqrt(s)  # s contains no 0
   # convention: projectors have shape (last_chi*D**2,chi)
   # since values of last_chi and D are not known (nor used) here
@@ -14,7 +17,7 @@ def construct_projectors(R,Rt,chi):
   #  1        00'
   Pt = Rt @ V.conj().T*s12
   P = R @ U.conj()*s12
-  return P, Pt
+  return P, Pt, col
 
 ###############################################################################
 # conventions: renormalize_C(C,T,P)

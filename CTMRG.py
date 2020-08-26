@@ -2,6 +2,7 @@ import Env
 import rdm
 from ctm_contract import contract_U_half, contract_L_half, contract_D_half, contract_R_half
 from ctm_renormalize import *
+from toolsU1 import combine_colors
 
 class CTMRG(object):
   # convention: legs and tensors are taken clockwise.
@@ -13,12 +14,12 @@ class CTMRG(object):
   #    |  |  |   |
   #    C4-T3-T3-C3
 
-  def __init__(self,tensors,tiling,chi,verbosity=0):
+  def __init__(self,tensors,tiling,chi,colors=None,verbosity=0):
     self.verbosity = verbosity
     if self.verbosity > 0:
       print(f'initalize CTMRG with chi = {chi}, self.verbosity = {self.verbosity} and tiling = {tiling}')
     self.chi = chi
-    self._env = Env.Env(tensors,tiling,chi)
+    self._env = Env.Env(tensors,tiling,chi,colors)
     self._neq_coords = self._env.neq_coords
     self._Nneq = len(self._neq_coords)
     if self.verbosity > 0:
@@ -80,10 +81,12 @@ class CTMRG(object):
       #        L         R
       #        L         R  => transpose R
       #        L-1     0-R
-      P,Pt = construct_projectors(R.T, Rt, self.chi)
+      col_A_l = self._env.get_colors_A(x+2,y+1)[5]
+      color = combine_colors(self._env.get_color_T1_l(x+2,y), col_A_l, -col_A_l)
+      P, Pt, color = construct_projectors(R.T, Rt, self.chi, color)
       if self.verbosity > 1:
         print(f'constructed projectors: R.shape = {R.shape}, Rt.shape = {Rt.shape}, P.shape = {P.shape}, Pt.shape = {Pt.shape}')
-      self._env.store_projectors(x+2,y,P,Pt)# indices: Pt <=> renormalized T in R
+      self._env.store_projectors(x+2,y,P,Pt,color)# indices: Pt <=> renormalized T in R
       del R, Rt
 
     # 2) renormalize every non-equivalent C1, T1 and C2
@@ -128,10 +131,12 @@ class CTMRG(object):
                            self._env.get_T1(x+2,y),  self._env.get_C2(x+3,y),
                            self._env.get_T4(x,y+1),  self._env.get_A(x+1,y+1),
                            self._env.get_A(x+2,y+1), self._env.get_T2(x+3,y+1))
-      P,Pt = construct_projectors(R.T,Rt,self.chi)
+      col_A_u = self._env.get_colors_A(x+2,y+2)[2]
+      color = combine_colors(self._env.get_color_T2_u(x+3,y+2), col_A_u, -col_A_u)
+      P, Pt, color = construct_projectors(R.T,Rt,self.chi, color)
       if self.verbosity > 1:
         print(f'constructed projectors: R.shape = {R.shape}, Rt.shape = {Rt.shape}, P.shape = {P.shape}, Pt.shape = {Pt.shape}')
-      self._env.store_projectors(x+3,y+2,P,Pt)
+      self._env.store_projectors(x+3, y+2, P, Pt, color)
       del R, Rt
 
     # 2) renormalize tensors by absorbing column
@@ -176,10 +181,12 @@ class CTMRG(object):
                            self._env.get_A(x+2,y+2), self._env.get_T2(x+3,y+2),
                            self._env.get_T3(x+2,y+3),self._env.get_C3(x+3,y+3))
 
-      P,Pt = construct_projectors(R.T,Rt,self.chi)
+      col_A_r = self._env.get_colors_A(x+1,y+2)[3]
+      color = combine_colors(self._env.get_color_T3_r(x+1,y+3), col_A_r, -col_A_r)
+      P, Pt, color = construct_projectors(R.T,Rt,self.chi,color)
       if self.verbosity > 1:
         print(f'constructed projectors: R.shape = {R.shape}, Rt.shape = {Rt.shape}, P.shape = {P.shape}, Pt.shape = {Pt.shape}')
-      self._env.store_projectors(x+1,y+3,P,Pt)
+      self._env.store_projectors(x+3, y+3, P, Pt, color)
       del R, Rt
 
     # 2) renormalize every non-equivalent C3, T3 and C4
@@ -221,10 +228,12 @@ class CTMRG(object):
                           self._env.get_A(x+2,y+2),  self._env.get_T2(x+3,y+2),
                           self._env.get_C4(x,y+3),   self._env.get_T3(x+1,y+3),
                           self._env.get_T3(x+2,y+3), self._env.get_C3(x+3,y+3))
-      P,Pt = construct_projectors(R.T,Rt,self.chi)
+      col_A_d = self._env.get_colors_A(x+1,y+1)[4]
+      color = combine_colors(self._env.get_color_T4_d(x,y+1), col_A_d, -col_A_d)
+      P, Pt, color = construct_projectors(R.T, Rt, self.chi, color)
       if self.verbosity > 1:
         print(f'constructed projectors: R.shape = {R.shape}, Rt.shape = {Rt.shape}, P.shape = {P.shape}, Pt.shape = {Pt.shape}')
-      self._env.store_projectors(x,y+1,P,Pt)
+      self._env.store_projectors(x, y+1, P, Pt, color)
       del R, Rt
 
     # 2) renormalize every non-equivalent C4, T4 and C1
