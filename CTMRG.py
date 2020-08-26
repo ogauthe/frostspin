@@ -1,4 +1,3 @@
-import numpy as np
 import Env
 import rdm
 from ctm_contract import contract_U_half, contract_L_half, contract_D_half, contract_R_half
