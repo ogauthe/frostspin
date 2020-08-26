@@ -315,6 +315,12 @@ class SimpleUpdateABCD(object):
   def h2(self):
     return self._h2
 
+  @property
+  def colors(self):
+    return [self._colors_p, self._colors_a, self._colors1, self._colors2,
+            self._colors3, self._colors4, self._colors5, self._colors6,
+            self._colors7, self._colors8]
+
 
   def get_ABCD(self):
     """
