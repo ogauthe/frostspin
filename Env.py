@@ -101,13 +101,13 @@ class Env(object):
       self._colors_A = []
       # more convenient to store separetly row and column colors of corners
       self._colors_C1_r = []
-      self._colors_C1_c = []
-      self._colors_C2_r = []
-      self._colors_C2_c = []
-      self._colors_C3_r = []
-      self._colors_C3_c = []
+      self._colors_C1_d = []
+      self._colors_C2_d = []
+      self._colors_C2_l = []
+      self._colors_C3_u = []
+      self._colors_C3_l = []
+      self._colors_C4_u = []
       self._colors_C4_r = []
-      self._colors_C4_c = []
       for A,colA in zip(tensors,colors):
         if tuple(len(c) for c in colA) != A.shape:
           raise ValueError("Colors do not match tensors")
@@ -119,24 +119,24 @@ class Env(object):
         c5 = combine_colors(colA[5],-colA[5])
         self._colors_A.append(colA)
         self._colors_C1_r.append(c3)
-        self._colors_C1_c.append(c4)
-        self._colors_C2_r.append(c4)
-        self._colors_C2_c.append(c5)
-        self._colors_C3_r.append(c2)
-        self._colors_C3_c.append(c5)
-        self._colors_C4_r.append(c2)
-        self._colors_C4_c.append(c3)
+        self._colors_C1_d.append(c4)
+        self._colors_C2_d.append(c4)
+        self._colors_C2_l.append(c5)
+        self._colors_C3_u.append(c2)
+        self._colors_C3_l.append(c5)
+        self._colors_C4_u.append(c2)
+        self._colors_C4_r.append(c3)
       self._colors_A = tuple(self._colors_A)
     else:
-      self._colors_A = ((default_colors,),)*self._Nneq
-      self._colors_C1_r = [(default_colors,)]*self._Nneq
-      self._colors_C1_c = [(default_colors,)]*self._Nneq
-      self._colors_C2_r = [(default_colors,)]*self._Nneq
-      self._colors_C2_c = [(default_colors,)]*self._Nneq
-      self._colors_C3_r = [(default_colors,)]*self._Nneq
-      self._colors_C3_c = [(default_colors,)]*self._Nneq
-      self._colors_C4_r = [(default_colors,)]*self._Nneq
-      self._colors_C4_c = [(default_colors,)]*self._Nneq
+      self._colors_A = ((default_color,)*6)*self._Nneq
+      self._colors_C1_r = [default_color]*self._Nneq
+      self._colors_C1_d = [default_color]*self._Nneq
+      self._colors_C2_d = [default_color]*self._Nneq
+      self._colors_C2_l = [default_color]*self._Nneq
+      self._colors_C3_u = [default_color]*self._Nneq
+      self._colors_C3_l = [default_color]*self._Nneq
+      self._colors_C4_u = [default_color]*self._Nneq
+      self._colors_C4_r = [default_color]*self._Nneq
 
     self._reset_projectors_temp()
 
@@ -176,17 +176,23 @@ class Env(object):
   def get_C1(self,x,y):
     return self._neq_C1s[self._indices[x%self._Lx,y%self._Ly]]
 
-  def get_colors_C1(self,x,y):
-    return self._colors_C1[self._indices[x%self._Lx, y%self._Ly]]
+  def get_color_C1_r(self,x,y):
+    return self._colors_C1_r[self._indices[x%self._Lx, y%self._Ly]]
+
+  def get_color_C1_d(self,x,y):
+    return self._colors_C1_d[self._indices[x%self._Lx, y%self._Ly]]
 
   def get_T1(self,x,y):
     return self._neq_T1s[self._indices[x%self._Lx,y%self._Ly]]
 
   def get_C2(self,x,y):
-    return self._neq_C2s[self._indices[x%self._Lx, y%self._Ly]]
+    return self._neq_C2s[self._indices[x%self._Lx,y%self._Ly]]
 
-  def get_colors_C2(self,x,y):
-    return self._colors_C2[self._indices[x%self._Lx, y%self._Ly]]
+  def get_color_C2_d(self,x,y):
+    return self._colors_C2_d[self._indices[x%self._Lx, y%self._Ly]]
+
+  def get_color_C2_l(self,x,y):
+    return self._colors_C2_l[self._indices[x%self._Lx, y%self._Ly]]
 
   def get_T2(self,x,y):
     return self._neq_T2s[self._indices[x%self._Lx,y%self._Ly]]
@@ -194,8 +200,11 @@ class Env(object):
   def get_C3(self,x,y):
     return self._neq_C3s[self._indices[x%self._Lx,y%self._Ly]]
 
-  def get_colors_C3(self,x,y):
-    return self._colors_C3[self._indices[x%self._Lx, y%self._Ly]]
+  def get_color_C3_u(self,x,y):
+    return self._colors_C3_u[self._indices[x%self._Lx, y%self._Ly]]
+
+  def get_color_C3_l(self,x,y):
+    return self._colors_C3_l[self._indices[x%self._Lx, y%self._Ly]]
 
   def get_T3(self,x,y):
     return self._neq_T3s[self._indices[x%self._Lx,y%self._Ly]]
@@ -203,8 +212,11 @@ class Env(object):
   def get_C4(self,x,y):
     return self._neq_C4s[self._indices[x%self._Lx,y%self._Ly]]
 
-  def get_colors_C4(self,x,y):
-    return self._colors_C4[self._indices[x%self._Lx, y%self._Ly]]
+  def get_color_C4_u(self,x,y):
+    return self._colors_C4_u[self._indices[x%self._Lx, y%self._Ly]]
+
+  def get_color_C4_r(self,x,y):
+    return self._colors_C4_r[self._indices[x%self._Lx, y%self._Ly]]
 
   def get_T4(self,x,y):
     return self._neq_T4s[self._indices[x%self._Lx,y%self._Ly]]
