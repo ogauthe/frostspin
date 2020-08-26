@@ -81,8 +81,8 @@ class CTMRG(object):
       #        L         R
       #        L         R  => transpose R
       #        L-1     0-R
-      col_A_l = self._env.get_colors_A(x+2,y+1)[5]
-      color = combine_colors(self._env.get_color_T1_l(x+2,y), col_A_l, -col_A_l)
+      col_A_l = self._env.get_colors_A(x+2,y+2)[5]
+      color = combine_colors(self._env.get_color_T3_l(x+2,y+3), col_A_l, -col_A_l)
       P, Pt, color = construct_projectors(R.T, Rt, self.chi, color)
       if self.verbosity > 1:
         print(f'constructed projectors: R.shape = {R.shape}, Rt.shape = {Rt.shape}, P.shape = {P.shape}, Pt.shape = {Pt.shape}')
@@ -131,8 +131,8 @@ class CTMRG(object):
                            self._env.get_T1(x+2,y),  self._env.get_C2(x+3,y),
                            self._env.get_T4(x,y+1),  self._env.get_A(x+1,y+1),
                            self._env.get_A(x+2,y+1), self._env.get_T2(x+3,y+1))
-      col_A_u = self._env.get_colors_A(x+2,y+2)[2]
-      color = combine_colors(self._env.get_color_T2_u(x+3,y+2), col_A_u, -col_A_u)
+      col_A_u = self._env.get_colors_A(x+1,y+2)[2]
+      color = combine_colors(self._env.get_color_T4_u(x,y+2), col_A_u, -col_A_u)
       P, Pt, color = construct_projectors(R.T,Rt,self.chi, color)
       if self.verbosity > 1:
         print(f'constructed projectors: R.shape = {R.shape}, Rt.shape = {Rt.shape}, P.shape = {P.shape}, Pt.shape = {Pt.shape}')
@@ -181,8 +181,8 @@ class CTMRG(object):
                            self._env.get_A(x+2,y+2), self._env.get_T2(x+3,y+2),
                            self._env.get_T3(x+2,y+3),self._env.get_C3(x+3,y+3))
 
-      col_A_r = self._env.get_colors_A(x+1,y+2)[3]
-      color = combine_colors(self._env.get_color_T3_r(x+1,y+3), col_A_r, -col_A_r)
+      col_A_r = self._env.get_colors_A(x+1,y+1)[3]
+      color = combine_colors(self._env.get_color_T1_r(x+1,y), col_A_r, -col_A_r)
       P, Pt, color = construct_projectors(R.T,Rt,self.chi,color)
       if self.verbosity > 1:
         print(f'constructed projectors: R.shape = {R.shape}, Rt.shape = {Rt.shape}, P.shape = {P.shape}, Pt.shape = {Pt.shape}')
@@ -228,8 +228,8 @@ class CTMRG(object):
                           self._env.get_A(x+2,y+2),  self._env.get_T2(x+3,y+2),
                           self._env.get_C4(x,y+3),   self._env.get_T3(x+1,y+3),
                           self._env.get_T3(x+2,y+3), self._env.get_C3(x+3,y+3))
-      col_A_d = self._env.get_colors_A(x+1,y+1)[4]
-      color = combine_colors(self._env.get_color_T4_d(x,y+1), col_A_d, -col_A_d)
+      col_A_d = self._env.get_colors_A(x+2,y+1)[4]
+      color = combine_colors(self._env.get_color_T2_d(x+3,y+1), col_A_d, -col_A_d)
       P, Pt, color = construct_projectors(R.T, Rt, self.chi, color)
       if self.verbosity > 1:
         print(f'constructed projectors: R.shape = {R.shape}, Rt.shape = {Rt.shape}, P.shape = {P.shape}, Pt.shape = {Pt.shape}')
