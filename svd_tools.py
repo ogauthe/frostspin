@@ -16,7 +16,7 @@ def svd_truncate(M, chi, keep_multiplets=False, window=10, cuttol=1e-6, maxiter=
   U,s,V = U[:,:cut], s[:cut], V[:cut]
   return U,s,V
 
-def svdU1_truncate(M, chi, keep_multiplets=False, window=10, cuttol=1e-6, maxiter=1000, rc=default_color, cc=default_color):
+def svdU1_truncate(M, chi, rc=default_color, cc=default_color, keep_multiplets=False, window=10, cuttol=1e-6, maxiter=1000):
   if not rc.size or not cc.size:
     U,s,V = svd_truncate(M, chi, keep_multiplets, window, cuttol, maxiter)
     return U,s,V,default_color
