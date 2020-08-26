@@ -31,6 +31,9 @@ p22_3333.flat[[89,95,103,105,115,119,123,127,137,139,147,153,170,176,184,186,
                196,200,204,208,218,220,228,234]] = [1,-1,1,-1,-1,1,1,-1,-1,1,
                                  -1,1,-1,1,-1,1,1,-1,-1, 1,1,-1, 1,-1]
 
+pcol = np.array([1,-1],dtype=np.int8)
+vcol = np.array([2,0,-2] +[0]*(D-3),dtype=np.int8)
+colors = [pcol,pcol,vcol,vcol,vcol,vcol,vcol,vcol,vcol,vcol]
 A = np.zeros((d,a,D,D,D,D))
 A[:,:,:3,:3,:3,:3] = p22_3333
 B = A.copy()
@@ -43,12 +46,6 @@ D = A.copy()
 
 #su = SimpleUpdateABCD(d,a,Ds,SdS_22b, np.zeros((4,4)), tau, tensors=(A,B,C,D))
 #su = SimpleUpdateABCD(d,1,Ds,SdS_22b, np.zeros((4,4)), tau, verbosity=10)
-pcol = np.array([1,-1],dtype=np.int8)
-vcol = np.array([2,0,-2,0,0],dtype=np.int8)
-colors = [pcol,pcol,vcol,vcol,vcol,vcol,vcol,vcol,vcol,vcol]
-print(checkU1(A,[pcol,pcol,vcol,vcol,vcol,vcol]))
-print(checkU1(B,[-pcol,-pcol,-vcol,-vcol,-vcol,-vcol]))
-print(checkU1(SdS_22b,[combine_colors(pcol,-pcol),-combine_colors(pcol,-pcol)]))
 #su = SimpleUpdateABCD(d,a,Ds,SdS_22b, SdS_22, tau, tensors=(A,B,C,D), colors=colors, verbosity=10)
 
 print(f'color SU, 100 iter, tau = {tau}')
