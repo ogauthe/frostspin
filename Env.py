@@ -297,29 +297,29 @@ class Env(object):
     self._neq_T1s = self._nT
     self._neq_C2s = self._nCY
     self._colors_C1_r = self._colors_P
-    self._colors_C2_c = self._colors_Pt
+    self._colors_C2_l = self._colors_Pt
     self._reset_projectors_temp()
 
   def fix_renormalized_right(self):
     self._neq_C2s = self._nCX
     self._neq_T2s = self._nT
     self._neq_C3s = self._nCY
-    self._colors_C2_r = self._colors_P
-    self._colors_C3_c = self._colors_Pt
+    self._colors_C2_d = self._colors_P
+    self._colors_C3_u = self._colors_Pt
     self._reset_projectors_temp()
 
   def fix_renormalized_down(self):
     self._neq_C3s = self._nCX
     self._neq_T3s = self._nT
     self._neq_C4s = self._nCY
-    self._colors_C3_r = self._colors_P
-    self._colors_C4_c = self._colors_Pt
+    self._colors_C3_l = self._colors_P
+    self._colors_C4_r = self._colors_Pt
     self._reset_projectors_temp()
 
   def fix_renormalized_left(self):
     self._neq_C4s = self._nCX
     self._neq_T4s = self._nT
     self._neq_C1s = self._nCY
-    self._colors_C4_r = self._colors_P
-    self._colors_C1_c = self._colors_Pt
+    self._colors_C4_u = self._colors_P
+    self._colors_C1_d = self._colors_Pt
     self._reset_projectors_temp()
