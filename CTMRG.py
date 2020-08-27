@@ -23,7 +23,6 @@ class CTMRG(object):
     self._neq_coords = self._env.neq_coords
     self._Nneq = len(self._neq_coords)
     if self.verbosity > 0:
-      self.check_symetries()
       print('CTMRG constructed')
 
   @property
@@ -65,19 +64,15 @@ class CTMRG(object):
     self.up_move()
     if self.verbosity > 1:
       self.print_tensor_shapes()
-      self.check_symetries()
     self.right_move()
     if self.verbosity > 1:
       self.print_tensor_shapes()
-      self.check_symetries()
     self.down_move()
     if self.verbosity > 1:
       self.print_tensor_shapes()
-      self.check_symetries()
     self.left_move()
     if self.verbosity > 1:
       self.print_tensor_shapes()
-      self.check_symetries()
 
 
   def up_move(self):
