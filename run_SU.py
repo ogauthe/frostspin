@@ -15,7 +15,7 @@ d = 2
 a = 2
 chi = 35
 ctm_iter = 100
-D = 5 # 3+1+1 at start
+D = 9 # 3+1+1 at start
 Ds = (D,)*8
 print(f'run simple update with d = {d}, a = {a}, Ds = {Ds}')
 
@@ -39,6 +39,13 @@ A[:,:,:3,:3,:3,:3] = p22_3333
 B = A.copy()
 C = B.copy()
 D = A.copy()
+
+colors = [pcol,pcol,vcol[:2],vcol[:3],vcol[:4],vcol[:5],vcol[:6],vcol[:7],vcol[:8],vcol[:9]]
+Ds = (2,3,4,5,6,7,8,9)
+A = A[:,:,:2,:3,:4,:5]
+B = B[:,:,:6,:5,:7,:3]
+C = C[:,:,:4,:8,:2,:9]
+D = D[:,:,:7,:9,:6,:8]
 
 # colors A and D = [[1,-1], [1,-1],[2, 0, -2, 0, 0],[2, 0, -2, 0, 0],[2, 0, -2, 0, 0],[2, 0, -2, 0, 0]]
 # opposed colors on B and C physical leg
