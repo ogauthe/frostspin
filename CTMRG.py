@@ -2,7 +2,7 @@ import Env
 import rdm
 from ctm_contract import contract_U_half, contract_L_half, contract_D_half, contract_R_half
 from ctm_renormalize import *
-from toolsU1 import combine_colors
+from toolsU1 import combine_colors, checkU1
 
 class CTMRG(object):
   # convention: legs and tensors are taken clockwise.
@@ -23,6 +23,7 @@ class CTMRG(object):
     self._neq_coords = self._env.neq_coords
     self._Nneq = len(self._neq_coords)
     if self.verbosity > 0:
+      self.check_symetries()
       print('CTMRG constructed')
 
   @property
@@ -47,20 +48,36 @@ class CTMRG(object):
       self._env.get_T2(x+2,y+1).shape,  self._env.get_C4(x,y+3).shape,
       self._env.get_T3(x+1,y+2).shape,  self._env.get_C3(x+2,y+2).shape)
 
+  def check_symetries(self):
+    for (x,y) in self._neq_coords:
+      print(f'({x},{y}):',
+       'C1', checkU1(self._env.get_C1(x,y),[self._env.get_color_C1_r(x,y), self._env.get_color_C1_d(x,y)]),
+       'T1', checkU1(self._env.get_T1(x,y),[self._env.get_color_T1_r(x,y), self._env.get_color_T1_d(x,y), -self._env.get_color_T1_d(x,y), self._env.get_color_T1_l(x,y)]),
+       'C2', checkU1(self._env.get_C2(x,y),[self._env.get_color_C2_d(x,y), self._env.get_color_C2_l(x,y)]),
+       'T2', checkU1(self._env.get_T2(x,y),[self._env.get_color_T2_u(x,y), self._env.get_color_T2_d(x,y), self._env.get_color_T2_l(x,y), -self._env.get_color_T2_l(x,y)]),
+       'C3', checkU1(self._env.get_C3(x,y),[self._env.get_color_C3_u(x,y), self._env.get_color_C3_l(x,y)]),
+       'T3', checkU1(self._env.get_T3(x,y),[self._env.get_color_T3_u(x,y), -self._env.get_color_T3_u(x,y), self._env.get_color_T3_r(x,y), self._env.get_color_T3_l(x,y)]),
+       'C4', checkU1(self._env.get_C4(x,y),[self._env.get_color_C4_u(x,y), self._env.get_color_C4_r(x,y)]),
+       'T4', checkU1(self._env.get_T4(x,y),[self._env.get_color_T4_u(x,y), self._env.get_color_T4_r(x,y), -self._env.get_color_T4_r(x,y), self._env.get_color_T4_d(x,y)]))
+
 
   def iterate(self):
     self.up_move()
     if self.verbosity > 1:
       self.print_tensor_shapes()
+      self.check_symetries()
     self.right_move()
     if self.verbosity > 1:
       self.print_tensor_shapes()
+      self.check_symetries()
     self.down_move()
     if self.verbosity > 1:
       self.print_tensor_shapes()
+      self.check_symetries()
     self.left_move()
     if self.verbosity > 1:
       self.print_tensor_shapes()
+      self.check_symetries()
 
 
   def up_move(self):
