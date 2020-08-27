@@ -277,49 +277,51 @@ class Env(object):
     self._nT = [None]*self._Nneq
     self._nCY = [None]*self._Nneq
     self._colors_P = [None]*self._Nneq
-    self._colors_Pt = [None]*self._Nneq
+    self._colors_CX = [None]*self._Nneq
+    self._colors_CY = [None]*self._Nneq
 
   def store_projectors(self,x,y,P,Pt,color_P=default_color):
     j = self._indices[x%self._Lx, y%self._Ly]
     self._neq_P[j] = P
     self._neq_Pt[j] = Pt
     self._colors_P[j] = color_P
-    self._colors_Pt[j] = -color_P  # cannot set sign on list colors_P
 
-  def store_renormalized_tensors(self,x,y,nCX,nT,nCY):
+  def store_renormalized_tensors(self,x,y,nCX,nT,nCY,color_P=default_color,color_Pt=default_color):
     j = self._indices[x%self._Lx, y%self._Ly]
     self._nCX[j] = nCX
     self._nT[j] = nT
     self._nCY[j] = nCY
+    self._colors_CX[j] = color_P
+    self._colors_CY[j] = color_Pt
 
   def fix_renormalized_up(self):
     self._neq_C1s = self._nCX
     self._neq_T1s = self._nT
     self._neq_C2s = self._nCY
-    self._colors_C1_r = self._colors_P
-    self._colors_C2_l = self._colors_Pt
+    self._colors_C1_r = self._colors_CX
+    self._colors_C2_l = self._colors_CY
     self._reset_projectors_temp()
 
   def fix_renormalized_right(self):
     self._neq_C2s = self._nCX
     self._neq_T2s = self._nT
     self._neq_C3s = self._nCY
-    self._colors_C2_d = self._colors_P
-    self._colors_C3_u = self._colors_Pt
+    self._colors_C2_d = self._colors_CX
+    self._colors_C3_u = self._colors_CY
     self._reset_projectors_temp()
 
   def fix_renormalized_down(self):
     self._neq_C3s = self._nCX
     self._neq_T3s = self._nT
     self._neq_C4s = self._nCY
-    self._colors_C3_l = self._colors_P
-    self._colors_C4_r = self._colors_Pt
+    self._colors_C3_l = self._colors_CX
+    self._colors_C4_r = self._colors_CY
     self._reset_projectors_temp()
 
   def fix_renormalized_left(self):
     self._neq_C4s = self._nCX
     self._neq_T4s = self._nT
     self._neq_C1s = self._nCY
-    self._colors_C4_u = self._colors_P
-    self._colors_C1_d = self._colors_Pt
+    self._colors_C4_u = self._colors_CX
+    self._colors_C1_d = self._colors_CY
     self._reset_projectors_temp()

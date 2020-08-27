@@ -111,15 +111,16 @@ class CTMRG(object):
     if self.verbosity > 0:
       print('Projectors constructed, renormalize tensors')
     for x,y in self._neq_coords:
-      nC1 = renormalize_C1_up(self._env.get_C1(x,y), self._env.get_T4(x,y+1),
-                              self._env.get_P(x+1,y))
+      P = self._env.get_P(x+1,y)
+      Pt = self._env.get_Pt(x,y)
+      color_P = self._env.get_color_P(x+1,y)
+      color_Pt = -self._env.get_color_P(x,y)
+      nC1 = renormalize_C1_up(self._env.get_C1(x,y), self._env.get_T4(x,y+1),P)
 
-      nT1 = renormalize_T1(self._env.get_Pt(x,y), self._env.get_T1(x,y),
-                           self._env.get_A(x,y+1), self._env.get_P(x+1,y))
+      nT1 = renormalize_T1(Pt,self._env.get_T1(x,y),self._env.get_A(x,y+1),P)
 
-      nC2 = renormalize_C2_up(self._env.get_C2(x,y), self._env.get_T2(x,y+1),
-                              self._env.get_Pt(x,y))
-      self._env.store_renormalized_tensors(x,y+1,nC1,nT1,nC2)
+      nC2 = renormalize_C2_up(self._env.get_C2(x,y),self._env.get_T2(x,y+1),Pt)
+      self._env.store_renormalized_tensors(x,y+1,nC1,nT1,nC2,color_P,color_Pt)
 
     # 3) store renormalized tensors in the environment
     # renormalization reads C1[x,y] but writes C1[x,y+1]
@@ -160,15 +161,18 @@ class CTMRG(object):
     if self.verbosity > 0:
       print('Projectors constructed, renormalize tensors')
     for x,y in self._neq_coords:
+      P = self._env.get_P(x,y+1)
+      Pt = self._env.get_Pt(x,y)
+      color_P = self._env.get_color_P(x,y+1)
+      color_Pt = -self._env.get_color_P(x,y)
       nC2 = renormalize_C2_right(self._env.get_C2(x,y),self._env.get_T1(x-1,y),
-                                 self._env.get_P(x,y+1))
+                                 P)
 
-      nT2 = renormalize_T2(self._env.get_Pt(x,y), self._env.get_A(x-1,y),
-                           self._env.get_T2(x,y), self._env.get_P(x,y+1))
+      nT2 = renormalize_T2(Pt,self._env.get_A(x-1,y),self._env.get_T2(x,y),P)
 
       nC3 = renormalize_C3_right(self._env.get_C3(x,y),self._env.get_T3(x-1,y),
-                                 self._env.get_Pt(x,y))
-      self._env.store_renormalized_tensors(x-1,y,nC2,nT2,nC3)
+                                 Pt)
+      self._env.store_renormalized_tensors(x-1,y,nC2,nT2,nC3,color_P,color_Pt)
 
     # 3) store renormalized tensors in the environment
     self._env.fix_renormalized_right()
@@ -210,15 +214,18 @@ class CTMRG(object):
     if self.verbosity > 0:
       print('Projectors constructed, renormalize tensors')
     for x,y in self._neq_coords:
+      P = self._env.get_P(x-1,y)
+      Pt = self._env.get_Pt(x,y)
+      color_P = self._env.get_color_P(x-1,y)
+      color_Pt = -self._env.get_color_P(x,y)
       nC3 = renormalize_C3_down(self._env.get_C3(x,y), self._env.get_T2(x,y-1),
-                                self._env.get_P(x-1,y))
+                                P)
 
-      nT3 = renormalize_T3(self._env.get_Pt(x,y), self._env.get_T3(x,y),
-                           self._env.get_A(x,y-1), self._env.get_P(x-1,y))
+      nT3 = renormalize_T3(Pt,self._env.get_T3(x,y),self._env.get_A(x,y-1),P)
 
       nC4 = renormalize_C4_down(self._env.get_C4(x,y), self._env.get_T4(x,y-1),
-                                self._env.get_Pt(x,y))
-      self._env.store_renormalized_tensors(x,y-1,nC3,nT3,nC4)
+                                Pt)
+      self._env.store_renormalized_tensors(x,y-1,nC3,nT3,nC4,color_P,color_Pt)
 
     # 3) store renormalized tensors in the environment
     self._env.fix_renormalized_down()
@@ -257,15 +264,18 @@ class CTMRG(object):
     if self.verbosity > 0:
       print('Projectors constructed, renormalize tensors')
     for x,y in self._neq_coords:
+      P = self._env.get_P(x,y-1)
+      Pt = self._env.get_Pt(x,y)
+      color_P = self._env.get_color_P(x,y-1)
+      color_Pt = -self._env.get_color_P(x,y)
       nC4 = renormalize_C4_left(self._env.get_C4(x,y), self._env.get_T3(x+1,y),
-                                self._env.get_P(x,y-1))
+                                P)
 
-      nT4 = renormalize_T4(self._env.get_Pt(x,y), self._env.get_T4(x,y),
-                           self._env.get_A(x+1,y), self._env.get_P(x,y-1))
+      nT4 = renormalize_T4(Pt,self._env.get_T4(x,y),self._env.get_A(x+1,y),P)
 
       nC1 = renormalize_C1_left(self._env.get_C1(x,y), self._env.get_T1(x+1,y),
-                                self._env.get_Pt(x,y))
-      self._env.store_renormalized_tensors(x+1,y,nC4,nT4,nC1)
+                                Pt)
+      self._env.store_renormalized_tensors(x+1,y,nC4,nT4,nC1,color_P,color_Pt)
 
     # 3) store renormalized tensors in the environment
     self._env.fix_renormalized_left()
