@@ -4,7 +4,43 @@ from scipy.sparse.linalg import svds
 from toolsU1 import default_color, svdU1
 
 
-def svd_truncate(M, chi, keep_multiplets=False, window=10, cuttol=1e-6, maxiter=1000):
+def svd_truncate(M, chi, keep_multiplets=False, window=10, cuttol=1e-6,
+                 maxiter=1000):
+  """
+  Compute a given number of singular values and singular vectors.
+
+  Parameters
+  ----------
+  M : (m,n) ndarray
+    Matrix to decompose.
+  chi : integer
+    Number of singular vectors to compute. Effective cut depends on
+    keep_multiplets (see notes)
+  keep_multiplets : bool
+    If true, compute more than chi values and cut between two different
+    multiplets
+  window : integer
+    If keep_multiplets is True, compute chi+window vectors and cut between chi
+    and chi+window
+  cuttol : float
+    Tolerance to consider two consecutive values as degenerate.
+  maxiter : integer
+    Maximal number of iterations. Finite allows clean crash instead of running
+    forever.
+
+  Returns
+  -------
+  U :   U : (m,cut) ndarray
+    Left singular vectors.
+  s : (cut,) ndarray
+    Singular values.
+  V : (cut,n) right singular vectors
+
+  Notes:
+  ------
+  cut is fixed as chi if keep_multiplets is False, else as the smallest value
+  in [chi,chi+window[ such that s[cut+1] < cuttol*s[cut]
+  """
   if keep_multiplets:
     U,s,V = svds(M, k=chi+window, maxiter=maxiter)
     cut = chi + (s[chi:] < cuttol*s[chi-1:-1]).nonzero()[0][0]
@@ -16,7 +52,53 @@ def svd_truncate(M, chi, keep_multiplets=False, window=10, cuttol=1e-6, maxiter=
   U,s,V = U[:,:cut], s[:cut], V[:cut]
   return U,s,V
 
-def svdU1_truncate(M, chi, row_colors=default_color, col_colors=default_color, keep_multiplets=False, window=10, cuttol=1e-6, maxiter=1000):
+
+def svdU1_truncate(M, chi, row_colors=default_color, col_colors=default_color,
+                  keep_multiplets=False, window=10, cuttol=1e-6, maxiter=1000):
+  """
+  Compute a given number of singular values and singular vectors using U(1)
+  symmetry.
+
+  Parameters
+  ----------
+  M : (m,n) ndarray
+    Matrix to decompose.
+  chi : integer
+    Number of singular vectors to compute. Effective cut depends on
+    keep_multiplets (see notes)
+  row_colors : (m,) integer ndarray
+    U(1) quantum numbers of the rows.
+  col_colors : (n,) integer ndarray
+    U(1) quantum numbers of the columns.
+  keep_multiplets : bool
+    If true, compute more than chi values and cut between two different
+    multiplets
+  window : integer
+    If keep_multiplets is True, compute chi+window vectors and cut between chi
+    and chi+window
+  cuttol : float
+    Tolerance to consider two consecutive values as degenerate.
+  maxiter : integer
+    Maximal number of iterations. Finite allows clean crash instead of running
+    forever.
+
+  Returns
+  -------
+  U :   U : (m,cut) ndarray
+    Left singular vectors.
+  s : (cut,) ndarray
+    Singular values.
+  V : (cut,n) right singular vectors
+  color : (cut,) ndarray with int8 data type
+    U(1) quantum numbers of s.
+
+  Notes:
+  ------
+  cut is fixed as chi if keep_multiplets is False, else as the smallest value
+  in [chi,chi+window[ such that s[cut+1] < cuttol*s[cut].
+  It is assumed that degenerate values belong to separate U(1) sectors. This is
+  True for SU(2) symmetry, NOT for SU(N>2).
+  """
 
   # revert to svd_truncate if no color is given
   if not row_colors.size or not col_colors.size:
@@ -32,11 +114,15 @@ def svdU1_truncate(M, chi, row_colors=default_color, col_colors=default_color, k
   col_inds = [0, *((sorted_col_colors[:-1] != sorted_col_colors[1:]
                     ).nonzero()[0] + 1), M.shape[1]]
 
-  # we need to compute at most chi singular values in every sector
-  # set an upper bond of number of vectors to compute
-  # this could be less if some blocks are smaller or absent in col_inds
-  # but dealing with different sizes row_inds and col_inds is cumbersome
-  # (doing it imposes keeping only colors appearing on both rows and columns)
+  # we need to compute chi singular values in every sector to deal with the
+  # worst case every chi largest values in the same sector.
+  # A fully memory efficient code would only store 2*chi vectors. Here we
+  # select the chi largest values selection once all vector are computed, so we
+  # need to store sum( min(chi, sector_size) for each sector) different vectors.
+  # Dealing with different block numbers in row_inds and col_inds here is
+  # cumbersome, so we consider the sub-optimal min(chi, sector_rows_number)
+  # while columns number may be smaller.
+  # in CTMRG projector construction, row and column colors are the same anyway.
   max_k = np.minimum(chi,row_inds[1:] - row_inds[:-1]).sum()
   U = np.zeros((M.shape[0],max_k))
   S = np.empty(max_k)
@@ -74,7 +160,7 @@ def svdU1_truncate(M, chi, row_colors=default_color, col_colors=default_color, k
   s_sort = np.argsort(S)[::-1]
   S = S[s_sort]
 
-  # expect multiplets to lie in separate color blocks (true for SU(2) downgraded to U(1))
+  # expect multiplets to lie in separate color blocks (true for SU(2) > U(1))
   if keep_multiplets:
     cut = chi + (S[chi:] < cuttol*S[chi-1:-1]).nonzero()[0][0]
   else:
