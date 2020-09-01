@@ -1,7 +1,59 @@
 import numpy as np
 import scipy.linalg as lg
-from scipy.sparse.linalg import svds
-from toolsU1 import default_color, svdU1
+from scipy.sparse.linalg import eigsh  # use custom svds
+from toolsU1 import default_color
+from scipy.sparse.linalg.interface import LinearOperator
+
+
+# use custom svds adapted from scipy to remove small value cutoff
+# remove some other unused features: impose which='LM' and solver='arpack'
+# always sort values by decreasing order
+# compute either no singular vectors or both U and V
+# ref: https://github.com/scipy/scipy/pull/11829
+def svds(A, k=6, ncv=None, tol=0, v0=None,
+         maxiter=None, return_singular_vectors=True):
+
+  A = np.asarray(A)  # do not consider LinearOperator or sparse matrix
+  n, m = A.shape
+  dmin = min(m,n)
+
+  if k <= 0 or k >= dmin:
+    raise ValueError("k must be between 1 and min(A.shape), k=%d" % k)
+  if n > m:
+    X_dot = X_matmat = A.dot
+    XH_dot = XH_mat = A.T.conj().dot
+    transpose = False
+  else:
+    XH_dot = XH_mat = A.dot
+    X_dot = X_matmat = A.T.conj().dot
+    transpose = True
+
+  def matvec_XH_X(x):
+    return XH_dot(X_dot(x))
+
+  def matmat_XH_X(x):
+    return XH_mat(X_matmat(x))
+
+  XH_X = LinearOperator(matvec=matvec_XH_X, dtype=A.dtype,
+                        matmat=matmat_XH_X,
+                        shape=(dmin, dmin))
+
+  eigvals, eigvec = eigsh(XH_X, k=k, tol=tol, maxiter=maxiter,
+                          ncv=ncv, which='LM', v0=v0)
+  u = X_matmat(eigvec)
+  if not return_singular_vectors:
+    s = svd(u, compute_uv=False)
+    return s
+
+  # compute the right singular vectors of X and update the left ones accordingly
+  u, s, vh = lg.svd(u, full_matrices=False)
+  if transpose:
+    u, vh = eigvec @ vh.T.conj(), u.T.conj()
+  else:
+    vh = vh @ eigvec.T.conj()
+  return u, s, vh
+
+
 
 
 def svd_truncate(M, chi, keep_multiplets=False, window=10, cuttol=1e-6,
