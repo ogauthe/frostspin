@@ -24,7 +24,6 @@ class CTMRG(object):
     self.chi = chi
     self._env = Env.Env(tensors,tiling,colors)
     self._neq_coords = self._env.neq_coords
-    self._Nneq = len(self._neq_coords)
     if self.verbosity > 0:
       print('CTMRG constructed')
 
