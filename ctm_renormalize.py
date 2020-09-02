@@ -1,9 +1,8 @@
 import numpy as np
 from svd_tools import svdU1_truncate
-from toolsU1 import default_color
 
 
-def construct_projectors(R,Rt,chi,color=default_color):
+def construct_projectors(R, Rt, chi, color=None):
   # row and column colors are the same since contraction can be done on the
   # 2 other legs of R and Rt
   U,s,V,col = svdU1_truncate(R.T @ Rt, chi, color, color)

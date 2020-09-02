@@ -153,7 +153,7 @@ def svdU1_truncate(M, chi, row_colors=default_color, col_colors=default_color,
   """
 
   # revert to svd_truncate if no color is given
-  if not row_colors.size or not col_colors.size:
+  if row_colors is None or not row_colors.size or col_colors is None or not col_colors.size:
     U,s,V = svd_truncate(M, chi, keep_multiplets, window, cuttol, maxiter)
     return U,s,V,default_color
 
