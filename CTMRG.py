@@ -5,7 +5,7 @@ from ctm_renormalize import *
 from toolsU1 import combine_colors, checkU1
 
 class CTMRG(object):
-  # convention: legs and tensors are taken clockwise.
+  # convention: legs and tensors are taken clockwise starting from upper right.
   #    C1-T1-T1-C2
   #    |  |  |   |
   #    T4-a--a--T2
@@ -13,6 +13,9 @@ class CTMRG(object):
   #    T4-a--a--T2
   #    |  |  |   |
   #    C4-T3-T3-C3
+
+  # When passed as arguments to a function for contraction, tensors are sorted
+  # from left to right, from up to down.
 
   def __init__(self,tensors,tiling,chi,colors=None,verbosity=0):
     self.verbosity = verbosity
