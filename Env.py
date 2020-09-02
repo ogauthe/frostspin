@@ -1,8 +1,23 @@
 import numpy as np
 from toolsU1 import default_color, combine_colors
 
+def _cell_from_tiling(tiling):
+  tiling1 = tiling.strip()
+  raw_letters = list(tiling1.replace('\n','').replace(' ',''))
+  try:
+    n_rows = tiling1.index('\n')
+    n_cols = len(raw_letters)//n_rows
+  except ValueError:
+    n_cols = len(tiling1)  # one line
+    n_rows = 1
 
-def initialize_env(A):
+  letters_unique = sorted(set(raw_letters))
+  indices = np.array([letters_unique.index(t) for t in raw_letters])
+  cell = np.array(list(map(chr,indices+65))).reshape(n_rows,n_cols)
+  return cell
+
+
+def _initialize_env(A):
   #
   #   C1-0  3-T1-0  1-C2            0
   #   |       ||       |             \ 2
@@ -44,33 +59,47 @@ class Env(object):
      C4-T3-T3-C3
   """
 
-  def __init__(self, tensors, tiling, colors=None):
+  def __init__(self, tensors, cell=None, tiling=None, colors=None):
+    # could use dictionaty to deal properly with weird cells like AB//DC
+    # but case is too unnatural to care about.
     """
-    tensors: list-like containing tensors.
-    tiling: string. Tiling pattern.
+    Store tensors and return them according to a given tiling.
+
+    Parameters
+    ----------
+    tensors: list of Nneq numpy arrays
+      Tensors given from left to right and up to down.
+    cell: array of characters
+      Elementary cell, each letter representing non-equivalent tensors. When
+      following standard order, letters have to appear for the first by
+      lexicographic order, else correspondance with tensors fails.
+    tiling: string, optional.
+      Tiling pattern. If cell is not provided, parse tiling to construct it.
+    colors: list of Nneq colors
+      U(1) quantum numbers corresponding to the tensors. Note that dimensions
+      are check for compatibility with tensors, but color compatibility between
+      legs to contract is not checked.
     """
-    tiling1 = tiling.strip()
-    letters = list(tiling1.replace('\n','').replace(' ',''))
-    tensors_str = sorted(set(letters))
-    try:
-      self._Lx = tiling1.index('\n')
-      self._Ly = len(letters)//self._Lx
-    except ValueError:
-      self._Lx = len(tiling1)  # one line
-      self._Ly = 1
-    indices = np.array([tensors_str.index(t) for t in letters])
-    self._cell = np.array(list(map(chr,indices+65))).reshape(self._Lx,self._Ly)
-    self._Nneq = len(tensors_str)
+    if cell is None:
+      if tiling is None:
+        raise ValueError("Either cell or tiling must be provided")
+      cell = _cell_from_tiling(tiling)
+    else:
+      cell = np.asarray(cell)
+
+    self._cell = cell
+    # [row,col] indices are transposed from (x,y) coordinates
+    self._Ly, self._Lx = cell.shape
+
+    letters = sorted(set(cell.flat))
+    self._Nneq = len(letters)
     if self._Nneq != len(tensors):
-      raise ValueError("incompatible tiling and tensors")
+      raise ValueError("Inconpatible cell and tensors")
 
     self._neq_coords = np.empty((self._Nneq,2),dtype=np.int8)
-    for i in range(self._Nneq):
-      ind = np.argmax(indices==i)
-      self._neq_coords[i] = ind//self._Ly, ind%self._Lx
+    for i,l in enumerate(letters):
+      self._neq_coords[i] = np.divmod((cell.flat == l).nonzero()[0][0],self._Lx)
 
-    # [row,col] indices are transposed from (x,y) coordinates
-    self._indices = indices.reshape(self._Lx,self._Ly).T.copy()
     self._neq_As = []
     self._neq_C1s = []
     self._neq_T1s = []
@@ -84,7 +113,7 @@ class Env(object):
     for A in tensors:
       if A.ndim == 5:  # if no ancila, add 1
         A = A.reshape(A.shape[0],1,A.shape[1],A.shape[2],A.shape[3],A.shape[4])
-      C1,T1,C2,T4,T2,C4,T3,C3 = initialize_env(A)
+      C1,T1,C2,T4,T2,C4,T3,C3 = _initialize_env(A)
       self._neq_As.append(A)
       self._neq_C1s.append(C1)
       self._neq_T1s.append(T1)
@@ -157,117 +186,113 @@ class Env(object):
     return self._Ly
 
   @property
-  def indices(self):
-    return self._indices
-
-  @property
   def neq_coords(self):
     return self._neq_coords
-
-  def get_A(self,x,y):
-    return self._neq_As[self._indices[x%self._Lx, y%self._Ly]]
-
-  def get_colors_A(self,x,y):
-    return self._colors_A[self._indices[x%self._Lx, y%self._Ly]]
 
   def get_tensor_type(self,x,y):
     return self._cell[x%self._Lx, y%self._Ly]
 
+  def get_A(self,x,y):
+    return self._neq_As[x%self._Lx + y%self._Ly*self._Lx]
+
+  def get_colors_A(self,x,y):
+    return self._colors_A[x%self._Lx + y%self._Ly*self._Lx]
+
   def get_C1(self,x,y):
-    return self._neq_C1s[self._indices[x%self._Lx,y%self._Ly]]
+    return self._neq_C1s[x%self._Lx + y%self._Ly*self._Lx]
 
   def get_color_C1_r(self,x,y):
-    return self._colors_C1_r[self._indices[x%self._Lx, y%self._Ly]]
+    return self._colors_C1_r[x%self._Lx + y%self._Ly*self._Lx]
 
   def get_color_C1_d(self,x,y):
-    return self._colors_C1_d[self._indices[x%self._Lx, y%self._Ly]]
+    return self._colors_C1_d[x%self._Lx + y%self._Ly*self._Lx]
 
   def get_T1(self,x,y):
-    return self._neq_T1s[self._indices[x%self._Lx,y%self._Ly]]
+    return self._neq_T1s[x%self._Lx + y%self._Ly*self._Lx]
 
   def get_color_T1_r(self,x,y):
-    return -self._colors_C2_l[self._indices[(x+1)%self._Lx, y%self._Ly]]
+    return -self._colors_C2_l[(x+1)%self._Lx + y%self._Ly*self._Lx]
 
   def get_color_T1_d(self,x,y):
-    return -self._colors_A[self._indices[x%self._Lx, (y-1)%self._Ly]][2]
+    return -self._colors_A[x%self._Lx + (y-1)%self._Ly*self._Lx][2]
 
   def get_color_T1_l(self,x,y):
-    return -self._colors_C1_r[self._indices[(x-1)%self._Lx, y%self._Ly]]
+    return -self._colors_C1_r[(x-1)%self._Lx + y%self._Ly*self._Lx]
 
   def get_C2(self,x,y):
-    return self._neq_C2s[self._indices[x%self._Lx,y%self._Ly]]
+    return self._neq_C2s[x%self._Lx + y%self._Ly*self._Lx]
 
   def get_color_C2_d(self,x,y):
-    return self._colors_C2_d[self._indices[x%self._Lx, y%self._Ly]]
+    return self._colors_C2_d[x%self._Lx + y%self._Ly*self._Lx]
 
   def get_color_C2_l(self,x,y):
-    return self._colors_C2_l[self._indices[x%self._Lx, y%self._Ly]]
+    return self._colors_C2_l[x%self._Lx + y%self._Ly*self._Lx]
 
   def get_T2(self,x,y):
-    return self._neq_T2s[self._indices[x%self._Lx,y%self._Ly]]
+    return self._neq_T2s[x%self._Lx + y%self._Ly*self._Lx]
 
   def get_color_T2_u(self,x,y):
-    return -self._colors_C2_d[self._indices[x%self._Lx, (y+1)%self._Ly]]
+    return -self._colors_C2_d[x%self._Lx + (y+1)%self._Ly*self._Lx]
 
   def get_color_T2_d(self,x,y):
-    return -self._colors_C3_u[self._indices[x%self._Lx, (y-1)%self._Ly]]
+    return -self._colors_C3_u[x%self._Lx + (y-1)%self._Ly*self._Lx]
 
   def get_color_T2_l(self,x,y):
-    return -self._colors_A[self._indices[(x-1)%self._Lx, y%self._Ly]][3]
+    return -self._colors_A[(x-1)%self._Lx + y%self._Ly*self._Lx][3]
 
   def get_C3(self,x,y):
-    return self._neq_C3s[self._indices[x%self._Lx,y%self._Ly]]
+    return self._neq_C3s[x%self._Lx + y%self._Ly*self._Lx]
 
   def get_color_C3_u(self,x,y):
-    return self._colors_C3_u[self._indices[x%self._Lx, y%self._Ly]]
+    return self._colors_C3_u[x%self._Lx + y%self._Ly*self._Lx]
 
   def get_color_C3_l(self,x,y):
-    return self._colors_C3_l[self._indices[x%self._Lx, y%self._Ly]]
+    return self._colors_C3_l[x%self._Lx + y%self._Ly*self._Lx]
 
   def get_T3(self,x,y):
-    return self._neq_T3s[self._indices[x%self._Lx,y%self._Ly]]
+    return self._neq_T3s[x%self._Lx + y%self._Ly*self._Lx]
 
   def get_color_T3_u(self,x,y):
-    return -self._colors_A[self._indices[x%self._Lx, (y+1)%self._Ly]][4]
+    return -self._colors_A[x%self._Lx + (y+1)%self._Ly*self._Lx][4]
 
   def get_color_T3_r(self,x,y):
-    return -self._colors_C3_l[self._indices[(x+1)%self._Lx, y%self._Ly]]
+    return -self._colors_C3_l[(x+1)%self._Lx + y%self._Ly*self._Lx]
 
   def get_color_T3_l(self,x,y):
-    return -self._colors_C4_r[self._indices[(x-1)%self._Lx, y%self._Ly]]
+    return -self._colors_C4_r[(x-1)%self._Lx + y%self._Ly*self._Lx]
 
   def get_C4(self,x,y):
-    return self._neq_C4s[self._indices[x%self._Lx,y%self._Ly]]
+    return self._neq_C4s[x%self._Lx + y%self._Ly*self._Lx]
 
   def get_color_C4_u(self,x,y):
-    return self._colors_C4_u[self._indices[x%self._Lx, y%self._Ly]]
+    return self._colors_C4_u[x%self._Lx + y%self._Ly*self._Lx]
 
   def get_color_C4_r(self,x,y):
-    return self._colors_C4_r[self._indices[x%self._Lx, y%self._Ly]]
+    return self._colors_C4_r[x%self._Lx + y%self._Ly*self._Lx]
 
   def get_T4(self,x,y):
-    return self._neq_T4s[self._indices[x%self._Lx,y%self._Ly]]
+    return self._neq_T4s[x%self._Lx + y%self._Ly*self._Lx]
 
   def get_color_T4_u(self,x,y):
-    return -self._colors_C1_d[self._indices[x%self._Lx, (y+1)%self._Ly]]
+    return -self._colors_C1_d[x%self._Lx + (y+1)%self._Ly*self._Lx]
 
   def get_color_T4_r(self,x,y):
-    return -self._colors_A[self._indices[(x+1)%self._Lx, y%self._Ly]][5]
+    return -self._colors_A[(x+1)%self._Lx + y%self._Ly*self._Lx][5]
 
   def get_color_T4_d(self,x,y):
-    return -self._colors_C4_u[self._indices[x%self._Lx, (y-1)%self._Ly]]
+    return -self._colors_C4_u[x%self._Lx + (y-1)%self._Ly*self._Lx]
 
   def get_P(self,x,y):
-    return self._neq_P[self._indices[x%self._Lx,y%self._Ly]]
+    return self._neq_P[x%self._Lx + y%self._Ly*self._Lx]
 
   def get_color_P(self,x,y):
-    return self._colors_P[self._indices[x%self._Lx,y%self._Ly]]
+    return self._colors_P[x%self._Lx + y%self._Ly*self._Lx]
 
   def get_Pt(self,x,y):
-    return self._neq_Pt[self._indices[x%self._Lx,y%self._Ly]]
+    return self._neq_Pt[x%self._Lx + y%self._Ly*self._Lx]
 
   def get_color_Pt(self,x,y):
-    return self._colors_Pt[self._indices[x%self._Lx,y%self._Ly]]
+    return self._colors_Pt[x%self._Lx + y%self._Ly*self._Lx]
 
   def _reset_projectors_temp(self):
     # free projectors memory, other arrays are stored anyway. Is it worth it?
@@ -281,13 +306,13 @@ class Env(object):
     self._colors_CY = [None]*self._Nneq
 
   def store_projectors(self,x,y,P,Pt,color_P=default_color):
-    j = self._indices[x%self._Lx, y%self._Ly]
+    j = x%self._Lx + y%self._Ly*self._Lx
     self._neq_P[j] = P
     self._neq_Pt[j] = Pt
     self._colors_P[j] = color_P
 
   def store_renormalized_tensors(self,x,y,nCX,nT,nCY,color_P=default_color,color_Pt=default_color):
-    j = self._indices[x%self._Lx, y%self._Ly]
+    j = x%self._Lx + y%self._Ly*self._Lx
     self._nCX[j] = nCX
     self._nT[j] = nT
     self._nCY[j] = nCY

@@ -17,12 +17,12 @@ class CTMRG(object):
   # When passed as arguments to a function for contraction, tensors are sorted
   # from left to right, from up to down.
 
-  def __init__(self,tensors,tiling,chi,colors=None,verbosity=0):
+  def __init__(self, tensors, tiling, chi, colors=None, verbosity=0):
     self.verbosity = verbosity
     if self.verbosity > 0:
       print(f'initalize CTMRG with chi = {chi}, self.verbosity = {self.verbosity} and tiling = {tiling}')
     self.chi = chi
-    self._env = Env.Env(tensors,tiling,colors)
+    self._env = Env.Env(tensors, tiling=tiling, colors=colors)
     self._neq_coords = self._env.neq_coords
     if self.verbosity > 0:
       print('CTMRG constructed')
