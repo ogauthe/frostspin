@@ -44,7 +44,7 @@ class Env(object):
      C4-T3-T3-C3
   """
 
-  def __init__(self, tensors, tiling, chi, colors=None):
+  def __init__(self, tensors, tiling, colors=None):
     """
     tensors: list-like containing tensors.
     tiling: string. Tiling pattern.
