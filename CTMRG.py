@@ -39,6 +39,13 @@ class CTMRG(object):
   def env(self):
     return self._env
 
+  def set_tensors(self, tensors, colors=None, keep_env=True):
+    if self.verbosity > 0:
+      print("set new tensors")
+    if keep_env:
+      self._env.set_tensors(tensors, colors=colors)
+    else:   # restart from fresh
+      self._env = Env.Env(tensors, cell=self._env.cell.copy(), colors=colors)
 
   def print_tensor_shapes(self):
     print("C1 T1 C2 // T4 A T2 // C4 T3 C4")

@@ -111,6 +111,7 @@ class Env(object):
     self._neq_T4s = []
 
     for A in tensors:
+      A = np.ascontiguousarray(A)
       if A.ndim == 5:  # if no ancila, add 1
         A = A.reshape(A.shape[0],1,A.shape[1],A.shape[2],A.shape[3],A.shape[4])
       C1,T1,C2,T4,T2,C4,T3,C3 = _initialize_env(A)
@@ -155,7 +156,6 @@ class Env(object):
         self._colors_C3_l.append(c5)
         self._colors_C4_u.append(c2)
         self._colors_C4_r.append(c3)
-      self._colors_A = tuple(self._colors_A)
     else:
       self._colors_A = ((default_color,)*6,)*self._Nneq
       self._colors_C1_r = [default_color]*self._Nneq
@@ -168,6 +168,44 @@ class Env(object):
       self._colors_C4_r = [default_color]*self._Nneq
 
     self._reset_projectors_temp()
+
+
+  def set_tensors(self, tensors, colors=None):
+    if self._Nneq != len(tensors):
+     raise ValueError("Incompatible cell and tensors")
+    for i,A in enumerate(tensors):  # or self._neq_coords?
+      A = np.ascontiguousarray(A)
+      if A.ndim == 5:  # if no ancila, add 1
+        A = A.reshape(A.shape[0],1,A.shape[1],A.shape[2],A.shape[3],A.shape[4])
+      oldA = self._neq_As[i]
+      oldcol = self._colors_A[i]
+      if colors is None:
+        col = (default_color,)*6
+      else:
+        col = colors[i]
+        if len(col) == 5:
+          col = (col[0],np.zeros(1,dtype=np.int8),*col[1:])
+        if tuple(len(c) for c in col) != A.shape:
+          raise ValueError("Colors do not match tensors")
+      if A.shape[0] != oldA.shape[0] or A.shape[1] != oldA.shape[1] or (col[0] != oldcol[0]).any() or (col[1] != oldcol[1]).any():
+        # not a problem for the code, but physically meaningless
+        raise ValueError('Physical and ancila dimensions and colors cannot change')
+      if not (A.shape[2] == oldA.shape[2] and (oldcol[2]==col[2]).all()):
+        newT1 = f(A,self._neq_T1s[j])
+        self._neq_T1s[j] = newT1
+      if not (A.shape[3] == oldA.shape[3] and (oldcol[3]==col[3]).all()):
+        newT2 = f(A,self._neq_T2s[j])
+        self._neq_T2s[j] = newT2
+      if not (A.shape[4] == oldA.shape[4] and (oldcol[4]==col[4]).all()):
+        newT3 = f(A,self._neq_T3s[j])
+        self._neq_T3s[j] = newT3
+      if not (A.shape[5] == oldA.shape[5] and (oldcol[5]==col[5]).all()):
+        newT4 = f(A,self._neq_T4s[j])
+        self._neq_T4s[j] = newT4
+
+      self._neq_As[i] = A
+      self._colors_A[i] = col
+
 
   @property
   def cell(self):
