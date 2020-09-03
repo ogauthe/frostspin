@@ -241,10 +241,6 @@ class Env(object):
     return self._Ly
 
   @property
-  def indices(self):
-    return self._indices
-
-  @property
   def neq_coords(self):
     return self._neq_coords
 
