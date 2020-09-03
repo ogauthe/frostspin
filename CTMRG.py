@@ -36,8 +36,8 @@ class CTMRG(object):
     return self._env.Ly
 
   @property
-  def env(self):
-    return self._env
+  def cell(self):
+    return self._env.cell
 
   def set_tensors(self, tensors, colors=None, keep_env=True):
     if self.verbosity > 0:
