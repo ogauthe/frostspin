@@ -187,17 +187,37 @@ class Env(object):
       if A.shape[0] != oldA.shape[0] or A.shape[1] != oldA.shape[1] or (col[0] != oldcol[0]).any() or (col[1] != oldcol[1]).any():
         # not a problem for the code, but physically meaningless
         raise ValueError('Physical and ancila dimensions and colors cannot change')
-      if not (A.shape[2] == oldA.shape[2] and (oldcol[2]==col[2]).all()):
-        newT1 = f(A,self._neq_T1s[j])
+
+      # when the shape of a tensor (or its quantum numbers) changes, we still
+      # would like to keep the environment. This is still possible by
+      # constructing the optimal isometry from the new tensor to the old env.
+      # It is easier and more bra-ket symmetric to work on mono-layer A.
+      # For each virtual leg, detect if someting changed, then use SVD to get
+      # "projector" and apply it to T bra and ket legs
+      # TODO write function f
+      x,y = self._neq_coords[i]
+      if A.shape[2] != oldA.shape[2] or (oldcol[2]!=col[2]).any():
+        j = self._indices[x%self._Lx, (y-1)%self._Ly]
+        P = f(A,col)
+        newT1 = np.tensordot(np.tensordot(self._neq_T1s[j],P,((1,),(0,))),P.conj(),((1,),(0,)))
+        newT1 = newT1.transpose(0,2,3,1).copy()
         self._neq_T1s[j] = newT1
-      if not (A.shape[3] == oldA.shape[3] and (oldcol[3]==col[3]).all()):
-        newT2 = f(A,self._neq_T2s[j])
+      if A.shape[3] != oldA.shape[3] or (oldcol[3]!=col[3]).any():
+        j = self._indices[(x+1)%self._Lx, y%self._Ly]
+        P = f(A,col)
+        newT2 = np.tensordot(np.tensordot(self._neq_T2s[j],P,((2,),(0,))),P.conj(),((2,),(0,)))
         self._neq_T2s[j] = newT2
-      if not (A.shape[4] == oldA.shape[4] and (oldcol[4]==col[4]).all()):
-        newT3 = f(A,self._neq_T3s[j])
+      if A.shape[4] != oldA.shape[4] or (oldcol[4]!=col[4]).any():
+        j = self._indices[x%self._Lx, (y+1)%self._Ly]
+        P = f(A,col)
+        newT3 = np.tensordot(np.tensordot(self._neq_T3s[j],P,((0,),(0,))),P.conj(),((0,),(0,)))
+        newT3 = newT3.transpose(2,3,0,1).copy()
         self._neq_T3s[j] = newT3
-      if not (A.shape[5] == oldA.shape[5] and (oldcol[5]==col[5]).all()):
-        newT4 = f(A,self._neq_T4s[j])
+      if A.shape[5] != oldA.shape[5] or (oldcol[5]!=col[5]).any():
+        j = self._indices[(x-1)%self._Lx, y%self._Ly]
+        P = f(A,col)
+        newT4 = np.tensordot(np.tensordot(self._neq_T4s[j],P,((1,),(0,))),P.conj(),((1,),(0,)))
+        newT4 = newT4.transpose(0,2,3,1).copy()
         self._neq_T4s[j] = newT4
 
       self._neq_As[i] = A
