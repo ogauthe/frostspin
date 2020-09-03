@@ -68,7 +68,8 @@ class Env(object):
     else:
       cell = np.asarray(cell)
 
-    # construct list of unique letters sorted according to appearance in cell
+    # construct list of unique letters sorted according to appearance order in
+    # cell (may be different from lexicographic order)
     seen = set()
     seen_add = seen.add
     letters = [l for l in cell.flat if not (l in seen or seen_add(l))]
@@ -77,18 +78,23 @@ class Env(object):
     if self._Nneq != len(tensors):
       raise ValueError("Incompatible cell and tensors")
 
+    # [row,col] indices are transposed from (x,y) coordinates
+    # but (x,y) is natural to specify positions
+    # so we need to transpose indices here to get simple CTMRG code
+    # construct indices and neq_coords such that
+    # - for all i in range(Nneq), i == indices[neq_coords[i][0], neq_coords[i][1]]
+    # - for all (x,y) in neq_coords, (x,y) == neq_coords[indices[x,y]]
     self._neq_coords = np.empty((self._Nneq,2), dtype=np.int8)
     indices = np.empty(cell.shape, dtype=int)
     for i,l in enumerate(letters):
       inds_l = cell == l    # a tensor can appear more than once in tiling
       ind_values = inds_l.nonzero()
-      self._neq_coords[i] = ind_values[0][0], ind_values[1][0]
+      self._neq_coords[i] = ind_values[1][0], ind_values[0][0] # transpose
       indices[inds_l] = i
 
-    # [row,col] indices are transposed from (x,y) coordinates
     self._Ly, self._Lx = cell.shape
     self._cell = cell
-    self._indices = indices.T.copy()
+    self._indices = indices.T.copy()  # transpose
 
     # store tensors according to cell.flat order
     self._neq_As = []
