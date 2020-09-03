@@ -235,7 +235,7 @@ class Env(object):
     return self._cell[x%self._Lx, y%self._Ly]
 
   def get_C1(self,x,y):
-    return self._neq_C1s[self._indices[x%self._Lx,y%self._Ly]]
+    return self._neq_C1s[self._indices[x%self._Lx, y%self._Ly]]
 
   def get_color_C1_r(self,x,y):
     return self._colors_C1_r[self._indices[x%self._Lx, y%self._Ly]]
@@ -244,19 +244,19 @@ class Env(object):
     return self._colors_C1_d[self._indices[x%self._Lx, y%self._Ly]]
 
   def get_T1(self,x,y):
-    return self._neq_T1s[self._indices[x%self._Lx,y%self._Ly]]
+    return self._neq_T1s[self._indices[x%self._Lx, y%self._Ly]]
 
   def get_color_T1_r(self,x,y):
     return -self._colors_C2_l[self._indices[(x+1)%self._Lx, y%self._Ly]]
 
   def get_color_T1_d(self,x,y):
-    return -self._colors_A[self._indices[x%self._Lx, (y-1)%self._Ly]][2]
+    return -self._colors_A[self._indices[x%self._Lx, (y+1)%self._Ly]][2]
 
   def get_color_T1_l(self,x,y):
     return -self._colors_C1_r[self._indices[(x-1)%self._Lx, y%self._Ly]]
 
   def get_C2(self,x,y):
-    return self._neq_C2s[self._indices[x%self._Lx,y%self._Ly]]
+    return self._neq_C2s[self._indices[x%self._Lx, y%self._Ly]]
 
   def get_color_C2_d(self,x,y):
     return self._colors_C2_d[self._indices[x%self._Lx, y%self._Ly]]
@@ -265,19 +265,19 @@ class Env(object):
     return self._colors_C2_l[self._indices[x%self._Lx, y%self._Ly]]
 
   def get_T2(self,x,y):
-    return self._neq_T2s[self._indices[x%self._Lx,y%self._Ly]]
+    return self._neq_T2s[self._indices[x%self._Lx, y%self._Ly]]
 
   def get_color_T2_u(self,x,y):
-    return -self._colors_C2_d[self._indices[x%self._Lx, (y+1)%self._Ly]]
+    return -self._colors_C2_d[self._indices[x%self._Lx, (y-1)%self._Ly]]
 
   def get_color_T2_d(self,x,y):
-    return -self._colors_C3_u[self._indices[x%self._Lx, (y-1)%self._Ly]]
+    return -self._colors_C3_u[self._indices[x%self._Lx, (y+1)%self._Ly]]
 
   def get_color_T2_l(self,x,y):
     return -self._colors_A[self._indices[(x-1)%self._Lx, y%self._Ly]][3]
 
   def get_C3(self,x,y):
-    return self._neq_C3s[self._indices[x%self._Lx,y%self._Ly]]
+    return self._neq_C3s[self._indices[x%self._Lx, y%self._Ly]]
 
   def get_color_C3_u(self,x,y):
     return self._colors_C3_u[self._indices[x%self._Lx, y%self._Ly]]
@@ -286,10 +286,10 @@ class Env(object):
     return self._colors_C3_l[self._indices[x%self._Lx, y%self._Ly]]
 
   def get_T3(self,x,y):
-    return self._neq_T3s[self._indices[x%self._Lx,y%self._Ly]]
+    return self._neq_T3s[self._indices[x%self._Lx, y%self._Ly]]
 
   def get_color_T3_u(self,x,y):
-    return -self._colors_A[self._indices[x%self._Lx, (y+1)%self._Ly]][4]
+    return -self._colors_A[self._indices[x%self._Lx, (y-1)%self._Ly]][4]
 
   def get_color_T3_r(self,x,y):
     return -self._colors_C3_l[self._indices[(x+1)%self._Lx, y%self._Ly]]
@@ -310,25 +310,25 @@ class Env(object):
     return self._neq_T4s[self._indices[x%self._Lx,y%self._Ly]]
 
   def get_color_T4_u(self,x,y):
-    return -self._colors_C1_d[self._indices[x%self._Lx, (y+1)%self._Ly]]
+    return -self._colors_C1_d[self._indices[x%self._Lx, (y-1)%self._Ly]]
 
   def get_color_T4_r(self,x,y):
     return -self._colors_A[self._indices[(x+1)%self._Lx, y%self._Ly]][5]
 
   def get_color_T4_d(self,x,y):
-    return -self._colors_C4_u[self._indices[x%self._Lx, (y-1)%self._Ly]]
+    return -self._colors_C4_u[self._indices[x%self._Lx, (y+1)%self._Ly]]
 
   def get_P(self,x,y):
-    return self._neq_P[self._indices[x%self._Lx,y%self._Ly]]
+    return self._neq_P[self._indices[x%self._Lx, y%self._Ly]]
 
   def get_color_P(self,x,y):
-    return self._colors_P[self._indices[x%self._Lx,y%self._Ly]]
+    return self._colors_P[self._indices[x%self._Lx, y%self._Ly]]
 
   def get_Pt(self,x,y):
-    return self._neq_Pt[self._indices[x%self._Lx,y%self._Ly]]
+    return self._neq_Pt[self._indices[x%self._Lx, y%self._Ly]]
 
   def get_color_Pt(self,x,y):
-    return self._colors_Pt[self._indices[x%self._Lx,y%self._Ly]]
+    return self._colors_Pt[self._indices[x%self._Lx, y%self._Ly]]
 
   def _reset_projectors_temp(self):
     # free projectors memory, other arrays are stored anyway. Is it worth it?
