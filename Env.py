@@ -29,6 +29,26 @@ def _initialize_env(A):
   return C1,T1,C2,T4,T2,C4,T3,C3
 
 
+def _color_corresponance(old_col, new_col):
+  """
+  Find correspondances between old and new set of colors on a given axis.
+  Return same size arrays with same color structure
+  """
+  old_rows = []
+  new_rows = []
+  for c in set(new_col):
+    oldrc = (old_col==c).nonzero()[0]
+    newrc = (new_col==c).nonzero()[0]
+    old_rows += list(oldrc[:len(newrc)])
+    new_rows += list(newrc[:len(oldrc)])
+  old_rows = np.array(old_rows)
+  new_rows = np.array(new_rows)
+  s = old_rows.argsort()
+  old_rows = old_rows[s]  # != range(d) if some rows are removed
+  new_rows = new_rows[s]  # this is a bit tedious, but optimises copy
+  return old_rows, new_rows
+
+
 class Env(object):
   """
   Container for CTMRG environment tensors.
@@ -285,35 +305,62 @@ class Env(object):
         raise ValueError('Physical and ancila dimensions and colors cannot change')
 
       # when the shape of a tensor (or its quantum numbers) changes, we still
-      # would like to keep the environment. This is still possible by
-      # constructing the optimal isometry from the new tensor to the old env.
-      # It is easier and more bra-ket symmetric to work on mono-layer A.
-      # For each virtual leg, detect if someting changed, then use SVD to get
-      # "projector" and apply it to T bra and ket legs
-      # TODO write function f
+      # would like to keep the environment. This is still possible: the legs of
+      # A were obtained from some SVD then truncated, ie some singular value
+      # was put to 0 (either in former or current A). Just add a row of zeros
+      # corresponding to this 0 singular value in the tensor that misses it and
+      # dimensions match. In case of U(1) symmetry, this is the same but sector
+      # wise.
+
       x,y = self._neq_coords[i]
+      # up axis
       if A.shape[2] != oldA.shape[2] or (oldcol[2]!=col[2]).any():
         j = self._indices[x%self._Lx, (y-1)%self._Ly]
-        P = f(A,col)
-        newT1 = np.tensordot(np.tensordot(self._neq_T1s[j],P,((1,),(0,))),P.conj(),((1,),(0,)))
-        newT1 = newT1.transpose(0,2,3,1).copy()
+        oldT1 = self._neq_T1s[j]
+        newT1 = np.zeros((oldT1.shape[0],A.shape[2],A.shape[2],oldT1.shape[2]))
+        if oldcol[2].size:   # colorwise copy
+          old_rows, new_rows = _color_correspondance(oldcol[2], col[2])  # put copy outside of color loop
+        else:   # colors are not provided
+          old_rows = slice(0,oldA.shape[2])
+          new_rows = slice(0,A.shape[2])
+        newT1[:,new_rows,new_rows] = oldT1[:,old_rows,old_rows]
         self._neq_T1s[j] = newT1
+
+      # right axis
       if A.shape[3] != oldA.shape[3] or (oldcol[3]!=col[3]).any():
         j = self._indices[(x+1)%self._Lx, y%self._Ly]
-        P = f(A,col)
-        newT2 = np.tensordot(np.tensordot(self._neq_T2s[j],P,((2,),(0,))),P.conj(),((2,),(0,)))
+        oldT2 = self._neq_T2s[j]
+        newT2 = np.zeros((oldT2.shape[0],oldT2.shape[1],A.shape[3],A.shape[3]))
+        if oldcol[3].size:   # colorwise copy
+          old_rows, new_rows = _color_correspondance(oldcol[3], col[3])
+        else:   # colors are not provided
+          old_rows = slice(0,oldA.shape[3])
+          new_rows = slice(0,A.shape[3])
+        newT2[:,:,new_rows,new_rows] = oldT2[:,:,old_rows,old_rows]
         self._neq_T2s[j] = newT2
+
       if A.shape[4] != oldA.shape[4] or (oldcol[4]!=col[4]).any():
         j = self._indices[x%self._Lx, (y+1)%self._Ly]
-        P = f(A,col)
-        newT3 = np.tensordot(np.tensordot(self._neq_T3s[j],P,((0,),(0,))),P.conj(),((0,),(0,)))
-        newT3 = newT3.transpose(2,3,0,1).copy()
+        oldT3 = self._neq_T3s[j]
+        newT3 = np.zeros((A.shape[4],A.shape[4],oldT3.shape[2],oldT3.shape[3]))
+        if oldcol[4].size:   # colorwise copy
+          old_rows, new_rows = _color_correspondance(oldcol[4], col[4])
+        else:   # colors are not provided
+          old_rows = slice(0,oldA.shape[4])
+          new_rows = slice(0,A.shape[4])
+        newT3[new_rows,new_rows] = oldT3[old_rows,old_rows]
         self._neq_T3s[j] = newT3
+
       if A.shape[5] != oldA.shape[5] or (oldcol[5]!=col[5]).any():
         j = self._indices[(x-1)%self._Lx, y%self._Ly]
-        P = f(A,col)
-        newT4 = np.tensordot(np.tensordot(self._neq_T4s[j],P,((1,),(0,))),P.conj(),((1,),(0,)))
-        newT4 = newT4.transpose(0,2,3,1).copy()
+        oldT4 = self._neq_T4s[j]
+        newT4 = np.zeros((oldT4.shape[0],A.shape[5],A.shape[5],oldT4.shape[3]))
+        if oldcol[5].size:   # colorwise copy
+          old_rows, new_rows = _color_correspondance(oldcol[5], col[5])
+        else:   # colors are not provided
+          old_rows = slice(0,oldA.shape[5])
+          new_rows = slice(0,A.shape[5])
+        newT4[:,new_rows,new_rows] = oldT4[:,old_rows,old_rows]
         self._neq_T4s[j] = newT4
 
       self._neq_As[i] = A
