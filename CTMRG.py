@@ -17,21 +17,24 @@ class CTMRG(object):
   # When passed as arguments to a function for contraction, tensors are sorted
   # from left to right, from up to down.
 
-  def __init__(self, tensors, chi, cell=None, tiling=None, colors=None, verbosity=0):
+  def __init__(self, chi, tensors=(), cell=None, tiling=None, colors=None, saveFile=None, verbosity=0):
     self.verbosity = verbosity
     if self.verbosity > 0:
       print(f"initalize CTMRG with chi = {chi} and self.verbosity = {self.verbosity}")
-      if cell is not None:
-        print("unit cell =", cell, sep="\n")
-      else:
-        print("tiling =", tiling, sep="\n")
-      if colors is not None:
-        print("colors =", colors, sep="\n")
     self.chi = chi
-    self._env = Env.Env(tensors, cell=cell, tiling=tiling, colors=colors)
+    self._env = Env.Env(tensors, cell=cell, tiling=tiling, colors=colors, saveFile=saveFile)
     self._neq_coords = self._env.neq_coords
     if self.verbosity > 0:
       print('CTMRG constructed')
+      print("unit cell =", self._env.cell, sep="\n")
+      if colors is not None:
+        print("colors =", colors, sep="\n")
+
+  def save_to_file(self, saveFile):
+    self._env.save_to_file(saveFile)   # all the data is in env
+
+  def load_from_file(self, saveFile):
+    self._env.load_from_file(saveFile)
 
   @property
   def Lx(self):

@@ -43,14 +43,14 @@ class Env(object):
      C4-T3-T3-C3
   """
 
-  def __init__(self, tensors, cell=None, tiling=None, colors=None):
+  def __init__(self, tensors=(), cell=None, tiling=None, colors=None, saveFile=None):
     """
     Store tensors and return them according to a given tiling. Tiling can be
     provided as a string such as 'AB\nCD' or directly as a numpy array of char.
 
     Parameters
     ----------
-    tensors: list of Nneq numpy arrays
+    tensors: iterable of Nneq numpy arrays
       Tensors given from left to right and up to down (as in array.flat)
     cell: array of characters
       Elementary cell, each letter representing non-equivalent tensors.
@@ -60,11 +60,19 @@ class Env(object):
       U(1) quantum numbers corresponding to the tensors. Note that dimensions
       are check for compatibility with tensors, but color compatibility between
       legs to contract is not checked.
+    saveFile: string
+      Restart environment from npz save. If present, other arguments are not
+      read.
     """
+    if saveFile is not None:
+      self.load_from_file(saveFile)
+      return
+
     if cell is None:
-      if tiling is None:
-        raise ValueError("Either cell or tiling must be provided")
-      cell = np.genfromtxt([" ".join(w) for w in tiling.strip().splitlines()], dtype='U1')
+      if tiling is None:     # default constructor, then call load_from_file
+        cell = np.array([],dtype='U1').reshape(0,0)  # need ndim=2 for Lx,Ly
+      else:
+        cell = np.genfromtxt([" ".join(w) for w in tiling.strip().splitlines()], dtype='U1')
     else:
       cell = np.asarray(cell)
 
@@ -123,8 +131,8 @@ class Env(object):
       self._neq_T4s.append(T4)
 
     if colors is not None:
-      if len(colors) != len(tensors):
-        raise ValueError("Colors numbers do not match tensors")
+      if len(colors) != self._Nneq:
+        raise ValueError("Color number do not match tensors")
       self._colors_A = []
       # more convenient to store separetly row and column colors of corners
       self._colors_C1_r = []
@@ -154,7 +162,7 @@ class Env(object):
         self._colors_C4_u.append(c2)
         self._colors_C4_r.append(c3)
     else:
-      self._colors_A = ((default_color,)*6,)*self._Nneq
+      self._colors_A = [(default_color,)*6]*self._Nneq
       self._colors_C1_r = [default_color]*self._Nneq
       self._colors_C1_d = [default_color]*self._Nneq
       self._colors_C2_d = [default_color]*self._Nneq
@@ -165,6 +173,94 @@ class Env(object):
       self._colors_C4_r = [default_color]*self._Nneq
 
     self._reset_projectors_temp()
+
+
+  def save_to_file(self, saveFile):
+    """
+    Save all tensors into external .npz file
+    """
+    # do not store lists to avoid pickle
+    # come back to elementary numpy arrays
+    data = {}
+    data["cell"] = self._cell
+    data["indices"] = self._indices
+    data['neq_coords'] = self._neq_coords
+
+    for i in range(self._Nneq):
+      data[f"A_{i}"] = self._neq_As[i]
+      data[f"C1_{i}"] = self._neq_C1s[i]
+      data[f"T1_{i}"] = self._neq_T1s[i]
+      data[f"C2_{i}"] = self._neq_C2s[i]
+      data[f"T2_{i}"] = self._neq_T2s[i]
+      data[f"C3_{i}"] = self._neq_C3s[i]
+      data[f"T3_{i}"] = self._neq_T3s[i]
+      data[f"C4_{i}"] = self._neq_C4s[i]
+      data[f"T4_{i}"] = self._neq_T4s[i]
+      data[f"colors_C1_r_{i}"] = self._colors_C1_r[i]
+      data[f"colors_C1_d_{i}"] = self._colors_C1_d[i]
+      data[f"colors_C2_d_{i}"] = self._colors_C2_d[i]
+      data[f"colors_C2_l_{i}"] = self._colors_C2_l[i]
+      data[f"colors_C3_u_{i}"] = self._colors_C3_u[i]
+      data[f"colors_C3_l_{i}"] = self._colors_C3_l[i]
+      data[f"colors_C4_u_{i}"] = self._colors_C4_u[i]
+      data[f"colors_C4_r_{i}"] = self._colors_C4_r[i]
+      for l in range(6):
+        data[f"colors_A_{i}_{l}"] = self._colors_A[i][l]
+
+    np.savez_compressed(saveFile, **data)
+
+
+  def load_from_file(self, saveFile):
+    """
+    Load cell, tensors and colors from saveFile. Erase any pre-existing data.
+    """
+    with np.load(saveFile) as data:
+      self._cell = data["cell"]
+      self._indices = data["indices"]
+      self._neq_coords = data["neq_coords"]
+      self._Ly, self._Lx = self._cell.shape
+      self._Nneq = len(self._neq_coords)
+
+      self._neq_As = [None]*self._Nneq
+      self._neq_C1s = [None]*self._Nneq
+      self._neq_T1s = [None]*self._Nneq
+      self._neq_C2s = [None]*self._Nneq
+      self._neq_T2s = [None]*self._Nneq
+      self._neq_C3s = [None]*self._Nneq
+      self._neq_T3s = [None]*self._Nneq
+      self._neq_C4s = [None]*self._Nneq
+      self._neq_T4s = [None]*self._Nneq
+
+      # colors are always defined and stored, even if they are default_color
+      self._colors_A = [(default_color,)*6]*self._Nneq
+      self._colors_C1_r = [default_color]*self._Nneq
+      self._colors_C1_d = [default_color]*self._Nneq
+      self._colors_C2_d = [default_color]*self._Nneq
+      self._colors_C2_l = [default_color]*self._Nneq
+      self._colors_C3_u = [default_color]*self._Nneq
+      self._colors_C3_l = [default_color]*self._Nneq
+      self._colors_C4_u = [default_color]*self._Nneq
+      self._colors_C4_r = [default_color]*self._Nneq
+
+      for i in range(self._Nneq):
+        self._neq_As[i] = data[f"A_{i}"]
+        self._neq_C1s[i] = data[f"C1_{i}"]
+        self._neq_T1s[i] = data[f"T1_{i}"]
+        self._neq_C2s[i] = data[f"C2_{i}"]
+        self._neq_T2s[i] = data[f"T2_{i}"]
+        self._neq_C3s[i] = data[f"C3_{i}"]
+        self._neq_T3s[i] = data[f"T3_{i}"]
+        self._neq_C4s[i] = data[f"C4_{i}"]
+        self._neq_T4s[i] = data[f"T4_{i}"]
+        self._colors_A[i] = tuple(data[f"colors_A_{i}_{l}"] for l in range(6))
+        self._colors_C1_r[i] = data[f"colors_C1_r_{i}"]
+        self._colors_C1_d[i] = data[f"colors_C1_d_{i}"]
+        self._colors_C2_d[i] = data[f"colors_C2_d_{i}"]
+        self._colors_C2_l[i] = data[f"colors_C2_l_{i}"]
+        self._colors_C3_u[i] = data[f"colors_C3_u_{i}"]
+        self._colors_C3_l[i] = data[f"colors_C3_l_{i}"]
+        self._colors_C4_u[i] = data[f"colors_C4_u_{i}"]
+        self._colors_C4_r[i] = data[f"colors_C4_r_{i}"]
 
 
   def set_tensors(self, tensors, colors=None):
