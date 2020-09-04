@@ -63,7 +63,7 @@ for i in range(1,19):
   I = np.random.random((5,3,Ds[13],Ds[17],Ds[8],Ds[18]))
 
 
-  ctm = CTMRG([A,B,C,D,E,F,G,H,I],til9,chi,verbosity=0)
+  ctm = CTMRG(chi, tensors=(A,B,C,D,E,F,G,H,I), tiling=til9)
   ctm.print_tensor_shapes()
   for i in range(5):
     ctm.iterate()
@@ -78,7 +78,7 @@ for i in range(1,19):
   print(f'rdm2x2 is hermitian: {lg.norm(rdm2x2-rdm2x2.T.conj()):.1e}')
 
 
-ctm = CTMRG(tensors,tiling,chi,verbosity=2)
+ctm = CTMRG(chi, tensors=tensors, tiling=tiling, verbosity=2)
 ctm.print_tensor_shapes()
 print('try 2 iterations:')
 ctm.iterate()
@@ -159,7 +159,7 @@ chi = 70
 niter = 0
 
 tiling = tilingA
-ctm = CTMRG([tRVB2],tilingA,chi,verbosity=0)
+ctm = CTMRG(chi, tensors=(tRVB2,), tiling='A')
 print(f'chi = {chi}, measure symmetry and Heisenberg term for rdm1x2/2x1')
 rdm1x2 = ctm.compute_rdm1x2()
 rdm2x1 = ctm.compute_rdm2x1()

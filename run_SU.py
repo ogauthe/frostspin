@@ -77,7 +77,7 @@ print(checkU1(B,colorsB))
 print(checkU1(C,colorsC))
 print(checkU1(D,colorsD))
 
-ctm = CTMRG((A,B,C,D),tiling,chi,colors=(colorsA,colorsB,colorsC,colorsD),verbosity=10)
+ctm = CTMRG(chi, tensors=(A,B,C,D), tiling=tiling, colors=(colorsA,colorsB,colorsC,colorsD), verbosity=10)
 rdmD = ctm.compute_rdm1x1(0,0)
 rdmC = ctm.compute_rdm1x1(1,0)
 rdmB = ctm.compute_rdm1x1(0,1)
