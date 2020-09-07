@@ -30,6 +30,20 @@ DEF
 GHI
 """
 
+til6 = """
+AB
+CD
+EF
+"""
+A = np.random.random((2,2,2,13,4,5))
+B = np.random.random((2,2,6,5,7,13))
+C = np.random.random((2,2,4,8,9,10))
+D = np.random.random((2,2,7,10,11,8))
+E = np.random.random((2,2,9,12,2,3))
+F = np.random.random((2,2,11,3,6,12))
+tensors = (A,B,C,D,E,F)
+tiling = til6
+
 """
 tiling = tilingAB
 tensors = [tAKLT2.copy(),tAKLT2.copy()]
