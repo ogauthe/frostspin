@@ -83,23 +83,27 @@ for i in range(ctm_iter):
 print(f"\ndone with CTM iteration, t={time()-t:.1f}")
 
 
-rdmD = ctm.compute_rdm1x1(0,0)
-rdmC = ctm.compute_rdm1x1(1,0)
-rdmB = ctm.compute_rdm1x1(0,1)
-rdmA = ctm.compute_rdm1x1(1,1)
-
-rdmAB = ctm.compute_rdm1x2(0,0)
-rdmAC = ctm.compute_rdm2x1(0,0)
-rdmBA = ctm.compute_rdm1x2(1,0)
-rdmCA = ctm.compute_rdm2x1(0,1)
-
-#print(lg.norm(rdmA - 0.5*np.eye(2)), lg.norm(rdmB - 0.5*np.eye(2)), lg.norm(rdmC - 0.5*np.eye(2)) ,lg.norm(rdmD - 0.5*np.eye(2)))
-#print(lg.norm(rdmAB - 0.25*np.eye(4)), lg.norm(rdmAB - 0.25*np.eye(4)), lg.norm(rdmBA - 0.25*np.eye(4)) ,lg.norm(rdmCA - 0.25*np.eye(4)))
-
-print("\ndone with CTM. Compute rdm")
-eps = 0.5*np.trace(su.h1 @ (rdmAB + rdmAC + rdmBA + rdmCA))
-print(f"epsilon = {eps}")
+h1_4sites = np.kron(h1,np.eye(d**2)).reshape( (d,)*8)
+h2_4sites = np.kron(h2,np.eye(d**2)).reshape( (d,)*8)
+sh = (d**4,d**4)
+# rho ABCD has NN bonds 2,3,6,7 and NNN bonds 26/37
+h_ABCD = (  h1_4sites.reshape(sh)   # 0-1
+         + h1_4sites.transpose(0,2,1,3,4,6,5,7).reshape(sh)        # 0//2
+         + h1_4sites.transpose(3,1,2,0,7,5,6,4).reshape(sh)        # 1//3
+         + h1_4sites.transpose(2,3,0,1,6,7,4,5).reshape(sh) )/2 \
+       + h2_4sites.transpose(0,3,2,1,4,7,6,5).reshape(sh)       \
+       + h2_4sites.transpose(2,1,0,3,6,5,4,7).reshape(sh)          # 1/-2
 
 
-print("done")
+# coordinates stand for C1.
+print("compute 4 rdm 2x2")
+t = time()
+rho_ABCD = ctm.compute_rdm2x2(-1,-1)
+rho_BADC = ctm.compute_rdm2x2(0,-1)
+rho_CDAB = ctm.compute_rdm2x2(-1,0)
+rho_DCBA = ctm.compute_rdm2x2(0,0)
+print(f"done, t = {time()-t:.1f}")
 
+# Tr(AB) = (A*B.T).sum() and H is exactly symmetric (not just up to precision)
+energy = ((rho_ABCD + rho_BADC + rho_CDAB + rho_DCBA)*h_ABCD).sum()/4
+print(f"energy = {energy}")
