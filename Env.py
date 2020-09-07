@@ -282,6 +282,8 @@ class Env(object):
         self._colors_C4_u[i] = data[f"colors_C4_u_{i}"]
         self._colors_C4_r[i] = data[f"colors_C4_r_{i}"]
 
+    self._reset_projectors_temp()
+
 
   def set_tensors(self, tensors, colors=None):
     if self._Nneq != len(tensors):
