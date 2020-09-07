@@ -157,9 +157,9 @@ def svdU1_truncate(M, chi, row_colors=default_color, col_colors=default_color,
     U,s,V = svd_truncate(M, chi, keep_multiplets, window, cuttol, maxiter)
     return U,s,V,default_color
 
-  row_sort = np.argsort(row_colors)
+  row_sort = row_colors.argsort()
   sorted_row_colors = row_colors[row_sort]
-  col_sort = np.argsort(col_colors)
+  col_sort = col_colors.argsort()
   sorted_col_colors = col_colors[col_sort]
   row_inds = np.array([0, *((sorted_row_colors[:-1] != sorted_row_colors[1:]
                     ).nonzero()[0] + 1), M.shape[0]])
@@ -209,7 +209,7 @@ def svdU1_truncate(M, chi, row_colors=default_color, col_colors=default_color,
       bc += 1
 
   S = S[:k]  # k <= max_k
-  s_sort = np.argsort(S)[::-1]
+  s_sort = S.argsort()[::-1]
   S = S[s_sort]
 
   # expect multiplets to lie in separate color blocks (true for SU(2) > U(1))

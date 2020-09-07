@@ -211,9 +211,9 @@ def svdU1(M, row_colors=default_color, col_colors=default_color, check=False):
   if col_colors.shape != (M.shape[1],):
     raise ValueError("col_colors has to be (M.shape[1])")
 
-  row_sort = np.argsort(row_colors)
+  row_sort = row_colors.argsort()
   sorted_row_colors = row_colors[row_sort]
-  col_sort = np.argsort(col_colors)
+  col_sort = col_colors.argsort()
   sorted_col_colors = col_colors[col_sort]
   row_inds = [0, *((sorted_row_colors[:-1] != sorted_row_colors[1:]
                     ).nonzero()[0] + 1), M.shape[0]]
@@ -248,7 +248,7 @@ def svdU1(M, row_colors=default_color, col_colors=default_color, check=False):
     if k == 0: # pathological case with 0 matching colors.
       raise ValueError("No sector matching, M has to be zero")
     s = s[:k]
-  s_sort = np.argsort(s)[::-1]
+  s_sort = s.argsort()[::-1]
   U = U[:,s_sort]
   s = s[s_sort]
   V = V[s_sort]
