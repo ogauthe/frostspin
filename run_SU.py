@@ -20,7 +20,7 @@ Ds = (D,)*8
 print(f'run simple update with d = {d}, a = {a}, Ds = {Ds}')
 
 J2 = 0.9
-beta = 1
+beta = 1.
 tau = 0.01
 su_iter = int(beta/2/tau)  # rho is quadratic in psi
 
@@ -41,13 +41,6 @@ B = A.copy()
 C = B.copy()
 D = A.copy()
 
-colors = [pcol,pcol,vcol[:2],vcol[:3],vcol[:4],vcol[:5],vcol[:6],vcol[:7],vcol[:8],vcol[:9]]
-Ds = (2,3,4,5,6,7,8,9)
-A = A[:,:,:2,:3,:4,:5]
-B = B[:,:,:6,:5,:7,:3]
-C = C[:,:,:4,:8,:2,:9]
-D = D[:,:,:7,:9,:6,:8]
-
 h1 = SdS_22b
 h2 = J2*SdS_22
 # colors A and D = [[1,-1], [1,-1],[2, 0, -2, 0, 0],[2, 0, -2, 0, 0],[2, 0, -2, 0, 0],[2, 0, -2, 0, 0]]
@@ -55,13 +48,13 @@ h2 = J2*SdS_22
 # colors B and C = [[-1,1], [1,-1],[2, 0, -2, 0, 0],[2, 0, -2, 0, 0],[2, 0, -2, 0, 0],[2, 0, -2, 0, 0]]
 
 print("#"*79)
-print("Run simple update for spin 1/2 Heisenberg with J1=1, J2={J2}")
+print(f"Run simple update for spin 1/2 Heisenberg with J1=1, J2={J2}")
 print(f"run with tau = {tau} up to beta = {beta}")
 su = SimpleUpdateABCD(d, a, Ds, h1, h2, tau, tensors=(A,B,C,D), colors=colors)
 
 t = time()
-#for i in range(su_iter//2): # 2nd order Trotter
-for i in range(2):
+for i in range(su_iter//2): # 2nd order Trotter
+#for i in range(2):
   su.update()
 print(f"\ndone with SU, t={time()-t:.1f}")
 
@@ -107,3 +100,7 @@ print(f"done, t = {time()-t:.1f}")
 # Tr(AB) = (A*B.T).sum() and H is exactly symmetric (not just up to precision)
 energy = ((rho_ABCD + rho_BADC + rho_CDAB + rho_DCBA)*h_ABCD).sum()/4
 print(f"energy = {energy}")
+
+save = f"data_ctm_SU_ABCD_J2_{J2}_beta{beta}_tau{tau}_chi{chi}.npz"
+ctm.save_to_file(save)
+print("CTMRG data saved in file", save)
