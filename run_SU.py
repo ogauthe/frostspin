@@ -67,6 +67,31 @@ colorsD = [colors[0],colors[1],colors[7],colors[9],colors[6],colors[8]]
 
 ctm = CTMRG(chi, tensors=(A,B,C,D), tiling=tiling, colors=(colorsA,colorsB,colorsC,colorsD), verbosity=0)
 
+def compute_energy(ctm,h1,h2):
+  # Tr(AH) = (A*H.T).sum() and H is exactly symmetric
+  rho1 = ctm.compute_rdm2x1(-1,0)
+  rho2 = ctm.compute_rdm1x2(-1,-1)
+  rho3 = ctm.compute_rdm2x1(-1,-1)
+  rho4 = ctm.compute_rdm1x2(0,-1)
+  rho5 = ctm.compute_rdm2x1(0,0)
+  rho6 = ctm.compute_rdm2x1(0,-1)
+  rho7 = ctm.compute_rdm1x2(-1,0)
+  rho8 = ctm.compute_rdm1x2(0,0)
+  eps1 = ((rho1 + rho2 + rho3 + rho4 + rho5 + rho6 + rho7 + rho8)*h1).sum()
+
+  rho9 = ctm.compute_rdm_diag_dr(0,0)
+  rho10 = ctm.compute_rdm_diag_ur(-1,0)
+  rho11 = ctm.compute_rdm_diag_dr(-1,-1)
+  rho12 = ctm.compute_rdm_diag_ur(0,-1)
+  rho13 = ctm.compute_rdm_diag_dr(-1,0)
+  rho14 = ctm.compute_rdm_diag_ur(0,0)
+  rho15 = ctm.compute_rdm_diag_dr(0,-1)
+  rho16 = ctm.compute_rdm_diag_ur(-1,-1)
+  eps2 = ((rho9 + rho10 + rho11 + rho12 + rho13 + rho14 + rho15 + rho16)*h2).sum()
+
+  energy = (eps1 + eps2)/4
+  return energy
+
 print(f'Converge CTMRG with chi = {chi} and niter = {ctm_iter}')
 t = time()
 for i in range(ctm_iter):
@@ -74,59 +99,11 @@ for i in range(ctm_iter):
   ctm.iterate()
 
 print(f"\ndone with CTM iteration, t={time()-t:.1f}")
-
-
-h1_4sites = np.kron(h1,np.eye(d**2)).reshape( (d,)*8)
-h2_4sites = np.kron(h2,np.eye(d**2)).reshape( (d,)*8)
-sh = (d**4,d**4)
-# rho ABCD has NN bonds 2,3,6,7 and NNN bonds 26/37
-h_ABCD = (  h1_4sites.reshape(sh)   # 0-1
-         + h1_4sites.transpose(0,2,1,3,4,6,5,7).reshape(sh)        # 0//2
-         + h1_4sites.transpose(3,1,2,0,7,5,6,4).reshape(sh)        # 1//3
-         + h1_4sites.transpose(2,3,0,1,6,7,4,5).reshape(sh) )/2 \
-       + h2_4sites.transpose(0,3,2,1,4,7,6,5).reshape(sh)       \
-       + h2_4sites.transpose(2,1,0,3,6,5,4,7).reshape(sh)          # 1/-2
-
-
-# coordinates stand for C1.
-print("compute 4 rdm 2x2")
-t = time()
-rho_ABCD = ctm.compute_rdm2x2(-1,-1)
-rho_BADC = ctm.compute_rdm2x2(0,-1)
-rho_CDAB = ctm.compute_rdm2x2(-1,0)
-rho_DCBA = ctm.compute_rdm2x2(0,0)
-print(f"done, t = {time()-t:.1f}")
-
-
-print("compute 16 rdm")
-t = time()
-rho1 = ctm.compute_rdm2x1(-1,0)
-rho2 = ctm.compute_rdm1x2(-1,-1)
-rho3 = ctm.compute_rdm2x1(-1,-1)
-rho4 = ctm.compute_rdm1x2(0,-1)
-rho5 = ctm.compute_rdm2x1(0,0)
-rho6 = ctm.compute_rdm2x1(0,-1)
-rho7 = ctm.compute_rdm1x2(-1,0)
-rho8 = ctm.compute_rdm1x2(0,0)
-
-rho9 = ctm.compute_rdm_diag_dr(0,0)
-rho10 = ctm.compute_rdm_diag_ur(-1,0)
-rho11 = ctm.compute_rdm_diag_dr(-1,-1)
-rho12 = ctm.compute_rdm_diag_ur(0,-1)
-rho13 = ctm.compute_rdm_diag_dr(-1,0)
-rho14 = ctm.compute_rdm_diag_ur(0,0)
-rho15 = ctm.compute_rdm_diag_dr(0,-1)
-rho16 = ctm.compute_rdm_diag_ur(-1,-1)
-print(f"done, t = {time()-t:.1f}")
-
-
-# Tr(AB) = (A*B.T).sum() and H is exactly symmetric (not just up to precision)
-energy = ((rho_ABCD + rho_BADC + rho_CDAB + rho_DCBA)*h_ABCD).sum()/4
-print(f"energy 4 rdm 2x2 = {energy}")
-
-energy2 = ((rho1 + rho2 + rho3 + rho4 + rho5 + rho6 + rho7 + rho8)*h1).sum()/4 + ((rho9 + rho10 + rho11 + rho12 + rho13 + rho14 + rho15 + rho16)*h2).sum()/4
-print(f"energy 8 rdm diag = {energy2}")
+energy = compute_energy(ctm,h1,h2)
+print("energy =", energy)
 
 save = f"data_ctm_SU_ABCD_J2_{J2}_beta{beta}_tau{tau}_chi{chi}.npz"
 ctm.save_to_file(save)
 print("CTMRG data saved in file", save)
+
+
