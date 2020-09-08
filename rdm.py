@@ -242,6 +242,6 @@ def rdm_diag_ur(C1,T1l,T1r,C2,T4u,Aul,Aur,T2u,T4d,Adl,Adr,T2d,C4,T3l,T3r,C3):
   ur = ur.transpose(0,4,7,1,3,6,2,5).reshape(rdm.shape[1],Aur.shape[0]**2)
   rdm = rdm @ ur
   rdm = rdm.reshape(Adl.shape[0], Adl.shape[0], Aur.shape[0], Aur.shape[0])
-  rdm = rdm.swapaxes(1,2).reshape(Adl.shape[0]*Aur.shape[0], Adl.shape[0]*Aur.shape[0])
+  rdm = rdm.transpose(2,0,3,1).reshape(Aur.shape[0]*Adl.shape[0], Aur.shape[0]*Adl.shape[0])
   rdm /= rdm.trace()
   return rdm
