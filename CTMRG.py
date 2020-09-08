@@ -340,3 +340,29 @@ class CTMRG(object):
                        self._env.get_A(x+2,y+2), self._env.get_T2(x+3,y+2),
                        self._env.get_C4(x,y+3), self._env.get_T3(x+1,y+3),
                        self._env.get_T3(x+2,y+3), self._env.get_C3(x+3,y+3))
+
+
+  def compute_rdm_diag_dr(self,x=0,y=0):
+    if self.verbosity > 0:
+      print(f'Compute rdm for down right diagonal sites ({x+1},{y+1}) and ({x+2},{y+2})')
+    return rdm.rdm_diag_dr(self._env.get_C1(x,y), self._env.get_T1(x+1,y),
+                       self._env.get_T1(x+2,y), self._env.get_C2(x+3,y),
+                       self._env.get_T4(x,y+1), self._env.get_A(x+1,y+1),
+                       self._env.get_A(x+2,y+1), self._env.get_T2(x+3,y+1),
+                       self._env.get_T4(x,y+2), self._env.get_A(x+1,y+2),
+                       self._env.get_A(x+2,y+2), self._env.get_T2(x+3,y+2),
+                       self._env.get_C4(x,y+3), self._env.get_T3(x+1,y+3),
+                       self._env.get_T3(x+2,y+3), self._env.get_C3(x+3,y+3))
+
+
+  def compute_rdm_diag_ur(self,x=0,y=0):
+    if self.verbosity > 0:
+      print(f'Compute rdm for upper right diagonal sites ({x+1},{y+2}) and ({x+2},{y+1})')
+    return rdm.rdm_diag_ur(self._env.get_C1(x,y), self._env.get_T1(x+1,y),
+                       self._env.get_T1(x+2,y), self._env.get_C2(x+3,y),
+                       self._env.get_T4(x,y+1), self._env.get_A(x+1,y+1),
+                       self._env.get_A(x+2,y+1), self._env.get_T2(x+3,y+1),
+                       self._env.get_T4(x,y+2), self._env.get_A(x+1,y+2),
+                       self._env.get_A(x+2,y+2), self._env.get_T2(x+3,y+2),
+                       self._env.get_C4(x,y+3), self._env.get_T3(x+1,y+3),
+                       self._env.get_T3(x+2,y+3), self._env.get_C3(x+3,y+3))

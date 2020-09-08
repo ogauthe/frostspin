@@ -97,9 +97,35 @@ rho_CDAB = ctm.compute_rdm2x2(-1,0)
 rho_DCBA = ctm.compute_rdm2x2(0,0)
 print(f"done, t = {time()-t:.1f}")
 
+
+print("compute 16 rdm")
+t = time()
+rho1 = ctm.compute_rdm2x1(-1,0)
+rho2 = ctm.compute_rdm1x2(-1,-1)
+rho3 = ctm.compute_rdm2x1(-1,-1)
+rho4 = ctm.compute_rdm1x2(0,-1)
+rho5 = ctm.compute_rdm2x1(0,0)
+rho6 = ctm.compute_rdm2x1(0,-1)
+rho7 = ctm.compute_rdm1x2(-1,0)
+rho8 = ctm.compute_rdm1x2(0,0)
+
+rho9 = ctm.compute_rdm_diag_dr(0,0)
+rho10 = ctm.compute_rdm_diag_ur(-1,0)
+rho11 = ctm.compute_rdm_diag_dr(-1,-1)
+rho12 = ctm.compute_rdm_diag_ur(0,-1)
+rho13 = ctm.compute_rdm_diag_dr(-1,0)
+rho14 = ctm.compute_rdm_diag_ur(0,0)
+rho15 = ctm.compute_rdm_diag_dr(0,-1)
+rho16 = ctm.compute_rdm_diag_ur(-1,-1)
+print(f"done, t = {time()-t:.1f}")
+
+
 # Tr(AB) = (A*B.T).sum() and H is exactly symmetric (not just up to precision)
 energy = ((rho_ABCD + rho_BADC + rho_CDAB + rho_DCBA)*h_ABCD).sum()/4
-print(f"energy = {energy}")
+print(f"energy 4 rdm 2x2 = {energy}")
+
+energy2 = ((rho1 + rho2 + rho3 + rho4 + rho5 + rho6 + rho7 + rho8)*h1).sum()/4 + ((rho9 + rho10 + rho11 + rho12 + rho13 + rho14 + rho15 + rho16)*h2).sum()/4
+print(f"energy 8 rdm diag = {energy2}")
 
 save = f"data_ctm_SU_ABCD_J2_{J2}_beta{beta}_tau{tau}_chi{chi}.npz"
 ctm.save_to_file(save)

@@ -1,4 +1,6 @@
 import numpy as np
+from ctm_contract import contract_UL_corner, contract_UR_corner, contract_DL_corner, contract_DR_corner
+
 
 def rdm_1x1(C1,T1,C2,T4,A,T2,C4,T3,C3):
   """
@@ -135,5 +137,111 @@ def rdm_2x2(C1,T1l,T1r,C2,T4u,Aul,Aur,T2u,T4d,Adl,Adr,T2d,C4,T3l,T3r,C3):
   d4 = Aul.shape[0]*Aur.shape[0]*Adl.shape[0]*Adr.shape[0]
   rdm = rdm.transpose(6, 2, 4, 0, 7, 3, 5, 1).reshape(d4,d4)
 
-  rdm = rdm/np.trace(rdm)
+  rdm /= np.trace(rdm)
+  return rdm
+
+
+def rdm_diag_dr(C1,T1l,T1r,C2,T4u,Aul,Aur,T2u,T4d,Adl,Adr,T2d,C4,T3l,T3r,C3):
+  """
+  ┌──┬──┐
+  │02│  │
+  ├──┼──┤
+  │  │13│
+  └──┴──┘
+  """
+  # memory use: 3*chi**2*D**4*d**4
+  ul = np.tensordot(T1l, C1, ((3,),(0,)))
+  ul = np.tensordot(ul, T4u, ((3,),(0,)))
+  ul = np.tensordot(ul, Aul, ((1, 3),(2, 5)))
+  ul = np.tensordot(ul, Aul.conj(), ((1, 2, 5),(2, 5, 1)))
+  #   ------0
+  #   | 2 ||
+  #   |  \||
+  #   |======3,6
+  #   |  /||
+  #   | 5 ||
+  #   1   47
+  ul = ul.transpose(0,3,6,2,5,1,4,7).reshape(T1l.shape[0]*Aul.shape[3]**2*Aul.shape[0]**2, T4u.shape[3]*Aul.shape[4]**2)
+  dl = contract_DL_corner(T4d,Adl,C4,T3l)
+  rdm = ul @ dl
+  rdm = rdm.reshape(T1l.shape[0]*Aul.shape[3]**2, Aul.shape[0]**2*dl.shape[1])
+  del ul,dl
+  ur = contract_UR_corner(T1r,C2,Aur,T2u)
+  rdm = ur @ rdm
+  rdm = rdm.reshape(ur.shape[0], Aul.shape[0]**2, T3l.shape[2]*Adl.shape[3]**2)
+  del ur
+  #   -----           -----
+  #   |11 |   --->    |00 |
+  #   |   0           |   1
+  #   |--2            |--2
+  rdm = rdm.swapaxes(0,1).reshape(Aul.shape[0]**2, T2u.shape[1]*Aur.shape[4]**2*T3l.shape[2]*Adl.shape[3]**2)
+  dr = np.tensordot(T2d, C3, ((1,),(0,)))
+  dr = np.tensordot(dr, T3r, ((3,),(2,)))
+  dr = np.tensordot(dr, Adr, ((1, 3),(3, 4)))
+  dr = np.tensordot(dr, Adr.conj(), ((1, 2, 5),(3, 4, 1)))
+  #     36   0
+  #     || 2 |
+  #     ||/  |              0
+  # 4,7======|   ---->      |
+  #     ||\  |            22|
+  #     || 5 |          1----
+  #   1-------
+  dr = dr.transpose(0,3,6,1,4,7,2,5).reshape(rdm.shape[1],Adr.shape[0]**2)  # max mem
+  rdm = rdm @ dr
+  rdm = rdm.reshape(Aul.shape[0],Aul.shape[0],Adr.shape[0],Adr.shape[0])
+  rdm = rdm.swapaxes(1,2).reshape(Aul.shape[0]*Adr.shape[0], Aul.shape[0]*Adr.shape[0])
+  rdm /= rdm.trace()
+  return rdm
+
+
+def rdm_diag_ur(C1,T1l,T1r,C2,T4u,Aul,Aur,T2u,T4d,Adl,Adr,T2d,C4,T3l,T3r,C3):
+  """
+  ┌──┬──┐
+  │  │02│
+  ├──┼──┤
+  │13│  │
+  └──┴──┘
+  """
+  # memory use: 3*chi**2*D**4*d**4
+  dl = np.tensordot(T4d, C4, ((3,),(0,)))
+  dl = np.tensordot(dl, T3l, ((3,),(3,)))
+  dl = np.tensordot(dl, Adl, ((1, 3),(5, 4)))
+  dl = np.tensordot(dl, Adl.conj(), ((1, 2, 5),(5, 4, 1)))
+  #  0  36
+  #  |2 ||
+  #  | \||
+  #  |====4,7
+  #  | /||
+  #  |5 ||
+  #  ------1
+  dl = dl.transpose(0,3,6,2,5,1,4,7).reshape(T4d.shape[0]*Adl.shape[2]**2, Adl.shape[0]**2*T3l.shape[2]*Adl.shape[3]**2)
+  ul = contract_UL_corner(C1,T1l,T4u,Aul)
+  rdm = ul @ dl
+  rdm = rdm.reshape(ul.shape[0]*Adl.shape[0]**2, T3l.shape[2]*Adl.shape[3]**2)
+  del ul,dl
+  dr = contract_DR_corner(Adr,T2d,T3r,C3)
+  rdm = rdm @ dr.T
+  rdm = rdm.reshape(T1l.shape[0]*Aul.shape[3]**2, Adl.shape[0]**2, dr.shape[0])
+  del dr
+  rdm = rdm.swapaxes(0,1).reshape(Adl.shape[0]**2, T1l.shape[0]*Aul.shape[3]**2*T2d.shape[0]*Adr.shape[2]**2)
+  # ---0          ---1
+  # |   2   -->   |   2
+  # |11 |         |00 |
+  # -----         -----
+  ur = np.tensordot(C2, T1r, ((1,),(0,)))
+  ur = np.tensordot(ur, T2u, ((0,),(0,)))
+  ur = np.tensordot(ur, Aur, ((0, 4),(2, 3)))
+  ur = np.tensordot(ur, Aur.conj(), ((0, 3, 5),(2, 3, 1)))
+  #   0--------
+  #       || 2|
+  #       ||/ |
+  #  4,7======|   -->   0----
+  #       ||\ |           22|
+  #       || 5|             |
+  #       36  1             1
+  ur = ur.transpose(0,4,7,1,3,6,2,5).reshape(rdm.shape[1],Aur.shape[0]**2)
+  rdm = rdm @ ur
+  rdm = rdm.reshape(Adl.shape[0], Adl.shape[0], Aur.shape[0], Aur.shape[0])
+  rdm = rdm.swapaxes(1,2).reshape(Adl.shape[0]*Aur.shape[0], Adl.shape[0]*Aur.shape[0])
+  rdm /= rdm.trace()
   return rdm
