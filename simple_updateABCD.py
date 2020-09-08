@@ -127,7 +127,7 @@ def update_second_neighbor(M0_L, M0_mid, M0_R, lambda_L, lambda_R, gate, d,
   theta = (new_lambda_L[:,None]*theta[:D_L]).reshape(D_L*D_effm, D_effR*d)
   col_th = combine_colors(col_nbL,-col_sm)
   new_mid, new_lambda_R, new_R, col_nbR = svdU1(theta, col_th, -combine_colors(col_sR,col_d))
-  new_mid = new_mid[:,:D_R].reshape(D_L, D_effm, D_R)
+  new_mid = new_mid[:,:D_R].reshape(D_L, D_effm, D_R)*new_lambda_L[:,None,None]**-1
   new_R = new_R[:D_R].reshape(D_R, D_effR, d)
   new_lambda_R = new_lambda_R[:D_R]
   new_lambda_R /= new_lambda_R.sum()
