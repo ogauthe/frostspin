@@ -29,7 +29,7 @@ def _initialize_env(A):
   return C1,T1,C2,T4,T2,C4,T3,C3
 
 
-def _color_corresponance(old_col, new_col):
+def _color_correspondence(old_col, new_col):
   """
   Find correspondances between old and new set of colors on a given axis.
   Return same size arrays with same color structure
@@ -321,7 +321,7 @@ class CTM_Environment(object):
         oldT1 = self._neq_T1s[j]
         newT1 = np.zeros((oldT1.shape[0],A.shape[2],A.shape[2],oldT1.shape[2]))
         if oldcol[2].size:   # colorwise copy
-          old_rows, new_rows = _color_correspondance(oldcol[2], col[2])  # put copy outside of color loop
+          old_rows, new_rows = _color_correspondence(oldcol[2], col[2])  # put copy outside of color loop
         else:   # colors are not provided
           old_rows = slice(0,oldA.shape[2])
           new_rows = slice(0,A.shape[2])
@@ -334,7 +334,7 @@ class CTM_Environment(object):
         oldT2 = self._neq_T2s[j]
         newT2 = np.zeros((oldT2.shape[0],oldT2.shape[1],A.shape[3],A.shape[3]))
         if oldcol[3].size:   # colorwise copy
-          old_rows, new_rows = _color_correspondance(oldcol[3], col[3])
+          old_rows, new_rows = _color_correspondence(oldcol[3], col[3])
         else:   # colors are not provided
           old_rows = slice(0,oldA.shape[3])
           new_rows = slice(0,A.shape[3])
@@ -346,7 +346,7 @@ class CTM_Environment(object):
         oldT3 = self._neq_T3s[j]
         newT3 = np.zeros((A.shape[4],A.shape[4],oldT3.shape[2],oldT3.shape[3]))
         if oldcol[4].size:   # colorwise copy
-          old_rows, new_rows = _color_correspondance(oldcol[4], col[4])
+          old_rows, new_rows = _color_correspondence(oldcol[4], col[4])
         else:   # colors are not provided
           old_rows = slice(0,oldA.shape[4])
           new_rows = slice(0,A.shape[4])
@@ -358,7 +358,7 @@ class CTM_Environment(object):
         oldT4 = self._neq_T4s[j]
         newT4 = np.zeros((oldT4.shape[0],A.shape[5],A.shape[5],oldT4.shape[3]))
         if oldcol[5].size:   # colorwise copy
-          old_rows, new_rows = _color_correspondance(oldcol[5], col[5])
+          old_rows, new_rows = _color_correspondence(oldcol[5], col[5])
         else:   # colors are not provided
           old_rows = slice(0,oldA.shape[5])
           new_rows = slice(0,A.shape[5])
