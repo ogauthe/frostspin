@@ -49,7 +49,7 @@ def _color_corresponance(old_col, new_col):
   return old_rows, new_rows
 
 
-class Env(object):
+class CTM_Environment(object):
   """
   Container for CTMRG environment tensors.
   leg conventions:

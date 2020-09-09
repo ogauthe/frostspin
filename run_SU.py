@@ -5,7 +5,7 @@ import scipy.linalg as lg
 from time import time
 from simple_update import SimpleUpdate2x2
 from test_tools import SdS_22, SdS_22b
-from CTMRG import CTMRG
+from ctmrg import CTMRG
 from toolsU1 import checkU1, combine_colors
 
 

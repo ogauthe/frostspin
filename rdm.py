@@ -1,5 +1,5 @@
 import numpy as np
-from ctm_contract import contract_UL_corner, contract_UR_corner, contract_DL_corner, contract_DR_corner
+from ctm_contract import contract_ul_corner, contract_ur_corner, contract_dl_corner, contract_dr_corner
 
 
 def rdm_1x1(C1,T1,C2,T4,A,T2,C4,T3,C3):
@@ -162,11 +162,11 @@ def rdm_diag_dr(C1,T1l,T1r,C2,T4u,Aul,Aur,T2u,T4d,Adl,Adr,T2d,C4,T3l,T3r,C3):
   #   | 5 ||
   #   1   47
   ul = ul.transpose(0,3,6,2,5,1,4,7).reshape(T1l.shape[0]*Aul.shape[3]**2*Aul.shape[0]**2, T4u.shape[3]*Aul.shape[4]**2)
-  dl = contract_DL_corner(T4d,Adl,C4,T3l)
+  dl = contract_dl_corner(T4d,Adl,C4,T3l)
   rdm = ul @ dl
   rdm = rdm.reshape(T1l.shape[0]*Aul.shape[3]**2, Aul.shape[0]**2*dl.shape[1])
   del ul,dl
-  ur = contract_UR_corner(T1r,C2,Aur,T2u)
+  ur = contract_ur_corner(T1r,C2,Aur,T2u)
   rdm = ur @ rdm
   rdm = rdm.reshape(ur.shape[0], Aul.shape[0]**2, T3l.shape[2]*Adl.shape[3]**2)
   del ur
@@ -215,11 +215,11 @@ def rdm_diag_ur(C1,T1l,T1r,C2,T4u,Aul,Aur,T2u,T4d,Adl,Adr,T2d,C4,T3l,T3r,C3):
   #  |5 ||
   #  ------1
   dl = dl.transpose(0,3,6,2,5,1,4,7).reshape(T4d.shape[0]*Adl.shape[2]**2, Adl.shape[0]**2*T3l.shape[2]*Adl.shape[3]**2)
-  ul = contract_UL_corner(C1,T1l,T4u,Aul)
+  ul = contract_ul_corner(C1,T1l,T4u,Aul)
   rdm = ul @ dl
   rdm = rdm.reshape(ul.shape[0]*Adl.shape[0]**2, T3l.shape[2]*Adl.shape[3]**2)
   del ul,dl
-  dr = contract_DR_corner(Adr,T2d,T3r,C3)
+  dr = contract_dr_corner(Adr,T2d,T3r,C3)
   rdm = rdm @ dr.T
   rdm = rdm.reshape(T1l.shape[0]*Aul.shape[3]**2, Adl.shape[0]**2, dr.shape[0])
   del dr

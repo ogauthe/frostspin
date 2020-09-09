@@ -1,6 +1,6 @@
-import Env
 import rdm
-from ctm_contract import contract_U_half, contract_L_half, contract_D_half, contract_R_half
+from ctm_environment import CTM_Environment
+from ctm_contract import contract_u_half, contract_l_half, contract_d_half, contract_r_half
 from ctm_renormalize import *
 from toolsU1 import combine_colors, checkU1
 
@@ -22,7 +22,7 @@ class CTMRG(object):
     if self.verbosity > 0:
       print(f"initalize CTMRG with chi = {chi} and self.verbosity = {self.verbosity}")
     self.chi = chi
-    self._env = Env.Env(tensors, cell=cell, tiling=tiling, colors=colors, saveFile=saveFile)
+    self._env = CTM_Environment(tensors, cell=cell, tiling=tiling, colors=colors, saveFile=saveFile)
     self._neq_coords = self._env.neq_coords
     if self.verbosity > 0:
       print('CTMRG constructed')
@@ -99,11 +99,11 @@ class CTMRG(object):
     # 1) compute isometries for every non-equivalent sites
     # convention : for every move, leg 0 of R and Rt are to be contracted
     for x,y in self._neq_coords:
-      R = contract_R_half(self._env.get_T1(x+2,y),  self._env.get_C2(x+3,y),
+      R = contract_r_half(self._env.get_T1(x+2,y),  self._env.get_C2(x+3,y),
                            self._env.get_A(x+2,y+1), self._env.get_T2(x+3,y+1),
                            self._env.get_A(x+2,y+2), self._env.get_T2(x+3,y+2),
                            self._env.get_T3(x+2,y+3),self._env.get_C3(x+3,y+3))
-      Rt = contract_L_half(self._env.get_C1(x,y),   self._env.get_T1(x+1,y),
+      Rt = contract_l_half(self._env.get_C1(x,y),   self._env.get_T1(x+1,y),
                             self._env.get_T4(x,y+1), self._env.get_A(x+1,y+1),
                             self._env.get_T4(x,y+2), self._env.get_A(x+1,y+2),
                             self._env.get_C4(x,y+3),self._env.get_T3(x+1,y+3))
@@ -151,14 +151,14 @@ class CTMRG(object):
       #      0  1    0
       #      |  | => R
       #      DDDD    1
-      R = contract_D_half(self._env.get_T4(x,y+2),   self._env.get_A(x+1,y+2),
+      R = contract_d_half(self._env.get_T4(x,y+2),   self._env.get_A(x+1,y+2),
                           self._env.get_A(x+2,y+2),  self._env.get_T2(x+3,y+2),
                           self._env.get_C4(x,y+3),   self._env.get_T3(x+1,y+3),
                           self._env.get_T3(x+2,y+3), self._env.get_C3(x+3,y+3))
       #      UUUU     0
       #      |  | =>  Rt
       #      1  0     1
-      Rt = contract_U_half(self._env.get_C1(x,y),    self._env.get_T1(x+1,y),
+      Rt = contract_u_half(self._env.get_C1(x,y),    self._env.get_T1(x+1,y),
                            self._env.get_T1(x+2,y),  self._env.get_C2(x+3,y),
                            self._env.get_T4(x,y+1),  self._env.get_A(x+1,y+1),
                            self._env.get_A(x+2,y+1), self._env.get_T2(x+3,y+1))
@@ -202,7 +202,7 @@ class CTMRG(object):
       #        L        L
       #        L    =>  L
       #        L-1      L-0
-      R = contract_L_half(self._env.get_C1(x,y),     self._env.get_T1(x+1,y),
+      R = contract_l_half(self._env.get_C1(x,y),     self._env.get_T1(x+1,y),
                             self._env.get_T4(x,y+1), self._env.get_A(x+1,y+1),
                             self._env.get_T4(x,y+2), self._env.get_A(x+1,y+2),
                             self._env.get_C4(x,y+3), self._env.get_T3(x+1,y+3))
@@ -210,7 +210,7 @@ class CTMRG(object):
       #        R
       #        R
       #      0-R
-      Rt = contract_R_half(self._env.get_T1(x+2,y),  self._env.get_C2(x+3,y),
+      Rt = contract_r_half(self._env.get_T1(x+2,y),  self._env.get_C2(x+3,y),
                            self._env.get_A(x+2,y+1), self._env.get_T2(x+3,y+1),
                            self._env.get_A(x+2,y+2), self._env.get_T2(x+3,y+2),
                            self._env.get_T3(x+2,y+3),self._env.get_C3(x+3,y+3))
@@ -254,14 +254,14 @@ class CTMRG(object):
       #      UUUU      1
       #      |  |  =>  R
       #      1  0      0
-      R = contract_U_half(self._env.get_C1(x,y),    self._env.get_T1(x+1,y),
+      R = contract_u_half(self._env.get_C1(x,y),    self._env.get_T1(x+1,y),
                            self._env.get_T1(x+2,y),  self._env.get_C2(x+3,y),
                            self._env.get_T4(x,y+1),  self._env.get_A(x+1,y+1),
                            self._env.get_A(x+2,y+1), self._env.get_T2(x+3,y+1))
       #      0  1
       #      |  |
       #      DDDD
-      Rt = contract_D_half(self._env.get_T4(x,y+2),   self._env.get_A(x+1,y+2),
+      Rt = contract_d_half(self._env.get_T4(x,y+2),   self._env.get_A(x+1,y+2),
                           self._env.get_A(x+2,y+2),  self._env.get_T2(x+3,y+2),
                           self._env.get_C4(x,y+3),   self._env.get_T3(x+1,y+3),
                           self._env.get_T3(x+2,y+3), self._env.get_C3(x+3,y+3))
