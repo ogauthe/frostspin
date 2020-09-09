@@ -3,7 +3,7 @@
 import numpy as np
 import scipy.linalg as lg
 from time import time
-from simple_updateABCD import SimpleUpdateABCD
+from simple_update import SimpleUpdate2x2
 from test_tools import SdS_22, SdS_22b
 from CTMRG import CTMRG
 from toolsU1 import checkU1, combine_colors
@@ -50,7 +50,7 @@ h2 = J2*SdS_22
 print("#"*79)
 print(f"Run simple update for spin 1/2 Heisenberg with J1=1, J2={J2}")
 print(f"run with tau = {tau} up to beta = {beta}")
-su = SimpleUpdateABCD(d, a, Ds, h1, h2, tau, tensors=(A,B,C,D), colors=colors)
+su = SimpleUpdate2x2(d, a, Ds, h1, h2, tau, tensors=(A,B,C,D), colors=colors, verbosity=0)
 
 t = time()
 for i in range(su_iter//2): # 2nd order Trotter

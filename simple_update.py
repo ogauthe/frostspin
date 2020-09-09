@@ -143,7 +143,7 @@ def update_second_neighbor(M0_L, M0_mid, M0_R, lambda_L, lambda_R, gate, d,
   return new_L, new_mid, new_R, new_lambda_L, new_lambda_R, -col_nbL, col_nbR
 
 
-class SimpleUpdateABCD(object):
+class SimpleUpdate2x2(object):
 
   def __init__(self, d, a, Ds, h1, h2, tau, tensors=None, colors=None,
                 verbosity=0):
