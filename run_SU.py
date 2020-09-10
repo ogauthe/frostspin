@@ -58,6 +58,17 @@ for i in range(su_iter//2): # 2nd order Trotter
   su.update()
 print(f"\ndone with SU, t={time()-t:.1f}")
 
+print("lambdas =")
+print(su._lambda1)
+print(su._lambda2)
+print(su._lambda3)
+print(su._lambda4)
+print(su._lambda5)
+print(su._lambda6)
+print(su._lambda7)
+print(su._lambda8)
+print()
+
 A,B,C,D = su.get_ABCD()
 colors = su.colors
 colorsA = [colors[0],colors[1],colors[2],colors[3],colors[4],colors[5]]
