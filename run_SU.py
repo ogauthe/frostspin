@@ -58,23 +58,24 @@ for i in range(su_iter//2): # 2nd order Trotter
   su.update()
 print(f"\ndone with SU, t={time()-t:.1f}")
 
+lambdas = su.lambdas
 print("lambdas =")
-print(su._lambda1)
-print(su._lambda2)
-print(su._lambda3)
-print(su._lambda4)
-print(su._lambda5)
-print(su._lambda6)
-print(su._lambda7)
-print(su._lambda8)
+print(lambdas[1])
+print(lambdas[2])
+print(lambdas[3])
+print(lambdas[4])
+print(lambdas[5])
+print(lambdas[6])
+print(lambdas[7])
+print(lambdas[8])
 print()
 
 A,B,C,D = su.get_ABCD()
-colors = su.colors
-colorsA = [colors[0],colors[1],colors[2],colors[3],colors[4],colors[5]]
-colorsB = [-colors[0],-colors[1],-colors[6],-colors[5],-colors[7],-colors[3]]
-colorsC = [-colors[0],-colors[1],-colors[4],-colors[8],-colors[2],-colors[9]]
-colorsD = [colors[0],colors[1],colors[7],colors[9],colors[6],colors[8]]
+(pcol,acol),col1,col2,col3,col4,col5,col6,col7,col8 = su.colors
+colorsA = [pcol,acol,col1,col2,col3,col4]
+colorsB = [-pcol,-acol,-col5,-col4,-col6,-col2]
+colorsC = [-pcol,-acol,-col3,-col7,-col1,-col8]
+colorsD = [pcol,acol,col6,col8,col5,col7]
 
 ctm = CTMRG(chi, tensors=(A,B,C,D), tiling=tiling, colors=(colorsA,colorsB,colorsC,colorsD), verbosity=0)
 
