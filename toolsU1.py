@@ -229,12 +229,11 @@ def svdU1(M, row_colors=default_color, col_colors=default_color, check=False):
   k,br,bc,brmax,bcmax = 0,0,0,len(row_inds)-1,len(col_inds)-1
   while br < brmax and bc < bcmax:
     if sorted_row_colors[row_inds[br]] == sorted_col_colors[col_inds[bc]]:
-      ir = slice(row_inds[br], row_inds[br+1])
-      ic = slice(col_inds[bc], col_inds[bc+1])
-      m = np.ascontiguousarray(M[row_sort[ir,None],col_sort[ic]])
+      ir = row_sort[row_inds[br]:row_inds[br+1]]
+      ic = col_sort[col_inds[bc]:col_inds[bc+1]]
+      m = np.ascontiguousarray(M[ir[:,None],ic])
       d = min(m.shape)
-      U[row_sort[ir],k:k+d], s[k:k+d], V[k:k+d,col_sort[ic]] = lg.svd(
-                                                         m,full_matrices=False)
+      U[ir,k:k+d], s[k:k+d], V[k:k+d,ic] = lg.svd(m,full_matrices=False)
       colors[k:k+d] = sorted_row_colors[row_inds[br]]
       k += d
       br += 1
