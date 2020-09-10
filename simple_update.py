@@ -20,15 +20,15 @@ def update_first_neighbor(M0_L, M0_R, lambda0, gate, d, col_L=default_color,
   #     \|        \|
   #     -L-    -> -W==ML-
   #      |\        |   \
-  D = lambda0.shape[0]
+  D = lambda0.size
   W_L, sL, M_L, col_sL = svdU1(M0_L, col_L, -combine_colors(col_d, col_bond))
-  D_effL = sL.shape[0]
+  D_effL = sL.size
   M_L *= sL[:,None]
   #     \|            \|
   #     -R-    -> -MR==W-
   #      |\        /   |
   M_R, sR, W_R, col_sR = svdU1(M0_R, combine_colors(-col_bond, -col_d), col_R)
-  D_effR = sR.shape[0]
+  D_effR = sR.size
   M_R *= sR
 
   # 2) construct matrix theta with gate g
@@ -76,14 +76,14 @@ def update_second_neighbor(M0_L, M0_mid, M0_R, lambda_L, lambda_R, gate, d,
   works for any geometry with two extremity tensors linked by a middle one.
   """
 
-  D_L, D_R = lambda_L.shape[0], lambda_R.shape[0]
+  D_L, D_R = lambda_L.size, lambda_R.size
 
   # 1) SVD cut between constant tensors and effective tensors to update
   #     \|        \|
   #     -L-    -> -cstL==effL-lambda_L- (D_L)
   #      |\        |       \
   cst_L, s_L, eff_L, col_sL = svdU1(M0_L, col_L, -combine_colors(col_d, col_bL))
-  D_effL = s_L.shape[0]
+  D_effL = s_L.size
   eff_L = (s_L[:,None]*eff_L).reshape(D_effL*d, D_L)*lambda_L  # add lambda
   #                       \|/|
   #                       cstM
@@ -91,14 +91,14 @@ def update_second_neighbor(M0_L, M0_mid, M0_R, lambda_L, lambda_R, gate, d,
   #     -M-   ->  (D_L) - effM - (D_R)
   #      |\
   eff_m, s_m, cst_m, col_sm = svdU1(M0_mid, -combine_colors(col_bL,col_bR), col_mid)
-  D_effm = s_m.shape[0]
+  D_effm = s_m.size
   eff_m = (eff_m*s_m).reshape(D_L, D_R*D_effm)
   #     \|                              \|
   #     -R-   ->  (D_R)  lambda_R-effR==cstR
   #      |\                              |\
   col_effR = combine_colors(col_bR, col_d)
   eff_R, s_R, cst_R, col_sR = svdU1(M0_R, -col_effR, col_R)
-  D_effR = s_R.shape[0]
+  D_effR = s_R.size
   eff_R = (eff_R*s_R).reshape(D_R, d, D_effR)*lambda_R[:,None,None]
 
   # contract tensor network
