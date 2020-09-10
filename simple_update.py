@@ -317,9 +317,25 @@ class SimpleUpdate2x2(object):
 
   @property
   def colors(self):
-    return [self._colors_p, self._colors_a, self._colors1, self._colors2,
+    """
+    Tuple
+    U(1) quantum numbers for non-equivalent legs
+    Convention: sort as ((physical,ancila),leg_i) to have colors[i] = color_i.
+    """
+    return ( (self._colors_p, self._colors_a), self._colors1, self._colors2,
             self._colors3, self._colors4, self._colors5, self._colors6,
-            self._colors7, self._colors8]
+            self._colors7, self._colors8)
+
+  @property
+  def lambdas(self):
+    """
+    Tuple
+    Simple update weights.
+    Convention: return ((None,None),leg_i) to be consistent with colors.
+    """
+    return ( (None,None), self._lambda1, self._lambda2,
+            self._lambda3, self._lambda4, self._lambda5, self._lambda6,
+            self._lambda7, self._lambda8)
 
 
   def get_ABCD(self):
