@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.linalg as lg
+from numba import jit
 
 # cannot use None as default color since -default_color or default_color[:l]
 # need not to crash.
@@ -166,6 +167,7 @@ def tensordotU1(a, b, ax_a, ax_b, colors_a=None, colors_b=None, check=False):
   return res
 
 
+@jit(nopython=True)
 def svdU1(M, row_colors=default_color, col_colors=default_color, check=False):
   """
   Singular value decomposition for a U(1) symmetric matrix M. Revert to
@@ -201,7 +203,7 @@ def svdU1(M, row_colors=default_color, col_colors=default_color, check=False):
   if not row_colors.size or not col_colors.size:
     if check:
       print("svdU1 reverted to lg.svd")
-    U,s,V = lg.svd(M, full_matrices=False)
+    U,s,V = np.linalg.svd(M, full_matrices=False)
     return U,s,V,default_color
 
   if M.ndim != 2:
@@ -215,10 +217,10 @@ def svdU1(M, row_colors=default_color, col_colors=default_color, check=False):
   sorted_row_colors = row_colors[row_sort]
   col_sort = col_colors.argsort()
   sorted_col_colors = col_colors[col_sort]
-  row_inds = [0, *((sorted_row_colors[:-1] != sorted_row_colors[1:]
-                    ).nonzero()[0] + 1), M.shape[0]]
-  col_inds = [0, *((sorted_col_colors[:-1] != sorted_col_colors[1:]
-                    ).nonzero()[0] + 1), M.shape[1]]
+  row_inds = [0] + list((sorted_row_colors[:-1] != sorted_row_colors[1:]
+                    ).nonzero()[0] + 1) + [M.shape[0]]
+  col_inds = [0] + list((sorted_col_colors[:-1] != sorted_col_colors[1:]
+                    ).nonzero()[0] + 1) + [M.shape[1]]
   dmin = min(M.shape)
   U = np.zeros((M.shape[0],dmin))
   s = np.empty(dmin)
@@ -231,9 +233,9 @@ def svdU1(M, row_colors=default_color, col_colors=default_color, check=False):
     if sorted_row_colors[row_inds[br]] == sorted_col_colors[col_inds[bc]]:
       ir = row_sort[row_inds[br]:row_inds[br+1]]
       ic = col_sort[col_inds[bc]:col_inds[bc+1]]
-      m = np.ascontiguousarray(M[ir[:,None],ic])
+      m = np.ascontiguousarray(M[ir][:,ic])
       d = min(m.shape)
-      U[ir,k:k+d], s[k:k+d], V[k:k+d,ic] = lg.svd(m,full_matrices=False)
+      U[ir,k:k+d], s[k:k+d], V[k:k+d:,ic] = np.linalg.svd(m,full_matrices=False)
       colors[k:k+d] = sorted_row_colors[row_inds[br]]
       k += d
       br += 1
@@ -253,6 +255,7 @@ def svdU1(M, row_colors=default_color, col_colors=default_color, check=False):
   V = V[s_sort]
   colors = colors[s_sort]
   if check:
-    print(f"svdU1: \033[33m{lg.norm(U*s@V-M)/lg.norm(M):.1e}\033[0m")
+    r = np.linalg.norm(U*s@V-M)/np.linalg.norm(M)
+    print("svdU1:\033[33m", r, "\033[0m")
   return U,s,V,colors
 

@@ -469,6 +469,10 @@ class SimpleUpdate2x2(object):
 ###############################################################################
 # first neighbor updates
 ###############################################################################
+# due to pi-roation on B and C sites, colors are opposed on those sites
+# the colors returned by update_neighbors need to be reversed
+# mc{i} = minus color i
+
   def update_bond1(self):
     """
     update lambda1 between A and C by applying gate g1 to A upper bond
@@ -584,9 +588,9 @@ class SimpleUpdate2x2(object):
 
     col_L = -combine_colors(self._colors_a, self._colors4, self._colors6, self._colors2)
     col_R = -combine_colors(self._colors_a, self._colors6, self._colors8, self._colors7)
-    M_B, self._lambda5, M_D, self._colors5 = update_first_neighbor(M_B, M_D, self._lambda5, self._g1, self._d,
+    M_B, self._lambda5, M_D, mc5 = update_first_neighbor(M_B, M_D, self._lambda5, self._g1, self._d,
              col_L=col_L, col_R=col_R, col_bond=-self._colors5, col_d=-self._colors_p)
-    self._colors5 = -self._colors5 # B-D
+    self._colors5 = -mc5 # B-D
     M_B = M_B.reshape(self._a, self._D4, self._D6, self._D2, self._d, self._D5)
     self._gammaB = np.einsum('ardlpu,r,d,l->paurdl', M_B, self._lambda4**-1, self._lambda6**-1, self._lambda2**-1)
     M_D = M_D.reshape(self._D5, self._d, self._a, self._D6, self._D8, self._D7)
@@ -609,9 +613,9 @@ class SimpleUpdate2x2(object):
 
     col_L = -combine_colors(self._colors_a, self._colors5, self._colors4, self._colors2)
     col_R = -combine_colors(self._colors_a, self._colors8, self._colors5, self._colors7)
-    M_B, self._lambda6, M_D, self._colors6 = update_first_neighbor(M_B, M_D, self._lambda6, self._g1, self._d,
+    M_B, self._lambda6, M_D, mc6 = update_first_neighbor(M_B, M_D, self._lambda6, self._g1, self._d,
              col_L=col_L, col_R=col_R, col_bond=-self._colors6, col_d=-self._colors_p)
-    self._colors6 = -self._colors6 # B-D
+    self._colors6 = -mc6 # B-D
     M_B = M_B.reshape(self._a, self._D5, self._D4, self._D2, self._d, self._D6)
     self._gammaB = np.einsum('aurlpd,u,r,l->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda2**-1)
     M_D = M_D.reshape(self._D6, self._d, self._a, self._D8, self._D5, self._D7)
@@ -634,9 +638,9 @@ class SimpleUpdate2x2(object):
 
     col_L = -combine_colors(self._colors_a, self._colors3, self._colors1, self._colors8)
     col_R = -combine_colors(self._colors_a, self._colors6, self._colors8, self._colors5)
-    M_C, self._lambda7, M_D, self._colors7 = update_first_neighbor(M_C, M_D, self._lambda7, self._g1, self._d,
+    M_C, self._lambda7, M_D, mc7 = update_first_neighbor(M_C, M_D, self._lambda7, self._g1, self._d,
              col_L=col_L, col_R=col_R, col_bond=-self._colors7, col_d=-self._colors_p)
-    self._colors7 = -self._colors7 # B-D
+    self._colors7 = -mc7 # B-D
     M_C = M_C.reshape(self._a, self._D3, self._D1, self._D8, self._d, self._D7)
     self._gammaC = np.einsum('audlpr,u,d,l->paurdl', M_C, self._lambda3**-1, self._lambda1**-1, self._lambda8**-1)
     M_D = M_D.reshape(self._D7, self._d, self._a, self._D6, self._D8, self._D5)
@@ -659,9 +663,9 @@ class SimpleUpdate2x2(object):
 
     col_L = -combine_colors(self._colors_a, self._colors3, self._colors7, self._colors1)
     col_R = -combine_colors(self._colors_a, self._colors6, self._colors5, self._colors7)
-    M_C, self._lambda8, M_D, self._colors8 = update_first_neighbor(M_C, M_D, self._lambda8, self._g1, self._d,
+    M_C, self._lambda8, M_D, mc8 = update_first_neighbor(M_C, M_D, self._lambda8, self._g1, self._d,
              col_L=col_L, col_R=col_R, col_bond=-self._colors8, col_d=-self._colors_p)
-    self._colors8 = -self._colors8 # C-D
+    self._colors8 = -mc8 # C-D
     M_C = M_C.reshape(self._a, self._D3, self._D7, self._D1, self._d, self._D8)
     self._gammaC = np.einsum('aurdpl,u,r,d->paurdl', M_C, self._lambda3**-1, self._lambda7**-1, self._lambda1**-1)
     M_D = M_D.reshape(self._D8, self._d, self._a, self._D6, self._D5, self._D7)
@@ -953,10 +957,10 @@ class SimpleUpdate2x2(object):
     col_L = -combine_colors(self._colors_a, self._colors5, self._colors6, self._colors2)
     col_mid = -combine_colors(self._colors_p, self._colors_a, self._colors2, self._colors3)
     col_R = -combine_colors(self._colors_a, self._colors3, self._colors7, self._colors8)
-    M_B, M_A, M_C, self._lambda4, self._lambda1, self._colors4, self._colors1 = update_second_neighbor(
+    M_B, M_A, M_C, self._lambda4, self._lambda1, mc4, mc1 = update_second_neighbor(
                                        M_B, M_A, M_C, self._lambda4, self._lambda1, self._g2, self._d, col_L=col_L, col_mid=col_mid, col_R=col_R, col_bL=-self._colors4, col_bR=-self._colors1, col_d=-self._colors_p)
-    self._colors4 *= -1
-    self._colors1 *= -1
+    self._colors4 = -mc4
+    self._colors1 = -mc1
 
     M_B = M_B.reshape(self._a, self._D5, self._D6, self._D2, self._d, self._D4)
     self._gammaB = np.einsum('audlpr,u,d,l->paurdl', M_B, self._lambda5**-1, self._lambda6**-1, self._lambda2**-1)
@@ -987,10 +991,10 @@ class SimpleUpdate2x2(object):
     col_L = -combine_colors(self._colors_a, self._colors4, self._colors6, self._colors2)
     col_mid = -combine_colors(self._colors_p, self._colors_a, self._colors6, self._colors7)
     col_R = -combine_colors(self._colors_a, self._colors3, self._colors7, self._colors1)
-    M_B, M_D, M_C, self._lambda5, self._lambda8, self._colors5, self._colors8 = update_second_neighbor(
+    M_B, M_D, M_C, self._lambda5, self._lambda8, mc5, mc8 = update_second_neighbor(
                                        M_B, M_D, M_C, self._lambda5, self._lambda8, self._g2, self._d, col_L=col_L, col_mid=col_mid, col_R=col_R, col_bL=-self._colors5, col_bR=-self._colors8, col_d=-self._colors_p)
-    self._colors5 *= -1
-    self._colors8 *= -1
+    self._colors5 = -mc5
+    self._colors8 = -mc8
 
     M_B = M_B.reshape(self._a, self._D4, self._D6, self._D2, self._d, self._D5)
     self._gammaB = np.einsum('ardlpu,r,d,l->paurdl', M_B, self._lambda4**-1, self._lambda6**-1, self._lambda2**-1)
@@ -1021,10 +1025,10 @@ class SimpleUpdate2x2(object):
     col_L = -combine_colors(self._colors_a, self._colors5, self._colors6, self._colors2)
     col_mid = -combine_colors(self._colors_p, self._colors_a, self._colors1, self._colors2)
     col_R = -combine_colors(self._colors_a, self._colors7, self._colors1, self._colors8)
-    M_B, M_A, M_C, self._lambda4, self._lambda3, self._colors4, self._colors3 = update_second_neighbor(
+    M_B, M_A, M_C, self._lambda4, self._lambda3, mc4, mc3 = update_second_neighbor(
                                        M_B, M_A, M_C, self._lambda4, self._lambda3, self._g2, self._d, col_L=col_L, col_mid=col_mid, col_R=col_R, col_bL=-self._colors4, col_bR=-self._colors3, col_d=-self._colors_p)
-    self._colors4 *= -1
-    self._colors3 *= -1
+    self._colors4 = -mc4
+    self._colors3 = -mc3
 
     M_B = M_B.reshape(self._a, self._D5, self._D6, self._D2, self._d, self._D4)
     self._gammaB = np.einsum('audlpr,u,d,l->paurdl', M_B, self._lambda5**-1, self._lambda6**-1, self._lambda2**-1)
@@ -1055,10 +1059,10 @@ class SimpleUpdate2x2(object):
     col_L = -combine_colors(self._colors_a, self._colors5, self._colors4, self._colors2)
     col_mid = -combine_colors(self._colors_p, self._colors_a, self._colors5, self._colors7)
     col_R = -combine_colors(self._colors_a, self._colors3, self._colors7, self._colors1)
-    M_B, M_D, M_C, self._lambda6, self._lambda8, self._colors6, self._colors8 = update_second_neighbor(
+    M_B, M_D, M_C, self._lambda6, self._lambda8, mc6, mc8 = update_second_neighbor(
                                        M_B, M_D, M_C, self._lambda6, self._lambda8, self._g2, self._d, col_L=col_L, col_mid=col_mid, col_R=col_R, col_bL=-self._colors6, col_bR=-self._colors8, col_d=-self._colors_p)
-    self._colors6 *= -1
-    self._colors8 *= -1
+    self._colors6 = -mc6
+    self._colors8 = -mc8
 
     M_B = M_B.reshape(self._a, self._D5, self._D4, self._D2, self._d, self._D6)
     self._gammaB = np.einsum('aurlpd,u,r,l->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda2**-1)
@@ -1089,10 +1093,10 @@ class SimpleUpdate2x2(object):
     col_L = -combine_colors(self._colors_a, self._colors5, self._colors4, self._colors6)
     col_mid = -combine_colors(self._colors_p, self._colors_a, self._colors1, self._colors4)
     col_R = -combine_colors(self._colors_a, self._colors7, self._colors1, self._colors8)
-    M_B, M_A, M_C, self._lambda2, self._lambda3, self._colors2, self._colors3 = update_second_neighbor(
+    M_B, M_A, M_C, self._lambda2, self._lambda3, mc2, mc3 = update_second_neighbor(
                                        M_B, M_A, M_C, self._lambda2, self._lambda3, self._g2, self._d, col_L=col_L, col_mid=col_mid, col_R=col_R, col_bL=-self._colors2, col_bR=-self._colors3, col_d=-self._colors_p)
-    self._colors2 *= -1
-    self._colors3 *= -1
+    self._colors2 = -mc2
+    self._colors3 = -mc3
 
     M_B = M_B.reshape(self._a, self._D5, self._D4, self._D6, self._d, self._D2)
     self._gammaB = np.einsum('aurdpl,u,r,d->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda6**-1)
@@ -1123,10 +1127,10 @@ class SimpleUpdate2x2(object):
     col_L = -combine_colors(self._colors_a, self._colors5, self._colors4, self._colors2)
     col_mid = -combine_colors(self._colors_p, self._colors_a, self._colors8, self._colors5)
     col_R = -combine_colors(self._colors_a, self._colors3, self._colors1, self._colors8)
-    M_B, M_D, M_C, self._lambda6, self._lambda7, self._colors6, self._colors7 = update_second_neighbor(
+    M_B, M_D, M_C, self._lambda6, self._lambda7, mc6, mc7 = update_second_neighbor(
                                        M_B, M_D, M_C, self._lambda6, self._lambda7, self._g2, self._d, col_L=col_L, col_mid=col_mid, col_R=col_R, col_bL=-self._colors6, col_bR=-self._colors7, col_d=-self._colors_p)
-    self._colors6 *= -1
-    self._colors7 *= -1
+    self._colors6 = -mc6
+    self._colors7 = -mc7
 
     M_B = M_B.reshape(self._a, self._D5, self._D4, self._D2, self._d, self._D6)
     self._gammaB = np.einsum('aurlpd,u,r,l->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda2**-1)
@@ -1157,10 +1161,10 @@ class SimpleUpdate2x2(object):
     col_L = -combine_colors(self._colors_a, self._colors5, self._colors4, self._colors6)
     col_mid = -combine_colors(self._colors_p, self._colors_a, self._colors3, self._colors4)
     col_R = -combine_colors(self._colors_a, self._colors3, self._colors7, self._colors8)
-    M_B, M_A, M_C, self._lambda2, self._lambda1, self._colors2, self._colors1 = update_second_neighbor(
+    M_B, M_A, M_C, self._lambda2, self._lambda1, mc2, mc1 = update_second_neighbor(
                                        M_B, M_A, M_C, self._lambda2, self._lambda1, self._g2, self._d, col_L=col_L, col_mid=col_mid, col_R=col_R, col_bL=-self._colors2, col_bR=-self._colors1, col_d=-self._colors_p)
-    self._colors2 *= -1
-    self._colors1 *= -1
+    self._colors2 = -mc2
+    self._colors1 = -mc1
 
     M_B = M_B.reshape(self._a, self._D5, self._D4, self._D6, self._d, self._D2)
     self._gammaB = np.einsum('aurdpl,u,r,d->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda6**-1)
@@ -1191,10 +1195,10 @@ class SimpleUpdate2x2(object):
     col_L = -combine_colors(self._colors_a, self._colors4, self._colors6, self._colors2)
     col_mid = -combine_colors(self._colors_p, self._colors_a, self._colors6, self._colors8)
     col_R = -combine_colors(self._colors_a, self._colors3, self._colors1, self._colors8)
-    M_B, M_D, M_C, self._lambda5, self._lambda7, self._colors5, self._colors7 = update_second_neighbor(
+    M_B, M_D, M_C, self._lambda5, self._lambda7, mc5, mc7 = update_second_neighbor(
                                        M_B, M_D, M_C, self._lambda5, self._lambda7, self._g2, self._d, col_L=col_L, col_mid=col_mid, col_R=col_R, col_bL=-self._colors5, col_bR=-self._colors7, col_d=-self._colors_p)
-    self._colors5 *= -1
-    self._colors7 *= -1
+    self._colors5 = -mc5
+    self._colors7 = -mc7
 
     M_B = M_B.reshape(self._a, self._D4, self._D6, self._D2, self._d, self._D5)
     self._gammaB = np.einsum('ardlpu,r,d,l->paurdl', M_B, self._lambda4**-1, self._lambda6**-1, self._lambda2**-1)
