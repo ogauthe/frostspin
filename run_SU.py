@@ -13,15 +13,15 @@ tiling = 'AB\nCD'
 
 d = 2
 a = 2
-chi = 35
-ctm_iter = 5
-D = 9 # 3+1+1 at start
+chi = 40
+ctm_iter = 200
+D = 6
 Ds = (D,)*8
 print(f'run simple update with d = {d}, a = {a}, Ds = {Ds}')
 
 J2 = 0.9
 beta = 1.
-tau = 0.01
+tau = 1e-3
 su_iter = int(beta/2/tau)  # rho is quadratic in psi
 
 # zero singular values lead to divide by zero when removing weights
@@ -77,6 +77,7 @@ colorsB = [-pcol,-acol,-col5,-col4,-col6,-col2]
 colorsC = [-pcol,-acol,-col3,-col7,-col1,-col8]
 colorsD = [pcol,acol,col6,col8,col5,col7]
 
+"""
 ctm = CTMRG(chi, tensors=(A,B,C,D), tiling=tiling, colors=(colorsA,colorsB,colorsC,colorsD), verbosity=0)
 
 def compute_energy(ctm,h1,h2):
@@ -107,7 +108,7 @@ def compute_energy(ctm,h1,h2):
 print(f'Converge CTMRG with chi = {chi} and niter = {ctm_iter}')
 t = time()
 for i in range(ctm_iter):
-  print(i, end=" ")
+  print(i, compute_energy(ctm,h1,h2))
   ctm.iterate()
 
 print(f"\ndone with CTM iteration, t={time()-t:.1f}")
@@ -118,4 +119,4 @@ save = f"data_ctm_SU_ABCD_J2_{J2}_beta{beta}_tau{tau}_chi{chi}.npz"
 ctm.save_to_file(save)
 print("CTMRG data saved in file", save)
 
-
+"""
