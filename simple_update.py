@@ -289,7 +289,7 @@ class SimpleUpdate2x2(object):
 
   @tau.setter
   def tau(self, tau):
-    if self.verbosity > 1:
+    if self.verbosity > 0:
       print(f'set tau to  {tau}')
     self._tau = tau
     self._g1 = lg.expm(-tau*self._h1)
@@ -474,8 +474,6 @@ class SimpleUpdate2x2(object):
     """
     update lambda1 between A and C by applying gate g1 to A upper bond
     """
-    if self.verbosity > 1:
-      print('update bond 1')
     # add diagonal weights to gammaA and gammaC
     w = self._lambda1**-1
     M_A = (self._gammaA.transpose(1,3,4,5,0,2)*w).reshape(self._a*self._D2*self._D3*self._D4, self._d*self._D1)
@@ -491,16 +489,14 @@ class SimpleUpdate2x2(object):
     self._gammaA = M_A.reshape(self._a, self._D2, self._D3, self._D4, self._d, self._D1).transpose(4,0,5,1,2,3)
     self._gammaC = M_C.reshape(self._D1, self._d, self._a, self._D3, self._D7, self._D8).transpose(1,2,3,4,0,5)
 
-    if self.verbosity > 2:
-      print('new lambda1 =', self._lambda1)
+    if self.verbosity > 1:
+      print('updated bond 1: new lambda1 =', self._lambda1)
 
 
   def update_bond2(self):
     """
     update lambda2 between A and B by applying gate to A right bond
     """
-    if self.verbosity > 1:
-      print('update bond 2')
     w = self._lambda2**-1
     M_A = (self._gammaA.transpose(1,2,4,5,0,3)*w).reshape(self._a*self._D1*self._D3*self._D4, self._d*self._D2)
     M_B = (w.reshape(_sh)*self._gammaB.transpose(5,0,1,2,3,4)).reshape(self._D2*self._d, self._a*self._D5*self._D4*self._D6)
@@ -513,16 +509,14 @@ class SimpleUpdate2x2(object):
     self._gammaA = M_A.reshape(self._a, self._D1, self._D3, self._D4, self._d, self._D2).transpose(4,0,1,5,2,3)
     self._gammaB = M_B.reshape(self._D2, self._d, self._a, self._D5, self._D4, self._D6).transpose(1,2,3,4,5,0)
 
-    if self.verbosity > 2:
-      print('new lambda2 =', self._lambda2)
+    if self.verbosity > 1:
+      print('updated bond 2: new lambda2 =', self._lambda2)
 
 
   def update_bond3(self):
     """
     update lambda3 between A and C by applying gate to A down bond
     """
-    if self.verbosity > 1:
-      print('update bond 3')
     w = self._lambda3**-1
     M_A = (self._gammaA.transpose(1,2,3,5,0,4)*w).reshape(self._a*self._D1*self._D2*self._D4, self._d*self._D3)
     M_C = (w.reshape(_sh)*self._gammaC.transpose(2,0,1,3,4,5)).reshape(self._D3*self._d, self._a*self._D7*self._D1*self._D8)
@@ -535,16 +529,14 @@ class SimpleUpdate2x2(object):
     self._gammaA = M_A.reshape(self._a, self._D1, self._D2, self._D4, self._d, self._D3).transpose(4,0,1,2,5,3)
     self._gammaC = M_C.reshape(self._D3, self._d, self._a, self._D7, self._D1, self._D8).transpose(1,2,0,3,4,5)
 
-    if self.verbosity > 2:
-      print('new lambda3 =', self._lambda3)
+    if self.verbosity > 1:
+      print('updated bond 3: new lambda3 =', self._lambda3)
 
 
   def update_bond4(self):
     """
     update lambda4 between A and B by applying gate to A right bond
     """
-    if self.verbosity > 1:
-      print('update bond 4')
     w = self._lambda4**-1
     M_A = (self._gammaA.transpose(1,2,3,4,0,5)*w).reshape(self._a*self._D1*self._D2*self._D3, self._d*self._D4)
     M_B = (w.reshape(_sh)*self._gammaB.transpose(3,0,1,2,4,5)).reshape(self._D4*self._d, self._a*self._D5*self._D6*self._D2)
@@ -556,18 +548,15 @@ class SimpleUpdate2x2(object):
     self._gammaA = M_A.reshape(self._a, self._D1, self._D2, self._D3, self._d, self._D4).transpose(4,0,1,2,3,5)
     self._gammaB = M_B.reshape(self._D4, self._d, self._a, self._D5, self._D6, self._D2).transpose(1,2,3,0,4,5)
 
-    if self.verbosity > 2:
-      print('new lambda4 =', self._lambda4)
+    if self.verbosity > 1:
+      print('updated bond 4: new lambda4 =', self._lambda4)
 
 
   def update_bond5(self):
     """
     update lambda5 between B and D by applying gate to B upper bond
     """
-    if self.verbosity > 1:
-      print('update bond 5')
     w = self._lambda5**-1
-    'paurdl,r,d,l->ardlpu'
     M_B = (self._gammaB.transpose(1,3,4,5,0,2)*w).reshape(self._a*self._D4*self._D6*self._D2, self._d*self._D5)
     M_D = (w.reshape(_sh)*self._gammaD.transpose(4,0,1,2,3,5)).reshape(self._D5*self._d, self._a*self._D6*self._D8*self._D7)
 
@@ -579,17 +568,14 @@ class SimpleUpdate2x2(object):
     self._gammaB = M_B.reshape(self._a, self._D4, self._D6, self._D2, self._d, self._D5).transpose(4,0,5,1,2,3)
     self._gammaD = M_D.reshape(self._D5, self._d, self._a, self._D6, self._D8, self._D7).transpose(1,2,3,4,0,5)
 
-    if self.verbosity > 2:
-      print('new lambda5 =', self._lambda5)
+    if self.verbosity > 1:
+      print('updated bond 5: new lambda5 =', self._lambda5)
 
 
   def update_bond6(self):
     """
     update lambda6 between B and D by applying gate to B down bond
     """
-    if self.verbosity > 1:
-      print('update bond 6')
-
     w = self._lambda6**-1
     M_B = (self._gammaB.transpose(1,2,3,5,0,4)*w).reshape(self._a*self._D5*self._D4*self._D2, self._d*self._D6)
     M_D = (w.reshape(_sh)*self._gammaD.transpose(2,0,1,3,4,5)).reshape(self._D6*self._d, self._a*self._D8*self._D5*self._D7)
@@ -602,16 +588,14 @@ class SimpleUpdate2x2(object):
     self._gammaB = M_B.reshape(self._a, self._D5, self._D4, self._D2, self._d, self._D6).transpose(4,0,1,2,5,3)
     self._gammaD = M_D.reshape(self._D6, self._d, self._a, self._D8, self._D5, self._D7).transpose(1,2,0,3,4,5)
 
-    if self.verbosity > 2:
-      print('new lambda6 =', self._lambda6)
+    if self.verbosity > 1:
+      print('updated bond 6: new lambda6 =', self._lambda6)
 
 
   def update_bond7(self):
     """
     update lambda7 between C and D by applying gate to C right bond
     """
-    if self.verbosity > 1:
-      print('update bond 7')
     w = self._lambda7**-1
     M_C = (self._gammaC.transpose(1,2,4,5,0,3)*w).reshape(self._a*self._D3*self._D1*self._D8, self._d*self._D7)
     M_D = (w.reshape(_sh)*self._gammaD.transpose(5,0,1,2,3,4)).reshape(self._D7*self._d, self._a*self._D6*self._D8*self._D5)
@@ -624,16 +608,14 @@ class SimpleUpdate2x2(object):
     self._gammaC = M_C.reshape(self._a, self._D3, self._D1, self._D8, self._d, self._D7).transpose(4,0,1,5,2,3)
     self._gammaD = M_D.reshape(self._D7, self._d, self._a, self._D6, self._D8, self._D5).transpose(1,2,3,4,5,0)
 
-    if self.verbosity > 2:
-      print('new lambda7 =', self._lambda7)
+    if self.verbosity > 1:
+      print('updated bond 7: new lambda7 =', self._lambda7)
 
 
   def update_bond8(self):
     """
     update lambda8 between C and D by applying gate to C left bond
     """
-    if self.verbosity > 1:
-      print('update bond 8')
     w = self._lambda8**-1
     M_C = (self._gammaC.transpose(1,2,3,4,0,5)*w).reshape(self._a*self._D3*self._D7*self._D1, self._d*self._D8)
     M_D = (w.reshape(_sh)*self._gammaD.transpose(3,0,1,2,4,5)).reshape(self._D8*self._d, self._a*self._D6*self._D5*self._D7)
@@ -646,8 +628,8 @@ class SimpleUpdate2x2(object):
     self._gammaC = M_C.reshape(self._a, self._D3, self._D7, self._D1, self._d, self._D8).transpose(4,0,1,2,3,5)
     self._gammaD = M_D.reshape(self._D8, self._d, self._a, self._D6, self._D5, self._D7).transpose(1,2,3,0,4,5)
 
-    if self.verbosity > 2:
-      print('new lambda8 =', self._lambda8)
+    if self.verbosity > 1:
+      print('updated bond 8: new lambda8 =', self._lambda8)
 
 
 ###############################################################################
@@ -660,8 +642,6 @@ class SimpleUpdate2x2(object):
     update lambda2 and lambda6 by applying gate to A upper-right next nearest
     neighbor bond with D through tensor B. Twin of 17.
     """
-    if self.verbosity > 1:
-      print('update bonds 2 and 5')
     w2 = self._lambda2**-1
     w5 = (self._lambda5**-1)[:,None,None,None,None]
     M_A = (self._gammaA.transpose(1,2,4,5,0,3)*w2).reshape(self._a*self._D1*self._D3*self._D4, self._d*self._D2)
@@ -678,9 +658,9 @@ class SimpleUpdate2x2(object):
     self._gammaB = M_B.reshape(self._D2, self._D5, self._d, self._a, self._D4, self._D6).transpose(2, 3, 1, 4, 5, 0)
     self._gammaD = M_D.reshape(self._D5, self._d, self._a, self._D6, self._D8, self._D7).transpose(1, 2, 3, 4, 0, 5)
 
-    if self.verbosity > 2:
-      print('new lambda2 =', self._lambda2)
-      print('new lambda5 =', self._lambda5)
+    if self.verbosity > 1:
+      print('updated bonds 2 and 5: new lambda2 =', self._lambda2)
+      print('                       new lambda5 =', self._lambda5)
 
 
   def update_bonds17(self):
@@ -688,8 +668,6 @@ class SimpleUpdate2x2(object):
     update lambda2 and lambda6 by applying gate to A upper-right next nearest
     neighbor bond with D through tensor C. Twin of 25.
     """
-    if self.verbosity > 1:
-      print('update bonds 1 and 7')
     w1 = self._lambda1**-1
     w7 = (self._lambda7**-1)[:,None,None,None,None]
     M_A = (self._gammaA.transpose(1,3,4,5,0,2)*w1).reshape(self._a*self._D2*self._D3*self._D4, self._d*self._D1)
@@ -706,9 +684,9 @@ class SimpleUpdate2x2(object):
     self._gammaC = M_C.reshape(self._D1, self._D7, self._d, self._a, self._D3, self._D8).transpose(2, 3, 4, 1, 0, 5)
     self._gammaD = M_D.reshape(self._D7, self._d, self._a, self._D6, self._D8, self._D5).transpose(1, 2, 3, 4, 5, 0)
 
-    if self.verbosity > 2:
-      print('new lambda1 =', self._lambda1)
-      print('new lambda7 =', self._lambda7)
+    if self.verbosity > 1:
+      print('updated bonds 1 and 7: new lambda1 =', self._lambda1)
+      print('                       new lambda7 =', self._lambda7)
 
 
   def update_bonds26(self):
@@ -716,8 +694,6 @@ class SimpleUpdate2x2(object):
     update lambda2 and lambda6 by applying gate to A down-right next nearest
     neighbor bond with D through tensor B. Twin of 37.
     """
-    if self.verbosity > 1:
-      print('update bonds 2 and 6')
     w2 = self._lambda2**-1
     w6 = (self._lambda6**-1)[:,None,None,None,None]
     M_A = (self._gammaA.transpose(1,2,4,5,0,3)*w2).reshape(self._a*self._D1*self._D3*self._D4, self._d*self._D2)
@@ -734,9 +710,9 @@ class SimpleUpdate2x2(object):
     self._gammaB = M_B.reshape(self._D2, self._D6, self._d, self._a, self._D5, self._D4).transpose(2, 3, 4, 5, 1, 0)
     self._gammaD = M_D.reshape(self._D5, self._d, self._a, self._D6, self._D8, self._D7).transpose(1, 2, 0, 3, 4, 5)
 
-    if self.verbosity > 2:
-      print('new lambda2 =', self._lambda2)
-      print('new lambda6 =', self._lambda6)
+    if self.verbosity > 1:
+      print('updated bonds 2 and 6: new lambda2 =', self._lambda2)
+      print('                       new lambda6 =', self._lambda6)
 
 
   def update_bonds37(self):
@@ -744,8 +720,6 @@ class SimpleUpdate2x2(object):
     update lambda2 and lambda6 by applying gate to A down-right next nearest
     neighbor bond with D through tensor C. Twin of 26.
     """
-    if self.verbosity > 1:
-      print('update bonds 3 and 7')
     w3 = self._lambda3**-1
     w7 = (self._lambda7**-1)[:,None,None,None,None]
     M_A = (self._gammaA.transpose(1,2,3,5,0,4)*w3).reshape(self._a*self._D1*self._D2*self._D4, self._d*self._D3)
@@ -762,9 +736,9 @@ class SimpleUpdate2x2(object):
     self._gammaC = M_C.reshape(self._D3, self._D7, self._d, self._a, self._D1, self._D8).transpose(2, 3, 0, 1, 4, 5)
     self._gammaD = M_D.reshape(self._D7, self._d, self._a, self._D6, self._D8, self._D5).transpose(1, 2, 3, 4, 5, 0)
 
-    if self.verbosity > 2:
-      print('new lambda3 =', self._lambda3)
-      print('new lambda7 =', self._lambda7)
+    if self.verbosity > 1:
+      print('updated bonds 3 and 7: new lambda3 =', self._lambda3)
+      print('                       new lambda7 =', self._lambda7)
 
 
   def update_bonds46(self):
@@ -772,8 +746,6 @@ class SimpleUpdate2x2(object):
     update lambda4 and lambda6 by applying gate to A down-left next nearest
     neighbor bond with D through tensor B. Twin of 38.
     """
-    if self.verbosity > 1:
-      print('update bonds 4 and 6')
     w4 = self._lambda4**-1
     w6 = (self._lambda6**-1)[:,None,None,None,None]
     M_A = (self._gammaA.transpose(1,2,3,4,0,5)*w4).reshape(self._a*self._D1*self._D2*self._D3, self._d*self._D4)
@@ -790,9 +762,9 @@ class SimpleUpdate2x2(object):
     self._gammaB = M_B.reshape(self._D4, self._D6, self._d, self._a, self._D5, self._D2).transpose(2, 3, 4, 0, 1, 5)
     self._gammaD = M_D.reshape(self._D6, self._d, self._a, self._D8, self._D5, self._D7).transpose(1, 2, 0, 3, 4, 5)
 
-    if self.verbosity > 2:
-      print('new lambda4 =', self._lambda4)
-      print('new lambda6 =', self._lambda6)
+    if self.verbosity > 1:
+      print('updated bonds 4 and 6: new lambda4 =', self._lambda4)
+      print('                       new lambda6 =', self._lambda6)
 
 
   def update_bonds38(self):
@@ -800,8 +772,6 @@ class SimpleUpdate2x2(object):
     update lambda2 and lambda6 by applying gate to A down-left next nearest
     neighbor bond with D through tensor C. Twin of 46.
     """
-    if self.verbosity > 1:
-      print('update bonds 3 and 8')
     w3 = self._lambda3**-1
     w8 = (self._lambda8**-1)[:,None,None,None,None]
     M_A = (self._gammaA.transpose(1,2,3,5,0,4)*w3).reshape(self._a*self._D1*self._D2*self._D4, self._d*self._D3)
@@ -818,9 +788,9 @@ class SimpleUpdate2x2(object):
     self._gammaC = M_C.reshape(self._D3, self._D8, self._d, self._a, self._D7, self._D1).transpose(2, 3, 0, 4, 5, 1)
     self._gammaD = M_D.reshape(self._D8, self._d, self._a, self._D6, self._D5, self._D7).transpose(1, 2, 3, 0, 4, 5)
 
-    if self.verbosity > 2:
-      print('new lambda3 =', self._lambda3)
-      print('new lambda8 =', self._lambda8)
+    if self.verbosity > 1:
+      print('updated bonds 3 and 8: new lambda3 =', self._lambda3)
+      print('                       new lambda8 =', self._lambda8)
 
 
   def update_bonds45(self):
@@ -828,8 +798,6 @@ class SimpleUpdate2x2(object):
     update lambda4 and lambda5 by applying gate to A upper-left next nearest
     neighbor bond with D through tensor B. Twin of 18.
     """
-    if self.verbosity > 1:
-      print('update bonds 4 and 5')
     w4 = self._lambda4**-1
     w5 = (self._lambda5**-1)[:,None,None,None,None]
     M_A = (self._gammaA.transpose(1,2,3,4,0,5)*w4).reshape(self._a*self._D1*self._D2*self._D3, self._d*self._D4)
@@ -846,9 +814,9 @@ class SimpleUpdate2x2(object):
     self._gammaB = M_B.reshape(self._D4, self._D5, self._d, self._a, self._D6, self._D2).transpose(2, 3, 1, 0, 4, 5)
     self._gammaD = M_D.reshape(self._D5, self._d, self._a, self._D6, self._D8, self._D7).transpose(1, 2, 3, 4, 0, 5)
 
-    if self.verbosity > 2:
-      print('new lambda4 =', self._lambda4)
-      print('new lambda5 =', self._lambda5)
+    if self.verbosity > 1:
+      print('updated bonds 4 and 5: new lambda4 =', self._lambda4)
+      print('                       new lambda5 =', self._lambda5)
 
 
   def update_bonds18(self):
@@ -856,8 +824,6 @@ class SimpleUpdate2x2(object):
     update lambda1 and lambda8 by applying gate to A upper-left next nearest
     neighbor bond with D through tensor C. Twin of 45.
     """
-    if self.verbosity > 1:
-      print('update bonds 1 and 8')
     w1 = self._lambda1**-1
     w8 = (self._lambda8**-1)[:,None,None,None,None]
     M_A = (self._gammaA.transpose(1,3,4,5,0,2)*w1).reshape(self._a*self._D2*self._D3*self._D4, self._d*self._D1)
@@ -874,9 +840,9 @@ class SimpleUpdate2x2(object):
     self._gammaC = M_C.reshape(self._D1, self._D8, self._d, self._a, self._D3, self._D7).transpose(2, 3, 4, 5, 0, 1)
     self._gammaD = M_D.reshape(self._D8, self._d, self._a, self._D6, self._D5, self._D7).transpose(1, 2, 3, 0, 4, 5)
 
-    if self.verbosity > 2:
-      print('new lambda1 =', self._lambda1)
-      print('new lambda8 =', self._lambda8)
+    if self.verbosity > 1:
+      print('updated bonds 1 and 8: new lambda1 =', self._lambda1)
+      print('                       new lambda8 =', self._lambda8)
 
 
 
@@ -887,8 +853,6 @@ class SimpleUpdate2x2(object):
     update lambda4 and lambda1 by applying gate to B upper-right next nearest
     neighbor bond with C through tensor A. Twin of 58.
     """
-    if self.verbosity > 1:
-      print('update bonds 4 and 1')
     w4 = self._lambda4**-1
     w1 = (self._lambda1**-1)[:,None,None,None,None]
     M_B = (self._gammaB.transpose(1,2,4,5,0,3)*w4).reshape(self._a*self._D5*self._D6*self._D2, self._d*self._D4)
@@ -907,9 +871,9 @@ class SimpleUpdate2x2(object):
     self._gammaA = M_A.reshape(self._D4, self._D1, self._d, self._a, self._D2, self._D3).transpose(2, 3, 1, 4, 5, 0)
     self._gammaC = M_C.reshape(self._D1, self._d, self._a, self._D3, self._D7, self._D8).transpose(1, 2, 3, 4, 0, 5)
 
-    if self.verbosity > 2:
-      print('new lambda4 =', self._lambda4)
-      print('new lambda1 =', self._lambda1)
+    if self.verbosity > 1:
+      print('updated bonds 4 and 1: new lambda4 =', self._lambda4)
+      print('                       new lambda1 =', self._lambda1)
 
 
   def update_bonds58(self):
@@ -917,8 +881,6 @@ class SimpleUpdate2x2(object):
     update lambda2 and lambda6 by applying gate to B upper-right next nearest
     neighbor bond with C through tensor D. Twin of 41.
     """
-    if self.verbosity > 1:
-      print('update bonds 5 and 8')
     w5 = self._lambda5**-1
     w8 = (self._lambda8**-1)[:,None,None,None,None]
     M_B = (self._gammaB.transpose(1,3,4,5,0,2)*w5).reshape(self._a*self._D4*self._D6*self._D2, self._d*self._D5)
@@ -937,9 +899,9 @@ class SimpleUpdate2x2(object):
     self._gammaD = M_D.reshape(self._D5, self._D8, self._d, self._a, self._D6, self._D7).transpose(2, 3, 4, 1, 0, 5)
     self._gammaC = M_C.reshape(self._D8, self._d, self._a, self._D3, self._D7, self._D1).transpose(1, 2, 3, 4, 5, 0)
 
-    if self.verbosity > 2:
-      print('new lambda5 =', self._lambda5)
-      print('new lambda8 =', self._lambda8)
+    if self.verbosity > 1:
+      print('updated bonds 5 and 8: new lambda5 =', self._lambda5)
+      print('                       new lambda8 =', self._lambda8)
 
 
   def update_bonds43(self):
@@ -947,8 +909,6 @@ class SimpleUpdate2x2(object):
     update lambda4 and lambda3 by applying gate to B down-right next nearest
     neighbor bond with C through tensor A. Twin of 68.
     """
-    if self.verbosity > 1:
-      print('update bonds 4 and 3')
     w4 = self._lambda4**-1
     w3 = (self._lambda3**-1)[:,None,None,None,None]
     M_B = (self._gammaB.transpose(1,2,4,5,0,3)*w4).reshape(self._a*self._D5*self._D6*self._D2, self._d*self._D4)
@@ -967,9 +927,9 @@ class SimpleUpdate2x2(object):
     self._gammaA = M_A.reshape(self._D4, self._D3, self._d, self._a, self._D1, self._D2).transpose(2, 3, 4, 5, 1, 0)
     self._gammaC = M_C.reshape(self._D3, self._d, self._a, self._D7, self._D1, self._D8).transpose(1, 2, 0, 3, 4, 5)
 
-    if self.verbosity > 2:
-      print('new lambda4 =', self._lambda4)
-      print('new lambda3 =', self._lambda3)
+    if self.verbosity > 1:
+      print('updated bonds 4 and 3: new lambda4 =', self._lambda4)
+      print('                       new lambda3 =', self._lambda3)
 
 
   def update_bonds68(self):
@@ -977,8 +937,6 @@ class SimpleUpdate2x2(object):
     update lambda2 and lambda6 by applying gate to B down-right next nearest
     neighbor bond with C through tensor D. Twin of 43.
     """
-    if self.verbosity > 1:
-      print('update bonds 6 and 8')
     w6 = self._lambda6**-1
     w8 = (self._lambda8**-1)[:,None,None,None,None]
     M_B = (self._gammaB.transpose(1,2,3,5,0,4)*w6).reshape(self._a*self._D5*self._D4*self._D2, self._d*self._D6)
@@ -997,9 +955,9 @@ class SimpleUpdate2x2(object):
     self._gammaD = M_D.reshape(self._D6, self._D8, self._d, self._a, self._D5, self._D7).transpose(2, 3, 0, 1, 4, 5)
     self._gammaC = M_C.reshape(self._D8, self._d, self._a, self._D3, self._D7, self._D1).transpose(1, 2, 3, 4, 5, 0)
 
-    if self.verbosity > 2:
-      print('new lambda6 =', self._lambda6)
-      print('new lambda8 =', self._lambda8)
+    if self.verbosity > 1:
+      print('updated bonds 6 and 8: new lambda6 =', self._lambda6)
+      print('                       new lambda8 =', self._lambda8)
 
 
   def update_bonds23(self):
@@ -1007,8 +965,6 @@ class SimpleUpdate2x2(object):
     update lambda2 and lambda3 by applying gate to B down-left next nearest
     neighbor bond with C through tensor A. Twin of 67.
     """
-    if self.verbosity > 1:
-      print('update bonds 2 and 3')
     w2 = self._lambda2**-1
     w3 = (self._lambda3**-1)[:,None,None,None,None]
     M_B = (self._gammaB.transpose(1,2,3,4,0,5)*w2).reshape(self._a*self._D5*self._D4*self._D6, self._d*self._D2)
@@ -1027,9 +983,9 @@ class SimpleUpdate2x2(object):
     self._gammaA = M_A.reshape(self._D2, self._D3, self._d, self._a, self._D1, self._D4).transpose(2, 3, 4, 0, 1, 5)
     self._gammaC = M_C.reshape(self._D3, self._d, self._a, self._D7, self._D1, self._D8).transpose(1, 2, 0, 3, 4, 5)
 
-    if self.verbosity > 2:
-      print('new lambda2 =', self._lambda2)
-      print('new lambda3 =', self._lambda3)
+    if self.verbosity > 1:
+      print('updated bonds 2 and 3: new lambda2 =', self._lambda2)
+      print('                       new lambda3 =', self._lambda3)
 
 
   def update_bonds67(self):
@@ -1037,8 +993,6 @@ class SimpleUpdate2x2(object):
     update lambda6 and lambda7 by applying gate to B down-left next nearest
     neighbor bond with C through tensor D. Twin of 23.
     """
-    if self.verbosity > 1:
-      print('update bonds 6 and 7')
     w6 = self._lambda6**-1
     w7 = (self._lambda7**-1)[:,None,None,None,None]
     M_B = (self._gammaB.transpose(1,2,3,5,0,4)*w6).reshape(self._a*self._D5*self._D4*self._D2, self._d*self._D6)
@@ -1057,9 +1011,9 @@ class SimpleUpdate2x2(object):
     self._gammaD = M_D.reshape(self._D6, self._D7, self._d, self._a, self._D8, self._D5).transpose(2, 3, 0, 4, 5, 1)
     self._gammaC = M_C.reshape(self._D7, self._d, self._a, self._D3, self._D1, self._D8).transpose(1, 2, 3, 0, 4, 5)
 
-    if self.verbosity > 2:
-      print('new lambda6 =', self._lambda6)
-      print('new lambda7 =', self._lambda7)
+    if self.verbosity > 1:
+      print('updated bonds 6 and 7: new lambda6 =', self._lambda6)
+      print('                       new lambda7 =', self._lambda7)
 
 
   def update_bonds21(self):
@@ -1067,8 +1021,6 @@ class SimpleUpdate2x2(object):
     update lambda2 and lambda1 by applying gate to B upper-left next nearest
     neighbor bond with C through tensor A. Twin of 57.
     """
-    if self.verbosity > 1:
-      print('update bonds 2 and 1')
     w2 = self._lambda2**-1
     w1 = (self._lambda1**-1)[:,None,None,None,None]
     M_B = (self._gammaB.transpose(1,2,3,4,0,5)*w2).reshape(self._a*self._D5*self._D4*self._D6, self._d*self._D2)
@@ -1087,9 +1039,9 @@ class SimpleUpdate2x2(object):
     self._gammaA = M_A.reshape(self._D2, self._D1, self._d, self._a, self._D3, self._D4).transpose(2, 3, 1, 0, 4, 5)
     self._gammaC = M_C.reshape(self._D1, self._d, self._a, self._D3, self._D7, self._D8).transpose(1, 2, 3, 4, 0, 5)
 
-    if self.verbosity > 2:
-      print('new lambda2 =', self._lambda2)
-      print('new lambda1 =', self._lambda1)
+    if self.verbosity > 1:
+      print('updated bonds 2 and 1: new lambda2 =', self._lambda2)
+      print('                       new lambda1 =', self._lambda1)
 
 
   def update_bonds57(self):
@@ -1097,8 +1049,6 @@ class SimpleUpdate2x2(object):
     update lambda6 and lambda7 by applying gate to B down-left next nearest
     neighbor bond with C through tensor D. Twin of 21.
     """
-    if self.verbosity > 1:
-      print('update bonds 5 and 7')
     w5 = self._lambda5**-1
     w7 = (self._lambda7**-1)[:,None,None,None,None]
     M_B = (self._gammaB.transpose(1,3,4,5,0,2)*w5).reshape(self._a*self._D4*self._D6*self._D2, self._d*self._D5)
@@ -1117,6 +1067,6 @@ class SimpleUpdate2x2(object):
     self._gammaD = M_D.reshape(self._D5, self._D7, self._d, self._a, self._D6, self._D8).transpose(2, 3, 4, 5, 0, 1)
     self._gammaC = M_C.reshape(self._D7, self._d, self._a, self._D3, self._D1, self._D8).transpose(1, 2, 3, 0, 4, 5)
 
-    if self.verbosity > 2:
-      print('new lambda5 =', self._lambda5)
-      print('new lambda7 =', self._lambda7)
+    if self.verbosity > 1:
+      print('updated bonds 5 and 7: new lambda5 =', self._lambda5)
+      print('                       new lambda7 =', self._lambda7)
