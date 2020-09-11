@@ -2,6 +2,7 @@ import numpy as np
 import scipy.linalg as lg
 from toolsU1 import default_color, dotU1, combine_colors, svdU1, checkU1, tensordotU1
 
+# more convenient than [:,None,None,None,None,None] everywhere?
 _sh = (-1,1,1,1,1,1)
 
 def update_first_neighbor(M0_L, M0_R, lambda0, gate, d, col_L=default_color,
@@ -119,20 +120,20 @@ def update_second_neighbor(M0_L, M0_mid, M0_R, lambda_L, lambda_R, gate, d,
 
   # first SVD: cut left part
   new_L, new_lambda_L, theta, col_nbL = svdU1(theta, combine_colors(col_sL, col_d), -combine_colors(-col_sm, col_sR, col_d))
-  new_L = new_L[:,:D_L].reshape(D_effL, d*D_L)
   new_lambda_L = new_lambda_L[:D_L]
   new_lambda_L /= new_lambda_L.sum()
   col_nbL = col_nbL[:D_L]
+  new_L = (new_L[:,:D_L]*new_lambda_L).reshape(D_effL, d*D_L)
 
   # second SVD: split middle and right parts
   theta = (new_lambda_L[:,None]*theta[:D_L]).reshape(D_L*D_effm, D_effR*d)
   col_th = combine_colors(col_nbL,-col_sm)
   new_mid, new_lambda_R, new_R, col_nbR = svdU1(theta, col_th, -combine_colors(col_sR,col_d))
-  new_mid = new_mid[:,:D_R].reshape(D_L, D_effm, D_R)*new_lambda_L[:,None,None]**-1
-  new_R = new_R[:D_R].reshape(D_R, D_effR, d)
   new_lambda_R = new_lambda_R[:D_R]
   new_lambda_R /= new_lambda_R.sum()
   col_nbR = col_nbR[:D_R]
+  new_mid = new_mid[:,:D_R].reshape(D_L, D_effm, D_R)*new_lambda_R
+  new_R = new_R[:D_R].reshape(D_R, D_effR, d)*new_lambda_R[:,None,None]
 
   # bring back constant parts
   new_L = dotU1(cst_L, new_L, col_L, -col_sL, combine_colors(col_d,-col_nbL))
@@ -456,10 +457,7 @@ class SimpleUpdate2x2(object):
     """
     if self.verbosity > 0:
       print('launch 2nd order update for all bonds')
-    # TODO: do not add and remove lambdas every time, keep some
-    # TODO: merge all directional functions, fine dealing with lambda
-    # goes to 2nd order Trotter by reversing order, tau twice bigger for gl
-    # and call once. Wait for working ctm to test.
+    # goes to 2nd order Trotter by reversing update order
     self.update_first_neighbor()
     self.update_second_neighbor()
     self.update_second_neighbor_reverse()
@@ -664,12 +662,11 @@ class SimpleUpdate2x2(object):
     """
     if self.verbosity > 1:
       print('update bonds 2 and 5')
-    M_A = np.einsum('paurdl,u,d,l->audlpr', self._gammaA, self._lambda1, self._lambda3,
-                    self._lambda4).reshape(self._a*self._D1*self._D3*self._D4, self._d*self._D2)
-    M_B = np.einsum('paurdl,r,d->lupard', self._gammaB, self._lambda4, self._lambda6).reshape(
-                                           self._D2*self._D5, self._d*self._a*self._D4*self._D6)
-    M_D = np.einsum('paurdl,u,r,l->dpaurl', self._gammaD, self._lambda6, self._lambda8,
-                    self._lambda7).reshape(self._D5*self._d, self._a*self._D6*self._D8*self._D7)
+    w2 = self._lambda2**-1
+    w5 = (self._lambda5**-1)[:,None,None,None,None]
+    M_A = (self._gammaA.transpose(1,2,4,5,0,3)*w2).reshape(self._a*self._D1*self._D3*self._D4, self._d*self._D2)
+    M_B = (self._gammaB.transpose(5,2,0,1,3,4)*(w2.reshape(_sh)*w5[None])).reshape(self._D2*self._D5, self._d*self._a*self._D4*self._D6)
+    M_D = (self._gammaD.transpose(4,0,1,2,3,5)*w5[:,None]).reshape(self._D5*self._d, self._a*self._D6*self._D8*self._D7)
 
     col_L = combine_colors(self._colors_a, self._colors1, self._colors3, self._colors4)
     col_mid = combine_colors(self._colors_p, self._colors_a, self._colors4, self._colors6)
@@ -677,13 +674,9 @@ class SimpleUpdate2x2(object):
     M_A, M_B, M_D, self._lambda2, self._lambda5, self._colors2, self._colors5 = update_second_neighbor(
                                        M_A, M_B, M_D, self._lambda2, self._lambda5, self._g2, self._d, col_L=col_L, col_mid=col_mid, col_R=col_R, col_bL=self._colors2, col_bR=self._colors5, col_d=self._colors_p)
 
-
-    M_A = M_A.reshape(self._a, self._D1, self._D3, self._D4, self._d, self._D2)
-    self._gammaA = np.einsum('audlpr,u,d,l->paurdl', M_A, self._lambda1**-1, self._lambda3**-1, self._lambda4**-1)
-    M_B = M_B.reshape(self._D2, self._D5, self._d, self._a, self._D4, self._D6)
-    self._gammaB = np.einsum('lupard,r,d->paurdl', M_B, self._lambda4**-1, self._lambda6**-1)
-    M_D = M_D.reshape(self._D5, self._d, self._a, self._D6, self._D8, self._D7)
-    self._gammaD = np.einsum('dpaurl,u,r,l->paurdl', M_D, self._lambda6**-1, self._lambda8**-1, self._lambda7**-1)
+    self._gammaA = M_A.reshape(self._a, self._D1, self._D3, self._D4, self._d, self._D2).transpose(4, 0, 1, 5, 2, 3)
+    self._gammaB = M_B.reshape(self._D2, self._D5, self._d, self._a, self._D4, self._D6).transpose(2, 3, 1, 4, 5, 0)
+    self._gammaD = M_D.reshape(self._D5, self._d, self._a, self._D6, self._D8, self._D7).transpose(1, 2, 3, 4, 0, 5)
 
     if self.verbosity > 2:
       print('new lambda2 =', self._lambda2)
@@ -697,12 +690,11 @@ class SimpleUpdate2x2(object):
     """
     if self.verbosity > 1:
       print('update bonds 1 and 7')
-    M_A = np.einsum('paurdl,r,d,l->ardlpu', self._gammaA, self._lambda2, self._lambda3,
-                    self._lambda4).reshape(self._a*self._D2*self._D3*self._D4, self._d*self._D1)
-    M_C = np.einsum('paurdl,u,l->drpaul', self._gammaC, self._lambda3, self._lambda8).reshape(
-                                           self._D1*self._D7, self._d*self._a*self._D3*self._D8)
-    M_D = np.einsum('paurdl,u,r,d->lpaurd', self._gammaD, self._lambda6, self._lambda8,
-                    self._lambda5).reshape(self._D7*self._d, self._a*self._D6*self._D8*self._D5)
+    w1 = self._lambda1**-1
+    w7 = (self._lambda7**-1)[:,None,None,None,None]
+    M_A = (self._gammaA.transpose(1,3,4,5,0,2)*w1).reshape(self._a*self._D2*self._D3*self._D4, self._d*self._D1)
+    M_C = (self._gammaC.transpose(4,3,0,1,2,5)*(w1.reshape(_sh)*w7[None])).reshape(self._D1*self._D7, self._d*self._a*self._D3*self._D8)
+    M_D = (self._gammaD.transpose(5,0,1,2,3,4)*w7[:,None]).reshape(self._D7*self._d, self._a*self._D6*self._D8*self._D5)
 
     col_L = combine_colors(self._colors_a, self._colors2, self._colors3, self._colors4)
     col_mid = combine_colors(self._colors_p, self._colors_a, self._colors3, self._colors8)
@@ -710,12 +702,9 @@ class SimpleUpdate2x2(object):
     M_A, M_C, M_D, self._lambda1, self._lambda7, self._colors1, self._colors7 = update_second_neighbor(
                                        M_A, M_C, M_D, self._lambda1, self._lambda7, self._g2, self._d, col_L=col_L, col_mid=col_mid, col_R=col_R, col_bL=self._colors1, col_bR=self._colors7, col_d=self._colors_p)
 
-    M_A = M_A.reshape(self._a, self._D2, self._D3, self._D4, self._d, self._D1)
-    self._gammaA = np.einsum('ardlpu,r,d,l->paurdl', M_A, self._lambda2**-1, self._lambda3**-1, self._lambda4**-1)
-    M_C = M_C.reshape(self._D1, self._D7, self._d, self._a, self._D3, self._D8)
-    self._gammaC = np.einsum('drpaul,u,l->paurdl', M_C, self._lambda3**-1, self._lambda8**-1)
-    M_D = M_D.reshape(self._D7, self._d, self._a, self._D6, self._D8, self._D5)
-    self._gammaD = np.einsum('lpaurd,u,r,d->paurdl', M_D, self._lambda6**-1, self._lambda8**-1, self._lambda5**-1)
+    self._gammaA = M_A.reshape(self._a, self._D2, self._D3, self._D4, self._d, self._D1).transpose(4, 0, 5, 1, 2, 3)
+    self._gammaC = M_C.reshape(self._D1, self._D7, self._d, self._a, self._D3, self._D8).transpose(2, 3, 4, 1, 0, 5)
+    self._gammaD = M_D.reshape(self._D7, self._d, self._a, self._D6, self._D8, self._D5).transpose(1, 2, 3, 4, 5, 0)
 
     if self.verbosity > 2:
       print('new lambda1 =', self._lambda1)
@@ -729,12 +718,11 @@ class SimpleUpdate2x2(object):
     """
     if self.verbosity > 1:
       print('update bonds 2 and 6')
-    M_A = np.einsum('paurdl,u,d,l->audlpr', self._gammaA, self._lambda1, self._lambda3,
-                    self._lambda4).reshape(self._a*self._D1*self._D3*self._D4, self._d*self._D2)
-    M_B = np.einsum('paurdl,u,r->ldpaur', self._gammaB, self._lambda5, self._lambda4).reshape(
-                                           self._D2*self._D6, self._d*self._a*self._D5*self._D4)
-    M_D = np.einsum('paurdl,r,d,l->upardl', self._gammaD, self._lambda8, self._lambda5,
-                    self._lambda7).reshape(self._D6*self._d, self._a*self._D8*self._D5*self._D7)
+    w2 = self._lambda2**-1
+    w6 = (self._lambda6**-1)[:,None,None,None,None]
+    M_A = (self._gammaA.transpose(1,2,4,5,0,3)*w2).reshape(self._a*self._D1*self._D3*self._D4, self._d*self._D2)
+    M_B = (self._gammaB.transpose(5,4,0,1,2,3)*(w2.reshape(_sh)*w6[None])).reshape(self._D2*self._D6, self._d*self._a*self._D5*self._D4)
+    M_D = (self._gammaD.transpose(2,0,1,3,4,5)*w6[:,None]).reshape(self._D6*self._d, self._a*self._D8*self._D5*self._D7)
 
     col_L = combine_colors(self._colors_a, self._colors1, self._colors3, self._colors4)
     col_mid = combine_colors(self._colors_p, self._colors_a, self._colors5, self._colors4)
@@ -742,12 +730,9 @@ class SimpleUpdate2x2(object):
     M_A, M_B, M_D, self._lambda2, self._lambda6, self._colors2, self._colors6 = update_second_neighbor(
                                        M_A, M_B, M_D, self._lambda2, self._lambda6, self._g2, self._d, col_L=col_L, col_mid=col_mid, col_R=col_R, col_bL=self._colors2, col_bR=self._colors6, col_d=self._colors_p)
 
-    M_A = M_A.reshape(self._a, self._D1, self._D3, self._D4, self._d, self._D2)
-    self._gammaA = np.einsum('audlpr,u,d,l->paurdl', M_A, self._lambda1**-1, self._lambda3**-1, self._lambda4**-1)
-    M_B = M_B.reshape(self._D2, self._D6, self._d, self._a, self._D5, self._D4)
-    self._gammaB = np.einsum('ldpaur,u,r->paurdl', M_B, self._lambda5**-1, self._lambda4**-1)
-    M_D = M_D.reshape(self._D6, self._d, self._a, self._D8, self._D5, self._D7)
-    self._gammaD = np.einsum('upardl,r,d,l->paurdl', M_D, self._lambda8**-1, self._lambda5**-1, self._lambda7**-1)
+    self._gammaA = M_A.reshape(self._a, self._D1, self._D3, self._D4, self._d, self._D2).transpose(4, 0, 1, 5, 2, 3)
+    self._gammaB = M_B.reshape(self._D2, self._D6, self._d, self._a, self._D5, self._D4).transpose(2, 3, 4, 5, 1, 0)
+    self._gammaD = M_D.reshape(self._D5, self._d, self._a, self._D6, self._D8, self._D7).transpose(1, 2, 0, 3, 4, 5)
 
     if self.verbosity > 2:
       print('new lambda2 =', self._lambda2)
@@ -761,12 +746,11 @@ class SimpleUpdate2x2(object):
     """
     if self.verbosity > 1:
       print('update bonds 3 and 7')
-    M_A = np.einsum('paurdl,u,r,l->aurlpd', self._gammaA, self._lambda1, self._lambda2,
-                    self._lambda4).reshape(self._a*self._D1*self._D2*self._D4, self._d*self._D3)
-    M_C = np.einsum('paurdl,d,l->urpadl', self._gammaC, self._lambda1, self._lambda8).reshape(
-                                           self._D3*self._D7, self._d*self._a*self._D1*self._D8)
-    M_D = np.einsum('paurdl,u,r,d->lpaurd', self._gammaD, self._lambda6, self._lambda8,
-                    self._lambda5).reshape(self._D7*self._d, self._a*self._D6*self._D8*self._D5)
+    w3 = self._lambda3**-1
+    w7 = (self._lambda7**-1)[:,None,None,None,None]
+    M_A = (self._gammaA.transpose(1,2,3,5,0,4)*w3).reshape(self._a*self._D1*self._D2*self._D4, self._d*self._D3)
+    M_C = (self._gammaC.transpose(2,3,0,1,4,5)*(w3.reshape(_sh)*w7[None])).reshape(self._D3*self._D7, self._d*self._a*self._D1*self._D8)
+    M_D = (self._gammaD.transpose(5,0,1,2,3,4)*w7[:,None]).reshape(self._D7*self._d, self._a*self._D6*self._D8*self._D5)
 
     col_L = combine_colors(self._colors_a, self._colors1, self._colors2, self._colors4)
     col_mid = combine_colors(self._colors_p, self._colors_a, self._colors1, self._colors8)
@@ -774,12 +758,9 @@ class SimpleUpdate2x2(object):
     M_A, M_C, M_D, self._lambda3, self._lambda7, self._colors3, self._colors7 = update_second_neighbor(
                                        M_A, M_C, M_D, self._lambda3, self._lambda7, self._g2, self._d, col_L=col_L, col_mid=col_mid, col_R=col_R, col_bL=self._colors3, col_bR=self._colors7, col_d=self._colors_p)
 
-    M_A = M_A.reshape(self._a, self._D1, self._D2, self._D4, self._d, self._D3)
-    self._gammaA = np.einsum('aurlpd,u,r,l->paurdl', M_A, self._lambda1**-1, self._lambda2**-1, self._lambda4**-1)
-    M_C = M_C.reshape(self._D3, self._D7, self._d, self._a, self._D1, self._D8)
-    self._gammaC = np.einsum('urpadl,d,l->paurdl', M_C, self._lambda1**-1, self._lambda8**-1)
-    M_D = M_D.reshape(self._D7, self._d, self._a, self._D6, self._D8, self._D5)
-    self._gammaD = np.einsum('lpaurd,u,r,d->paurdl', M_D, self._lambda6**-1, self._lambda8**-1, self._lambda5**-1)
+    self._gammaA = M_A.reshape(self._a, self._D1, self._D2, self._D4, self._d, self._D3).transpose(4, 0, 1, 2, 5, 3)
+    self._gammaC = M_C.reshape(self._D3, self._D7, self._d, self._a, self._D1, self._D8).transpose(2, 3, 0, 1, 4, 5)
+    self._gammaD = M_D.reshape(self._D7, self._d, self._a, self._D6, self._D8, self._D5).transpose(1, 2, 3, 4, 5, 0)
 
     if self.verbosity > 2:
       print('new lambda3 =', self._lambda3)
@@ -793,12 +774,11 @@ class SimpleUpdate2x2(object):
     """
     if self.verbosity > 1:
       print('update bonds 4 and 6')
-    M_A = np.einsum('paurdl,u,r,d->aurdpl', self._gammaA, self._lambda1, self._lambda2,
-                    self._lambda3).reshape(self._a*self._D1*self._D2*self._D3, self._d*self._D4)
-    M_B = np.einsum('paurdl,u,l->rdpaul', self._gammaB, self._lambda5, self._lambda2).reshape(
-                                           self._D4*self._D6, self._d*self._a*self._D5*self._D2)
-    M_D = np.einsum('paurdl,r,d,l->upardl', self._gammaD, self._lambda8, self._lambda5,
-                    self._lambda7).reshape(self._D6*self._d, self._a*self._D8*self._D5*self._D7)
+    w4 = self._lambda4**-1
+    w6 = (self._lambda6**-1)[:,None,None,None,None]
+    M_A = (self._gammaA.transpose(1,2,3,4,0,5)*w4).reshape(self._a*self._D1*self._D2*self._D3, self._d*self._D4)
+    M_B = (self._gammaB.transpose(3,4,0,1,2,5)*(w4.reshape(_sh)*w6[None])).reshape(self._D4*self._D6, self._d*self._a*self._D5*self._D2)
+    M_D = (self._gammaD.transpose(2,0,1,3,4,5)*w6[:,None]).reshape(self._D6*self._d, self._a*self._D8*self._D5*self._D7)
 
     col_L = combine_colors(self._colors_a, self._colors1, self._colors2, self._colors3)
     col_mid = combine_colors(self._colors_p, self._colors_a, self._colors5, self._colors2)
@@ -806,12 +786,9 @@ class SimpleUpdate2x2(object):
     M_A, M_B, M_D, self._lambda4, self._lambda6, self._colors4, self._colors6 = update_second_neighbor(
                                        M_A, M_B, M_D, self._lambda4, self._lambda6, self._g2, self._d, col_L=col_L, col_mid=col_mid, col_R=col_R, col_bL=self._colors4, col_bR=self._colors6, col_d=self._colors_p)
 
-    M_A = M_A.reshape(self._a, self._D1, self._D2, self._D3, self._d, self._D4)
-    self._gammaA = np.einsum('aurdpl,u,r,d->paurdl', M_A, self._lambda1**-1, self._lambda2**-1, self._lambda3**-1)
-    M_B = M_B.reshape(self._D4, self._D6, self._d, self._a, self._D5, self._D2)
-    self._gammaB = np.einsum('rdpaul,u,l->paurdl', M_B, self._lambda5**-1, self._lambda2**-1)
-    M_D = M_D.reshape(self._D6, self._d, self._a, self._D8, self._D5, self._D7)
-    self._gammaD = np.einsum('upardl,r,d,l->paurdl', M_D, self._lambda8**-1, self._lambda5**-1, self._lambda7**-1)
+    self._gammaA = M_A.reshape(self._a, self._D1, self._D2, self._D3, self._d, self._D4).transpose(4, 0, 1, 2, 3, 5)
+    self._gammaB = M_B.reshape(self._D4, self._D6, self._d, self._a, self._D5, self._D2).transpose(2, 3, 4, 0, 1, 5)
+    self._gammaD = M_D.reshape(self._D6, self._d, self._a, self._D8, self._D5, self._D7).transpose(1, 2, 0, 3, 4, 5)
 
     if self.verbosity > 2:
       print('new lambda4 =', self._lambda4)
@@ -825,12 +802,11 @@ class SimpleUpdate2x2(object):
     """
     if self.verbosity > 1:
       print('update bonds 3 and 8')
-    M_A = np.einsum('paurdl,u,r,l->aurlpd', self._gammaA, self._lambda1, self._lambda2,
-                    self._lambda4).reshape(self._a*self._D1*self._D2*self._D4, self._d*self._D3)
-    M_C = np.einsum('paurdl,r,d->ulpard', self._gammaC, self._lambda7, self._lambda1).reshape(
-                                           self._D3*self._D8, self._d*self._a*self._D7*self._D1)
-    M_D = np.einsum('paurdl,u,d,l->rpaudl', self._gammaD, self._lambda6, self._lambda5,
-                    self._lambda7).reshape(self._D8*self._d, self._a*self._D6*self._D5*self._D7)
+    w3 = self._lambda3**-1
+    w8 = (self._lambda8**-1)[:,None,None,None,None]
+    M_A = (self._gammaA.transpose(1,2,3,5,0,4)*w3).reshape(self._a*self._D1*self._D2*self._D4, self._d*self._D3)
+    M_C = (self._gammaC.transpose(2,5,0,1,3,4)*(w3.reshape(_sh)*w8[None])).reshape(self._D3*self._D8, self._d*self._a*self._D7*self._D1)
+    M_D = (self._gammaD.transpose(3,0,1,2,4,5)*w8[:,None]).reshape(self._D8*self._d, self._a*self._D6*self._D5*self._D7)
 
     col_L = combine_colors(self._colors_a, self._colors1, self._colors2, self._colors4)
     col_mid = combine_colors(self._colors_p, self._colors_a, self._colors7, self._colors1)
@@ -838,12 +814,9 @@ class SimpleUpdate2x2(object):
     M_A, M_C, M_D, self._lambda3, self._lambda8, self._colors3, self._colors8 = update_second_neighbor(
                                        M_A, M_C, M_D, self._lambda3, self._lambda8, self._g2, self._d, col_L=col_L, col_mid=col_mid, col_R=col_R, col_bL=self._colors3, col_bR=self._colors8, col_d=self._colors_p)
 
-    M_A = M_A.reshape(self._a, self._D1, self._D2, self._D4, self._d, self._D3)
-    self._gammaA = np.einsum('aurlpd,u,r,l->paurdl', M_A, self._lambda1**-1, self._lambda2**-1, self._lambda4**-1)
-    M_C = M_C.reshape(self._D3, self._D8, self._d, self._a, self._D7, self._D1)
-    self._gammaC = np.einsum('ulpard,r,d->paurdl', M_C, self._lambda7**-1, self._lambda1**-1)
-    M_D = M_D.reshape(self._D8, self._d, self._a, self._D6, self._D5, self._D7)
-    self._gammaD = np.einsum('rpaudl,u,d,l->paurdl', M_D, self._lambda6**-1, self._lambda5**-1, self._lambda7**-1)
+    self._gammaA = M_A.reshape(self._a, self._D1, self._D2, self._D4, self._d, self._D3).transpose(4, 0, 1, 2, 5, 3)
+    self._gammaC = M_C.reshape(self._D3, self._D8, self._d, self._a, self._D7, self._D1).transpose(2, 3, 0, 4, 5, 1)
+    self._gammaD = M_D.reshape(self._D8, self._d, self._a, self._D6, self._D5, self._D7).transpose(1, 2, 3, 0, 4, 5)
 
     if self.verbosity > 2:
       print('new lambda3 =', self._lambda3)
@@ -857,12 +830,11 @@ class SimpleUpdate2x2(object):
     """
     if self.verbosity > 1:
       print('update bonds 4 and 5')
-    M_A = np.einsum('paurdl,u,r,d->aurdpl', self._gammaA, self._lambda1, self._lambda2,
-                    self._lambda3).reshape(self._a*self._D1*self._D2*self._D3, self._d*self._D4)
-    M_B = np.einsum('paurdl,d,l->rupadl', self._gammaB, self._lambda6, self._lambda2).reshape(
-                                           self._D4*self._D5, self._d*self._a*self._D6*self._D2)
-    M_D = np.einsum('paurdl,u,r,l->dpaurl', self._gammaD, self._lambda6, self._lambda8,
-                    self._lambda7).reshape(self._D5*self._d, self._a*self._D6*self._D8*self._D7)
+    w4 = self._lambda4**-1
+    w5 = (self._lambda5**-1)[:,None,None,None,None]
+    M_A = (self._gammaA.transpose(1,2,3,4,0,5)*w4).reshape(self._a*self._D1*self._D2*self._D3, self._d*self._D4)
+    M_B = (self._gammaB.transpose(3,2,0,1,4,5)*(w4.reshape(_sh)*w5[None])).reshape(self._D4*self._D5, self._d*self._a*self._D6*self._D2)
+    M_D = (self._gammaD.transpose(4,0,1,2,3,5)*w5[:,None]).reshape(self._D5*self._d, self._a*self._D6*self._D8*self._D7)
 
     col_L = combine_colors(self._colors_a, self._colors1, self._colors2, self._colors3)
     col_mid = combine_colors(self._colors_p, self._colors_a, self._colors6, self._colors2)
@@ -870,12 +842,9 @@ class SimpleUpdate2x2(object):
     M_A, M_B, M_D, self._lambda4, self._lambda5, self._colors4, self._colors5 = update_second_neighbor(
                                        M_A, M_B, M_D, self._lambda4, self._lambda5, self._g2, self._d, col_L=col_L, col_mid=col_mid, col_R=col_R, col_bL=self._colors4, col_bR=self._colors5, col_d=self._colors_p)
 
-    M_A = M_A.reshape(self._a, self._D1, self._D2, self._D3, self._d, self._D4)
-    self._gammaA = np.einsum('aurdpl,u,r,d->paurdl', M_A, self._lambda1**-1, self._lambda2**-1, self._lambda3**-1)
-    M_B = M_B.reshape(self._D4, self._D5, self._d, self._a, self._D6, self._D2)
-    self._gammaB = np.einsum('rupadl,d,l->paurdl', M_B, self._lambda6**-1, self._lambda2**-1)
-    M_D = M_D.reshape(self._D5, self._d, self._a, self._D6, self._D8, self._D7)
-    self._gammaD = np.einsum('dpaurl,u,r,l->paurdl', M_D, self._lambda6**-1, self._lambda8**-1, self._lambda7**-1)
+    self._gammaA = M_A.reshape(self._a, self._D1, self._D2, self._D3, self._d, self._D4).transpose(4, 0, 1, 2, 3, 5)
+    self._gammaB = M_B.reshape(self._D4, self._D5, self._d, self._a, self._D6, self._D2).transpose(2, 3, 1, 0, 4, 5)
+    self._gammaD = M_D.reshape(self._D5, self._d, self._a, self._D6, self._D8, self._D7).transpose(1, 2, 3, 4, 0, 5)
 
     if self.verbosity > 2:
       print('new lambda4 =', self._lambda4)
@@ -889,12 +858,11 @@ class SimpleUpdate2x2(object):
     """
     if self.verbosity > 1:
       print('update bonds 1 and 8')
-    M_A = np.einsum('paurdl,r,d,l->ardlpu', self._gammaA, self._lambda2, self._lambda3,
-                    self._lambda4).reshape(self._a*self._D2*self._D3*self._D4, self._d*self._D1)
-    M_C = np.einsum('paurdl,u,r->dlpaur', self._gammaC, self._lambda3, self._lambda7).reshape(
-                                           self._D1*self._D8, self._d*self._a*self._D3*self._D7)
-    M_D = np.einsum('paurdl,u,d,l->rpaudl', self._gammaD, self._lambda6, self._lambda5,
-                    self._lambda7).reshape(self._D8*self._d, self._a*self._D6*self._D5*self._D7)
+    w1 = self._lambda1**-1
+    w8 = (self._lambda8**-1)[:,None,None,None,None]
+    M_A = (self._gammaA.transpose(1,3,4,5,0,2)*w1).reshape(self._a*self._D2*self._D3*self._D4, self._d*self._D1)
+    M_C = (self._gammaC.transpose(4,5,0,1,2,3)*(w1.reshape(_sh)*w8[None])).reshape(self._D1*self._D8, self._d*self._a*self._D3*self._D7)
+    M_D = (self._gammaD.transpose(3,0,1,2,4,5)*w8[:,None]).reshape(self._D8*self._d, self._a*self._D6*self._D5*self._D7)
 
     col_L = combine_colors(self._colors_a, self._colors2, self._colors3, self._colors4)
     col_mid = combine_colors(self._colors_p, self._colors_a, self._colors3, self._colors7)
@@ -902,12 +870,9 @@ class SimpleUpdate2x2(object):
     M_A, M_C, M_D, self._lambda1, self._lambda8, self._colors1, self._colors8 = update_second_neighbor(
                                        M_A, M_C, M_D, self._lambda1, self._lambda8, self._g2, self._d, col_L=col_L, col_mid=col_mid, col_R=col_R, col_bL=self._colors1, col_bR=self._colors8, col_d=self._colors_p)
 
-    M_A = M_A.reshape(self._a, self._D2, self._D3, self._D4, self._d, self._D1)
-    self._gammaA = np.einsum('ardlpu,r,d,l->paurdl', M_A, self._lambda2**-1, self._lambda3**-1, self._lambda4**-1)
-    M_C = M_C.reshape(self._D1, self._D8, self._d, self._a, self._D3, self._D7)
-    self._gammaC = np.einsum('dlpaur,u,r->paurdl', M_C, self._lambda3**-1, self._lambda7**-1)
-    M_D = M_D.reshape(self._D8, self._d, self._a, self._D6, self._D5, self._D7)
-    self._gammaD = np.einsum('rpaudl,u,d,l->paurdl', M_D, self._lambda6**-1, self._lambda5**-1, self._lambda7**-1)
+    self._gammaA = M_A.reshape(self._a, self._D2, self._D3, self._D4, self._d, self._D1).transpose(4, 0, 5, 1, 2, 3)
+    self._gammaC = M_C.reshape(self._D1, self._D8, self._d, self._a, self._D3, self._D7).transpose(2, 3, 4, 5, 0, 1)
+    self._gammaD = M_D.reshape(self._D8, self._d, self._a, self._D6, self._D5, self._D7).transpose(1, 2, 3, 0, 4, 5)
 
     if self.verbosity > 2:
       print('new lambda1 =', self._lambda1)
@@ -924,12 +889,11 @@ class SimpleUpdate2x2(object):
     """
     if self.verbosity > 1:
       print('update bonds 4 and 1')
-    M_B = np.einsum('paurdl,u,d,l->audlpr', self._gammaB, self._lambda5, self._lambda6,
-                    self._lambda2).reshape(self._a*self._D5*self._D6*self._D2, self._d*self._D4)
-    M_A = np.einsum('paurdl,r,d->lupard', self._gammaA, self._lambda2, self._lambda3).reshape(
-                                           self._D4*self._D1, self._d*self._a*self._D2*self._D3)
-    M_C = np.einsum('paurdl,u,r,l->dpaurl', self._gammaC, self._lambda3, self._lambda7,
-                    self._lambda8).reshape(self._D1*self._d, self._a*self._D3*self._D7*self._D8)
+    w4 = self._lambda4**-1
+    w1 = (self._lambda1**-1)[:,None,None,None,None]
+    M_B = (self._gammaB.transpose(1,2,4,5,0,3)*w4).reshape(self._a*self._D5*self._D6*self._D2, self._d*self._D4)
+    M_A = (self._gammaA.transpose(5,2,0,1,3,4)*(w4.reshape(_sh)*w1[None])).reshape(self._D4*self._D1, self._d*self._a*self._D2*self._D3)
+    M_C = (self._gammaC.transpose(4,0,1,2,3,5)*w1[:,None]).reshape(self._D1*self._d, self._a*self._D3*self._D7*self._D8)
 
     col_L = -combine_colors(self._colors_a, self._colors5, self._colors6, self._colors2)
     col_mid = -combine_colors(self._colors_p, self._colors_a, self._colors2, self._colors3)
@@ -939,12 +903,9 @@ class SimpleUpdate2x2(object):
     self._colors4 = -mc4
     self._colors1 = -mc1
 
-    M_B = M_B.reshape(self._a, self._D5, self._D6, self._D2, self._d, self._D4)
-    self._gammaB = np.einsum('audlpr,u,d,l->paurdl', M_B, self._lambda5**-1, self._lambda6**-1, self._lambda2**-1)
-    M_A = M_A.reshape(self._D4, self._D1, self._d, self._a, self._D2, self._D3)
-    self._gammaA = np.einsum('lupard,r,d->paurdl', M_A, self._lambda2**-1, self._lambda3**-1)
-    M_C = M_C.reshape(self._D1, self._d, self._a, self._D3, self._D7, self._D8)
-    self._gammaC = np.einsum('dpaurl,u,r,l->paurdl', M_C, self._lambda3**-1, self._lambda7**-1, self._lambda8**-1)
+    self._gammaB = M_B.reshape(self._a, self._D5, self._D6, self._D2, self._d, self._D4).transpose(4, 0, 1, 5, 2, 3)
+    self._gammaA = M_A.reshape(self._D4, self._D1, self._d, self._a, self._D2, self._D3).transpose(2, 3, 1, 4, 5, 0)
+    self._gammaC = M_C.reshape(self._D1, self._d, self._a, self._D3, self._D7, self._D8).transpose(1, 2, 3, 4, 0, 5)
 
     if self.verbosity > 2:
       print('new lambda4 =', self._lambda4)
@@ -958,12 +919,11 @@ class SimpleUpdate2x2(object):
     """
     if self.verbosity > 1:
       print('update bonds 5 and 8')
-    M_B = np.einsum('paurdl,r,d,l->ardlpu', self._gammaB, self._lambda4, self._lambda6,
-                    self._lambda2).reshape(self._a*self._D4*self._D6*self._D2, self._d*self._D5)
-    M_D = np.einsum('paurdl,u,l->drpaul', self._gammaD, self._lambda6, self._lambda7).reshape(
-                                           self._D5*self._D8, self._d*self._a*self._D6*self._D7)
-    M_C = np.einsum('paurdl,u,r,d->lpaurd', self._gammaC, self._lambda3, self._lambda7,
-                    self._lambda1).reshape(self._D8*self._d, self._a*self._D3*self._D7*self._D1)
+    w5 = self._lambda5**-1
+    w8 = (self._lambda8**-1)[:,None,None,None,None]
+    M_B = (self._gammaB.transpose(1,3,4,5,0,2)*w5).reshape(self._a*self._D4*self._D6*self._D2, self._d*self._D5)
+    M_D = (self._gammaD.transpose(4,3,0,1,2,5)*(w5.reshape(_sh)*w8[None])).reshape(self._D5*self._D8, self._d*self._a*self._D6*self._D7)
+    M_C = (self._gammaC.transpose(5,0,1,2,3,4)*w8[:,None]).reshape(self._D8*self._d, self._a*self._D3*self._D7*self._D1)
 
     col_L = -combine_colors(self._colors_a, self._colors4, self._colors6, self._colors2)
     col_mid = -combine_colors(self._colors_p, self._colors_a, self._colors6, self._colors7)
@@ -973,12 +933,9 @@ class SimpleUpdate2x2(object):
     self._colors5 = -mc5
     self._colors8 = -mc8
 
-    M_B = M_B.reshape(self._a, self._D4, self._D6, self._D2, self._d, self._D5)
-    self._gammaB = np.einsum('ardlpu,r,d,l->paurdl', M_B, self._lambda4**-1, self._lambda6**-1, self._lambda2**-1)
-    M_D = M_D.reshape(self._D5, self._D8, self._d, self._a, self._D6, self._D7)
-    self._gammaD = np.einsum('drpaul,u,l->paurdl', M_D, self._lambda6**-1, self._lambda7**-1)
-    M_C = M_C.reshape(self._D8, self._d, self._a, self._D3, self._D7, self._D1)
-    self._gammaC = np.einsum('lpaurd,u,r,d->paurdl', M_C, self._lambda3**-1, self._lambda7**-1, self._lambda1**-1)
+    self._gammaB = M_B.reshape(self._a, self._D4, self._D6, self._D2, self._d, self._D5).transpose(4, 0, 5, 1, 2, 3)
+    self._gammaD = M_D.reshape(self._D5, self._D8, self._d, self._a, self._D6, self._D7).transpose(2, 3, 4, 1, 0, 5)
+    self._gammaC = M_C.reshape(self._D8, self._d, self._a, self._D3, self._D7, self._D1).transpose(1, 2, 3, 4, 5, 0)
 
     if self.verbosity > 2:
       print('new lambda5 =', self._lambda5)
@@ -992,12 +949,11 @@ class SimpleUpdate2x2(object):
     """
     if self.verbosity > 1:
       print('update bonds 4 and 3')
-    M_B = np.einsum('paurdl,u,d,l->audlpr', self._gammaB, self._lambda5, self._lambda6,
-                    self._lambda2).reshape(self._a*self._D5*self._D6*self._D2, self._d*self._D4)
-    M_A = np.einsum('paurdl,u,r->ldpaur', self._gammaA, self._lambda1, self._lambda2).reshape(
-                                           self._D4*self._D3, self._d*self._a*self._D1*self._D2)
-    M_C = np.einsum('paurdl,r,d,l->upardl', self._gammaC, self._lambda7, self._lambda1,
-                    self._lambda8).reshape(self._D3*self._d, self._a*self._D7*self._D1*self._D8)
+    w4 = self._lambda4**-1
+    w3 = (self._lambda3**-1)[:,None,None,None,None]
+    M_B = (self._gammaB.transpose(1,2,4,5,0,3)*w4).reshape(self._a*self._D5*self._D6*self._D2, self._d*self._D4)
+    M_A = (self._gammaA.transpose(5,4,0,1,2,3)*(w4.reshape(_sh)*w3[None])).reshape(self._D4*self._D3, self._d*self._a*self._D1*self._D2)
+    M_C = (self._gammaC.transpose(2,0,1,3,4,5)*w3[:,None]).reshape(self._D3*self._d, self._a*self._D7*self._D1*self._D8)
 
     col_L = -combine_colors(self._colors_a, self._colors5, self._colors6, self._colors2)
     col_mid = -combine_colors(self._colors_p, self._colors_a, self._colors1, self._colors2)
@@ -1007,12 +963,9 @@ class SimpleUpdate2x2(object):
     self._colors4 = -mc4
     self._colors3 = -mc3
 
-    M_B = M_B.reshape(self._a, self._D5, self._D6, self._D2, self._d, self._D4)
-    self._gammaB = np.einsum('audlpr,u,d,l->paurdl', M_B, self._lambda5**-1, self._lambda6**-1, self._lambda2**-1)
-    M_A = M_A.reshape(self._D4, self._D3, self._d, self._a, self._D1, self._D2)
-    self._gammaA = np.einsum('ldpaur,u,r->paurdl', M_A, self._lambda1**-1, self._lambda2**-1)
-    M_C = M_C.reshape(self._D3, self._d, self._a, self._D7, self._D1, self._D8)
-    self._gammaC = np.einsum('upardl,r,d,l->paurdl', M_C, self._lambda7**-1, self._lambda1**-1, self._lambda8**-1)
+    self._gammaB = M_B.reshape(self._a, self._D5, self._D6, self._D2, self._d, self._D4).transpose(4, 0, 1, 5, 2, 3)
+    self._gammaA = M_A.reshape(self._D4, self._D3, self._d, self._a, self._D1, self._D2).transpose(2, 3, 4, 5, 1, 0)
+    self._gammaC = M_C.reshape(self._D3, self._d, self._a, self._D7, self._D1, self._D8).transpose(1, 2, 0, 3, 4, 5)
 
     if self.verbosity > 2:
       print('new lambda4 =', self._lambda4)
@@ -1026,12 +979,11 @@ class SimpleUpdate2x2(object):
     """
     if self.verbosity > 1:
       print('update bonds 6 and 8')
-    M_B = np.einsum('paurdl,u,r,l->aurlpd', self._gammaB, self._lambda5, self._lambda4,
-                    self._lambda2).reshape(self._a*self._D5*self._D4*self._D2, self._d*self._D6)
-    M_D = np.einsum('paurdl,d,l->urpadl', self._gammaD, self._lambda5, self._lambda7).reshape(
-                                           self._D6*self._D8, self._d*self._a*self._D5*self._D7)
-    M_C = np.einsum('paurdl,u,r,d->lpaurd', self._gammaC, self._lambda3, self._lambda7,
-                    self._lambda1).reshape(self._D8*self._d, self._a*self._D3*self._D7*self._D1)
+    w6 = self._lambda6**-1
+    w8 = (self._lambda8**-1)[:,None,None,None,None]
+    M_B = (self._gammaB.transpose(1,2,3,5,0,4)*w6).reshape(self._a*self._D5*self._D4*self._D2, self._d*self._D6)
+    M_D = (self._gammaD.transpose(2,3,0,1,4,5)*(w6.reshape(_sh)*w8[None])).reshape(self._D6*self._D8, self._d*self._a*self._D5*self._D7)
+    M_C = (self._gammaC.transpose(5,0,1,2,3,4)*w8[:,None]).reshape(self._D8*self._d, self._a*self._D3*self._D7*self._D1)
 
     col_L = -combine_colors(self._colors_a, self._colors5, self._colors4, self._colors2)
     col_mid = -combine_colors(self._colors_p, self._colors_a, self._colors5, self._colors7)
@@ -1041,12 +993,9 @@ class SimpleUpdate2x2(object):
     self._colors6 = -mc6
     self._colors8 = -mc8
 
-    M_B = M_B.reshape(self._a, self._D5, self._D4, self._D2, self._d, self._D6)
-    self._gammaB = np.einsum('aurlpd,u,r,l->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda2**-1)
-    M_D = M_D.reshape(self._D6, self._D8, self._d, self._a, self._D5, self._D7)
-    self._gammaD = np.einsum('urpadl,d,l->paurdl', M_D, self._lambda5**-1, self._lambda7**-1)
-    M_C = M_C.reshape(self._D8, self._d, self._a, self._D3, self._D7, self._D1)
-    self._gammaC = np.einsum('lpaurd,u,r,d->paurdl', M_C, self._lambda3**-1, self._lambda7**-1, self._lambda1**-1)
+    self._gammaB = M_B.reshape(self._a, self._D5, self._D4, self._D2, self._d, self._D6).transpose(4, 0, 1, 2, 5, 3)
+    self._gammaD = M_D.reshape(self._D6, self._D8, self._d, self._a, self._D5, self._D7).transpose(2, 3, 0, 1, 4, 5)
+    self._gammaC = M_C.reshape(self._D8, self._d, self._a, self._D3, self._D7, self._D1).transpose(1, 2, 3, 4, 5, 0)
 
     if self.verbosity > 2:
       print('new lambda6 =', self._lambda6)
@@ -1060,12 +1009,11 @@ class SimpleUpdate2x2(object):
     """
     if self.verbosity > 1:
       print('update bonds 2 and 3')
-    M_B = np.einsum('paurdl,u,r,d->aurdpl', self._gammaB, self._lambda5, self._lambda4,
-                    self._lambda6).reshape(self._a*self._D5*self._D4*self._D6, self._d*self._D2)
-    M_A = np.einsum('paurdl,u,l->rdpaul', self._gammaA, self._lambda1, self._lambda4).reshape(
-                                           self._D2*self._D3, self._d*self._a*self._D1*self._D4)
-    M_C = np.einsum('paurdl,r,d,l->upardl', self._gammaC, self._lambda7, self._lambda1,
-                    self._lambda8).reshape(self._D3*self._d, self._a*self._D7*self._D1*self._D8)
+    w2 = self._lambda2**-1
+    w3 = (self._lambda3**-1)[:,None,None,None,None]
+    M_B = (self._gammaB.transpose(1,2,3,4,0,5)*w2).reshape(self._a*self._D5*self._D4*self._D6, self._d*self._D2)
+    M_A = (self._gammaA.transpose(3,4,0,1,2,5)*(w2.reshape(_sh)*w3[None])).reshape(self._D2*self._D3, self._d*self._a*self._D1*self._D4)
+    M_C = (self._gammaC.transpose(2,0,1,3,4,5)*w3[:,None]).reshape(self._D3*self._d, self._a*self._D7*self._D1*self._D8)
 
     col_L = -combine_colors(self._colors_a, self._colors5, self._colors4, self._colors6)
     col_mid = -combine_colors(self._colors_p, self._colors_a, self._colors1, self._colors4)
@@ -1075,12 +1023,9 @@ class SimpleUpdate2x2(object):
     self._colors2 = -mc2
     self._colors3 = -mc3
 
-    M_B = M_B.reshape(self._a, self._D5, self._D4, self._D6, self._d, self._D2)
-    self._gammaB = np.einsum('aurdpl,u,r,d->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda6**-1)
-    M_A = M_A.reshape(self._D2, self._D3, self._d, self._a, self._D1, self._D4)
-    self._gammaA = np.einsum('rdpaul,u,l->paurdl', M_A, self._lambda1**-1, self._lambda4**-1)
-    M_C = M_C.reshape(self._D3, self._d, self._a, self._D7, self._D1, self._D8)
-    self._gammaC = np.einsum('upardl,r,d,l->paurdl', M_C, self._lambda7**-1, self._lambda1**-1, self._lambda8**-1)
+    self._gammaB = M_B.reshape(self._a, self._D5, self._D4, self._D6, self._d, self._D2).transpose(4, 0, 1, 2, 3, 5)
+    self._gammaA = M_A.reshape(self._D2, self._D3, self._d, self._a, self._D1, self._D4).transpose(2, 3, 4, 0, 1, 5)
+    self._gammaC = M_C.reshape(self._D3, self._d, self._a, self._D7, self._D1, self._D8).transpose(1, 2, 0, 3, 4, 5)
 
     if self.verbosity > 2:
       print('new lambda2 =', self._lambda2)
@@ -1094,12 +1039,11 @@ class SimpleUpdate2x2(object):
     """
     if self.verbosity > 1:
       print('update bonds 6 and 7')
-    M_B = np.einsum('paurdl,u,r,l->aurlpd', self._gammaB, self._lambda5, self._lambda4,
-                    self._lambda2).reshape(self._a*self._D5*self._D4*self._D2, self._d*self._D6)
-    M_D = np.einsum('paurdl,r,d->ulpard', self._gammaD, self._lambda8, self._lambda5).reshape(
-                                           self._D6*self._D7, self._d*self._a*self._D8*self._D5)
-    M_C = np.einsum('paurdl,u,d,l->rpaudl', self._gammaC, self._lambda3, self._lambda1,
-                    self._lambda8).reshape(self._D7*self._d, self._a*self._D3*self._D1*self._D8)
+    w6 = self._lambda6**-1
+    w7 = (self._lambda7**-1)[:,None,None,None,None]
+    M_B = (self._gammaB.transpose(1,2,3,5,0,4)*w6).reshape(self._a*self._D5*self._D4*self._D2, self._d*self._D6)
+    M_D = (self._gammaD.transpose(2,5,0,1,3,4)*(w6.reshape(_sh)*w7[None])).reshape(self._D6*self._D7, self._d*self._a*self._D8*self._D5)
+    M_C = (self._gammaC.transpose(3,0,1,2,4,5)*w7[:,None]).reshape(self._D7*self._d, self._a*self._D3*self._D1*self._D8)
 
     col_L = -combine_colors(self._colors_a, self._colors5, self._colors4, self._colors2)
     col_mid = -combine_colors(self._colors_p, self._colors_a, self._colors8, self._colors5)
@@ -1109,12 +1053,9 @@ class SimpleUpdate2x2(object):
     self._colors6 = -mc6
     self._colors7 = -mc7
 
-    M_B = M_B.reshape(self._a, self._D5, self._D4, self._D2, self._d, self._D6)
-    self._gammaB = np.einsum('aurlpd,u,r,l->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda2**-1)
-    M_D = M_D.reshape(self._D6, self._D7, self._d, self._a, self._D8, self._D5)
-    self._gammaD = np.einsum('ulpard,r,d->paurdl', M_D, self._lambda8**-1, self._lambda5**-1)
-    M_C = M_C.reshape(self._D7, self._d, self._a, self._D3, self._D1, self._D8)
-    self._gammaC = np.einsum('rpaudl,u,d,l->paurdl', M_C, self._lambda3**-1, self._lambda1**-1, self._lambda8**-1)
+    self._gammaB = M_B.reshape(self._a, self._D5, self._D4, self._D2, self._d, self._D6).transpose(4, 0, 1, 2, 5, 3)
+    self._gammaD = M_D.reshape(self._D6, self._D7, self._d, self._a, self._D8, self._D5).transpose(2, 3, 0, 4, 5, 1)
+    self._gammaC = M_C.reshape(self._D7, self._d, self._a, self._D3, self._D1, self._D8).transpose(1, 2, 3, 0, 4, 5)
 
     if self.verbosity > 2:
       print('new lambda6 =', self._lambda6)
@@ -1128,12 +1069,11 @@ class SimpleUpdate2x2(object):
     """
     if self.verbosity > 1:
       print('update bonds 2 and 1')
-    M_B = np.einsum('paurdl,u,r,d->aurdpl', self._gammaB, self._lambda5, self._lambda4,
-                    self._lambda6).reshape(self._a*self._D5*self._D4*self._D6, self._d*self._D2)
-    M_A = np.einsum('paurdl,d,l->rupadl', self._gammaA, self._lambda3, self._lambda4).reshape(
-                                           self._D2*self._D1, self._d*self._a*self._D3*self._D4)
-    M_C = np.einsum('paurdl,u,r,l->dpaurl', self._gammaC, self._lambda3, self._lambda7,
-                    self._lambda8).reshape(self._D1*self._d, self._a*self._D3*self._D7*self._D8)
+    w2 = self._lambda2**-1
+    w1 = (self._lambda1**-1)[:,None,None,None,None]
+    M_B = (self._gammaB.transpose(1,2,3,4,0,5)*w2).reshape(self._a*self._D5*self._D4*self._D6, self._d*self._D2)
+    M_A = (self._gammaA.transpose(3,2,0,1,4,5)*(w2.reshape(_sh)*w1[None])).reshape(self._D2*self._D1, self._d*self._a*self._D3*self._D4)
+    M_C = (self._gammaC.transpose(4,0,1,2,3,5)*w1[:,None]).reshape(self._D1*self._d, self._a*self._D3*self._D7*self._D8)
 
     col_L = -combine_colors(self._colors_a, self._colors5, self._colors4, self._colors6)
     col_mid = -combine_colors(self._colors_p, self._colors_a, self._colors3, self._colors4)
@@ -1143,12 +1083,9 @@ class SimpleUpdate2x2(object):
     self._colors2 = -mc2
     self._colors1 = -mc1
 
-    M_B = M_B.reshape(self._a, self._D5, self._D4, self._D6, self._d, self._D2)
-    self._gammaB = np.einsum('aurdpl,u,r,d->paurdl', M_B, self._lambda5**-1, self._lambda4**-1, self._lambda6**-1)
-    M_A = M_A.reshape(self._D2, self._D1, self._d, self._a, self._D3, self._D4)
-    self._gammaA = np.einsum('rupadl,d,l->paurdl', M_A, self._lambda3**-1, self._lambda4**-1)
-    M_C = M_C.reshape(self._D1, self._d, self._a, self._D3, self._D7, self._D8)
-    self._gammaC = np.einsum('dpaurl,u,r,l->paurdl', M_C, self._lambda3**-1, self._lambda7**-1, self._lambda8**-1)
+    self._gammaB = M_B.reshape(self._a, self._D5, self._D4, self._D6, self._d, self._D2).transpose(4, 0, 1, 2, 3, 5)
+    self._gammaA = M_A.reshape(self._D2, self._D1, self._d, self._a, self._D3, self._D4).transpose(2, 3, 1, 0, 4, 5)
+    self._gammaC = M_C.reshape(self._D1, self._d, self._a, self._D3, self._D7, self._D8).transpose(1, 2, 3, 4, 0, 5)
 
     if self.verbosity > 2:
       print('new lambda2 =', self._lambda2)
@@ -1162,12 +1099,11 @@ class SimpleUpdate2x2(object):
     """
     if self.verbosity > 1:
       print('update bonds 5 and 7')
-    M_B = np.einsum('paurdl,r,d,l->ardlpu', self._gammaB, self._lambda4, self._lambda6,
-                    self._lambda2).reshape(self._a*self._D4*self._D6*self._D2, self._d*self._D5)
-    M_D = np.einsum('paurdl,u,r->dlpaur', self._gammaD, self._lambda6, self._lambda8).reshape(
-                                           self._D5*self._D7, self._d*self._a*self._D6*self._D8)
-    M_C = np.einsum('paurdl,u,d,l->rpaudl', self._gammaC, self._lambda3, self._lambda1,
-                    self._lambda8).reshape(self._D7*self._d, self._a*self._D3*self._D1*self._D8)
+    w5 = self._lambda5**-1
+    w7 = (self._lambda7**-1)[:,None,None,None,None]
+    M_B = (self._gammaB.transpose(1,3,4,5,0,2)*w5).reshape(self._a*self._D4*self._D6*self._D2, self._d*self._D5)
+    M_D = (self._gammaD.transpose(4,5,0,1,2,3)*(w5.reshape(_sh)*w7[None])).reshape(self._D5*self._D7, self._d*self._a*self._D6*self._D8)
+    M_C = (self._gammaC.transpose(3,0,1,2,4,5)*w7[:,None]).reshape(self._D7*self._d, self._a*self._D3*self._D1*self._D8)
 
     col_L = -combine_colors(self._colors_a, self._colors4, self._colors6, self._colors2)
     col_mid = -combine_colors(self._colors_p, self._colors_a, self._colors6, self._colors8)
@@ -1177,12 +1113,9 @@ class SimpleUpdate2x2(object):
     self._colors5 = -mc5
     self._colors7 = -mc7
 
-    M_B = M_B.reshape(self._a, self._D4, self._D6, self._D2, self._d, self._D5)
-    self._gammaB = np.einsum('ardlpu,r,d,l->paurdl', M_B, self._lambda4**-1, self._lambda6**-1, self._lambda2**-1)
-    M_D = M_D.reshape(self._D5, self._D7, self._d, self._a, self._D6, self._D8)
-    self._gammaD = np.einsum('dlpaur,u,r->paurdl', M_D, self._lambda6**-1, self._lambda8**-1)
-    M_C = M_C.reshape(self._D7, self._d, self._a, self._D3, self._D1, self._D8)
-    self._gammaC = np.einsum('rpaudl,u,d,l->paurdl', M_C, self._lambda3**-1, self._lambda1**-1, self._lambda8**-1)
+    self._gammaB = M_B.reshape(self._a, self._D4, self._D6, self._D2, self._d, self._D5).transpose(4, 0, 5, 1, 2, 3)
+    self._gammaD = M_D.reshape(self._D5, self._D7, self._d, self._a, self._D6, self._D8).transpose(2, 3, 4, 5, 0, 1)
+    self._gammaC = M_C.reshape(self._D7, self._d, self._a, self._D3, self._D1, self._D8).transpose(1, 2, 3, 0, 4, 5)
 
     if self.verbosity > 2:
       print('new lambda5 =', self._lambda5)
