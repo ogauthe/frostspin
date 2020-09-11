@@ -199,10 +199,10 @@ def svdU1(M, row_colors=default_color, col_colors=default_color, check=False):
   avoid messy zero-length arrays (implies M=0, all singular values are 0)
   """
 
-  # revert to lg.svd if colors are not provided
+  # revert to standard svd if colors are not provided
   if not row_colors.size or not col_colors.size:
     if check:
-      print("svdU1 reverted to lg.svd")
+      print("no color provided, svdU1 reverted to np.linalg.svd")
     U,s,V = np.linalg.svd(M, full_matrices=False)
     return U,s,V,default_color
 
