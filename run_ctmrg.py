@@ -6,7 +6,7 @@ from test_tools import *
 from time import time
 
 
-print('#'*79,'\nTest asymetric CTMRG')
+print("#" * 79, "\nTest asymetric CTMRG")
 
 chi = 8
 
@@ -35,13 +35,13 @@ AB
 CD
 EF
 """
-A = np.random.random((2,2,2,13,4,5))
-B = np.random.random((2,2,6,5,7,13))
-C = np.random.random((2,2,4,8,9,10))
-D = np.random.random((2,2,7,10,11,8))
-E = np.random.random((2,2,9,12,2,3))
-F = np.random.random((2,2,11,3,6,12))
-tensors = (A,B,C,D,E,F)
+A = np.random.random((2, 2, 2, 13, 4, 5))
+B = np.random.random((2, 2, 6, 5, 7, 13))
+C = np.random.random((2, 2, 4, 8, 9, 10))
+D = np.random.random((2, 2, 7, 10, 11, 8))
+E = np.random.random((2, 2, 9, 12, 2, 3))
+F = np.random.random((2, 2, 11, 3, 6, 12))
+tensors = (A, B, C, D, E, F)
 tiling = til6
 
 """
@@ -167,26 +167,29 @@ for t in C4s[1:]:
 
 
 ###############################################################################
-print('\n'+'#'*30 + 'RVB tensor' + '#'*30)
+print("\n" + "#" * 30 + "RVB tensor" + "#" * 30)
 
 chi = 70
 niter = 0
 
 tiling = tilingA
-ctm = CTMRG(chi, tensors=(tRVB2,), tiling='A')
-print(f'chi = {chi}, measure symmetry and Heisenberg term for rdm1x2/2x1')
+ctm = CTMRG(chi, tensors=(tRVB2,), tiling="A")
+print(f"chi = {chi}, measure symmetry and Heisenberg term for rdm1x2/2x1")
 rdm1x2 = ctm.compute_rdm1x2()
 rdm2x1 = ctm.compute_rdm2x1()
-print(f'{lg.norm(rdm1x2 - rdm1x2.T):.1e}, {lg.norm(rdm2x1 - rdm2x1.T):.1e}, {np.trace(SdS_22b @ rdm1x2):.4e}, {np.trace(SdS_22b @ rdm2x1):.4e}')
+print(
+    f"{lg.norm(rdm1x2 - rdm1x2.T):.1e}, {lg.norm(rdm2x1 - rdm2x1.T):.1e}, {np.trace(SdS_22b @ rdm1x2):.4e}, {np.trace(SdS_22b @ rdm2x1):.4e}"
+)
 
 niter = 200
 t = time()
 for i in range(niter):
-  ctm.iterate()
-  rdm1x2 = ctm.compute_rdm1x2()
-  rdm2x1 = ctm.compute_rdm2x1()
-  print(f'{lg.norm(rdm1x2 - rdm1x2.T):.1e}, {lg.norm(rdm2x1 - rdm2x1.T):.1e}, {np.trace(SdS_22b @ rdm1x2):.4e}, {np.trace(SdS_22b @ rdm2x1):.4e}')
+    ctm.iterate()
+    rdm1x2 = ctm.compute_rdm1x2()
+    rdm2x1 = ctm.compute_rdm2x1()
+    print(
+        f"{lg.norm(rdm1x2 - rdm1x2.T):.1e}, {lg.norm(rdm2x1 - rdm2x1.T):.1e}, {np.trace(SdS_22b @ rdm1x2):.4e}, {np.trace(SdS_22b @ rdm2x1):.4e}"
+    )
 
 t = time() - t
-print(f'{niter} iter done, time = {t}')
-
+print(f"{niter} iter done, time = {t}")
