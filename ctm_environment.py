@@ -105,7 +105,7 @@ class CTM_Environment(object):
         # (may be different from lexicographic order)
         seen = set()
         seen_add = seen.add
-        letters = [l for l in cell.flat if not (l in seen or seen_add(l))]
+        letters = [c for c in cell.flat if not (c in seen or seen_add(c))]
 
         self._Nneq = len(letters)
         if self._Nneq != len(tensors):
@@ -229,8 +229,8 @@ class CTM_Environment(object):
             data[f"colors_C3_l_{i}"] = self._colors_C3_l[i]
             data[f"colors_C4_u_{i}"] = self._colors_C4_u[i]
             data[f"colors_C4_r_{i}"] = self._colors_C4_r[i]
-            for l in range(6):
-                data[f"colors_A_{i}_{l}"] = self._colors_A[i][l]
+            for leg in range(6):
+                data[f"colors_A_{i}_{leg}"] = self._colors_A[i][leg]
 
         np.savez_compressed(saveFile, **data)
 
@@ -276,7 +276,9 @@ class CTM_Environment(object):
                 self._neq_T3s[i] = data[f"T3_{i}"]
                 self._neq_C4s[i] = data[f"C4_{i}"]
                 self._neq_T4s[i] = data[f"T4_{i}"]
-                self._colors_A[i] = tuple(data[f"colors_A_{i}_{l}"] for l in range(6))
+                self._colors_A[i] = tuple(
+                    data[f"colors_A_{i}_{leg}"] for leg in range(6)
+                )
                 self._colors_C1_r[i] = data[f"colors_C1_r_{i}"]
                 self._colors_C1_d[i] = data[f"colors_C1_d_{i}"]
                 self._colors_C2_d[i] = data[f"colors_C2_d_{i}"]
@@ -417,9 +419,6 @@ class CTM_Environment(object):
 
     def get_colors_A(self, x, y):
         return self._colors_A[self._indices[x % self._Lx, y % self._Ly]]
-
-    def get_tensor_type(self, x, y):
-        return self._cell[x % self._Lx, y % self._Ly]
 
     def get_C1(self, x, y):
         return self._neq_C1s[self._indices[x % self._Lx, y % self._Ly]]

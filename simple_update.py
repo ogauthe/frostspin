@@ -1,6 +1,6 @@
 import numpy as np
 import scipy.linalg as lg
-from toolsU1 import default_color, dotU1, combine_colors, svdU1, checkU1, tensordotU1
+from toolsU1 import default_color, dotU1, combine_colors, svdU1, tensordotU1
 
 # more convenient than [:,None,None,None,None,None] everywhere?
 _sh = (-1, 1, 1, 1, 1, 1)
@@ -877,9 +877,8 @@ class SimpleUpdate2x2(object):
 
     ###############################################################################
     # second neighbor updates
+    # bonds A-D
     ###############################################################################
-
-    ###############################   links A-D   #################################
     def update_bonds25(self):
         """
         Update lambda2 and lambda6 by applying gate to A upper-right next nearest
@@ -1392,7 +1391,10 @@ class SimpleUpdate2x2(object):
             print("updated bonds 1 and 8: new lambda1 =", self._lambda1)
             print("                       new lambda8 =", self._lambda8)
 
-    ###############################   links B-C   #################################
+    ###############################################################################
+    # second neighbor updates
+    # bonds B-C
+    ###############################################################################
     def update_bonds41(self):
         """
         Update lambda4 and lambda1 by applying gate to B upper-right next nearest

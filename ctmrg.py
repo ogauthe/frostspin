@@ -88,7 +88,9 @@ class CTMRG(object):
         if keep_env:
             self._env.set_tensors(tensors, colors=colors)
         else:  # restart from fresh
-            self._env = Env.Env(tensors, cell=self._env.cell.copy(), colors=colors)
+            self._env = CTM_Environment(
+                tensors, cell=self._env.cell.copy(), colors=colors
+            )
 
     def print_tensor_shapes(self):
         print("C1 T1 C2 // T4 A T2 // C4 T3 C4")
@@ -221,10 +223,6 @@ class CTMRG(object):
                 self._env.get_color_T3_l(x + 2, y + 3), col_A_l, -col_A_l
             )
             P, Pt, color = construct_projectors(R.T, Rt, self.chi, color)
-            if self.verbosity > 1:
-                print(
-                    f"constructed projectors: R.shape = {R.shape}, Rt.shape = {Rt.shape}, P.shape = {P.shape}, Pt.shape = {Pt.shape}"
-                )
             self._env.store_projectors(
                 x + 2, y, P, Pt, color
             )  # indices: Pt <=> renormalized T in R
@@ -297,10 +295,6 @@ class CTMRG(object):
                 self._env.get_color_T4_u(x, y + 2), col_A_u, -col_A_u
             )
             P, Pt, color = construct_projectors(R.T, Rt, self.chi, color)
-            if self.verbosity > 1:
-                print(
-                    f"constructed projectors: R.shape = {R.shape}, Rt.shape = {Rt.shape}, P.shape = {P.shape}, Pt.shape = {Pt.shape}"
-                )
             self._env.store_projectors(x + 3, y + 2, P, Pt, color)
             del R, Rt
 
@@ -371,10 +365,6 @@ class CTMRG(object):
                 self._env.get_color_T1_r(x + 1, y), col_A_r, -col_A_r
             )
             P, Pt, color = construct_projectors(R.T, Rt, self.chi, color)
-            if self.verbosity > 1:
-                print(
-                    f"constructed projectors: R.shape = {R.shape}, Rt.shape = {Rt.shape}, P.shape = {P.shape}, Pt.shape = {Pt.shape}"
-                )
             self._env.store_projectors(x + 3, y + 3, P, Pt, color)
             del R, Rt
 
@@ -442,10 +432,6 @@ class CTMRG(object):
                 self._env.get_color_T2_d(x + 3, y + 1), col_A_d, -col_A_d
             )
             P, Pt, color = construct_projectors(R.T, Rt, self.chi, color)
-            if self.verbosity > 1:
-                print(
-                    f"constructed projectors: R.shape = {R.shape}, Rt.shape = {Rt.shape}, P.shape = {P.shape}, Pt.shape = {Pt.shape}"
-                )
             self._env.store_projectors(x, y + 1, P, Pt, color)
             del R, Rt
 
@@ -553,7 +539,8 @@ class CTMRG(object):
     def compute_rdm_diag_dr(self, x=0, y=0):
         if self.verbosity > 0:
             print(
-                f"Compute rdm for down right diagonal sites ({x+1},{y+1}) and ({x+2},{y+2})"
+                f"Compute rdm for down right diagonal sites ({x+1},{y+1}) and",
+                f"({x+2},{y+2})",
             )
         return rdm.rdm_diag_dr(
             self._env.get_C1(x, y),
@@ -577,7 +564,8 @@ class CTMRG(object):
     def compute_rdm_diag_ur(self, x=0, y=0):
         if self.verbosity > 0:
             print(
-                f"Compute rdm for upper right diagonal sites ({x+1},{y+2}) and ({x+2},{y+1})"
+                f"Compute rdm for upper right diagonal sites ({x+1},{y+2}) and",
+                f"({x+2},{y+1})",
             )
         return rdm.rdm_diag_ur(
             self._env.get_C1(x, y),

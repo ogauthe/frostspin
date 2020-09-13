@@ -1,12 +1,13 @@
 #! /usr/bin/env python3
 
 import numpy as np
-import scipy.linalg as lg
 from time import time
 from simple_update import SimpleUpdate2x2
 from test_tools import SdS_22, SdS_22b
-from ctmrg import CTMRG
-from toolsU1 import checkU1, combine_colors
+
+# import scipy.linalg as lg
+# from ctmrg import CTMRG
+# from toolsU1 import checkU1, combine_colors
 
 
 tiling = "AB\nCD"
@@ -55,7 +56,7 @@ p22_3333.flat[
         228,
         234,
     ]
-] = [1, -1, 1, -1, -1, 1, 1, -1, -1, 1, -1, 1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1, -1]
+] = (1, -1, 1, -1, -1, 1, 1, -1, -1, 1, -1, 1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1, -1)
 
 pcol = np.array([1, -1], dtype=np.int8)
 vcol = np.array([2, 0, -2] + [0] * (D - 3), dtype=np.int8)
@@ -68,9 +69,8 @@ D = A.copy()
 
 h1 = SdS_22b
 h2 = J2 * SdS_22
-# colors A and D = [[1,-1], [1,-1],[2, 0, -2, 0, 0],[2, 0, -2, 0, 0],[2, 0, -2, 0, 0],[2, 0, -2, 0, 0]]
-# opposed colors on B and C physical leg
-# colors B and C = [[-1,1], [1,-1],[2, 0, -2, 0, 0],[2, 0, -2, 0, 0],[2, 0, -2, 0, 0],[2, 0, -2, 0, 0]]
+# colors A and D = [[1,-1], [1,-1], [2, 0, -2], [2, 0, -2], [2, 0, -2], [2, 0, -2]]
+# B and C have opposed colors due to pi-rotation.
 
 print("#" * 79)
 print(f"Run simple update for spin 1/2 Heisenberg with J1=1, J2={J2}")
@@ -105,45 +105,52 @@ colorsC = [-pcol, -acol, -col3, -col7, -col1, -col8]
 colorsD = [pcol, acol, col6, col8, col5, col7]
 
 """
-ctm = CTMRG(chi, tensors=(A,B,C,D), tiling=tiling, colors=(colorsA,colorsB,colorsC,colorsD), verbosity=0)
+ctm = CTMRG(
+    chi,
+    tensors=(A, B, C, D),
+    tiling=tiling,
+    colors=(colorsA, colorsB, colorsC, colorsD),
+    verbosity=0,
+)
 
-def compute_energy(ctm,h1,h2):
-  # Tr(AH) = (A*H.T).sum() and H is exactly symmetric
-  rho1 = ctm.compute_rdm2x1(-1,0)
-  rho2 = ctm.compute_rdm1x2(-1,-1)
-  rho3 = ctm.compute_rdm2x1(-1,-1)
-  rho4 = ctm.compute_rdm1x2(0,-1)
-  rho5 = ctm.compute_rdm2x1(0,0)
-  rho6 = ctm.compute_rdm2x1(0,-1)
-  rho7 = ctm.compute_rdm1x2(-1,0)
-  rho8 = ctm.compute_rdm1x2(0,0)
-  eps1 = ((rho1 + rho2 + rho3 + rho4 + rho5 + rho6 + rho7 + rho8)*h1).sum()
 
-  rho9 = ctm.compute_rdm_diag_dr(0,0)
-  rho10 = ctm.compute_rdm_diag_ur(-1,0)
-  rho11 = ctm.compute_rdm_diag_dr(-1,-1)
-  rho12 = ctm.compute_rdm_diag_ur(0,-1)
-  rho13 = ctm.compute_rdm_diag_dr(-1,0)
-  rho14 = ctm.compute_rdm_diag_ur(0,0)
-  rho15 = ctm.compute_rdm_diag_dr(0,-1)
-  rho16 = ctm.compute_rdm_diag_ur(-1,-1)
-  eps2 = ((rho9 + rho10 + rho11 + rho12 + rho13 + rho14 + rho15 + rho16)*h2).sum()
+def compute_energy(ctm, h1, h2):
+    # Tr(AH) = (A*H.T).sum() and H is exactly symmetric
+    rho1 = ctm.compute_rdm2x1(-1, 0)
+    rho2 = ctm.compute_rdm1x2(-1, -1)
+    rho3 = ctm.compute_rdm2x1(-1, -1)
+    rho4 = ctm.compute_rdm1x2(0, -1)
+    rho5 = ctm.compute_rdm2x1(0, 0)
+    rho6 = ctm.compute_rdm2x1(0, -1)
+    rho7 = ctm.compute_rdm1x2(-1, 0)
+    rho8 = ctm.compute_rdm1x2(0, 0)
+    eps1 = ((rho1 + rho2 + rho3 + rho4 + rho5 + rho6 + rho7 + rho8) * h1).sum()
 
-  energy = (eps1 + eps2)/4
-  return energy
+    rho9 = ctm.compute_rdm_diag_dr(0, 0)
+    rho10 = ctm.compute_rdm_diag_ur(-1, 0)
+    rho11 = ctm.compute_rdm_diag_dr(-1, -1)
+    rho12 = ctm.compute_rdm_diag_ur(0, -1)
+    rho13 = ctm.compute_rdm_diag_dr(-1, 0)
+    rho14 = ctm.compute_rdm_diag_ur(0, 0)
+    rho15 = ctm.compute_rdm_diag_dr(0, -1)
+    rho16 = ctm.compute_rdm_diag_ur(-1, -1)
+    eps2 = ((rho9 + rho10 + rho11 + rho12 + rho13 + rho14 + rho15 + rho16) * h2).sum()
 
-print(f'Converge CTMRG with chi = {chi} and niter = {ctm_iter}')
+    energy = (eps1 + eps2) / 4
+    return energy
+
+
+print(f"Converge CTMRG with chi = {chi} and niter = {ctm_iter}")
 t = time()
 for i in range(ctm_iter):
-  print(i, compute_energy(ctm,h1,h2))
-  ctm.iterate()
+    print(i, compute_energy(ctm, h1, h2))
+    ctm.iterate()
 
 print(f"\ndone with CTM iteration, t={time()-t:.1f}")
-energy = compute_energy(ctm,h1,h2)
+energy = compute_energy(ctm, h1, h2)
 print("energy =", energy)
 
 save = f"data_ctm_SU_ABCD_J2_{J2}_beta{beta}_tau{tau}_chi{chi}.npz"
 ctm.save_to_file(save)
 print("CTMRG data saved in file", save)
-
 """

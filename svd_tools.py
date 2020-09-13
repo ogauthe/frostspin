@@ -42,7 +42,7 @@ def svds(A, k=6, ncv=None, tol=0, v0=None, maxiter=None, return_singular_vectors
     )
     u = X_matmat(eigvec)
     if not return_singular_vectors:
-        s = svd(u, compute_uv=False)
+        s = lg.svd(u, compute_uv=False)
         return s
 
     # compute the right singular vectors of X and update the left ones accordingly

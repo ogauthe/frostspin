@@ -2,11 +2,12 @@
 import numpy as np
 import scipy.linalg as lg
 
-################   SU(2) generators   #########################################
+
+# SU(2) generators
 def construct_genSU2_s(s):
     """
-  Construct generator for spin-s irrep of SU(2)
-  """
+    Construct generator for spin-s irrep of SU(2)
+    """
     if s < 0 or int(2 * s) != 2 * s:
         raise ValueError("s must be a positive half integer")
 
@@ -24,7 +25,7 @@ def construct_genSU2_s(s):
     return gen
 
 
-######### spin 2 AKLT tensor on the square lattice ############################
+# spin 2 AKLT tensor on the square lattice
 tAKLT2 = np.zeros((5, 2, 2, 2, 2), dtype=np.float64)
 tAKLT2[0, 0, 0, 0, 0] = 1.0
 tAKLT2[1, 0, 0, 0, 1] = 0.5
@@ -67,7 +68,7 @@ H_AKLT_55b = (
     + 1 / 2520 * SdS55b_2 @ SdS55b_2
 )
 
-######################### SU(2) RVB tensor ########################################
+# SU(2) RVB tensor
 tRVB2 = np.zeros((2, 3, 3, 3, 3))
 tRVB2[0, 0, 2, 2, 2] = 1.0
 tRVB2[0, 2, 0, 2, 2] = 1.0
