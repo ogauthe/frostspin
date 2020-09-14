@@ -6,7 +6,8 @@ from simple_update import SimpleUpdate2x2
 from test_tools import SdS_22, SdS_22b
 
 # import scipy.linalg as lg
-# from ctmrg import CTMRG
+from ctmrg import CTMRG
+
 # from toolsU1 import checkU1, combine_colors
 
 
@@ -16,53 +17,19 @@ d = 2
 a = 2
 chi = 40
 ctm_iter = 200
-D = 6
-Ds = (D,) * 8
+cut = 6
+Ds = (1,) * 8
 print(f"run simple update with d = {d}, a = {a}, Ds = {Ds}")
 
-J2 = 0.9
+J2 = 0.0
 beta = 1.0
-tau = 1e-3
+tau = 1e-4
 su_iter = int(beta / 2 / tau)  # rho is quadratic in psi
 
-# zero singular values lead to divide by zero when removing weights
-# to avoid this, start with tensors made of decoupled product of (2x2)->1 on
-# physical x ancila and 3^4 -> 1 (B1) on virtual legs.
-p22_3333 = np.zeros((2, 2, 3, 3, 3, 3), dtype=np.int8)
-p22_3333.flat[
-    [
-        89,
-        95,
-        103,
-        105,
-        115,
-        119,
-        123,
-        127,
-        137,
-        139,
-        147,
-        153,
-        170,
-        176,
-        184,
-        186,
-        196,
-        200,
-        204,
-        208,
-        218,
-        220,
-        228,
-        234,
-    ]
-] = (1, -1, 1, -1, -1, 1, 1, -1, -1, 1, -1, 1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1, -1)
-
 pcol = np.array([1, -1], dtype=np.int8)
-vcol = np.array([2, 0, -2] + [0] * (D - 3), dtype=np.int8)
-colors = [pcol, pcol, vcol, vcol, vcol, vcol, vcol, vcol, vcol, vcol]
-A = np.zeros((d, a, D, D, D, D))
-A[:, :, :3, :3, :3, :3] = p22_3333
+vcol = np.zeros(1, dtype=np.int8)
+colors = [pcol, -pcol, vcol, vcol, vcol, vcol, vcol, vcol, vcol, vcol]
+A = np.eye(d).reshape(d, a, 1, 1, 1, 1)
 B = A.copy()
 C = B.copy()
 D = A.copy()
@@ -76,7 +43,7 @@ print("#" * 79)
 print(f"Run simple update for spin 1/2 Heisenberg with J1=1, J2={J2}")
 print(f"run with tau = {tau} up to beta = {beta}")
 su = SimpleUpdate2x2(
-    d, a, Ds, h1, h2, tau, tensors=(A, B, C, D), colors=colors, verbosity=0
+    d, a, Ds, cut, h1, h2, tau, tensors=(A, B, C, D), colors=colors, verbosity=0
 )
 
 t = time()
@@ -104,7 +71,7 @@ colorsB = [-pcol, -acol, -col5, -col4, -col6, -col2]
 colorsC = [-pcol, -acol, -col3, -col7, -col1, -col8]
 colorsD = [pcol, acol, col6, col8, col5, col7]
 
-"""
+
 ctm = CTMRG(
     chi,
     tensors=(A, B, C, D),
@@ -153,4 +120,3 @@ print("energy =", energy)
 save = f"data_ctm_SU_ABCD_J2_{J2}_beta{beta}_tau{tau}_chi{chi}.npz"
 ctm.save_to_file(save)
 print("CTMRG data saved in file", save)
-"""
