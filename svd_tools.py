@@ -215,7 +215,7 @@ def svdU1_truncate(
             k += d
             br += 1
             bc += 1
-        elif sorted_row_colors[br] < sorted_col_colors[bc]:
+        elif sorted_row_colors[row_inds[br]] < sorted_col_colors[col_inds[bc]]:
             br += 1
         else:
             bc += 1
