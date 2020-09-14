@@ -205,13 +205,12 @@ def svdU1(M, row_colors=default_color, col_colors=default_color, check=False):
     min(m,n) values. If k = 0 (no matching color), an error is raised to avoid messy
     zero-length arrays (implies M=0, all singular values are 0)
     """
-
     # revert to standard svd if colors are not provided
     if not row_colors.size or not col_colors.size:
         if check:
             print("no color provided, svdU1 reverted to np.linalg.svd")
         U, s, V = np.linalg.svd(M, full_matrices=False)
-        return U, s, V, default_color
+        return U, s, V, default_color.copy()  # needed for numba
 
     if M.ndim != 2:
         raise ValueError("M has to be a matrix")

@@ -12,6 +12,7 @@ def update_first_neighbor(
     lambda0,
     gate,
     d,
+    cut,
     col_L=default_color,
     col_R=default_color,
     col_bond=default_color,
@@ -77,7 +78,8 @@ def update_first_neighbor(
     )
 
     # 4) renormalize link dimension
-    new_lambda = new_lambda[:D]
+    new_lambda = new_lambda[:cut]
+    D = new_lambda.size  # D < cut at the begining
     new_lambda /= new_lambda.sum()  # singular values are positive
     new_col_lambda = -new_col_lambda[:D]
 
@@ -102,6 +104,7 @@ def update_second_neighbor(
     lambda_R,
     gate,
     d,
+    cut,
     col_L=default_color,
     col_mid=default_color,
     col_R=default_color,
@@ -173,8 +176,9 @@ def update_second_neighbor(
     new_L, new_lambda_L, theta, col_nbL = svdU1(
         theta, combine_colors(col_sL, col_d), -combine_colors(-col_sm, col_sR, col_d)
     )
-    new_lambda_L = new_lambda_L[:D_L]
+    new_lambda_L = new_lambda_L[:cut]
     new_lambda_L /= new_lambda_L.sum()
+    D_L = new_lambda_L.size
     col_nbL = col_nbL[:D_L]
     new_L = (new_L[:, :D_L] * new_lambda_L).reshape(D_effL, d * D_L)
 
@@ -184,7 +188,8 @@ def update_second_neighbor(
     new_mid, new_lambda_R, new_R, col_nbR = svdU1(
         theta, col_th, -combine_colors(col_sR, col_d)
     )
-    new_lambda_R = new_lambda_R[:D_R]
+    new_lambda_R = new_lambda_R[:cut]
+    D_R = new_lambda_R.size
     new_lambda_R /= new_lambda_R.sum()
     col_nbR = col_nbR[:D_R]
     new_mid = new_mid[:, :D_R].reshape(D_L, D_effm, D_R) * new_lambda_R
@@ -203,7 +208,9 @@ def update_second_neighbor(
 
 
 class SimpleUpdate2x2(object):
-    def __init__(self, d, a, Ds, h1, h2, tau, tensors=None, colors=None, verbosity=0):
+    def __init__(
+        self, d, a, Ds, cut, h1, h2, tau, tensors=None, colors=None, verbosity=0
+    ):
         """
         Simple update algorithm on plaquette AB//CD.
 
@@ -259,6 +266,7 @@ class SimpleUpdate2x2(object):
             self._D7,
             self._D8,
         ) = Ds
+        self.cut = cut
         self.verbosity = verbosity
         if self.verbosity > 0:
             print(f"construct SimpleUpdataABCD with d = {d}, a = {a} and Ds = {Ds}")
@@ -579,12 +587,14 @@ class SimpleUpdate2x2(object):
             self._lambda1,
             self._g1,
             self._d,
+            self.cut,
             col_L=col_L,
             col_R=col_R,
             col_bond=self._colors1,
             col_d=self._colors_p,
         )
 
+        self._D1 = self._lambda1.size
         # define new gammaA and gammaC from renormalized M_A and M_C
         self._gammaA = M_A.reshape(
             self._a, self._D2, self._D3, self._D4, self._d, self._D1
@@ -620,12 +630,14 @@ class SimpleUpdate2x2(object):
             self._lambda2,
             self._g1,
             self._d,
+            self.cut,
             col_L=col_L,
             col_R=col_R,
             col_bond=self._colors2,
             col_d=self._colors_p,
         )
 
+        self._D2 = self._lambda2.size
         self._gammaA = M_A.reshape(
             self._a, self._D1, self._D3, self._D4, self._d, self._D2
         ).transpose(4, 0, 1, 5, 2, 3)
@@ -660,12 +672,14 @@ class SimpleUpdate2x2(object):
             self._lambda3,
             self._g1,
             self._d,
+            self.cut,
             col_L=col_L,
             col_R=col_R,
             col_bond=self._colors3,
             col_d=self._colors_p,
         )
 
+        self._D3 = self._lambda3.size
         self._gammaA = M_A.reshape(
             self._a, self._D1, self._D2, self._D4, self._d, self._D3
         ).transpose(4, 0, 1, 2, 5, 3)
@@ -700,11 +714,14 @@ class SimpleUpdate2x2(object):
             self._lambda4,
             self._g1,
             self._d,
+            self.cut,
             col_L=col_L,
             col_R=col_R,
             col_bond=self._colors4,
             col_d=self._colors_p,
         )
+
+        self._D4 = self._lambda4.size
         self._gammaA = M_A.reshape(
             self._a, self._D1, self._D2, self._D3, self._d, self._D4
         ).transpose(4, 0, 1, 2, 3, 5)
@@ -739,11 +756,14 @@ class SimpleUpdate2x2(object):
             self._lambda5,
             self._g1,
             self._d,
+            self.cut,
             col_L=col_L,
             col_R=col_R,
             col_bond=-self._colors5,
             col_d=-self._colors_p,
         )
+
+        self._D5 = self._lambda5.size
         self._colors5 = -mc5  # B-D
         self._gammaB = M_B.reshape(
             self._a, self._D4, self._D6, self._D2, self._d, self._D5
@@ -779,11 +799,14 @@ class SimpleUpdate2x2(object):
             self._lambda6,
             self._g1,
             self._d,
+            self.cut,
             col_L=col_L,
             col_R=col_R,
             col_bond=-self._colors6,
             col_d=-self._colors_p,
         )
+
+        self._D6 = self._lambda6.size
         self._colors6 = -mc6  # B-D
         self._gammaB = M_B.reshape(
             self._a, self._D5, self._D4, self._D2, self._d, self._D6
@@ -819,11 +842,14 @@ class SimpleUpdate2x2(object):
             self._lambda7,
             self._g1,
             self._d,
+            self.cut,
             col_L=col_L,
             col_R=col_R,
             col_bond=-self._colors7,
             col_d=-self._colors_p,
         )
+
+        self._D7 = self._lambda7.size
         self._colors7 = -mc7  # C-D
         self._gammaC = M_C.reshape(
             self._a, self._D3, self._D1, self._D8, self._d, self._D7
@@ -859,11 +885,14 @@ class SimpleUpdate2x2(object):
             self._lambda8,
             self._g1,
             self._d,
+            self.cut,
             col_L=col_L,
             col_R=col_R,
             col_bond=-self._colors8,
             col_d=-self._colors_p,
         )
+
+        self._D8 = self._lambda8.size
         self._colors8 = -mc8  # C-D
         self._gammaC = M_C.reshape(
             self._a, self._D3, self._D7, self._D1, self._d, self._D8
@@ -921,6 +950,7 @@ class SimpleUpdate2x2(object):
             self._lambda5,
             self._g2,
             self._d,
+            self.cut,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -929,6 +959,8 @@ class SimpleUpdate2x2(object):
             col_d=self._colors_p,
         )
 
+        self._D2 = self._lambda2.size
+        self._D5 = self._lambda5.size
         self._gammaA = M_A.reshape(
             self._a, self._D1, self._D3, self._D4, self._d, self._D2
         ).transpose(4, 0, 1, 5, 2, 3)
@@ -985,6 +1017,7 @@ class SimpleUpdate2x2(object):
             self._lambda7,
             self._g2,
             self._d,
+            self.cut,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -993,6 +1026,8 @@ class SimpleUpdate2x2(object):
             col_d=self._colors_p,
         )
 
+        self._D1 = self._lambda1.size
+        self._D7 = self._lambda7.size
         self._gammaA = M_A.reshape(
             self._a, self._D2, self._D3, self._D4, self._d, self._D1
         ).transpose(4, 0, 5, 1, 2, 3)
@@ -1049,6 +1084,7 @@ class SimpleUpdate2x2(object):
             self._lambda6,
             self._g2,
             self._d,
+            self.cut,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1057,6 +1093,8 @@ class SimpleUpdate2x2(object):
             col_d=self._colors_p,
         )
 
+        self._D2 = self._lambda2.size
+        self._D6 = self._lambda6.size
         self._gammaA = M_A.reshape(
             self._a, self._D1, self._D3, self._D4, self._d, self._D2
         ).transpose(4, 0, 1, 5, 2, 3)
@@ -1113,6 +1151,7 @@ class SimpleUpdate2x2(object):
             self._lambda7,
             self._g2,
             self._d,
+            self.cut,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1121,6 +1160,8 @@ class SimpleUpdate2x2(object):
             col_d=self._colors_p,
         )
 
+        self._D3 = self._lambda3.size
+        self._D7 = self._lambda7.size
         self._gammaA = M_A.reshape(
             self._a, self._D1, self._D2, self._D4, self._d, self._D3
         ).transpose(4, 0, 1, 2, 5, 3)
@@ -1177,6 +1218,7 @@ class SimpleUpdate2x2(object):
             self._lambda6,
             self._g2,
             self._d,
+            self.cut,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1185,6 +1227,8 @@ class SimpleUpdate2x2(object):
             col_d=self._colors_p,
         )
 
+        self._D4 = self._lambda4.size
+        self._D6 = self._lambda6.size
         self._gammaA = M_A.reshape(
             self._a, self._D1, self._D2, self._D3, self._d, self._D4
         ).transpose(4, 0, 1, 2, 3, 5)
@@ -1241,6 +1285,7 @@ class SimpleUpdate2x2(object):
             self._lambda8,
             self._g2,
             self._d,
+            self.cut,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1249,6 +1294,8 @@ class SimpleUpdate2x2(object):
             col_d=self._colors_p,
         )
 
+        self._D3 = self._lambda3.size
+        self._D8 = self._lambda8.size
         self._gammaA = M_A.reshape(
             self._a, self._D1, self._D2, self._D4, self._d, self._D3
         ).transpose(4, 0, 1, 2, 5, 3)
@@ -1305,6 +1352,7 @@ class SimpleUpdate2x2(object):
             self._lambda5,
             self._g2,
             self._d,
+            self.cut,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1313,6 +1361,8 @@ class SimpleUpdate2x2(object):
             col_d=self._colors_p,
         )
 
+        self._D4 = self._lambda4.size
+        self._D5 = self._lambda5.size
         self._gammaA = M_A.reshape(
             self._a, self._D1, self._D2, self._D3, self._d, self._D4
         ).transpose(4, 0, 1, 2, 3, 5)
@@ -1369,6 +1419,7 @@ class SimpleUpdate2x2(object):
             self._lambda8,
             self._g2,
             self._d,
+            self.cut,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1377,6 +1428,8 @@ class SimpleUpdate2x2(object):
             col_d=self._colors_p,
         )
 
+        self._D1 = self._lambda1.size
+        self._D8 = self._lambda8.size
         self._gammaA = M_A.reshape(
             self._a, self._D2, self._D3, self._D4, self._d, self._D1
         ).transpose(4, 0, 5, 1, 2, 3)
@@ -1429,6 +1482,7 @@ class SimpleUpdate2x2(object):
             self._lambda1,
             self._g2,
             self._d,
+            self.cut,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1436,9 +1490,11 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors1,
             col_d=-self._colors_p,
         )
+
+        self._D4 = self._lambda4.size
+        self._D1 = self._lambda1.size
         self._colors4 = -mc4
         self._colors1 = -mc1
-
         self._gammaB = M_B.reshape(
             self._a, self._D5, self._D6, self._D2, self._d, self._D4
         ).transpose(4, 0, 1, 5, 2, 3)
@@ -1487,6 +1543,7 @@ class SimpleUpdate2x2(object):
             self._lambda8,
             self._g2,
             self._d,
+            self.cut,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1494,6 +1551,9 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors8,
             col_d=-self._colors_p,
         )
+
+        self._D5 = self._lambda5.size
+        self._D8 = self._lambda8.size
         self._colors5 = -mc5
         self._colors8 = -mc8
 
@@ -1545,6 +1605,7 @@ class SimpleUpdate2x2(object):
             self._lambda3,
             self._g2,
             self._d,
+            self.cut,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1552,9 +1613,11 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors3,
             col_d=-self._colors_p,
         )
+
+        self._D4 = self._lambda4.size
+        self._D3 = self._lambda3.size
         self._colors4 = -mc4
         self._colors3 = -mc3
-
         self._gammaB = M_B.reshape(
             self._a, self._D5, self._D6, self._D2, self._d, self._D4
         ).transpose(4, 0, 1, 5, 2, 3)
@@ -1603,6 +1666,7 @@ class SimpleUpdate2x2(object):
             self._lambda8,
             self._g2,
             self._d,
+            self.cut,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1610,6 +1674,8 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors8,
             col_d=-self._colors_p,
         )
+        self._D4 = self._lambda4.size
+        self._D8 = self._lambda8.size
         self._colors6 = -mc6
         self._colors8 = -mc8
 
@@ -1661,6 +1727,7 @@ class SimpleUpdate2x2(object):
             self._lambda3,
             self._g2,
             self._d,
+            self.cut,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1668,6 +1735,8 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors3,
             col_d=-self._colors_p,
         )
+        self._D2 = self._lambda2.size
+        self._D3 = self._lambda3.size
         self._colors2 = -mc2
         self._colors3 = -mc3
 
@@ -1719,6 +1788,7 @@ class SimpleUpdate2x2(object):
             self._lambda7,
             self._g2,
             self._d,
+            self.cut,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1726,6 +1796,8 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors7,
             col_d=-self._colors_p,
         )
+        self._D6 = self._lambda6.size
+        self._D7 = self._lambda7.size
         self._colors6 = -mc6
         self._colors7 = -mc7
 
@@ -1777,6 +1849,7 @@ class SimpleUpdate2x2(object):
             self._lambda1,
             self._g2,
             self._d,
+            self.cut,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1784,6 +1857,8 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors1,
             col_d=-self._colors_p,
         )
+        self._D2 = self._lambda2.size
+        self._D1 = self._lambda1.size
         self._colors2 = -mc2
         self._colors1 = -mc1
 
@@ -1835,6 +1910,7 @@ class SimpleUpdate2x2(object):
             self._lambda7,
             self._g2,
             self._d,
+            self.cut,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1842,6 +1918,8 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors7,
             col_d=-self._colors_p,
         )
+        self._D5 = self._lambda5.size
+        self._D7 = self._lambda7.size
         self._colors5 = -mc5
         self._colors7 = -mc7
 
