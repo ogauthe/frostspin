@@ -67,7 +67,7 @@ class CTM_Environment(object):
     Container for CTMRG environment tensors. Follow leg conventions from CTMRG.
     """
 
-    def __init__(self, tensors=(), cell=None, tiling=None, colors=None, saveFile=None):
+    def __init__(self, tensors=(), cell=None, tiling=None, colors=None, file=None):
         """
         Store tensors and return them according to a given tiling. Tiling can be
         provided as a string such as 'AB\nCD' or directly as a numpy array of char.
@@ -84,11 +84,11 @@ class CTM_Environment(object):
           U(1) quantum numbers corresponding to the tensors. Note that dimensions are
           check for compatibility with tensors, but color compatibility between legs to
           contract is not checked.
-        saveFile: string
+        file: string
           Restart environment from npz save. If present, other arguments are not read.
         """
-        if saveFile is not None:
-            self.load_from_file(saveFile)
+        if file is not None:
+            self.load_from_file(file)
             return
 
         if cell is None:
@@ -200,9 +200,10 @@ class CTM_Environment(object):
 
         self._reset_projectors_temp()
 
-    def save_to_file(self, saveFile):
+    def save_to_file(self, file=None):
         """
-        Save all tensors into external .npz file
+        Save all tensors into external .npz file. If file is not provided, return
+        dictionnary of data (allows to save other arrays in same file).
         """
         # do not store lists to avoid pickle
         # come back to elementary numpy arrays
@@ -232,13 +233,15 @@ class CTM_Environment(object):
             for leg in range(6):
                 data[f"colors_A_{i}_{leg}"] = self._colors_A[i][leg]
 
-        np.savez_compressed(saveFile, **data)
+        if file is None:
+            return data
+        np.savez_compressed(file, **data)
 
-    def load_from_file(self, saveFile):
+    def load_from_file(self, file):
         """
-        Load cell, tensors and colors from saveFile. Erase any pre-existing data.
+        Load cell, tensors and colors from file. Erase any pre-existing data.
         """
-        with np.load(saveFile) as data:
+        with np.load(file) as data:
             self._cell = data["cell"]
             self._indices = data["indices"]
             self._neq_coords = data["neq_coords"]

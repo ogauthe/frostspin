@@ -47,7 +47,7 @@ class CTMRG(object):
         cell=None,
         tiling=None,
         colors=None,
-        saveFile=None,
+        file=None,
         verbosity=0,
     ):
         self.verbosity = verbosity
@@ -55,7 +55,7 @@ class CTMRG(object):
             print(f"initalize CTMRG with chi = {chi} and verbosity = {self.verbosity}")
         self.chi = chi
         self._env = CTM_Environment(
-            tensors, cell=cell, tiling=tiling, colors=colors, saveFile=saveFile
+            tensors, cell=cell, tiling=tiling, colors=colors, file=file
         )
         self._neq_coords = self._env.neq_coords
         if self.verbosity > 0:
@@ -64,8 +64,11 @@ class CTMRG(object):
             if colors is not None:
                 print("colors =", colors, sep="\n")
 
-    def save_to_file(self, saveFile):
-        self._env.save_to_file(saveFile)  # all the data is in env
+    def save_to_file(self, file=None):
+        """
+        Save CTMRG data in file. If file is not provided, a data dictionary is returned.
+        """
+        return self._env.save_to_file(file)  # all the data is in env
 
     def load_from_file(self, saveFile):
         self._env.load_from_file(saveFile)
