@@ -72,6 +72,8 @@ class CTMRG(object):
 
     def load_from_file(self, saveFile):
         self._env.load_from_file(saveFile)
+        if self.verbosity > 0:
+          print("CTMRG restarted from file", file)
 
     @property
     def Lx(self):

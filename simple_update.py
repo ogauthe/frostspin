@@ -474,6 +474,8 @@ class SimpleUpdate2x2(object):
         self._D6 = self._lambda6.size
         self._D7 = self._lambda7.size
         self._D8 = self._lambda8.size
+        if self.verbosity > 0:
+          print("Simple update restarted from file", file)
 
     def save_to_file(self, file=None):
         data = {}
@@ -506,6 +508,8 @@ class SimpleUpdate2x2(object):
         if file is None:
             return data
         np.savez_compressed(file, **data)
+        if self.verbosity > 0:
+          print("Simple update data stored in file", file)
 
     def get_ABCD(self):
         """
