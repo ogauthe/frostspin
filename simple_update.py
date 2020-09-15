@@ -208,7 +208,9 @@ def update_second_neighbor(
 
 
 class SimpleUpdate2x2(object):
-    def __init__(self, d, a, Dmax, h1, h2, tau, tensors=None, colors=None, verbosity=0):
+    def __init__(
+        self, d, a, Dmax, h1, h2, tau, tensors=None, colors=None, file=None, verbosity=0
+    ):
         """
         Simple update algorithm on plaquette AB//CD.
 
@@ -231,6 +233,9 @@ class SimpleUpdate2x2(object):
         tensors : optional, enumerable of 4 ndarrays with shapes (d,a,D,D,D,D)
           Initial tensors. If not provided, random tensors are taken.
         colors : optional, quantum numbers for physical, ancila and virtual legs.
+        file : str, optional
+          If provided, every parameter but verbosity is ignored and the computation
+          restarts from the file.
         verbosity : int
           level of log verbosity. Default is no log.
 
@@ -247,10 +252,15 @@ class SimpleUpdate2x2(object):
               |     |
               1     5
         """
+
+        self.verbosity = verbosity
+        if file is not None:
+            self.load_from_file(file)
+            return
+
         self._d = d
         self._a = a
         self.Dmax = Dmax
-        self.verbosity = verbosity
         if self.verbosity > 0:
             print(f"construct SimpleUpdataABCD with d = {d}, a = {a} and Dmax = {Dmax}")
 
@@ -425,6 +435,77 @@ class SimpleUpdate2x2(object):
             self._lambda7,
             self._lambda8,
         )
+
+    def load_from_file(self, file):
+        with np.load(file) as data:
+            self._lambda1 = data["lambda1"]
+            self._lambda2 = data["lambda2"]
+            self._lambda3 = data["lambda3"]
+            self._lambda4 = data["lambda4"]
+            self._lambda5 = data["lambda5"]
+            self._lambda6 = data["lambda6"]
+            self._lambda7 = data["lambda7"]
+            self._lambda8 = data["lambda8"]
+            self._colors_p = data["colors_p"]
+            self._colors_a = data["colors_a"]
+            self._colors1 = data["colors1"]
+            self._colors2 = data["colors2"]
+            self._colors3 = data["colors3"]
+            self._colors4 = data["colors4"]
+            self._colors5 = data["colors5"]
+            self._colors6 = data["colors6"]
+            self._colors7 = data["colors7"]
+            self._colors8 = data["colors8"]
+            self._gammaA = data["gammaA"]
+            self._gammaB = data["gammaB"]
+            self._gammaC = data["gammaC"]
+            self._gammaD = data["gammaD"]
+            self._h1 = data["h1"]
+            self._h2 = data["h2"]
+            self.tau = data["tau"][()]
+            self.Dmax = data["Dmax"][()]
+        self._d = self._gammaA.shape[0]
+        self._a = self._gammaA.shape[1]
+        self._D1 = self._lambda1.size
+        self._D2 = self._lambda2.size
+        self._D3 = self._lambda3.size
+        self._D4 = self._lambda4.size
+        self._D5 = self._lambda5.size
+        self._D6 = self._lambda6.size
+        self._D7 = self._lambda7.size
+        self._D8 = self._lambda8.size
+
+    def save_to_file(self, file=None):
+        data = {}
+        data["lambda1"] = self._lambda1
+        data["lambda2"] = self._lambda2
+        data["lambda3"] = self._lambda3
+        data["lambda4"] = self._lambda4
+        data["lambda5"] = self._lambda5
+        data["lambda6"] = self._lambda6
+        data["lambda7"] = self._lambda7
+        data["lambda8"] = self._lambda8
+        data["colors_p"] = self._colors_p
+        data["colors_a"] = self._colors_a
+        data["colors1"] = self._colors1
+        data["colors2"] = self._colors2
+        data["colors3"] = self._colors3
+        data["colors4"] = self._colors4
+        data["colors5"] = self._colors5
+        data["colors6"] = self._colors6
+        data["colors7"] = self._colors7
+        data["colors8"] = self._colors8
+        data["gammaA"] = self._gammaA
+        data["gammaB"] = self._gammaB
+        data["gammaC"] = self._gammaC
+        data["gammaD"] = self._gammaD
+        data["h1"] = self._h1
+        data["h2"] = self._h2
+        data["tau"] = self._tau
+        data["Dmax"] = self.Dmax
+        if file is None:
+            return data
+        np.savez_compressed(file, **data)
 
     def get_ABCD(self):
         """
