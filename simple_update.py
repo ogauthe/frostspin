@@ -12,7 +12,7 @@ def update_first_neighbor(
     lambda0,
     gate,
     d,
-    cut,
+    Dmax,
     col_L=default_color,
     col_R=default_color,
     col_bond=default_color,
@@ -78,7 +78,7 @@ def update_first_neighbor(
     )
 
     # 4) renormalize link dimension
-    new_lambda = new_lambda[:cut]
+    new_lambda = new_lambda[:Dmax]
     D = new_lambda.size  # D < cut at the begining
     new_lambda /= new_lambda.sum()  # singular values are positive
     new_col_lambda = -new_col_lambda[:D]
@@ -104,7 +104,7 @@ def update_second_neighbor(
     lambda_R,
     gate,
     d,
-    cut,
+    Dmax,
     col_L=default_color,
     col_mid=default_color,
     col_R=default_color,
@@ -176,7 +176,7 @@ def update_second_neighbor(
     new_L, new_lambda_L, theta, col_nbL = svdU1(
         theta, combine_colors(col_sL, col_d), -combine_colors(-col_sm, col_sR, col_d)
     )
-    new_lambda_L = new_lambda_L[:cut]
+    new_lambda_L = new_lambda_L[:Dmax]
     new_lambda_L /= new_lambda_L.sum()
     D_L = new_lambda_L.size
     col_nbL = col_nbL[:D_L]
@@ -188,7 +188,7 @@ def update_second_neighbor(
     new_mid, new_lambda_R, new_R, col_nbR = svdU1(
         theta, col_th, -combine_colors(col_sR, col_d)
     )
-    new_lambda_R = new_lambda_R[:cut]
+    new_lambda_R = new_lambda_R[:Dmax]
     D_R = new_lambda_R.size
     new_lambda_R /= new_lambda_R.sum()
     col_nbR = col_nbR[:D_R]
@@ -208,9 +208,7 @@ def update_second_neighbor(
 
 
 class SimpleUpdate2x2(object):
-    def __init__(
-        self, d, a, Ds, cut, h1, h2, tau, tensors=None, colors=None, verbosity=0
-    ):
+    def __init__(self, d, a, Dmax, h1, h2, tau, tensors=None, colors=None, verbosity=0):
         """
         Simple update algorithm on plaquette AB//CD.
 
@@ -221,8 +219,9 @@ class SimpleUpdate2x2(object):
         a: integer
           Dimension of ancila leg. a=1 for a pure wavefunction and a=d for a thermal
           ensemble.
-        Ds: enumerable of 8 int
-          Dimension of 8 non-equivalent bonds
+        Dmax: int
+          Maximal bond dimension. If provided, tensors may have different D at
+          initialization.
         h1 : (d**2,d**2) float or complex ndarray
           First neigbor Hamltionian.
         h2 : (d**2,d**2) float or complex ndarray
@@ -248,31 +247,17 @@ class SimpleUpdate2x2(object):
               |     |
               1     5
         """
-
-        # allowing for different D on each bond is uncommon but allows easy debug.
-        # No need for different d and a.
-        if d > a * min(Ds) ** 2:  # not sufficient: need D_eff < D_ini for every bond.
-            raise ValueError("D_eff > D_cst, cannot reshape in first SVD")
-
         self._d = d
         self._a = a
-        (
-            self._D1,
-            self._D2,
-            self._D3,
-            self._D4,
-            self._D5,
-            self._D6,
-            self._D7,
-            self._D8,
-        ) = Ds
-        self.cut = cut
+        self.Dmax = Dmax
         self.verbosity = verbosity
         if self.verbosity > 0:
-            print(f"construct SimpleUpdataABCD with d = {d}, a = {a} and Ds = {Ds}")
+            print(f"construct SimpleUpdataABCD with d = {d}, a = {a} and Dmax = {Dmax}")
 
         if tensors is not None:
             A0, B0, C0, D0 = tensors
+            self._D1, self._D2, self._D3, self._D4 = A0.shape[2:]
+            self._D6, self._D8, self._D5, self._D7 = D0.shape[2:]
             if A0.shape != (d, a, self._D1, self._D2, self._D3, self._D4):
                 raise ValueError("invalid shape for A0")
             if B0.shape != (d, a, self._D5, self._D4, self._D6, self._D2):
@@ -282,6 +267,14 @@ class SimpleUpdate2x2(object):
             if D0.shape != (d, a, self._D6, self._D8, self._D5, self._D7):
                 raise ValueError("invalid shape for D0")
         else:
+            self._D1 = Dmax
+            self._D2 = Dmax
+            self._D3 = Dmax
+            self._D4 = Dmax
+            self._D5 = Dmax
+            self._D6 = Dmax
+            self._D7 = Dmax
+            self._D8 = Dmax
             A0 = np.random.random((d, a, self._D1, self._D2, self._D3, self._D4)) - 0.5
             B0 = np.random.random((d, a, self._D5, self._D4, self._D6, self._D2)) - 0.5
             C0 = np.random.random((d, a, self._D3, self._D7, self._D1, self._D8)) - 0.5
@@ -587,7 +580,7 @@ class SimpleUpdate2x2(object):
             self._lambda1,
             self._g1,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_R=col_R,
             col_bond=self._colors1,
@@ -630,7 +623,7 @@ class SimpleUpdate2x2(object):
             self._lambda2,
             self._g1,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_R=col_R,
             col_bond=self._colors2,
@@ -672,7 +665,7 @@ class SimpleUpdate2x2(object):
             self._lambda3,
             self._g1,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_R=col_R,
             col_bond=self._colors3,
@@ -714,7 +707,7 @@ class SimpleUpdate2x2(object):
             self._lambda4,
             self._g1,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_R=col_R,
             col_bond=self._colors4,
@@ -756,7 +749,7 @@ class SimpleUpdate2x2(object):
             self._lambda5,
             self._g1,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_R=col_R,
             col_bond=-self._colors5,
@@ -799,7 +792,7 @@ class SimpleUpdate2x2(object):
             self._lambda6,
             self._g1,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_R=col_R,
             col_bond=-self._colors6,
@@ -842,7 +835,7 @@ class SimpleUpdate2x2(object):
             self._lambda7,
             self._g1,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_R=col_R,
             col_bond=-self._colors7,
@@ -885,7 +878,7 @@ class SimpleUpdate2x2(object):
             self._lambda8,
             self._g1,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_R=col_R,
             col_bond=-self._colors8,
@@ -950,7 +943,7 @@ class SimpleUpdate2x2(object):
             self._lambda5,
             self._g2,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1017,7 +1010,7 @@ class SimpleUpdate2x2(object):
             self._lambda7,
             self._g2,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1084,7 +1077,7 @@ class SimpleUpdate2x2(object):
             self._lambda6,
             self._g2,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1151,7 +1144,7 @@ class SimpleUpdate2x2(object):
             self._lambda7,
             self._g2,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1218,7 +1211,7 @@ class SimpleUpdate2x2(object):
             self._lambda6,
             self._g2,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1285,7 +1278,7 @@ class SimpleUpdate2x2(object):
             self._lambda8,
             self._g2,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1352,7 +1345,7 @@ class SimpleUpdate2x2(object):
             self._lambda5,
             self._g2,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1419,7 +1412,7 @@ class SimpleUpdate2x2(object):
             self._lambda8,
             self._g2,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1482,7 +1475,7 @@ class SimpleUpdate2x2(object):
             self._lambda1,
             self._g2,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1543,7 +1536,7 @@ class SimpleUpdate2x2(object):
             self._lambda8,
             self._g2,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1605,7 +1598,7 @@ class SimpleUpdate2x2(object):
             self._lambda3,
             self._g2,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1666,7 +1659,7 @@ class SimpleUpdate2x2(object):
             self._lambda8,
             self._g2,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1727,7 +1720,7 @@ class SimpleUpdate2x2(object):
             self._lambda3,
             self._g2,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1788,7 +1781,7 @@ class SimpleUpdate2x2(object):
             self._lambda7,
             self._g2,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1849,7 +1842,7 @@ class SimpleUpdate2x2(object):
             self._lambda1,
             self._g2,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
@@ -1910,7 +1903,7 @@ class SimpleUpdate2x2(object):
             self._lambda7,
             self._g2,
             self._d,
-            self.cut,
+            self.Dmax,
             col_L=col_L,
             col_mid=col_mid,
             col_R=col_R,
