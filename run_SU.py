@@ -130,6 +130,10 @@ print(lambdas[6])
 print(lambdas[7])
 print(lambdas[8])
 
+data_su = su.save_to_file()
+np.savez_compressed(config["save_data"], **data_su)
+print("Simple data saved in file", config["save_data"])
+
 A, B, C, D = su.get_ABCD()
 (pcol, acol), col1, col2, col3, col4, col5, col6, col7, col8 = su.colors
 colorsA = [pcol, acol, col1, col2, col3, col4]
@@ -162,5 +166,9 @@ for i in range(ctm_iter):
 print(f"\ndone with CTM iteration, t={time()-t:.0f}")
 print("energy =", energy)
 
-ctm.save_to_file(config["save_data"])
-print("CTMRG data saved in file", config["save_data"])
+data_ctm = ctm.save_to_file()
+np.savez_compressed(config["save_data"], **data_su, **data_ctm)
+print("Simple data and CTMRG data saved in file", config["save_data"])
+
+print("\n" + "#" * 79)
+print("done")
