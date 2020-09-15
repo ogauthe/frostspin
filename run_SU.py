@@ -1,87 +1,18 @@
 #! /usr/bin/env python3
 
 import numpy as np
+import json
+from sys import argv
 from time import time
 from simple_update import SimpleUpdate2x2
-from test_tools import SdS_22, SdS_22b
-
-# import scipy.linalg as lg
 from ctmrg import CTMRG
-
-# from toolsU1 import checkU1, combine_colors
-
-
-tiling = "AB\nCD"
-
-d = 2
-a = 2
-chi = 40
-ctm_iter = 200
-cut = 6
-Ds = (1,) * 8
-print(f"run simple update with d = {d}, a = {a}, Ds = {Ds}")
-
-J2 = 0.0
-beta = 1.0
-tau = 1e-4
-su_iter = int(beta / 2 / tau)  # rho is quadratic in psi
-
-pcol = np.array([1, -1], dtype=np.int8)
-vcol = np.zeros(1, dtype=np.int8)
-colors = [pcol, -pcol, vcol, vcol, vcol, vcol, vcol, vcol, vcol, vcol]
-A = np.eye(d).reshape(d, a, 1, 1, 1, 1)
-B = A.copy()
-C = B.copy()
-D = A.copy()
-
-h1 = SdS_22b
-h2 = J2 * SdS_22
-# colors A and D = [[1,-1], [1,-1], [2, 0, -2], [2, 0, -2], [2, 0, -2], [2, 0, -2]]
-# B and C have opposed colors due to pi-rotation.
-
-print("#" * 79)
-print(f"Run simple update for spin 1/2 Heisenberg with J1=1, J2={J2}")
-print(f"run with tau = {tau} up to beta = {beta}")
-su = SimpleUpdate2x2(
-    d, a, Ds, cut, h1, h2, tau, tensors=(A, B, C, D), colors=colors, verbosity=0
-)
-
-t = time()
-for i in range(su_iter // 2):  # 2nd order Trotter
-    # for i in range(2):
-    su.update()
-print(f"\ndone with SU, t={time()-t:.1f}")
-
-lambdas = su.lambdas
-print("lambdas =")
-print(lambdas[1])
-print(lambdas[2])
-print(lambdas[3])
-print(lambdas[4])
-print(lambdas[5])
-print(lambdas[6])
-print(lambdas[7])
-print(lambdas[8])
-print()
-
-A, B, C, D = su.get_ABCD()
-(pcol, acol), col1, col2, col3, col4, col5, col6, col7, col8 = su.colors
-colorsA = [pcol, acol, col1, col2, col3, col4]
-colorsB = [-pcol, -acol, -col5, -col4, -col6, -col2]
-colorsC = [-pcol, -acol, -col3, -col7, -col1, -col8]
-colorsD = [pcol, acol, col6, col8, col5, col7]
-
-
-ctm = CTMRG(
-    chi,
-    tensors=(A, B, C, D),
-    tiling=tiling,
-    colors=(colorsA, colorsB, colorsC, colorsD),
-    verbosity=0,
-)
 
 
 def compute_energy(ctm, h1, h2):
+    """
+    Compute mean per site site energy on a 2x2 plaquette with first neighbor Hamiltonian
+    h1 and second neighbor Hamiltonian h2 from CTMRG.
+    """
     # Tr(AH) = (A*H.T).sum() and H is exactly symmetric
     rho1 = ctm.compute_rdm2x1(-1, 0)
     rho2 = ctm.compute_rdm1x2(-1, -1)
@@ -107,16 +38,129 @@ def compute_energy(ctm, h1, h2):
     return energy
 
 
+########################################################################################
+# Initialization
+########################################################################################
+print("#" * 79)
+print("Finite temperature simple update for J1-J2 Heisenberg model")
+if len(argv) < 2:
+    config_file = "input_sample/input_sample_run_SU.json"
+    print("No input file given, use", config_file)
+else:
+    config_file = argv[1]
+    print("Take input parameters from file", config_file)
+
+with open(config_file) as f:
+    config = json.load(f)
+
+# physical model parameters
+tiling = "AB\nCD"
+d = 2
+a = 2
+J2 = config["J2"]
+SdS_22b = np.array(
+    [
+        [-0.25, 0.0, 0.0, -0.5],
+        [0.0, 0.25, 0.0, 0.0],
+        [0.0, 0.0, 0.25, 0.0],
+        [-0.5, 0.0, 0.0, -0.25],
+    ]
+)
+SdS_22 = np.array(
+    [
+        [0.25, 0.0, 0.0, 0.0],
+        [0.0, -0.25, 0.5, 0.0],
+        [0.0, 0.5, -0.25, 0.0],
+        [0.0, 0.0, 0.0, 0.25],
+    ]
+)
+h1 = SdS_22b
+h2 = J2 * SdS_22
+print(f"Physical model: d = {d}, a = {a}, J1 = 1, J2 = {J2}")
+
+# simple update parameters
+beta = config["beta"]
+tau = config["tau"]
+Dmax = config["Dmax"]
+su_iter = int(beta / 2 / tau) // 2  # rho is quadratic in psi + 2nd order Trotter
+print(f"Simple update parameters: beta = {beta}, tau = {tau}, Dmax = {Dmax}")
+
+# CTMRG parameters
+chi = config["chi"]
+ctm_iter = config["ctm_iter"]
+print(f"CTMRG parameters: chi = {chi}, ctm_iter = {ctm_iter}")
+
+# misc
+print("Save data in file", config["save_data"])
+
+# Tensor nitialization at beta = 0
+A = np.eye(d).reshape(d, a, 1, 1, 1, 1)
+B = A.copy()
+C = B.copy()
+D = A.copy()
+
+# colors initialization
+pcol = np.array([1, -1], dtype=np.int8)
+vcol = np.array([0], dtype=np.int8)
+colors = [pcol, -pcol, vcol, vcol, vcol, vcol, vcol, vcol, vcol, vcol]
+
+
+########################################################################################
+# Simple update
+########################################################################################
+print("\n" + "#" * 79)
+print(f"Start simple update with tau = {tau} up to beta = {beta}")
+su = SimpleUpdate2x2(
+    d, a, Dmax, h1, h2, tau, tensors=(A, B, C, D), colors=colors, verbosity=0
+)
+
+t = time()
+for i in range(su_iter):
+    su.update()
+print(f"\nDone with SU, t = {time()-t:.0f}")
+
+lambdas = su.lambdas
+print("lambdas =")
+print(lambdas[1])
+print(lambdas[2])
+print(lambdas[3])
+print(lambdas[4])
+print(lambdas[5])
+print(lambdas[6])
+print(lambdas[7])
+print(lambdas[8])
+
+A, B, C, D = su.get_ABCD()
+(pcol, acol), col1, col2, col3, col4, col5, col6, col7, col8 = su.colors
+colorsA = [pcol, acol, col1, col2, col3, col4]
+colorsB = [-pcol, -acol, -col5, -col4, -col6, -col2]
+colorsC = [-pcol, -acol, -col3, -col7, -col1, -col8]
+colorsD = [pcol, acol, col6, col8, col5, col7]
+
+
+########################################################################################
+# CTMRG
+########################################################################################
+print("\n" + "#" * 79)
+print("Compute observables using CTMRG")
+ctm = CTMRG(
+    chi,
+    tensors=(A, B, C, D),
+    tiling=tiling,
+    colors=(colorsA, colorsB, colorsC, colorsD),
+    verbosity=0,
+)
+
+print(f"energy before iteration = {compute_energy(ctm, h1, h2)}")
 print(f"Converge CTMRG with chi = {chi} and niter = {ctm_iter}")
 t = time()
 for i in range(ctm_iter):
-    print(i, compute_energy(ctm, h1, h2))
     ctm.iterate()
+    energy = compute_energy(ctm, h1, h2)
+    print(f"i = {i+1}, t = {time()-t:.0f}, energy = {energy}")
 
-print(f"\ndone with CTM iteration, t={time()-t:.1f}")
-energy = compute_energy(ctm, h1, h2)
+print(f"\ndone with CTM iteration, t={time()-t:.0f}")
 print("energy =", energy)
 
-save = f"data_ctm_SU_ABCD_J2_{J2}_beta{beta}_tau{tau}_chi{chi}.npz"
-ctm.save_to_file(save)
-print("CTMRG data saved in file", save)
+ctm.save_to_file(config["save_data"])
+print("CTMRG data saved in file", config["save_data"])

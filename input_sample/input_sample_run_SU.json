@@ -1,0 +1,9 @@
+{
+  "Dmax": 5,
+  "beta": 1.0,
+  "tau": 1e-3,
+  "J2": 0.8,
+  "chi": 50,
+  "ctm_iter": 10,
+  "save_data": "data_sample.npz"
+}
