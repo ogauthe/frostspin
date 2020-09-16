@@ -132,7 +132,7 @@ print(lambdas[8])
 
 data_su = su.save_to_file()
 np.savez_compressed(config["save_data"], **data_su)
-print("Simple data saved in file", config["save_data"])
+print("Simple update data saved in file", config["save_data"])
 
 A, B, C, D = su.get_ABCD()
 (pcol, acol), col1, col2, col3, col4, col5, col6, col7, col8 = su.colors
@@ -168,7 +168,7 @@ print("energy =", energy)
 
 data_ctm = ctm.save_to_file()
 np.savez_compressed(config["save_data"], **data_su, **data_ctm)
-print("Simple data and CTMRG data saved in file", config["save_data"])
+print("Simple update and CTMRG data saved in file", config["save_data"])
 
 print("\n" + "#" * 79)
 print("done")
