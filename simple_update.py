@@ -368,6 +368,8 @@ class SimpleUpdate2x2(object):
         self._tau = tau
         self._g1 = lg.expm(-tau * self._h1)
         self._g2 = lg.expm(-tau / 2 * self._h2)  # apply twice sqrt(gate)
+        self._g1_squared = lg.expm(-2 * tau * self._h1)  # 2nd order Trotter
+        self._g2_squared = lg.expm(-tau * self._h2)  # 2nd order Trotter
 
     @property
     def d(self):
@@ -475,7 +477,7 @@ class SimpleUpdate2x2(object):
         self._D7 = self._lambda7.size
         self._D8 = self._lambda8.size
         if self.verbosity > 0:
-          print("Simple update restarted from file", file)
+            print("Simple update restarted from file", file)
 
     def save_to_file(self, file=None):
         data = {}
@@ -509,7 +511,7 @@ class SimpleUpdate2x2(object):
             return data
         np.savez_compressed(file, **data)
         if self.verbosity > 0:
-          print("Simple update data stored in file", file)
+            print("Simple update data stored in file", file)
 
     def get_ABCD(self):
         """
@@ -537,100 +539,127 @@ class SimpleUpdate2x2(object):
 
     def update_first_neighbor(self):
         """
-        Update all first neighbor links.
+        Update all first neighbor links with first order Trotter-Suzuki
         """
         if self.verbosity > 0:
             print("launch first neighbor update")
-        self.update_bond1()  # AC up
-        self.update_bond2()  # AB left
-        self.update_bond3()  # AC down
-        self.update_bond4()  # AB right
-        self.update_bond5()  # BD up
-        self.update_bond6()  # BD down
-        self.update_bond7()  # CD left
-        self.update_bond8()  # CD right
-
-    def update_first_neighbor_reverse(self):
-        """
-        Update all first neighbor links, reverse order.
-        """
-        if self.verbosity > 0:
-            print("launch reverse first neighbor update")
-        self.update_bond8()  # CD right
-        self.update_bond7()  # CD left
-        self.update_bond6()  # BD down
-        self.update_bond5()  # BD up
-        self.update_bond4()  # AB right
-        self.update_bond3()  # AC down
-        self.update_bond2()  # AB left
-        self.update_bond1()  # AC up
+        self.update_bond1(self._g1)  # AC up
+        self.update_bond2(self._g1)  # AB left
+        self.update_bond3(self._g1)  # AC down
+        self.update_bond4(self._g1)  # AB right
+        self.update_bond5(self._g1)  # BD up
+        self.update_bond6(self._g1)  # BD down
+        self.update_bond7(self._g1)  # CD left
+        self.update_bond8(self._g1)  # CD right
 
     def update_second_neighbor(self):
         """
-        Update all first neighbor links.
+        Update all first neighbor links with first order Trotter-Suzuki
         """
         if self.verbosity > 0:
             print("launch second neighbor update")
         # link AD right up
-        self.update_bonds25()  # through B
-        self.update_bonds17()  # through C
+        self.update_bonds25(self._g2)  # through B
+        self.update_bonds17(self._g2)  # through C
         # link AD right down
-        self.update_bonds26()  # through B
-        self.update_bonds37()  # through C
+        self.update_bonds26(self._g2)  # through B
+        self.update_bonds37(self._g2)  # through C
         # link AD left down
-        self.update_bonds46()  # through B
-        self.update_bonds38()  # through C
+        self.update_bonds46(self._g2)  # through B
+        self.update_bonds38(self._g2)  # through C
         # link AD left up
-        self.update_bonds45()  # through B
-        self.update_bonds18()  # through C
+        self.update_bonds45(self._g2)  # through B
+        self.update_bonds18(self._g2)  # through C
 
         # link BC right up
-        self.update_bonds41()  # through A
-        self.update_bonds58()  # through D
+        self.update_bonds41(self._g2)  # through A
+        self.update_bonds58(self._g2)  # through D
         # link BC right down
-        self.update_bonds43()  # through A
-        self.update_bonds68()  # through D
+        self.update_bonds43(self._g2)  # through A
+        self.update_bonds68(self._g2)  # through D
         # link BC left down
-        self.update_bonds23()  # through A
-        self.update_bonds67()  # through D
+        self.update_bonds23(self._g2)  # through A
+        self.update_bonds67(self._g2)  # through D
         # link BC left up
-        self.update_bonds21()  # through A
-        self.update_bonds57()  # through D
+        self.update_bonds21(self._g2)  # through A
+        self.update_bonds57(self._g2)  # through D
 
-    def update_second_neighbor_reverse(self):
+    def update_first_order(self):
         """
-        Update all first neighbor links.
+        First order Trotter Suzuki step on all bonds.
         """
         if self.verbosity > 0:
-            print("launch reverse second neighbor update")
-        self.update_bonds57()  # through D
-        self.update_bonds21()  # through A
-        self.update_bonds67()  # through D
-        self.update_bonds23()  # through A
-        self.update_bonds68()  # through D
-        self.update_bonds43()  # through A
-        self.update_bonds58()  # through D
-        self.update_bonds41()  # through A
-        self.update_bonds18()  # through C
-        self.update_bonds45()  # through B
-        self.update_bonds38()  # through C
-        self.update_bonds46()  # through B
-        self.update_bonds37()  # through C
-        self.update_bonds26()  # through B
-        self.update_bonds17()  # through C
-        self.update_bonds25()  # through B
-
-    def update(self):
-        """
-        Second order Trotter Suzuki step on all bonds.
-        """
-        if self.verbosity > 0:
-            print("launch 2nd order update for all bonds")
+            print("launch first order update for all bonds")
         # goes to 2nd order Trotter by reversing update order
         self.update_first_neighbor()
         self.update_second_neighbor()
-        self.update_second_neighbor_reverse()
-        self.update_first_neighbor_reverse()
+
+    def evolve(self, beta):
+        """
+        Evolve in imaginary time using second order Trotter-Suzuki up to beta.
+        """
+        if self.verbosity > 0:
+            print(f"Launch time evolution for time {beta}")
+        niter = int(beta / self._tau / 2)  # 2nd order: evolve 2*tau by step
+
+        self.update_bond1(self._g1)
+        for i in range(niter - 1):  # there is 1 step out of the loop
+            self._2nd_order_step_no1()
+            self.update_bond1(self._g1_squared)
+        self._2nd_order_step_no1()
+        self.update_bond1(self._g1)
+
+    def _2nd_order_step_no1(self):
+        """
+        Auxiliary function to perform second order Trotter-Suzuki step. Call all update
+        but bond1 and bonds57, then bonds57 with g2**2, then all other updates in
+        reverse order. Bond1 has to be updated outside of this function.
+        """
+        self.update_bond2(self._g1)
+        self.update_bond3(self._g1)
+        self.update_bond4(self._g1)
+        self.update_bond5(self._g1)
+        self.update_bond6(self._g1)
+        self.update_bond7(self._g1)
+        self.update_bond8(self._g1)
+        self.update_bonds25(self._g2)
+        self.update_bonds17(self._g2)
+        self.update_bonds26(self._g2)
+        self.update_bonds37(self._g2)
+        self.update_bonds46(self._g2)
+        self.update_bonds38(self._g2)
+        self.update_bonds45(self._g2)
+        self.update_bonds18(self._g2)
+        self.update_bonds41(self._g2)
+        self.update_bonds58(self._g2)
+        self.update_bonds43(self._g2)
+        self.update_bonds68(self._g2)
+        self.update_bonds23(self._g2)
+        self.update_bonds67(self._g2)
+        self.update_bonds21(self._g2)
+        self.update_bonds57(self._g2_squared)
+        self.update_bonds21(self._g2)
+        self.update_bonds67(self._g2)
+        self.update_bonds23(self._g2)
+        self.update_bonds68(self._g2)
+        self.update_bonds43(self._g2)
+        self.update_bonds58(self._g2)
+        self.update_bonds41(self._g2)
+        self.update_bonds18(self._g2)
+        self.update_bonds45(self._g2)
+        self.update_bonds38(self._g2)
+        self.update_bonds46(self._g2)
+        self.update_bonds37(self._g2)
+        self.update_bonds26(self._g2)
+        self.update_bonds17(self._g2)
+        self.update_bonds25(self._g2)
+        self.update_bond8(self._g1)
+        self.update_bond7(self._g1)
+        self.update_bond6(self._g1)
+        self.update_bond5(self._g1)
+        self.update_bond4(self._g1)
+        self.update_bond3(self._g1)
+        self.update_bond2(self._g1)
 
     ###############################################################################
     # first neighbor updates
@@ -639,7 +668,7 @@ class SimpleUpdate2x2(object):
     # the colors returned by update_neighbors need to be reversed
     # mc{i} = minus color i
 
-    def update_bond1(self):
+    def update_bond1(self, gate):
         """
         Update lambda1 between A and C by applying gate g1 to A upper bond.
         """
@@ -663,7 +692,7 @@ class SimpleUpdate2x2(object):
             M_A,
             M_C,
             self._lambda1,
-            self._g1,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
@@ -684,7 +713,7 @@ class SimpleUpdate2x2(object):
         if self.verbosity > 1:
             print("updated bond 1: new lambda1 =", self._lambda1)
 
-    def update_bond2(self):
+    def update_bond2(self, gate):
         """
         Update lambda2 between A and B by applying gate to A right bond.
         """
@@ -706,7 +735,7 @@ class SimpleUpdate2x2(object):
             M_A,
             M_B,
             self._lambda2,
-            self._g1,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
@@ -726,7 +755,7 @@ class SimpleUpdate2x2(object):
         if self.verbosity > 1:
             print("updated bond 2: new lambda2 =", self._lambda2)
 
-    def update_bond3(self):
+    def update_bond3(self, gate):
         """
         Update lambda3 between A and C by applying gate to A down bond.
         """
@@ -748,7 +777,7 @@ class SimpleUpdate2x2(object):
             M_A,
             M_C,
             self._lambda3,
-            self._g1,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
@@ -768,7 +797,7 @@ class SimpleUpdate2x2(object):
         if self.verbosity > 1:
             print("updated bond 3: new lambda3 =", self._lambda3)
 
-    def update_bond4(self):
+    def update_bond4(self, gate):
         """
         Update lambda4 between A and B by applying gate to A right bond.
         """
@@ -790,7 +819,7 @@ class SimpleUpdate2x2(object):
             M_A,
             M_B,
             self._lambda4,
-            self._g1,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
@@ -810,7 +839,7 @@ class SimpleUpdate2x2(object):
         if self.verbosity > 1:
             print("updated bond 4: new lambda4 =", self._lambda4)
 
-    def update_bond5(self):
+    def update_bond5(self, gate):
         """
         Update lambda5 between B and D by applying gate to B upper bond.
         """
@@ -832,7 +861,7 @@ class SimpleUpdate2x2(object):
             M_B,
             M_D,
             self._lambda5,
-            self._g1,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
@@ -853,7 +882,7 @@ class SimpleUpdate2x2(object):
         if self.verbosity > 1:
             print("updated bond 5: new lambda5 =", self._lambda5)
 
-    def update_bond6(self):
+    def update_bond6(self, gate):
         """
         Update lambda6 between B and D by applying gate to B down bond.
         """
@@ -875,7 +904,7 @@ class SimpleUpdate2x2(object):
             M_B,
             M_D,
             self._lambda6,
-            self._g1,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
@@ -896,7 +925,7 @@ class SimpleUpdate2x2(object):
         if self.verbosity > 1:
             print("updated bond 6: new lambda6 =", self._lambda6)
 
-    def update_bond7(self):
+    def update_bond7(self, gate):
         """
         Update lambda7 between C and D by applying gate to C right bond.
         """
@@ -918,7 +947,7 @@ class SimpleUpdate2x2(object):
             M_C,
             M_D,
             self._lambda7,
-            self._g1,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
@@ -939,7 +968,7 @@ class SimpleUpdate2x2(object):
         if self.verbosity > 1:
             print("updated bond 7: new lambda7 =", self._lambda7)
 
-    def update_bond8(self):
+    def update_bond8(self, gate):
         """
         Update lambda8 between C and D by applying gate to C left bond.
         """
@@ -961,7 +990,7 @@ class SimpleUpdate2x2(object):
             M_C,
             M_D,
             self._lambda8,
-            self._g1,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
@@ -986,7 +1015,7 @@ class SimpleUpdate2x2(object):
     # second neighbor updates
     # bonds A-D
     ###############################################################################
-    def update_bonds25(self):
+    def update_bonds25(self, gate):
         """
         Update lambda2 and lambda6 by applying gate to A upper-right next nearest
         neighbor bond with D through tensor B. Twin of 17.
@@ -1026,7 +1055,7 @@ class SimpleUpdate2x2(object):
             M_D,
             self._lambda2,
             self._lambda5,
-            self._g2,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
@@ -1053,7 +1082,7 @@ class SimpleUpdate2x2(object):
             print("updated bonds 2 and 5: new lambda2 =", self._lambda2)
             print("                       new lambda5 =", self._lambda5)
 
-    def update_bonds17(self):
+    def update_bonds17(self, gate):
         """
         Update lambda2 and lambda6 by applying gate to A upper-right next nearest
         neighbor bond with D through tensor C. Twin of 25.
@@ -1093,7 +1122,7 @@ class SimpleUpdate2x2(object):
             M_D,
             self._lambda1,
             self._lambda7,
-            self._g2,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
@@ -1120,7 +1149,7 @@ class SimpleUpdate2x2(object):
             print("updated bonds 1 and 7: new lambda1 =", self._lambda1)
             print("                       new lambda7 =", self._lambda7)
 
-    def update_bonds26(self):
+    def update_bonds26(self, gate):
         """
         Update lambda2 and lambda6 by applying gate to A down-right next nearest
         neighbor bond with D through tensor B. Twin of 37.
@@ -1160,7 +1189,7 @@ class SimpleUpdate2x2(object):
             M_D,
             self._lambda2,
             self._lambda6,
-            self._g2,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
@@ -1187,7 +1216,7 @@ class SimpleUpdate2x2(object):
             print("updated bonds 2 and 6: new lambda2 =", self._lambda2)
             print("                       new lambda6 =", self._lambda6)
 
-    def update_bonds37(self):
+    def update_bonds37(self, gate):
         """
         Update lambda2 and lambda6 by applying gate to A down-right next nearest
         neighbor bond with D through tensor C. Twin of 26.
@@ -1227,7 +1256,7 @@ class SimpleUpdate2x2(object):
             M_D,
             self._lambda3,
             self._lambda7,
-            self._g2,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
@@ -1254,7 +1283,7 @@ class SimpleUpdate2x2(object):
             print("updated bonds 3 and 7: new lambda3 =", self._lambda3)
             print("                       new lambda7 =", self._lambda7)
 
-    def update_bonds46(self):
+    def update_bonds46(self, gate):
         """
         Update lambda4 and lambda6 by applying gate to A down-left next nearest
         neighbor bond with D through tensor B. Twin of 38.
@@ -1294,7 +1323,7 @@ class SimpleUpdate2x2(object):
             M_D,
             self._lambda4,
             self._lambda6,
-            self._g2,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
@@ -1321,7 +1350,7 @@ class SimpleUpdate2x2(object):
             print("updated bonds 4 and 6: new lambda4 =", self._lambda4)
             print("                       new lambda6 =", self._lambda6)
 
-    def update_bonds38(self):
+    def update_bonds38(self, gate):
         """
         Update lambda2 and lambda6 by applying gate to A down-left next nearest
         neighbor bond with D through tensor C. Twin of 46.
@@ -1361,7 +1390,7 @@ class SimpleUpdate2x2(object):
             M_D,
             self._lambda3,
             self._lambda8,
-            self._g2,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
@@ -1388,7 +1417,7 @@ class SimpleUpdate2x2(object):
             print("updated bonds 3 and 8: new lambda3 =", self._lambda3)
             print("                       new lambda8 =", self._lambda8)
 
-    def update_bonds45(self):
+    def update_bonds45(self, gate):
         """
         Update lambda4 and lambda5 by applying gate to A upper-left next nearest
         neighbor bond with D through tensor B. Twin of 18.
@@ -1428,7 +1457,7 @@ class SimpleUpdate2x2(object):
             M_D,
             self._lambda4,
             self._lambda5,
-            self._g2,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
@@ -1455,7 +1484,7 @@ class SimpleUpdate2x2(object):
             print("updated bonds 4 and 5: new lambda4 =", self._lambda4)
             print("                       new lambda5 =", self._lambda5)
 
-    def update_bonds18(self):
+    def update_bonds18(self, gate):
         """
         Update lambda1 and lambda8 by applying gate to A upper-left next nearest
         neighbor bond with D through tensor C. Twin of 45.
@@ -1495,7 +1524,7 @@ class SimpleUpdate2x2(object):
             M_D,
             self._lambda1,
             self._lambda8,
-            self._g2,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
@@ -1526,7 +1555,7 @@ class SimpleUpdate2x2(object):
     # second neighbor updates
     # bonds B-C
     ###############################################################################
-    def update_bonds41(self):
+    def update_bonds41(self, gate):
         """
         Update lambda4 and lambda1 by applying gate to B upper-right next nearest
         neighbor bond with C through tensor A. Twin of 58.
@@ -1558,7 +1587,7 @@ class SimpleUpdate2x2(object):
             M_C,
             self._lambda4,
             self._lambda1,
-            self._g2,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
@@ -1587,7 +1616,7 @@ class SimpleUpdate2x2(object):
             print("updated bonds 4 and 1: new lambda4 =", self._lambda4)
             print("                       new lambda1 =", self._lambda1)
 
-    def update_bonds58(self):
+    def update_bonds58(self, gate):
         """
         Update lambda2 and lambda6 by applying gate to B upper-right next nearest
         neighbor bond with C through tensor D. Twin of 41.
@@ -1619,7 +1648,7 @@ class SimpleUpdate2x2(object):
             M_C,
             self._lambda5,
             self._lambda8,
-            self._g2,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
@@ -1649,7 +1678,7 @@ class SimpleUpdate2x2(object):
             print("updated bonds 5 and 8: new lambda5 =", self._lambda5)
             print("                       new lambda8 =", self._lambda8)
 
-    def update_bonds43(self):
+    def update_bonds43(self, gate):
         """
         Update lambda4 and lambda3 by applying gate to B down-right next nearest
         neighbor bond with C through tensor A. Twin of 68.
@@ -1681,7 +1710,7 @@ class SimpleUpdate2x2(object):
             M_C,
             self._lambda4,
             self._lambda3,
-            self._g2,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
@@ -1710,7 +1739,7 @@ class SimpleUpdate2x2(object):
             print("updated bonds 4 and 3: new lambda4 =", self._lambda4)
             print("                       new lambda3 =", self._lambda3)
 
-    def update_bonds68(self):
+    def update_bonds68(self, gate):
         """
         Update lambda2 and lambda6 by applying gate to B down-right next nearest
         neighbor bond with C through tensor D. Twin of 43.
@@ -1742,7 +1771,7 @@ class SimpleUpdate2x2(object):
             M_C,
             self._lambda6,
             self._lambda8,
-            self._g2,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
@@ -1771,7 +1800,7 @@ class SimpleUpdate2x2(object):
             print("updated bonds 6 and 8: new lambda6 =", self._lambda6)
             print("                       new lambda8 =", self._lambda8)
 
-    def update_bonds23(self):
+    def update_bonds23(self, gate):
         """
         Update lambda2 and lambda3 by applying gate to B down-left next nearest
         neighbor bond with C through tensor A. Twin of 67.
@@ -1803,7 +1832,7 @@ class SimpleUpdate2x2(object):
             M_C,
             self._lambda2,
             self._lambda3,
-            self._g2,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
@@ -1832,7 +1861,7 @@ class SimpleUpdate2x2(object):
             print("updated bonds 2 and 3: new lambda2 =", self._lambda2)
             print("                       new lambda3 =", self._lambda3)
 
-    def update_bonds67(self):
+    def update_bonds67(self, gate):
         """
         Update lambda6 and lambda7 by applying gate to B down-left next nearest
         neighbor bond with C through tensor D. Twin of 23.
@@ -1864,7 +1893,7 @@ class SimpleUpdate2x2(object):
             M_C,
             self._lambda6,
             self._lambda7,
-            self._g2,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
@@ -1893,7 +1922,7 @@ class SimpleUpdate2x2(object):
             print("updated bonds 6 and 7: new lambda6 =", self._lambda6)
             print("                       new lambda7 =", self._lambda7)
 
-    def update_bonds21(self):
+    def update_bonds21(self, gate):
         """
         Update lambda2 and lambda1 by applying gate to B upper-left next nearest
         neighbor bond with C through tensor A. Twin of 57.
@@ -1925,7 +1954,7 @@ class SimpleUpdate2x2(object):
             M_C,
             self._lambda2,
             self._lambda1,
-            self._g2,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
@@ -1954,7 +1983,7 @@ class SimpleUpdate2x2(object):
             print("updated bonds 2 and 1: new lambda2 =", self._lambda2)
             print("                       new lambda1 =", self._lambda1)
 
-    def update_bonds57(self):
+    def update_bonds57(self, gate):
         """
         Update lambda6 and lambda7 by applying gate to B down-left next nearest
         neighbor bond with C through tensor D. Twin of 21.
@@ -1986,7 +2015,7 @@ class SimpleUpdate2x2(object):
             M_C,
             self._lambda5,
             self._lambda7,
-            self._g2,
+            gate,
             self._d,
             self.Dmax,
             col_L=col_L,
