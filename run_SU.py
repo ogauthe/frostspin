@@ -82,7 +82,6 @@ print(f"Physical model: d = {d}, a = {a}, J1 = 1, J2 = {J2}")
 beta = config["beta"]
 tau = config["tau"]
 Dmax = config["Dmax"]
-su_iter = int(beta / 2 / tau) // 2  # rho is quadratic in psi + 2nd order Trotter
 print(f"Simple update parameters: beta = {beta}, tau = {tau}, Dmax = {Dmax}")
 
 # CTMRG parameters
@@ -111,12 +110,11 @@ colors = [pcol, -pcol, vcol, vcol, vcol, vcol, vcol, vcol, vcol, vcol]
 print("\n" + "#" * 79)
 print(f"Start simple update with tau = {tau} up to beta = {beta}")
 su = SimpleUpdate2x2(
-    d, a, Dmax, h1, h2, tau, tensors=(A, B, C, D), colors=colors, verbosity=0
+    d, a, Dmax, h1, h2, tau, tensors=(A, B, C, D), colors=colors, verbosity=10
 )
 
 t = time()
-for i in range(su_iter):
-    su.update()
+su.evolve(beta)
 print(f"\nDone with SU, t = {time()-t:.0f}")
 
 lambdas = su.lambdas
