@@ -247,7 +247,7 @@ def svdU1(M, row_colors=default_color, col_colors=default_color, check=False):
             ic = col_sort[col_inds[bc] : col_inds[bc + 1]]
             m = np.ascontiguousarray(M[ir][:, ic])
             d = min(m.shape)
-            U[ir, k : k + d], s[k : k + d], V[k : k + d :, ic] = np.linalg.svd(
+            U[ir, k : k + d], s[k : k + d], V[k : k + d, ic] = np.linalg.svd(
                 m, full_matrices=False
             )
             colors[k : k + d] = sorted_row_colors[row_inds[br]]
