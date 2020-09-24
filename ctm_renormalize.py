@@ -1,11 +1,11 @@
 import numpy as np
-from svd_tools import svdU1_truncate
+from svd_tools import svd_truncate
 
 
 def construct_projectors(R, Rt, chi, color=None):
     # row and column colors are the same since contraction can be done on the
     # 2 other legs of R and Rt
-    U, s, V, col = svdU1_truncate(R.T @ Rt, chi, color, color)
+    U, s, V, col = svd_truncate(R.T @ Rt, chi, color, color)
     s12 = 1 / np.sqrt(s)  # s contains no 0
     # convention: projectors have shape (last_chi*D**2,chi)
     # since values of last_chi and D are not known (nor used) here

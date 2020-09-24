@@ -1,16 +1,119 @@
 import numpy as np
 import scipy.linalg as lg
 from scipy.sparse.linalg import eigsh  # use custom svds
-from toolsU1 import default_color
+from toolsU1 import default_color, svdU1
 from scipy.sparse.linalg.interface import LinearOperator
 
 
-# use custom svds adapted from scipy to remove small value cutoff
-# remove some other unused features: impose which='LM' and solver='arpack'
-# always sort values by decreasing order
-# compute either no singular vectors or both U and V
-# ref: https://github.com/scipy/scipy/pull/11829
-def svds(A, k=6, ncv=None, tol=0, v0=None, maxiter=None, return_singular_vectors=True):
+def svd_truncate(
+    M,
+    cut,
+    row_colors=default_color,
+    col_colors=default_color,
+    full=False,
+    maxiter=1000,
+    keep_multiplets=False,
+    window=10,
+    degen_tol=1e-6,
+    zeros_tol=0,
+):
+    """
+    Unique function to compute singular value decomposition of a matrix and truncate.
+
+    Parameters
+    ----------
+    M : (m,n) ndarray
+      Matrix to decompose.
+    cut : integer
+      Number of singular vectors to keep. Effective cut depends on keep_multiplets
+      (see notes)
+    row_colors : (m,) integer ndarray
+      U(1) quantum numbers of the rows.
+    col_colors : (n,) integer ndarray
+      U(1) quantum numbers of the columns.
+    full : boolean
+      Whether to compute the full SVD of the matrix.
+    maxiter : integer
+      If full is False, maximal number of arpack iterations. Finite by default allows
+      clean crash instead of running forever.
+    keep_multiplets : bool
+      If true, compute more than cut values and cut between two different multiplets
+    window : integer
+      If keep_multiplets is True, compute cut+window vectors and cut between cut and
+      cut + window
+    degen_tol : float
+      Tolerance to consider two consecutive values as degenerate.
+    zeros_tol : float
+      Tolerance to consider a singular value as zero.
+
+    Returns
+    -------
+    U : (m,k) ndarray
+      Left singular vectors.
+    s : (k,) ndarray, float
+      Singular values.
+    V : (k,n) ndarray
+      Right singular vectors.
+    colors : (k,) ndarray, int8
+      U(1) quantum numbers of s.
+
+    Notes:
+    ------
+    cut is fixed if keep_multiplets is False, else as the smallest value in
+    [cut, cut + window[ such that s[cut+1] < degen_tol*s[cut].
+    Even if a truncature is made, full can be used to compute the full SVD, which may
+    be more precise or faster (especially with numba)
+    """
+
+    if M.ndim != 2:
+        raise ValueError("M has to be a matrix")
+
+    if not row_colors.size or not col_colors.size:  # standard full or sparse SVD
+        colors = default_color
+        if full or min(M.shape) < 3 * cut:
+            U, s, V = lg.svd(M, full_matrices=False)
+        else:
+            if keep_multiplets:
+                U, s, V = sparse_svd(M, k=cut + window, maxiter=maxiter)
+            else:
+                U, s, V = sparse_svd(M, k=cut, maxiter=maxiter)
+
+    else:  # block SVD using U(1) symmetry
+        if full:  # full allows to use numba while cutting
+            U, s, V, colors = svdU1(M, row_colors, col_colors)
+        else:  # U(1) forces to compute much more than k vectors
+            if keep_multiplets:  # small window is fine since ^
+                U, s, V, colors = sparse_svdU1(
+                    M, cut + window, row_colors, col_colors, maxiter=maxiter
+                )
+            else:
+                U, s, V, colors = sparse_svdU1(
+                    M, cut, row_colors, col_colors, maxiter=maxiter
+                )
+
+    if cut is not None:
+        if keep_multiplets:
+            cut += (s[cut:] < degen_tol * s[cut - 1 : -1]).nonzero()[0][0]
+        cut = min(cut, (s > s[0] * zeros_tol).nonzero()[0][-1] + 1)
+    else:
+        cut = (s > s[0] * zeros_tol).nonzero()[0][-1] + 1
+
+    # truncate once only with respect to keep_multiplets and zeros_tol
+    U = U[:, :cut]
+    s = s[:cut]
+    V = V[:cut]
+    colors = colors[:cut]
+    return U, s, V, colors
+
+
+def sparse_svd(
+    A, k=6, ncv=None, tol=0, v0=None, maxiter=None, return_singular_vectors=True
+):
+    # use custom svds adapted from scipy to remove small value cutoff
+    # remove some other unused features: impose which='LM' and solver='arpack'
+    # always sort values by decreasing order
+    # compute either no singular vectors or both U and V
+    # ref: https://github.com/scipy/scipy/pull/11829
 
     A = np.asarray(A)  # do not consider LinearOperator or sparse matrix
     n, m = A.shape
@@ -54,56 +157,9 @@ def svds(A, k=6, ncv=None, tol=0, v0=None, maxiter=None, return_singular_vectors
     return u, s, vh
 
 
-def svd_truncate(M, chi, keep_multiplets=False, window=10, cuttol=1e-6, maxiter=1000):
-    """
-    Compute a given number of singular values and singular vectors.
-
-    Parameters
-    ----------
-    M : (m,n) ndarray
-      Matrix to decompose.
-    chi : integer
-      Number of singular vectors to compute. Effective cut depends on keep_multiplets
-      (see notes)
-    keep_multiplets : bool
-      If true, compute more than chi values and cut between two different multiplets
-    window : integer
-      If keep_multiplets is True, compute chi+window vectors and cut between chi and
-      chi + window
-    cuttol : float
-      Tolerance to consider two consecutive values as degenerate.
-    maxiter : integer
-      Maximal number of iterations. Finite by default allows clean crash instead of
-      running forever.
-
-    Returns
-    -------
-    U :   U : (m,cut) ndarray
-      Left singular vectors.
-    s : (cut,) ndarray
-      Singular values.
-    V : (cut,n) right singular vectors
-
-    Notes:
-    ------
-    cut is fixed as chi if keep_multiplets is False, else as the smallest value in
-    [chi, chi + window[ such that s[cut+1] < cuttol*s[cut]
-    """
-    if keep_multiplets:
-        U, s, V = svds(M, k=chi + window, maxiter=maxiter)
-        cut = chi + (s[chi:] < cuttol * s[chi - 1 : -1]).nonzero()[0][0]
-    else:
-        U, s, V = svds(M, k=chi, maxiter=maxiter)
-        cut = chi
-
-    cut = min(cut, (s > 0).nonzero()[0][-1] + 1)  # remove exact zeros
-    U, s, V = U[:, :cut], s[:cut], V[:cut]
-    return U, s, V
-
-
-def svdU1_truncate(
+def sparse_svdU1(
     M,
-    chi,
+    cut,
     row_colors=default_color,
     col_colors=default_color,
     keep_multiplets=False,
@@ -118,7 +174,7 @@ def svdU1_truncate(
     ----------
     M : (m,n) ndarray
       Matrix to decompose.
-    chi : integer
+    cut : integer
       Number of singular vectors to compute. Effective cut depends on keep_multiplets
     (see notes)
     row_colors : (m,) integer ndarray
@@ -126,10 +182,10 @@ def svdU1_truncate(
     col_colors : (n,) integer ndarray
       U(1) quantum numbers of the columns.
     keep_multiplets : bool
-      If true, compute more than chi values and cut between two different multiplets.
+      If true, compute more than cut values and cut between two different multiplets.
     window : integer
-      If keep_multiplets is True, compute chi+window vectors and cut between chi and
-      chi + window
+      If keep_multiplets is True, compute cut+window vectors and cut between cut and
+      cut + window
     cuttol : float
       Tolerance to consider two consecutive values as degenerate.
     maxiter : integer
@@ -148,20 +204,16 @@ def svdU1_truncate(
 
     Notes:
     ------
-    cut is fixed as chi if keep_multiplets is False, else as the smallest value in
-    [chi, chi + window[ such that s[cut+1] < cuttol*s[cut].
+    cut is fixed as cut if keep_multiplets is False, else as the smallest value in
+    [cut, cut + window[ such that s[cut+1] < cuttol*s[cut].
     It is assumed that degenerate values belong to separate U(1) sectors. This is True
     for SU(2) symmetry, NOT for SU(N>2).
     """
-    # revert to svd_truncate if no color is given
-    if (
-        row_colors is None
-        or not row_colors.size
-        or col_colors is None
-        or not col_colors.size
-    ):
-        U, s, V = svd_truncate(M, chi, keep_multiplets, window, cuttol, maxiter)
-        return U, s, V, default_color
+
+    if row_colors.shape != (M.shape[0],):
+        raise ValueError("row_colors has to be (M.shape[0])")
+    if col_colors.shape != (M.shape[1],):
+        raise ValueError("col_colors has to be (M.shape[1])")
 
     row_sort = row_colors.argsort()
     sorted_row_colors = row_colors[row_sort]
@@ -180,16 +232,16 @@ def svdU1_truncate(
         M.shape[1],
     ]
 
-    # we need to compute chi singular values in every sector to deal with the worst
-    # case: every chi largest values in the same sector.
-    # A fully memory efficient code would only store 2*chi vectors. Here we select the
-    # chi largest values selection once all vector are computed, so we need to store
-    # sum( min(chi, sector_size) for each sector) different vectors.
+    # we need to compute cut singular values in every sector to deal with the worst
+    # case: every cut largest values in the same sector.
+    # A fully memory efficient code would only store 2*cut vectors. Here we select the
+    # cut largest values selection once all vector are computed, so we need to store
+    # sum( min(cut, sector_size) for each sector) different vectors.
     # Dealing with different block numbers in row_inds and col_inds here is cumbersome,
-    # so we consider the sub-optimal min(chi, sector_rows_number) while columns number
+    # so we consider the sub-optimal min(cut, sector_rows_number) while columns number
     # may be smaller. In CTMRG projector construction, row and column colors are the
     # same anyway.
-    max_k = np.minimum(chi, row_inds[1:] - row_inds[:-1]).sum()
+    max_k = np.minimum(cut, row_inds[1:] - row_inds[:-1]).sum()
     U = np.zeros((M.shape[0], max_k))
     S = np.empty(max_k)
     V = np.zeros((max_k, M.shape[1]))
@@ -202,12 +254,12 @@ def svdU1_truncate(
             ir = row_sort[row_inds[br] : row_inds[br + 1]]
             ic = col_sort[col_inds[bc] : col_inds[bc + 1]]
             m = np.ascontiguousarray(M[ir[:, None], ic])
-            if min(m.shape) < 3 * chi:  # use exact svd for small blocks
+            if min(m.shape) < 3 * cut:  # use exact svd for small blocks
                 u, s, v = lg.svd(m, full_matrices=False)
             else:
-                u, s, v = svds(m, k=chi, maxiter=maxiter)
+                u, s, v = sparse_svd(m, k=cut, maxiter=maxiter)
 
-            d = min(chi, s.shape[0])  # may be smaller than chi
+            d = min(cut, s.shape[0])  # may be smaller than cut
             U[ir, k : k + d] = u[:, :d]
             S[k : k + d] = s[:d]
             V[k : k + d, ic] = v[:d]
@@ -220,16 +272,9 @@ def svdU1_truncate(
         else:
             bc += 1
 
-    S = S[:k]  # k <= max_k
-    s_sort = S.argsort()[::-1]
+    s_sort = S[:k].argsort()[::-1]  # k <= max_k
     S = S[s_sort]
-
-    # expect multiplets to lie in separate color blocks (true for SU(2) > U(1))
-    if keep_multiplets:
-        cut = chi + (S[chi:] < cuttol * S[chi - 1 : -1]).nonzero()[0][0]
-    else:
-        cut = chi
-
-    cut = min(cut, (S > 0).nonzero()[0][-1] + 1)  # remove exact zeros
-    U, S, V, colors = U[:, s_sort[:cut]], S[:cut], V[s_sort[:cut]], colors[s_sort[:cut]]
+    U = U[:, s_sort]
+    V = V[s_sort]
+    colors = colors[s_sort]
     return U, S, V, colors

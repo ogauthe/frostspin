@@ -175,7 +175,7 @@ def tensordotU1(a, b, ax_a, ax_b, colors_a=None, colors_b=None, check=False):
 
 
 @jit(nopython=True)
-def svdU1(M, row_colors=default_color, col_colors=default_color, check=False):
+def svdU1(M, row_colors, col_colors, check=False):
     """
     Singular value decomposition for a U(1) symmetric matrix M. Revert to standard svd
     if colors are not provided.
