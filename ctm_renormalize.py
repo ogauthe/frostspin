@@ -1,13 +1,54 @@
 import numpy as np
 from toolsU1 import default_color
-from svd_tools import svd_truncate
+from svd_tools import svd_truncate, sparse_svd
 
 
-def construct_projectors(R, Rt, chi, color=default_color):
+def construct_projectors(R, Rt, chi, color0=default_color):
     # row and column colors are the same since contraction can be done on the
     # 2 other legs of R and Rt
-    U, s, V, col = svd_truncate(R @ Rt, chi, color, color)
-    s12 = 1 / np.sqrt(s)  # s contains no 0
+
+    if not color0.size:  # no symmetry: bruteforce
+        U, S, V, colors = svd_truncate(R @ Rt, chi)
+
+    # R @ Rt is only computed for SVD, then block-decomposed. Better computing blocks
+    # only. Bonus: row_col = col_col, simpler algo.
+    else:
+        n = R.shape[0]  # M.shape = (n,n)
+        colors_sort = color0.argsort()
+        sorted_colors = color0[colors_sort]
+        block_inds = np.array(
+            [0, *((sorted_colors[:-1] != sorted_colors[1:]).nonzero()[0] + 1), n]
+        )
+        k = 0
+        max_k = np.minimum(chi, block_inds[1:] - block_inds[:-1]).sum()
+        U = np.zeros((n, max_k))
+        S = np.empty(max_k)
+        V = np.zeros((max_k, n))
+        colors = np.empty(max_k, dtype=np.int8)
+        for i, j in zip(block_inds, block_inds[1:]):
+            indices = colors_sort[i:j]
+            m = R[indices] @ Rt[:, indices]
+
+            if min(m.shape) < 3 * chi:  # use exact svd for small blocks
+                u, s, v = np.linalg.svd(m, full_matrices=False)
+            else:
+                u, s, v = sparse_svd(m, k=chi, maxiter=1000)
+
+            d = min(chi, s.size)  # may be smaller than chi
+            U[indices, k : k + d] = u[:, :d]
+            S[k : k + d] = s[:d]
+            V[k : k + d, indices] = v[:d]
+            colors[k : k + d] = sorted_colors[i]
+            k += d
+        s_sort = S.argsort()[::-1]  # k = max_k
+        S = S[s_sort]
+        cut = min(chi, (S > 0).nonzero()[0][-1] + 1)
+        U = U[:, s_sort[:cut]]
+        S = S[:cut]
+        V = V[s_sort[:cut]]
+        colors = colors[s_sort[:cut]]
+
+    s12 = 1 / np.sqrt(S)  # S contains no 0
     # convention: projectors have shape (last_chi*D**2,chi)
     # since values of last_chi and D are not known (nor used) here
     #  00'      1
@@ -17,7 +58,7 @@ def construct_projectors(R, Rt, chi, color=default_color):
     #  1        00'
     Pt = Rt @ V.conj().T * s12
     P = R.T @ U.conj() * s12
-    return P, Pt, col
+    return P, Pt, colors
 
 
 ###############################################################################
