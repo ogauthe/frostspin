@@ -219,11 +219,13 @@ def sparse_svdU1(
     sorted_row_colors = row_colors[row_sort]
     col_sort = col_colors.argsort()
     sorted_col_colors = col_colors[col_sort]
-    row_inds = [
-        0,
-        *((sorted_row_colors[:-1] != sorted_row_colors[1:]).nonzero()[0] + 1),
-        M.shape[0],
-    ]
+    row_inds = np.array(
+        [
+            0,
+            *((sorted_row_colors[:-1] != sorted_row_colors[1:]).nonzero()[0] + 1),
+            M.shape[0],
+        ]
+    )
     col_inds = [
         0,
         *((sorted_col_colors[:-1] != sorted_col_colors[1:]).nonzero()[0] + 1),
@@ -246,7 +248,7 @@ def sparse_svdU1(
     colors = np.empty(max_k, dtype=np.int8)
 
     # match blocks with same color and compute SVD inside those blocks only
-    k, br, bc, brmax, bcmax = 0, 0, 0, len(row_inds) - 1, len(col_inds) - 1
+    k, br, bc, brmax, bcmax = 0, 0, 0, row_inds.size - 1, len(col_inds) - 1
     while br < brmax and bc < bcmax:
         if sorted_row_colors[row_inds[br]] == sorted_col_colors[col_inds[bc]]:
             ir = row_sort[row_inds[br] : row_inds[br + 1]]
