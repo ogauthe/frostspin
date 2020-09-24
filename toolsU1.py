@@ -1,5 +1,4 @@
 import numpy as np
-import scipy.linalg as lg
 from numba import jit
 
 # cannot use None as default color since -default_color or default_color[:l]
@@ -19,9 +18,7 @@ def checkU1(T, colorsT, tol=1e-14):
     return None, 0
 
 
-def dotU1(
-    a, b, rc_a=default_color, cc_a=default_color, cc_b=default_color, check=False
-):
+def dotU1(a, b, rc_a=default_color, cc_a=default_color, cc_b=default_color):
     """
     Optimized matrix product for U(1) symmetric matrices. If colors are not provided,
     revert to standard matmul.
@@ -38,8 +35,6 @@ def dotU1(
       U(1) quantum numbers of a columns. Must be the opposite of b row colors.
     cc_b : (n,) integer ndarray
       U(1) quantum numbers of b columns.
-    check : bool (debug only)
-      Wether to check results by displaying norm(dotU1-np.dot)/norm(dot).
 
     Returns
     -------
@@ -49,8 +44,7 @@ def dotU1(
     return np.dot(a, b)
     # revert to standard matmul if colors are missing
     if not rc_a.size or not cc_a.size or not cc_b.size:
-        if check:
-            print("dotU1 revert to np.__matmul__")
+        # print("dotU1 reverted to np.__matmul__")
         return a @ b
 
     if a.ndim == b.ndim != 2:
@@ -70,9 +64,10 @@ def dotU1(
         mid = (cc_a == c).nonzero()[0]
         ci = cc_b == c
         res[ri, ci] = a[ri, mid] @ b[mid[:, None], ci]
-    if check:
-        ex = a @ b
-        print(f"dotU1: \033[33m{lg.norm(res-ex)/lg.norm(ex):.1e}\033[0m")
+
+    # ex = a @ b
+    # r = np.linalg.norm(ex - res) / np.linalg.norm(ex)
+    # print("dotU1:\033[33m", r, "\033[0m")
     return res
 
 
@@ -89,7 +84,7 @@ def combine_colors(*colors):
     return combined
 
 
-def tensordotU1(a, b, ax_a, ax_b, colors_a=None, colors_b=None, check=False):
+def tensordotU1(a, b, ax_a, ax_b, colors_a=None, colors_b=None):
     """
     Optimized tensor dot product along specified axes for U(1) symmetric tensors.
     If colors are not provided, revert to numpy tensordot.
@@ -102,8 +97,6 @@ def tensordotU1(a, b, ax_a, ax_b, colors_a=None, colors_b=None, check=False):
       Axes to contract for tensors a and b.
     colors_a, colors_b : list of a.ndim and b.ndim integer arrays.
       U(1) quantum numbers of a and b axes.
-    check : bool (debug only)
-      Wether to check results by displaying norm(tensordotU1-np.tensordot)
 
     Returns
     -------
@@ -118,8 +111,7 @@ def tensordotU1(a, b, ax_a, ax_b, colors_a=None, colors_b=None, check=False):
         or not colors_a[0].size
         or not colors_b[0].size
     ):
-        if check:
-            print("tensordotU1 reverted to np.tensordot")
+        # print("tensordotU1 reverted to np.tensordot")
         return np.tensordot(a, b, (ax_a, ax_b))
 
     if len(ax_a) != len(ax_b):
@@ -169,14 +161,15 @@ def tensordotU1(a, b, ax_a, ax_b, colors_a=None, colors_b=None, check=False):
         ind_a = ((ri * prod_a + mid)[:, :, None] // div_a % sh_at) @ cp_a
         ind_b = ((mid[:, None] * prod_b + ci)[:, :, None] // div_b % sh_bt) @ cp_b
         res.flat[ri * prod_b + ci] = a.flat[ind_a] @ b.flat[ind_b]
-    if check:
-        ex = np.tensordot(a, b, (ax_a, ax_b))
-        print(f"tensordotU1: \033[33m{lg.norm(res-ex)/lg.norm(ex):.1e}\033[0m")
+
+    # ex = np.tensordot(a, b, (ax_a, ax_b))
+    # r = np.linalg.norm(ex - res) / np.linalg.norm(ex)
+    # print("tensordotU1:\033[33m", r, "\033[0m")
     return res
 
 
 @jit(nopython=True)
-def svdU1(M, row_colors, col_colors, check=False):
+def svdU1(M, row_colors, col_colors):
     """
     Singular value decomposition for a U(1) symmetric matrix M. Revert to standard svd
     if colors are not provided.
@@ -189,8 +182,6 @@ def svdU1(M, row_colors, col_colors, check=False):
       U(1) quantum numbers of the rows.
     col_colors : (n,) integer ndarray
       U(1) quantum numbers of the columns.
-    check : bool (debug only)
-      Wether to check results by display norm(U@s@V-M)/norm(M)
 
     Returns
     -------
@@ -208,8 +199,7 @@ def svdU1(M, row_colors, col_colors, check=False):
     """
     # revert to standard svd if colors are not provided
     if not row_colors.size or not col_colors.size:
-        if check:
-            print("no color provided, svdU1 reverted to np.linalg.svd")
+        # print("no color provided, svdU1 reverted to np.linalg.svd")
         U, s, V = np.linalg.svd(M, full_matrices=False)
         return U, s, V, default_color.copy()  # needed for numba
 
@@ -269,7 +259,9 @@ def svdU1(M, row_colors, col_colors, check=False):
     s = s[s_sort]
     V = V[s_sort]
     colors = colors[s_sort]
-    if check:
-        r = np.linalg.norm(U * s @ V - M) / np.linalg.norm(M)
-        print("svdU1:\033[33m", r, "\033[0m")
+
+    # r = np.linalg.norm(U * s @ V - M) / np.linalg.norm(M)
+    # print("svdU1:\033[33m", r, "\033[0m")
+    # if r > 2.0e-14:
+    #     raise ValueError("svdU1 failed")
     return U, s, V, colors
