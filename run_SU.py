@@ -110,7 +110,7 @@ colors = [pcol, -pcol, vcol, vcol, vcol, vcol, vcol, vcol, vcol, vcol]
 print("\n" + "#" * 79)
 print(f"Start simple update with tau = {tau} up to beta = {beta}")
 su = SimpleUpdate2x2(
-    d, a, Dmax, h1, h2, tau, tensors=(A, B, C, D), colors=colors, verbosity=10
+    d, a, Dmax, h1, h2, tau, tensors=(A, B, C, D), colors=colors, verbosity=0
 )
 
 t = time()
@@ -154,7 +154,7 @@ ctm = CTMRG(
 )
 
 print(f"energy before iteration = {compute_energy(ctm, h1, h2)}")
-print(f"Converge CTMRG with chi = {chi} and niter = {ctm_iter}")
+print(f"Converge CTMRG for {ctm_iter} iterations with D = {Dmax} and chi = {chi}")
 t = time()
 for i in range(ctm_iter):
     ctm.iterate()
