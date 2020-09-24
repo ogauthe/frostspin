@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.linalg as lg
 from toolsU1 import default_color, dotU1, combine_colors, svdU1, tensordotU1
+from svd_tools import svd_truncate
 
 # more convenient than [:,None,None,None,None,None] everywhere?
 _sh = (-1, 1, 1, 1, 1, 1)
@@ -73,27 +74,30 @@ def update_first_neighbor(
         .swapaxes(1, 2)
         .reshape(D_effL * d, D_effR * d)
     )
-    M_L, new_lambda, M_R, new_col_lambda = svdU1(
-        theta, row_col, -combine_colors(-col_sR, -col_d)
+    M_L, new_lambda, M_R, new_col_lambda = svd_truncate(
+        theta,
+        Dmax,
+        row_colors=row_col,
+        col_colors=-combine_colors(-col_sR, -col_d),
+        full=True,
+        zeros_tol=1e-14,
     )
 
     # 4) renormalize link dimension
-    new_lambda = new_lambda[:Dmax]
-    D = new_lambda.size  # D < cut at the begining
+    D = new_lambda.size  # D < Dmax at the begining
     new_lambda /= new_lambda.sum()  # singular values are positive
-    new_col_lambda = -new_col_lambda[:D]
 
     # 5) start reconstruction of new gammaX and gammaY by unifying cst and eff parts
-    M_L = (M_L[:, :D] * new_lambda).reshape(D_effL, d * D)
-    M_L = dotU1(W_L, M_L, col_L, -col_sL, combine_colors(col_d, new_col_lambda))
+    M_L = (M_L * new_lambda).reshape(D_effL, d * D)
+    M_L = dotU1(W_L, M_L, col_L, -col_sL, combine_colors(col_d, -new_col_lambda))
     M_R = (
-        (M_R[:D] * new_lambda[:, None])
+        (M_R * new_lambda[:, None])
         .reshape(D, D_effR, d)
         .swapaxes(1, 2)
         .reshape(D * d, D_effR)
     )
-    M_R = dotU1(M_R, W_R, combine_colors(-new_col_lambda, -col_d), -col_sR, -col_R)
-    return M_L, new_lambda, M_R, new_col_lambda
+    M_R = dotU1(M_R, W_R, combine_colors(new_col_lambda, -col_d), -col_sR, -col_R)
+    return M_L, new_lambda, M_R, -new_col_lambda
 
 
 def update_second_neighbor(
@@ -173,27 +177,32 @@ def update_second_neighbor(
     theta = theta.transpose(0, 3, 1, 2, 4).reshape(D_effL * d, D_effm * D_effR * d)
 
     # first SVD: cut left part
-    new_L, new_lambda_L, theta, col_nbL = svdU1(
-        theta, combine_colors(col_sL, col_d), -combine_colors(-col_sm, col_sR, col_d)
+    new_L, new_lambda_L, theta, col_nbL = svd_truncate(
+        theta,
+        Dmax,
+        row_colors=combine_colors(col_sL, col_d),
+        col_colors=-combine_colors(-col_sm, col_sR, col_d),
+        full=True,
+        zeros_tol=1e-14,
     )
-    new_lambda_L = new_lambda_L[:Dmax]
-    new_lambda_L /= new_lambda_L.sum()
     D_L = new_lambda_L.size
-    col_nbL = col_nbL[:D_L]
-    new_L = (new_L[:, :D_L] * new_lambda_L).reshape(D_effL, d * D_L)
+    new_lambda_L /= new_lambda_L.sum()
+    new_L = (new_L * new_lambda_L).reshape(D_effL, d * D_L)
 
     # second SVD: split middle and right parts
-    theta = (new_lambda_L[:, None] * theta[:D_L]).reshape(D_L * D_effm, D_effR * d)
-    col_th = combine_colors(col_nbL, -col_sm)
-    new_mid, new_lambda_R, new_R, col_nbR = svdU1(
-        theta, col_th, -combine_colors(col_sR, col_d)
+    theta = (new_lambda_L[:, None] * theta).reshape(D_L * D_effm, D_effR * d)
+    new_mid, new_lambda_R, new_R, col_nbR = svd_truncate(
+        theta,
+        Dmax,
+        row_colors=combine_colors(col_nbL, -col_sm),
+        col_colors=-combine_colors(col_sR, col_d),
+        full=True,
+        zeros_tol=1e-14,
     )
-    new_lambda_R = new_lambda_R[:Dmax]
     D_R = new_lambda_R.size
     new_lambda_R /= new_lambda_R.sum()
-    col_nbR = col_nbR[:D_R]
-    new_mid = new_mid[:, :D_R].reshape(D_L, D_effm, D_R) * new_lambda_R
-    new_R = new_R[:D_R].reshape(D_R, D_effR, d) * new_lambda_R[:, None, None]
+    new_mid = new_mid.reshape(D_L, D_effm, D_R) * new_lambda_R
+    new_R = new_R.reshape(D_R, D_effR, d) * new_lambda_R[:, None, None]
 
     # bring back constant parts
     new_L = dotU1(cst_L, new_L, col_L, -col_sL, combine_colors(col_d, -col_nbL))
