@@ -76,6 +76,7 @@ def dotU1(
     return res
 
 
+@jit(nopython=True)
 def combine_colors(*colors):
     """
     Construct colors of merged tensor legs from every leg colors.
@@ -84,7 +85,7 @@ def combine_colors(*colors):
         return default_color
     combined = colors[0]
     for c in colors[1:]:
-        combined = (combined[:, None] + c).ravel()
+        combined = (combined.reshape(-1, 1) + c).ravel()
     return combined
 
 
