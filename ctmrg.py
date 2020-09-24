@@ -205,7 +205,7 @@ class CTMRG(object):
         if self.verbosity > 0:
             print("\nstart up move")
         # 1) compute isometries for every non-equivalent sites
-        # convention : for every move, leg 0 of R and Rt are to be contracted
+        # convention : get projectors from svd(R @ Rt)
         for x, y in self._neq_coords:
             R = contract_r_half(
                 self._env.get_T1(x + 2, y),
@@ -229,13 +229,13 @@ class CTMRG(object):
             )
             #        L-0  == 1-R
             #        L         R
-            #        L         R  => transpose R
+            #        L         R
             #        L-1     0-R
             col_A_l = self._env.get_colors_A(x + 2, y + 2)[5]
             color = combine_colors(
                 self._env.get_color_T3_l(x + 2, y + 3), col_A_l, -col_A_l
             )
-            P, Pt, color = construct_projectors(R.T, Rt, self.chi, color)
+            P, Pt, color = construct_projectors(R, Rt, self.chi, color)
             self._env.store_projectors(
                 x + 2, y, P, Pt, color
             )  # indices: Pt <=> renormalized T in R
@@ -307,7 +307,7 @@ class CTMRG(object):
             color = combine_colors(
                 self._env.get_color_T4_u(x, y + 2), col_A_u, -col_A_u
             )
-            P, Pt, color = construct_projectors(R.T, Rt, self.chi, color)
+            P, Pt, color = construct_projectors(R, Rt, self.chi, color)
             self._env.store_projectors(x + 3, y + 2, P, Pt, color)
             del R, Rt
 
@@ -377,7 +377,7 @@ class CTMRG(object):
             color = combine_colors(
                 self._env.get_color_T1_r(x + 1, y), col_A_r, -col_A_r
             )
-            P, Pt, color = construct_projectors(R.T, Rt, self.chi, color)
+            P, Pt, color = construct_projectors(R, Rt, self.chi, color)
             self._env.store_projectors(x + 3, y + 3, P, Pt, color)
             del R, Rt
 
@@ -444,7 +444,7 @@ class CTMRG(object):
             color = combine_colors(
                 self._env.get_color_T2_d(x + 3, y + 1), col_A_d, -col_A_d
             )
-            P, Pt, color = construct_projectors(R.T, Rt, self.chi, color)
+            P, Pt, color = construct_projectors(R, Rt, self.chi, color)
             self._env.store_projectors(x, y + 1, P, Pt, color)
             del R, Rt
 
