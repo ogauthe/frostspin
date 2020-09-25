@@ -71,14 +71,13 @@ def construct_projectors(
         else:
             ib += 1
 
-    s_sort = S.argsort()[::-1]  # k = max_k
+    s_sort = S[:k].argsort()[::-1]  # if some interior color does not exit, k<max_k
     S = S[s_sort]
     cut = min(chi, (S > 0).nonzero()[0][-1] + 1)
     s12 = np.sqrt(S[:cut])
     colors = colors[s_sort[:cut]]
     P = P[:, s_sort[:cut]] / s12
     Pt = Pt[:, s_sort[:cut]] / s12
-
     return P, Pt, colors
 
 
