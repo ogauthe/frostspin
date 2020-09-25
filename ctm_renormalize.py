@@ -25,23 +25,26 @@ def construct_projectors(
     # full matrix product. Projectors can also be computed blockwise in same loop.
     # Since contraction can be done on the both sides of R and Rt, there are only 2 sets
     # of colors: inner (along contraction) and extern, simpler algo
-    n, m = R.shape  # M.shape = (n,n)
     ext_sort = ext_colors.argsort()
     sorted_ext_colors = ext_colors[ext_sort]
     ext_blocks = np.array(
-        [0, *((sorted_ext_colors[:-1] != sorted_ext_colors[1:]).nonzero()[0] + 1), n]
+        [
+            0,
+            *((sorted_ext_colors[:-1] != sorted_ext_colors[1:]).nonzero()[0] + 1),
+            R.shape[0],
+        ]
     )
     int_sort = int_colors.argsort()
     sorted_int_colors = int_colors[int_sort]
     int_blocks = [
         0,
         *((sorted_int_colors[:-1] != sorted_int_colors[1:]).nonzero()[0] + 1),
-        n,
+        R.shape[0],
     ]
     k = 0
     max_k = np.minimum(chi, ext_blocks[1:] - ext_blocks[:-1]).sum()
-    P = np.zeros((m, max_k))
-    Pt = np.zeros((m, max_k))
+    P = np.zeros((R.shape[1], max_k))
+    Pt = np.zeros((R.shape[1], max_k))
     S = np.empty(max_k)
     colors = np.empty(max_k, dtype=np.int8)
     k, eb, ib, ebmax, ibmax = 0, 0, 0, ext_blocks.size - 1, len(int_blocks) - 1
