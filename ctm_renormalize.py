@@ -3,61 +3,82 @@ from toolsU1 import default_color
 from svd_tools import svd_truncate, sparse_svd
 
 
-def construct_projectors(R, Rt, chi, color0=default_color):
-    # row and column colors are the same since contraction can be done on the
-    # 2 other legs of R and Rt
-
-    if not color0.size:  # no symmetry: bruteforce
+def construct_projectors(
+    R, Rt, chi, ext_colors=default_color, int_colors=default_color
+):
+    if not ext_colors.size or not int_colors.size:  # no symmetry: bruteforce
         U, S, V, colors = svd_truncate(R @ Rt, chi)
+        s12 = 1 / np.sqrt(S)  # S contains no 0
+        # convention: projectors have shape (last_chi*D**2,chi)
+        # since values of last_chi and D are not known (nor used) here
+        #  00'      1
+        #  ||       |
+        #  Pt       P
+        #  |        ||
+        #  1        00'
+        Pt = Rt @ V.conj().T * s12
+        P = R.T @ U.conj() * s12
+        return P, Pt, colors
 
-    # R @ Rt is only computed for SVD, then block-decomposed. Better computing blocks
-    # only. Bonus: row_col = col_col, simpler algo.
-    else:
-        n = R.shape[0]  # M.shape = (n,n)
-        colors_sort = color0.argsort()
-        sorted_colors = color0[colors_sort]
-        block_inds = np.array(
-            [0, *((sorted_colors[:-1] != sorted_colors[1:]).nonzero()[0] + 1), n]
-        )
-        k = 0
-        max_k = np.minimum(chi, block_inds[1:] - block_inds[:-1]).sum()
-        U = np.zeros((n, max_k))
-        S = np.empty(max_k)
-        V = np.zeros((max_k, n))
-        colors = np.empty(max_k, dtype=np.int8)
-        for i, j in zip(block_inds, block_inds[1:]):
-            indices = colors_sort[i:j]
-            m = R[indices] @ Rt[:, indices]
+    # R @ Rt is only used for its SVD, which is done in U(1) blocks. Since python loop
+    # over U(1) sectors is always done, better computing those blocks only instead of
+    # full matrix product. Projectors can also be computed blockwise in same loop.
+    # Since contraction can be done on the both sides of R and Rt, there are only 2 sets
+    # of colors: inner (along contraction) and extern, simpler algo
+    n, m = R.shape  # M.shape = (n,n)
+    ext_sort = ext_colors.argsort()
+    sorted_ext_colors = ext_colors[ext_sort]
+    ext_blocks = np.array(
+        [0, *((sorted_ext_colors[:-1] != sorted_ext_colors[1:]).nonzero()[0] + 1), n]
+    )
+    int_sort = int_colors.argsort()
+    sorted_int_colors = int_colors[int_sort]
+    int_blocks = [
+        0,
+        *((sorted_int_colors[:-1] != sorted_int_colors[1:]).nonzero()[0] + 1),
+        n,
+    ]
+    k = 0
+    max_k = np.minimum(chi, ext_blocks[1:] - ext_blocks[:-1]).sum()
+    P = np.zeros((m, max_k))
+    Pt = np.zeros((m, max_k))
+    S = np.empty(max_k)
+    colors = np.empty(max_k, dtype=np.int8)
+    k, eb, ib, ebmax, ibmax = 0, 0, 0, ext_blocks.size - 1, len(int_blocks) - 1
+    while eb < ebmax and ib < ibmax:
+        if sorted_ext_colors[ext_blocks[eb]] == sorted_int_colors[int_blocks[ib]]:
+            ext_indices = ext_sort[ext_blocks[eb] : ext_blocks[eb + 1]]
+            int_indices = int_sort[int_blocks[ib] : int_blocks[ib + 1]]
 
-            if min(m.shape) < 3 * chi:  # use exact svd for small blocks
+            r = np.ascontiguousarray(R[ext_indices[:, None], int_indices])
+            rt = np.ascontiguousarray(Rt[int_indices[:, None], ext_indices])
+            m = r @ rt
+            if min(m.shape) < 3 * chi:  # use full svd for small blocks
                 u, s, v = np.linalg.svd(m, full_matrices=False)
             else:
                 u, s, v = sparse_svd(m, k=chi, maxiter=1000)
 
             d = min(chi, s.size)  # may be smaller than chi
-            U[indices, k : k + d] = u[:, :d]
             S[k : k + d] = s[:d]
-            V[k : k + d, indices] = v[:d]
-            colors[k : k + d] = sorted_colors[i]
+            colors[k : k + d] = sorted_ext_colors[ext_blocks[eb]]
+            P[int_indices, k : k + d] = r.T @ u[:, :d].conj()
+            Pt[int_indices, k : k + d] = rt @ v[:d].T.conj()
             k += d
-        s_sort = S.argsort()[::-1]  # k = max_k
-        S = S[s_sort]
-        cut = min(chi, (S > 0).nonzero()[0][-1] + 1)
-        U = U[:, s_sort[:cut]]
-        S = S[:cut]
-        V = V[s_sort[:cut]]
-        colors = colors[s_sort[:cut]]
+            eb += 1
+            ib += 1
+        elif sorted_ext_colors[ext_blocks[eb]] < sorted_int_colors[int_blocks[ib]]:
+            eb += 1
+        else:
+            ib += 1
 
-    s12 = 1 / np.sqrt(S)  # S contains no 0
-    # convention: projectors have shape (last_chi*D**2,chi)
-    # since values of last_chi and D are not known (nor used) here
-    #  00'      1
-    #  ||       |
-    #  Pt       P
-    #  |        ||
-    #  1        00'
-    Pt = Rt @ V.conj().T * s12
-    P = R.T @ U.conj() * s12
+    s_sort = S.argsort()[::-1]  # k = max_k
+    S = S[s_sort]
+    cut = min(chi, (S > 0).nonzero()[0][-1] + 1)
+    s12 = np.sqrt(S[:cut])
+    colors = colors[s_sort[:cut]]
+    P = P[:, s_sort[:cut]] / s12
+    Pt = Pt[:, s_sort[:cut]] / s12
+
     return P, Pt, colors
 
 
