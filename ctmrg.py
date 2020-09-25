@@ -232,16 +232,14 @@ class CTMRG(object):
             #        L         R
             #        L-1     0-R
             col_Adr_l = self._env.get_colors_A(x + 2, y + 2)[5]
-            colors_ext = combine_colors(
+            ext_colors = combine_colors(
                 self._env.get_color_T3_l(x + 2, y + 3), col_Adr_l, -col_Adr_l
             )
-            col_Aur_l = self._env.get_colors_A(x + 2, y + 1)[5]
-            colors_int = combine_colors(
-                self._env.get_color_T1_l(x + 2, y), col_Aur_l, -col_Aur_l
+            col_Aul_r = self._env.get_colors_A(x + 1, y + 1)[3]
+            int_colors = combine_colors(
+                self._env.get_color_T1_r(x + 1, y), col_Aul_r, -col_Aul_r
             )
-            P, Pt, color = construct_projectors(
-                R, Rt, self.chi, colors_ext, -colors_int
-            )
+            P, Pt, color = construct_projectors(R, Rt, self.chi, ext_colors, int_colors)
             self._env.store_projectors(
                 x + 2, y, P, Pt, color
             )  # indices: Pt <=> renormalized T in R
@@ -310,16 +308,14 @@ class CTMRG(object):
                 self._env.get_T2(x + 3, y + 1),
             )
             col_Adl_u = self._env.get_colors_A(x + 1, y + 2)[2]
-            colors_ext = combine_colors(
+            ext_colors = combine_colors(
                 self._env.get_color_T4_u(x, y + 2), col_Adl_u, -col_Adl_u
             )
-            col_Adr_u = self._env.get_colors_A(x + 2, y + 2)[2]
-            colors_int = combine_colors(
-                self._env.get_color_T2_u(x + 3, y + 2), col_Adr_u, -col_Adr_u
+            col_Aur_d = self._env.get_colors_A(x + 2, y + 1)[4]
+            int_colors = combine_colors(
+                self._env.get_color_T2_d(x + 3, y + 1), col_Aur_d, -col_Aur_d
             )
-            P, Pt, color = construct_projectors(
-                R, Rt, self.chi, colors_ext, -colors_int
-            )
+            P, Pt, color = construct_projectors(R, Rt, self.chi, ext_colors, int_colors)
             self._env.store_projectors(x + 3, y + 2, P, Pt, color)
             del R, Rt
 
@@ -386,16 +382,14 @@ class CTMRG(object):
             )
 
             col_Aul_r = self._env.get_colors_A(x + 1, y + 1)[3]
-            colors_ext = combine_colors(
+            ext_colors = combine_colors(
                 self._env.get_color_T1_r(x + 1, y), col_Aul_r, -col_Aul_r
             )
-            col_Adl_r = self._env.get_colors_A(x + 1, y + 2)[3]
-            colors_int = combine_colors(
-                self._env.get_color_T3_r(x + 1, y + 3), col_Adl_r, -col_Adl_r
+            col_Adr_l = self._env.get_colors_A(x + 2, y + 2)[5]
+            int_colors = combine_colors(
+                self._env.get_color_T3_l(x + 2, y + 3), col_Adr_l, -col_Adr_l
             )
-            P, Pt, color = construct_projectors(
-                R, Rt, self.chi, colors_ext, -colors_int
-            )
+            P, Pt, color = construct_projectors(R, Rt, self.chi, ext_colors, int_colors)
             self._env.store_projectors(x + 3, y + 3, P, Pt, color)
             del R, Rt
 
@@ -459,16 +453,14 @@ class CTMRG(object):
                 self._env.get_C3(x + 3, y + 3),
             )
             col_Aur_d = self._env.get_colors_A(x + 2, y + 1)[4]
-            colors_ext = combine_colors(
+            ext_colors = combine_colors(
                 self._env.get_color_T2_d(x + 3, y + 1), col_Aur_d, -col_Aur_d
             )
-            col_Aul_d = self._env.get_colors_A(x + 1, y + 1)[4]
-            colors_int = combine_colors(
-                self._env.get_color_T4_d(x, y + 1), col_Aul_d, -col_Aul_d
+            col_Adl_u = self._env.get_colors_A(x + 1, y + 2)[2]
+            int_colors = combine_colors(
+                self._env.get_color_T4_u(x, y + 2), col_Adl_u, -col_Adl_u
             )
-            P, Pt, color = construct_projectors(
-                R, Rt, self.chi, colors_ext, -colors_int
-            )
+            P, Pt, color = construct_projectors(R, Rt, self.chi, ext_colors, int_colors)
             self._env.store_projectors(x, y + 1, P, Pt, color)
             del R, Rt
 
