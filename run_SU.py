@@ -118,22 +118,26 @@ su.evolve(beta)
 print(f"\nDone with SU, t = {time()-t:.0f}")
 
 lambdas = su.lambdas
-print("lambdas =")
-print(lambdas[1])
-print(lambdas[2])
-print(lambdas[3])
-print(lambdas[4])
-print(lambdas[5])
-print(lambdas[6])
-print(lambdas[7])
-print(lambdas[8])
+(pcol, acol), col1, col2, col3, col4, col5, col6, col7, col8 = su.colors
+print(
+    "lambdas =",
+    lambdas[1],
+    lambdas[2],
+    lambdas[3],
+    lambdas[4],
+    lambdas[5],
+    lambdas[6],
+    lambdas[7],
+    lambdas[8],
+    sep="\n",
+)
+print("colors =", col1, col2, col3, col4, col5, col6, col7, col8, sep="\n")
 
 data_su = su.save_to_file()
 np.savez_compressed(config["save_data"], **data_su)
 print("Simple update data saved in file", config["save_data"])
 
 A, B, C, D = su.get_ABCD()
-(pcol, acol), col1, col2, col3, col4, col5, col6, col7, col8 = su.colors
 colorsA = [pcol, acol, col1, col2, col3, col4]
 colorsB = [-pcol, -acol, -col5, -col4, -col6, -col2]
 colorsC = [-pcol, -acol, -col3, -col7, -col1, -col8]
