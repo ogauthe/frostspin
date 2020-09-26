@@ -108,13 +108,13 @@ colors = [pcol, -pcol, vcol, vcol, vcol, vcol, vcol, vcol, vcol, vcol]
 # Simple update
 ########################################################################################
 print("\n" + "#" * 79)
-print(f"Start simple update with tau = {tau} up to beta = {beta}")
+print(f"Start simple update with tau = {tau} up to beta/2 = {beta/2}")
 su = SimpleUpdate2x2(
     d, a, Dmax, h1, h2, tau, tensors=(A, B, C, D), colors=colors, verbosity=0
 )
 
 t = time()
-su.evolve(beta)
+su.evolve(beta / 2)  # rho is quadratic in mono-layer tensor
 print(f"\nDone with SU, t = {time()-t:.0f}")
 
 lambdas = su.lambdas
