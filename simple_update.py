@@ -1886,7 +1886,7 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors8,
             col_d=-self._colors_p,
         )
-        self._D4 = self._lambda4.size
+        self._D6 = self._lambda6.size
         self._D8 = self._lambda8.size
         self._colors6 = -mc6
         self._colors8 = -mc8
