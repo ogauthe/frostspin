@@ -647,6 +647,8 @@ class SimpleUpdate2x2(object):
         """
         if self.verbosity > 0:
             print(f"Launch time evolution for time {beta}")
+        if beta < 2 * self._tau:
+            raise ValueError("Cannot evolve for time lesser than 2*tau")
         niter = int(beta / self._tau / 2)  # 2nd order: evolve 2*tau by step
 
         self.update_bond1(self._g1)
