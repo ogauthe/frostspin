@@ -546,6 +546,44 @@ class SimpleUpdate2x2(object):
         D /= lg.norm(D)
         return A, B, C, D
 
+    def get_colors_ABCD(self):
+        """
+        Return colors of optimized tensors A, B, C and D.
+        """
+        colorsA = (
+            self._colors_p,
+            self._colors_a,
+            self._colors1,
+            self._colors2,
+            self._colors3,
+            self._colors4,
+        )
+        colorsB = (
+            -self._colors_p,
+            -self._colors_a,
+            -self._colors5,
+            -self._colors4,
+            -self._colors6,
+            -self._colors2,
+        )
+        colorsC = (
+            -self._colors_p,
+            -self._colors_a,
+            -self._colors3,
+            -self._colors7,
+            -self._colors1,
+            -self._colors8,
+        )
+        colorsD = (
+            self._colors_p,
+            self._colors_a,
+            self._colors6,
+            self._colors8,
+            self._colors5,
+            self._colors7,
+        )
+        return colorsA, colorsB, colorsC, colorsD
+
     def update_first_neighbor(self):
         """
         Update all first neighbor links with first order Trotter-Suzuki

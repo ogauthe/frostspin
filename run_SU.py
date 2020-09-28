@@ -137,24 +137,13 @@ data_su = su.save_to_file()
 np.savez_compressed(config["save_data"], **data_su)
 print("Simple update data saved in file", config["save_data"])
 
-A, B, C, D = su.get_ABCD()
-colorsA = [pcol, acol, col1, col2, col3, col4]
-colorsB = [-pcol, -acol, -col5, -col4, -col6, -col2]
-colorsC = [-pcol, -acol, -col3, -col7, -col1, -col8]
-colorsD = [pcol, acol, col6, col8, col5, col7]
-
-
 ########################################################################################
 # CTMRG
 ########################################################################################
 print("\n" + "#" * 79)
 print("Compute observables using CTMRG")
 ctm = CTMRG(
-    chi,
-    tensors=(A, B, C, D),
-    tiling=tiling,
-    colors=(colorsA, colorsB, colorsC, colorsD),
-    verbosity=0,
+    chi, tensors=su.get_ABCD(), tiling=tiling, colors=su.get_colors_ABCD(), verbosity=0
 )
 
 print(f"energy before iteration = {compute_energy(ctm, h1, h2)}")
