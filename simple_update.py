@@ -263,81 +263,25 @@ class SimpleUpdate2x2(object):
         """
 
         self.verbosity = verbosity
-        if file is not None:
+        if file is not None:  # do not read other input values, restart from file
             self.load_from_file(file)
             return
 
+        if self.verbosity > 0:
+            print(f"construct SimpleUpdate2x2 with d = {d}, a = {a} and Dmax = {Dmax}")
         self._d = d
         self._a = a
         self.Dmax = Dmax
-        if self.verbosity > 0:
-            print(f"construct SimpleUpdataABCD with d = {d}, a = {a} and Dmax = {Dmax}")
 
-        if tensors is not None:
-            A0, B0, C0, D0 = tensors
-            self._D1, self._D2, self._D3, self._D4 = A0.shape[2:]
-            self._D6, self._D8, self._D5, self._D7 = D0.shape[2:]
-            if A0.shape != (d, a, self._D1, self._D2, self._D3, self._D4):
-                raise ValueError("invalid shape for A0")
-            if B0.shape != (d, a, self._D5, self._D4, self._D6, self._D2):
-                raise ValueError("invalid shape for B0")
-            if C0.shape != (d, a, self._D3, self._D7, self._D1, self._D8):
-                raise ValueError("invalid shape for C0")
-            if D0.shape != (d, a, self._D6, self._D8, self._D5, self._D7):
-                raise ValueError("invalid shape for D0")
-        else:
-            self._D1 = Dmax
-            self._D2 = Dmax
-            self._D3 = Dmax
-            self._D4 = Dmax
-            self._D5 = Dmax
-            self._D6 = Dmax
-            self._D7 = Dmax
-            self._D8 = Dmax
-            A0 = np.random.random((d, a, self._D1, self._D2, self._D3, self._D4)) - 0.5
-            B0 = np.random.random((d, a, self._D5, self._D4, self._D6, self._D2)) - 0.5
-            C0 = np.random.random((d, a, self._D3, self._D7, self._D1, self._D8)) - 0.5
-            D0 = np.random.random((d, a, self._D6, self._D8, self._D5, self._D7)) - 0.5
-        self._gammaA = A0 / lg.norm(A0)
-        self._gammaB = B0 / lg.norm(B0)
-        self._gammaC = C0 / lg.norm(C0)
-        self._gammaD = D0 / lg.norm(D0)
+        if h1.shape != (d ** 2, d ** 2):
+            raise ValueError("invalid shape for Hamiltonian h1")
+        if h2.shape != (d ** 2, d ** 2):
+            raise ValueError("invalid shape for Hamiltonian h2")
+        self._h1 = h1
+        self._h2 = h2
+        self.tau = tau
 
-        if colors is not None:
-            if len(colors) != 10:
-                raise ValueError("colors must be [colors_p, colors_a, colors_1...8]")
-            if len(colors[0]) != d:
-                raise ValueError("physical leg colors length is not d")
-            self._colors_p = np.asarray(colors[0], dtype=np.int8)
-            if len(colors[1]) != a:
-                raise ValueError("ancila leg colors length is not a")
-            self._colors_a = np.asarray(colors[1], dtype=np.int8)
-            if len(colors[2]) != self._D1:
-                raise ValueError("virtual leg 1 colors length is not D1")
-            self._colors1 = np.asarray(colors[2], dtype=np.int8)
-            if len(colors[3]) != self._D2:
-                raise ValueError("virtual leg 2 colors length is not D2")
-            self._colors2 = np.asarray(colors[3], dtype=np.int8)
-            if len(colors[4]) != self._D3:
-                raise ValueError("virtual leg 3 colors length is not D3")
-            self._colors3 = np.asarray(colors[4], dtype=np.int8)
-            if len(colors[5]) != self._D4:
-                raise ValueError("virtual leg 4 colors length is not D4")
-            self._colors4 = np.asarray(colors[5], dtype=np.int8)
-            if len(colors[6]) != self._D5:
-                raise ValueError("virtual leg 5 colors length is not D5")
-            self._colors5 = np.asarray(colors[6], dtype=np.int8)
-            if len(colors[7]) != self._D6:
-                raise ValueError("virtual leg 6 colors length is not D6")
-            self._colors6 = np.asarray(colors[7], dtype=np.int8)
-            if len(colors[8]) != self._D7:
-                raise ValueError("virtual leg 7 colors length is not D7")
-            self._colors7 = np.asarray(colors[8], dtype=np.int8)
-            if len(colors[9]) != self._D8:
-                raise ValueError("virtual leg 8 colors length is not D8")
-            self._colors8 = np.asarray(colors[9], dtype=np.int8)
-
-        else:
+        if colors is None:  # default color whatever tensor shapes
             self._colors_p = default_color
             self._colors_a = default_color
             self._colors1 = default_color
@@ -349,14 +293,126 @@ class SimpleUpdate2x2(object):
             self._colors7 = default_color
             self._colors8 = default_color
 
-        if h1.shape != (self._d ** 2, self._d ** 2):
-            raise ValueError("invalid shape for Hamiltonian h1")
-        if h2.shape != (self._d ** 2, self._d ** 2):
-            raise ValueError("invalid shape for Hamiltonian h2")
-        self._h1 = h1
-        self._h2 = h2
+        # consider 3 cases:
+        # 1) tensors are provided: check dimension match and nothing else
+        # 2) tensors are not provided and a == 1: pure state, start from random tensors
+        # 3) tensors are not provided and a == d: thermal equilibrium, start from beta=0
 
-        self.tau = tau
+        # 1) provided tensors
+        if tensors is not None:
+            if self.verbosity > 0:
+                print("Initialize SimpleUpdate2x2 from given tensors")
+
+            A0, B0, C0, D0 = tensors
+            self._D1, self._D2, self._D3, self._D4 = A0.shape[2:]
+            self._D6, self._D8, self._D5, self._D7 = D0.shape[2:]
+            if A0.shape != (d, a, self._D1, self._D2, self._D3, self._D4):
+                raise ValueError("invalid shape for A0")
+            if B0.shape != (d, a, self._D5, self._D4, self._D6, self._D2):
+                raise ValueError("invalid shape for B0")
+            if C0.shape != (d, a, self._D3, self._D7, self._D1, self._D8):
+                raise ValueError("invalid shape for C0")
+            if D0.shape != (d, a, self._D6, self._D8, self._D5, self._D7):
+                raise ValueError("invalid shape for D0")
+
+            if colors is not None:
+                if len(colors) != 10:
+                    raise ValueError(
+                        "With given initial tensors, colors must be",
+                        "[colors_p, colors_a, colors_1...8]",
+                    )
+                if len(colors[0]) != d:
+                    raise ValueError("physical leg colors length is not d")
+                self._colors_p = np.asarray(colors[0], dtype=np.int8)
+                if len(colors[1]) != a:
+                    raise ValueError("ancila leg colors length is not a")
+                self._colors_a = np.asarray(colors[1], dtype=np.int8)
+                if len(colors[2]) != self._D1:
+                    raise ValueError("virtual leg 1 colors length is not D1")
+                self._colors1 = np.asarray(colors[2], dtype=np.int8)
+                if len(colors[3]) != self._D2:
+                    raise ValueError("virtual leg 2 colors length is not D2")
+                self._colors2 = np.asarray(colors[3], dtype=np.int8)
+                if len(colors[4]) != self._D3:
+                    raise ValueError("virtual leg 3 colors length is not D3")
+                self._colors3 = np.asarray(colors[4], dtype=np.int8)
+                if len(colors[5]) != self._D4:
+                    raise ValueError("virtual leg 4 colors length is not D4")
+                self._colors4 = np.asarray(colors[5], dtype=np.int8)
+                if len(colors[6]) != self._D5:
+                    raise ValueError("virtual leg 5 colors length is not D5")
+                self._colors5 = np.asarray(colors[6], dtype=np.int8)
+                if len(colors[7]) != self._D6:
+                    raise ValueError("virtual leg 6 colors length is not D6")
+                self._colors6 = np.asarray(colors[7], dtype=np.int8)
+                if len(colors[8]) != self._D7:
+                    raise ValueError("virtual leg 7 colors length is not D7")
+                self._colors7 = np.asarray(colors[8], dtype=np.int8)
+                if len(colors[9]) != self._D8:
+                    raise ValueError("virtual leg 8 colors length is not D8")
+                self._colors8 = np.asarray(colors[9], dtype=np.int8)
+
+        # 2) pure state
+        elif a == 1:
+            if self.verbosity > 0:
+                print("Initialize SimpleUpdate2x2 from random pure state")
+            if colors is not None:  # can fix, easy to generate random U(1) tensors
+                raise ValueError(
+                    "Initial tensors must be provided to use colors in pure state"
+                )
+            self._D1 = Dmax
+            self._D2 = Dmax
+            self._D3 = Dmax
+            self._D4 = Dmax
+            self._D5 = Dmax
+            self._D6 = Dmax
+            self._D7 = Dmax
+            self._D8 = Dmax
+            A0 = np.random.random((d, 1, self._D5, self._D4, self._D6, self._D2)) - 0.5
+            B0 = np.random.random((d, 1, self._D5, self._D4, self._D6, self._D2)) - 0.5
+            C0 = np.random.random((d, 1, self._D3, self._D7, self._D1, self._D8)) - 0.5
+            D0 = np.random.random((d, 1, self._D6, self._D8, self._D5, self._D7)) - 0.5
+            self._gammaA = A0 / lg.norm(A0)
+            self._gammaB = B0 / lg.norm(B0)
+            self._gammaC = C0 / lg.norm(C0)
+            self._gammaD = D0 / lg.norm(D0)
+
+        # 3) thermal equilibrium, start from product state at beta=0
+        elif a == d:
+            if self.verbosity > 0:
+                print("Initialize SimpleUpdate2x2 from beta=0 thermal product state")
+            self._D1 = 1
+            self._D2 = 1
+            self._D3 = 1
+            self._D4 = 1
+            self._D5 = 1
+            self._D6 = 1
+            self._D7 = 1
+            self._D8 = 1
+            self._colors1 = np.zeros(1, dtype=np.int8)
+            self._colors2 = np.zeros(1, dtype=np.int8)
+            self._colors3 = np.zeros(1, dtype=np.int8)
+            self._colors4 = np.zeros(1, dtype=np.int8)
+            self._colors5 = np.zeros(1, dtype=np.int8)
+            self._colors6 = np.zeros(1, dtype=np.int8)
+            self._colors7 = np.zeros(1, dtype=np.int8)
+            self._colors8 = np.zeros(1, dtype=np.int8)
+            self._gammaA = np.eye(d).reshape(d, a, 1, 1, 1, 1)
+            self._gammaB = np.eye(d).reshape(d, a, 1, 1, 1, 1)
+            self._gammaC = np.eye(d).reshape(d, a, 1, 1, 1, 1)
+            self._gammaD = np.eye(d).reshape(d, a, 1, 1, 1, 1)
+            if colors is not None:
+                if len(colors) != d:
+                    raise ValueError(
+                        "For beta=0 thermal equilibrium, colors must be colors_p"
+                    )
+                self._colors_p = np.asarray(colors, dtype=np.int8)
+                self._colors_a = -self._colors_p
+
+        else:
+            raise ValueError("If tensors are not provided, a must be 1 or d")
+
+        # now that dimensions are known, initialize weights to 1.
         self._lambda1 = np.ones(self._D1)
         self._lambda2 = np.ones(self._D2)
         self._lambda3 = np.ones(self._D3)
@@ -540,10 +596,10 @@ class SimpleUpdate2x2(object):
         B = np.einsum("paurdl,u,r,d,l->paurdl", self._gammaB, sl5, sl4, sl6, sl2)
         C = np.einsum("paurdl,u,r,d,l->paurdl", self._gammaC, sl3, sl7, sl1, sl8)
         D = np.einsum("paurdl,u,r,d,l->paurdl", self._gammaD, sl6, sl8, sl5, sl7)
-        A /= lg.norm(A)
-        B /= lg.norm(B)
-        C /= lg.norm(C)
-        D /= lg.norm(D)
+        A /= np.amax(A)
+        B /= np.amax(B)
+        C /= np.amax(C)
+        D /= np.amax(D)
         return A, B, C, D
 
     def get_colors_ABCD(self):

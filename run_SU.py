@@ -91,17 +91,7 @@ print(f"CTMRG parameters: chi = {chi}, ctm_iter = {ctm_iter}")
 
 # misc
 print("Save data in file", config["save_data"])
-
-# Tensor nitialization at beta = 0
-A = np.eye(d).reshape(d, a, 1, 1, 1, 1)
-B = A.copy()
-C = B.copy()
-D = A.copy()
-
-# colors initialization
-pcol = np.array([1, -1], dtype=np.int8)
-vcol = np.array([0], dtype=np.int8)
-colors = [pcol, -pcol, vcol, vcol, vcol, vcol, vcol, vcol, vcol, vcol]
+pcol = np.array([1, -1], dtype=np.int8)  # U(1) colors for physical spin 1/2
 
 
 ########################################################################################
@@ -109,9 +99,7 @@ colors = [pcol, -pcol, vcol, vcol, vcol, vcol, vcol, vcol, vcol, vcol]
 ########################################################################################
 print("\n" + "#" * 79)
 print(f"Start simple update with tau = {tau} up to beta/2 = {beta/2}")
-su = SimpleUpdate2x2(
-    d, a, Dmax, h1, h2, tau, tensors=(A, B, C, D), colors=colors, verbosity=0
-)
+su = SimpleUpdate2x2(d, a, Dmax, h1, h2, tau, colors=pcol, verbosity=1)
 
 t = time()
 su.evolve(beta / 2)  # rho is quadratic in mono-layer tensor
