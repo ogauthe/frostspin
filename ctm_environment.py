@@ -145,6 +145,8 @@ class CTM_Environment(object):
                 A = A.reshape(
                     A.shape[0], 1, A.shape[1], A.shape[2], A.shape[3], A.shape[4]
                 )
+            if A.ndim != 6:
+                raise ValueError("Elementary tensor must be of rank 5 or 6")
             C1, T1, C2, T4, T2, C4, T3, C3 = _initialize_env(A)
             self._neq_As.append(A)
             self._neq_C1s.append(C1)
@@ -302,6 +304,8 @@ class CTM_Environment(object):
                 A = A.reshape(
                     A.shape[0], 1, A.shape[1], A.shape[2], A.shape[3], A.shape[4]
                 )
+            if A.ndim != 6:
+                raise ValueError("Elementary tensor must be of rank 5 or 6")
             oldA = self._neq_As[i]
             oldcol = self._colors_A[i]
             if colors is None:
