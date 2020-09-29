@@ -71,11 +71,6 @@ class CTMRG(object):
         """
         return self._env.save_to_file(file)  # all the data is in env
 
-    def load_from_file(self, file):
-        self._env.load_from_file(file)
-        if self.verbosity > 0:
-            print("CTMRG restarted from file", file)
-
     @property
     def Lx(self):
         return self._env.Lx
