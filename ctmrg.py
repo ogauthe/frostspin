@@ -61,6 +61,7 @@ class CTMRG(object):
         if self.verbosity > 0:
             print("CTMRG constructed")
             print("unit cell =", self._env.cell, sep="\n")
+            self.print_tensor_shapes()
             if colors is not None:
                 print("colors =", colors, sep="\n")
 
@@ -98,7 +99,7 @@ class CTMRG(object):
             )
 
     def print_tensor_shapes(self):
-        print("C1 T1 C2 // T4 A T2 // C4 T3 C4")
+        print("tensor shapes for C1 T1 C2 // T4 A T2 // C4 T3 C4:")
         for (x, y) in self._neq_coords:
             print(
                 f"({x},{y}):",
