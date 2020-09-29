@@ -1,9 +1,11 @@
 {
   "J2": 0.8,
-  "beta": 1.0,
+  "beta_list": [0.5, 1.0],
   "Dmax": 5,
   "tau": 1e-3,
-  "chi": 50,
-  "ctm_iter": 10,
-  "save_data": "data_sample.npz"
+  "chi_list": [20,25],
+  "ctm_iter": 5,
+  "save_su_root": "data_su_sample_beta",
+  "save_ctm_root": "data_ctm_sample_beta",
+  "save_rdm_root": "data_rdm_sample_beta"
 }
