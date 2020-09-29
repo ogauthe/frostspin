@@ -610,3 +610,25 @@ class CTMRG(object):
             self._env.get_T3(x + 2, y + 3),
             self._env.get_C3(x + 3, y + 3),
         )
+
+    def compute_rdm_cell_average_1st_nei(self):
+        """
+        Compute cell average of first neighbor reduced density matrices.
+        """
+        if self.verbosity > 0:
+            print("Compute rdm average on cell")
+        rdm = 0  # no need to initalize shape, avoid import of specific array lib
+        for x, y in self._neq_coords:
+            rdm = rdm + self.compute_rdm2x1(x, y) + self.compute_rdm1x2(x, y)
+        return rdm / len(self._neq_coords)
+
+    def compute_rdm_cell_average_2nd_nei(self):
+        """
+        Compute cell average of second neighbor reduced density matrices.
+        """
+        if self.verbosity > 0:
+            print("Compute rdm average on cell")
+        rdm = 0
+        for x, y in self._neq_coords:
+            rdm = rdm + self.compute_rdm_diag_dr(x, y) + self.compute_rdm_diag_ur(x, y)
+        return rdm / len(self._neq_coords)
