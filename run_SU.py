@@ -103,7 +103,7 @@ for new_beta in beta_list:
         sep="\n",
     )
     print("colors =", col1, col2, col3, col4, col5, col6, col7, col8, sep="\n")
-    save_su = save_su_root + f"{beta}.npz"
+    save_su = save_su_root + f"{new_beta}.npz"
     su.save_to_file(save_su)
     print("Simple update data saved in file", save_su)
     tensors = su.get_ABCD()
