@@ -72,7 +72,7 @@ save_ctm_root = str(config["save_ctm_root"])
 save_rdm_root = str(config["save_rdm_root"])
 print("\nSave simple update data in files " + save_su_root + "{beta}.npz")
 print("Save CTMRG data in files " + save_ctm_root + "{beta}_chi{chi}.npz")
-print("Save reduced density matrices in files" + save_rdm_root + "{beta}_chi{chi}.npz")
+print("Save reduced density matrices in files " + save_rdm_root + "{beta}_chi{chi}.npz")
 
 
 ########################################################################################
