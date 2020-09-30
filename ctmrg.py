@@ -173,6 +173,34 @@ class CTMRG(object):
         if self.verbosity > 1:
             self.print_tensor_shapes()
 
+    def converge(self, tol, warmup=0, maxiter=100):
+        """
+        Converge CTMRG with criterion Frobenius norm(rho) < tol, where rho is the
+        average of all first neighbor density matrices in the unit cell. Avoid expensive
+        computation of larger density matrices as well as selecting one observable.
+        """
+        if self.verbosity > 0:
+            print(f"Converge CTMRG with tol = {tol}")
+        for i in range(warmup):
+            self.iterate()
+        if self.verbosity > 0:
+            print(f"{warmup} warmup iterations done")
+        last_rho = self.compute_rdm_cell_average_1st_nei()
+        last_last_rho = last_rho
+        for i in range(maxiter):
+            self.iterate()
+            rho = self.compute_rdm_cell_average_1st_nei()
+            r = ((last_rho - rho) ** 2).sum() ** 0.5
+            if self.verbosity > 0:
+                print(f"i = {i}, ||rho - last_rho|| = {r}")
+            if r < tol:
+                return rho  # avoid computing it twice
+            if ((last_last_rho - rho) ** 2).sum() ** 0.5 < tol:
+                raise RuntimeError("CTMRG oscillates between two converged states")
+            last_last_rho = last_rho
+            last_rho = rho
+        raise RuntimeError("CTMRG did not converge in maxiter")
+
     def up_move(self):
         if self.verbosity > 0:
             print("\nstart up move")
