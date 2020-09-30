@@ -1,10 +1,11 @@
 {
   "J2": 0.8,
-  "beta_list": [0.5, 1.0],
   "Dmax": 5,
   "tau": 1e-3,
+  "beta_list": [0.5, 1.0],
   "chi_list": [20,25],
-  "ctm_iter": 5,
+  "ctm_tol": 1e-10,
+  "ctm_maxiter": 100,
   "save_su_root": "data_su_sample_beta",
   "save_ctm_root": "data_ctm_sample_beta",
   "save_rdm_root": "data_rdm_sample_beta"

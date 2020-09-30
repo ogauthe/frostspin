@@ -27,7 +27,7 @@ with open(config_file) as f:
 tiling = "AB\nCD"
 d = 2
 a = 2
-J2 = config["J2"]
+J2 = float(config["J2"])
 SdS_22b = np.array(
     [
         [-0.25, 0.0, 0.0, -0.5],
@@ -49,28 +49,28 @@ h2 = J2 * SdS_22
 print(f"Physical model: d = {d}, a = {a}, J1 = 1, J2 = {J2}")
 
 # simple update parameters
-tau = config["tau"]
-Dmax = config["Dmax"]
+Dmax = int(config["Dmax"])
+tau = float(config["tau"])
 beta_list = np.array(config["beta_list"], dtype=float)
-print(f"Simple update parameters: tau = {tau}, Dmax = {Dmax}")
+print(f"\nSimple update parameters: tau = {tau}, Dmax = {Dmax}")
 print("Compute environment and observables for beta in", list(beta_list))
 pcol = np.array([1, -1], dtype=np.int8)  # U(1) colors for physical spin 1/2
 su = SimpleUpdate2x2(d, a, Dmax, h1, h2, tau, colors=pcol, verbosity=0)
 
 # CTMRG parameters
-ctm_list = []
-ctm_iter = config["ctm_iter"]
 chi_list = np.array(config["chi_list"], dtype=int)
-print(f"Converge CTMRG for chi in {list(chi_list)} for ctm_iter = {ctm_iter}")
+ctm_tol = float(config["ctm_tol"])
+ctm_maxiter = int(config["ctm_maxiter"])
+print(f"\nCompute CTMRG environment for chi in {list(chi_list)}")
+print(f"Converge CTMRG with tol = {ctm_tol} for a max of {ctm_maxiter} iterations")
 
 # misc
-print("Save simple update data in files " + config["save_su_root"] + "{beta}.npz")
-print("Save CTMRG data in files " + config["save_ctm_root"] + "{beta}_chi{chi}.npz")
-print(
-    "Save reduced density matrices in files "
-    + config["save_rdm_root"]
-    + "{beta}_chi{chi}.npz"
-)
+save_su_root = str(config["save_su_root"])
+save_ctm_root = str(config["save_ctm_root"])
+save_rdm_root = str(config["save_rdm_root"])
+print("\nSave simple update data in files " + save_su_root + "{beta}.npz")
+print("Save CTMRG data in files " + save_ctm_root + "{beta}_chi{chi}.npz")
+print("Save reduced density matrices in files" + save_rdm_root + "{beta}_chi{chi}.npz")
 
 
 ########################################################################################
@@ -101,13 +101,14 @@ for new_beta in beta_list:
         sep="\n",
     )
     print("colors =", col1, col2, col3, col4, col5, col6, col7, col8, sep="\n")
-    save_su = config["save_su_root"] + f"{beta}.npz"
+    save_su = save_su_root + f"{beta}.npz"
     su.save_to_file(save_su)
     print("Simple update data saved in file", save_su)
     tensors = su.get_ABCD()
     colors = su.get_colors_ABCD()
 
     if not beta:  # initialize CTMRG from 1st beta value
+        ctm_list = []
         for chi in chi_list:
             ctm_list.append(CTMRG(chi, tiling=tiling, tensors=tensors, colors=colors))
     else:  # set tensors to new values
@@ -121,21 +122,16 @@ for new_beta in beta_list:
     for ctm in ctm_list:
         print("\n" + " " * 4 + "#" * 75)
         print(f"    Converge CTMRG for D = {Dmax} and chi = {ctm.chi}...")
-        for i in range(10):  # CONVERGENCE CHECKS ARE NEEDED
-            ctm.iterate()
+        rdm_1st_nei = ctm.converge(ctm_tol, maxiter=ctm_maxiter)
         print(f"    done with CTM iterations, t={time()-t:.0f}")
-        save_ctm = config["save_ctm_root"] + f"{beta}_chi{ctm.chi}.npz"
+        save_ctm = save_ctm_root + f"{beta}_chi{ctm.chi}.npz"
         ctm.save_to_file(save_ctm)
         print("    CTMRG data saved in file", save_ctm)
 
-        print(
-            "    Compute reduced density matrix cell average for first and",
-            "second neighbors...",
-        )
-        rdm_1st_nei = ctm.compute_rdm_cell_average_1st_nei()
+        print("    Compute reduced density matrix cell average for second neighbor...")
         rdm_2nd_nei = ctm.compute_rdm_cell_average_2nd_nei()
         print(f"    done with rdm computation, t={time()-t:.0f}")
-        save_rdm = config["save_rdm_root"] + f"{beta}_chi{ctm.chi}.npz"
+        save_rdm = save_rdm_root + f"{beta}_chi{ctm.chi}.npz"
         np.savez_compressed(save_rdm, rdm_1st_nei=rdm_1st_nei, rdm_2nd_nei=rdm_2nd_nei)
         print("    rdm saved in file", save_rdm)
         energy = (rdm_1st_nei * h1).sum() + (rdm_2nd_nei * h2).sum()
