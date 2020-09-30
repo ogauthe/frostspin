@@ -1,9 +1,11 @@
 #! /usr/bin/env python3
 
-import numpy as np
+import sys
 import json
-from sys import argv
-from time import time
+import time
+
+import numpy as np
+
 from simple_update import SimpleUpdate2x2
 from ctmrg import CTMRG
 
@@ -13,11 +15,11 @@ from ctmrg import CTMRG
 ########################################################################################
 print("#" * 79)
 print("Finite temperature simple update for J1-J2 Heisenberg model")
-if len(argv) < 2:
+if len(sys.argv) < 2:
     config_file = "input_sample/input_sample_run_SU.json"
     print("No input file given, use", config_file)
 else:
-    config_file = argv[1]
+    config_file = sys.argv[1]
     print("Take input parameters from file", config_file)
 
 with open(config_file) as f:
@@ -76,7 +78,7 @@ print("Save reduced density matrices in files" + save_rdm_root + "{beta}_chi{chi
 ########################################################################################
 # Computation starts
 ########################################################################################
-t = time()
+t = time.time()
 beta = 0.0
 for new_beta in beta_list:
     ####################################################################################
@@ -85,7 +87,7 @@ for new_beta in beta_list:
     print("\n" + "#" * 79)
     print(f"Evolve in imaginary time for beta from {beta}/2 to {new_beta}/2...")
     su.evolve((new_beta - beta) / 2)  # rho is quadratic in mono-layer tensor
-    print(f"done with imaginary time evolution, t = {time()-t:.0f}")
+    print(f"done with imaginary time evolution, t = {time.time()-t:.0f}")
     lambdas = su.lambdas
     _, col1, col2, col3, col4, col5, col6, col7, col8 = su.colors
     print(
@@ -123,14 +125,14 @@ for new_beta in beta_list:
         print("\n" + " " * 4 + "#" * 75)
         print(f"    Converge CTMRG for D = {Dmax} and chi = {ctm.chi}...")
         i, rdm_1st_nei = ctm.converge(ctm_tol, maxiter=ctm_maxiter)
-        print(f"    done, converged after {i} iterations, t = {time()-t:.0f}")
+        print(f"    done, converged after {i} iterations, t = {time.time()-t:.0f}")
         save_ctm = save_ctm_root + f"{beta}_chi{ctm.chi}.npz"
         ctm.save_to_file(save_ctm)
         print("    CTMRG data saved in file", save_ctm)
 
         print("    Compute reduced density matrix cell average for second neighbor...")
         rdm_2nd_nei = ctm.compute_rdm_cell_average_2nd_nei()
-        print(f"    done with rdm computation, t = {time()-t:.0f}")
+        print(f"    done with rdm computation, t = {time.time()-t:.0f}")
         save_rdm = save_rdm_root + f"{beta}_chi{ctm.chi}.npz"
         np.savez_compressed(save_rdm, rdm_1st_nei=rdm_1st_nei, rdm_2nd_nei=rdm_2nd_nei)
         print("    rdm saved in file", save_rdm)

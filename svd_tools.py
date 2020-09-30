@@ -1,8 +1,9 @@
 import numpy as np
 import scipy.linalg as lg
 from scipy.sparse.linalg import eigsh  # use custom svds
-from toolsU1 import default_color, svdU1
 from scipy.sparse.linalg.interface import LinearOperator
+
+from toolsU1 import default_color, svdU1
 
 
 def svd_truncate(
