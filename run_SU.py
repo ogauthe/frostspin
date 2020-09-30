@@ -122,15 +122,15 @@ for new_beta in beta_list:
     for ctm in ctm_list:
         print("\n" + " " * 4 + "#" * 75)
         print(f"    Converge CTMRG for D = {Dmax} and chi = {ctm.chi}...")
-        rdm_1st_nei = ctm.converge(ctm_tol, maxiter=ctm_maxiter)
-        print(f"    done with CTM iterations, t={time()-t:.0f}")
+        i, rdm_1st_nei = ctm.converge(ctm_tol, maxiter=ctm_maxiter)
+        print(f"    done, converged after {i} iterations, t = {time()-t:.0f}")
         save_ctm = save_ctm_root + f"{beta}_chi{ctm.chi}.npz"
         ctm.save_to_file(save_ctm)
         print("    CTMRG data saved in file", save_ctm)
 
         print("    Compute reduced density matrix cell average for second neighbor...")
         rdm_2nd_nei = ctm.compute_rdm_cell_average_2nd_nei()
-        print(f"    done with rdm computation, t={time()-t:.0f}")
+        print(f"    done with rdm computation, t = {time()-t:.0f}")
         save_rdm = save_rdm_root + f"{beta}_chi{ctm.chi}.npz"
         np.savez_compressed(save_rdm, rdm_1st_nei=rdm_1st_nei, rdm_2nd_nei=rdm_2nd_nei)
         print("    rdm saved in file", save_rdm)
