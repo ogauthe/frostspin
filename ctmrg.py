@@ -202,7 +202,7 @@ class CTMRG(object):
         raise RuntimeError("CTMRG did not converge in maxiter")
 
     def up_move(self):
-        if self.verbosity > 0:
+        if self.verbosity > 1:
             print("\nstart up move")
         # 1) compute isometries for every non-equivalent sites
         # convention : get projectors from svd(R @ Rt)
@@ -247,7 +247,7 @@ class CTMRG(object):
 
         # 2) renormalize every non-equivalent C1, T1 and C2
         # need all projectors to be constructed at this time
-        if self.verbosity > 0:
+        if self.verbosity > 1:
             print("Projectors constructed, renormalize tensors")
         for x, y in self._neq_coords:
             P = self._env.get_P(x + 1, y)
@@ -273,11 +273,11 @@ class CTMRG(object):
         # renormalization reads C1[x,y] but writes C1[x,y+1]
         # => need to compute every renormalized tensors before storing any of them
         self._env.fix_renormalized_up()
-        if self.verbosity > 0:
+        if self.verbosity > 1:
             print("up move completed")
 
     def right_move(self):
-        if self.verbosity > 0:
+        if self.verbosity > 1:
             print("\nstart right move")
         # 1) compute isometries for every non-equivalent sites
         for x, y in self._neq_coords:
@@ -320,7 +320,7 @@ class CTMRG(object):
             del R, Rt
 
         # 2) renormalize tensors by absorbing column
-        if self.verbosity > 0:
+        if self.verbosity > 1:
             print("Projectors constructed, renormalize tensors")
         for x, y in self._neq_coords:
             P = self._env.get_P(x, y + 1)
@@ -344,11 +344,11 @@ class CTMRG(object):
 
         # 3) store renormalized tensors in the environment
         self._env.fix_renormalized_right()
-        if self.verbosity > 0:
+        if self.verbosity > 1:
             print("right move completed")
 
     def down_move(self):
-        if self.verbosity > 0:
+        if self.verbosity > 1:
             print("\nstart down move")
         # 1) compute isometries for every non-equivalent sites
         for x, y in self._neq_coords:
@@ -394,7 +394,7 @@ class CTMRG(object):
             del R, Rt
 
         # 2) renormalize every non-equivalent C3, T3 and C4
-        if self.verbosity > 0:
+        if self.verbosity > 1:
             print("Projectors constructed, renormalize tensors")
         for x, y in self._neq_coords:
             P = self._env.get_P(x - 1, y)
@@ -418,11 +418,11 @@ class CTMRG(object):
 
         # 3) store renormalized tensors in the environment
         self._env.fix_renormalized_down()
-        if self.verbosity > 0:
+        if self.verbosity > 1:
             print("down move completed")
 
     def left_move(self):
-        if self.verbosity > 0:
+        if self.verbosity > 1:
             print("\nstart left move")
         # 1) compute isometries for every non-equivalent sites
         for x, y in self._neq_coords:
@@ -465,7 +465,7 @@ class CTMRG(object):
             del R, Rt
 
         # 2) renormalize every non-equivalent C4, T4 and C1
-        if self.verbosity > 0:
+        if self.verbosity > 1:
             print("Projectors constructed, renormalize tensors")
         for x, y in self._neq_coords:
             P = self._env.get_P(x, y - 1)
@@ -489,11 +489,11 @@ class CTMRG(object):
 
         # 3) store renormalized tensors in the environment
         self._env.fix_renormalized_left()
-        if self.verbosity > 0:
+        if self.verbosity > 1:
             print("left move completed")
 
     def compute_rdm1x1(self, x=0, y=0):
-        if self.verbosity > 0:
+        if self.verbosity > 1:
             print(f"Compute rdm 1x1 with C1 coord = ({x},{y})")
         return rdm.rdm_1x1(
             self._env.get_C1(x, y),
@@ -508,7 +508,7 @@ class CTMRG(object):
         )
 
     def compute_rdm1x2(self, x=0, y=0):
-        if self.verbosity > 0:
+        if self.verbosity > 1:
             print(f"Compute rdm 1x2 with C1 coord = ({x},{y})")
         return rdm.rdm_1x2(
             self._env.get_C1(x, y),
@@ -526,7 +526,7 @@ class CTMRG(object):
         )
 
     def compute_rdm2x1(self, x=0, y=0):
-        if self.verbosity > 0:
+        if self.verbosity > 1:
             print(f"Compute rdm 2x1 with C1 coord = ({x},{y})")
         return rdm.rdm_2x1(
             self._env.get_C1(x, y),
@@ -544,7 +544,7 @@ class CTMRG(object):
         )
 
     def compute_rdm2x2(self, x=0, y=0):
-        if self.verbosity > 0:
+        if self.verbosity > 1:
             print(f"Compute rdm 2x2 with C1 coord = ({x},{y})")
         return rdm.rdm_2x2(
             self._env.get_C1(x, y),
@@ -566,7 +566,7 @@ class CTMRG(object):
         )
 
     def compute_rdm_diag_dr(self, x=0, y=0):
-        if self.verbosity > 0:
+        if self.verbosity > 1:
             print(
                 f"Compute rdm for down right diagonal sites ({x+1},{y+1}) and",
                 f"({x+2},{y+2})",
@@ -591,7 +591,7 @@ class CTMRG(object):
         )
 
     def compute_rdm_diag_ur(self, x=0, y=0):
-        if self.verbosity > 0:
+        if self.verbosity > 1:
             print(
                 f"Compute rdm for upper right diagonal sites ({x+1},{y+2}) and",
                 f"({x+2},{y+1})",
