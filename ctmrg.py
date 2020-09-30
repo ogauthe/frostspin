@@ -194,7 +194,7 @@ class CTMRG(object):
             if self.verbosity > 0:
                 print(f"i = {i}, ||rho - last_rho|| = {r}")
             if r < tol:
-                return rho  # avoid computing it twice
+                return i + warmup, rho  # avoid computing it twice
             if ((last_last_rho - rho) ** 2).sum() ** 0.5 < tol:
                 raise RuntimeError("CTMRG oscillates between two converged states")
             last_last_rho = last_rho
