@@ -78,7 +78,6 @@ print("Save reduced density matrices in files" + save_rdm_root + "{beta}_chi{chi
 ########################################################################################
 # Computation starts
 ########################################################################################
-t = time.time()
 beta = 0.0
 for new_beta in beta_list:
     ####################################################################################
@@ -86,6 +85,7 @@ for new_beta in beta_list:
     ####################################################################################
     print("\n" + "#" * 79)
     print(f"Evolve in imaginary time for beta from {beta}/2 to {new_beta}/2...")
+    t = time.time()
     su.evolve((new_beta - beta) / 2)  # rho is quadratic in mono-layer tensor
     print(f"done with imaginary time evolution, t = {time.time()-t:.0f}")
     lambdas = su.lambdas
@@ -124,6 +124,7 @@ for new_beta in beta_list:
     for ctm in ctm_list:
         print("\n" + " " * 4 + "#" * 75)
         print(f"    Converge CTMRG for D = {Dmax} and chi = {ctm.chi}...")
+        t = time.time()
         i, rdm_1st_nei = ctm.converge(ctm_tol, maxiter=ctm_maxiter)
         print(f"    done, converged after {i} iterations, t = {time.time()-t:.0f}")
         save_ctm = save_ctm_root + f"{beta}_chi{ctm.chi}.npz"
@@ -131,6 +132,7 @@ for new_beta in beta_list:
         print("    CTMRG data saved in file", save_ctm)
 
         print("    Compute reduced density matrix cell average for second neighbor...")
+        t = time.time()
         rdm_2nd_nei = ctm.compute_rdm_cell_average_2nd_nei()
         print(f"    done with rdm computation, t = {time.time()-t:.0f}")
         save_rdm = save_rdm_root + f"{beta}_chi{ctm.chi}.npz"
