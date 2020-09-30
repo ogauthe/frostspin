@@ -80,7 +80,7 @@ def update_first_neighbor(
         row_colors=row_col,
         col_colors=-combine_colors(-col_sR, -col_d),
         full=True,
-        zeros_tol=1e-14,
+        zeros_tol=1e-13,
     )
 
     # 4) renormalize link dimension
@@ -183,7 +183,7 @@ def update_second_neighbor(
         row_colors=combine_colors(col_sL, col_d),
         col_colors=-combine_colors(-col_sm, col_sR, col_d),
         full=True,
-        zeros_tol=1e-14,
+        zeros_tol=1e-13,
     )
     D_L = new_lambda_L.size
     new_lambda_L /= new_lambda_L.sum()
@@ -197,7 +197,7 @@ def update_second_neighbor(
         row_colors=combine_colors(col_nbL, -col_sm),
         col_colors=-combine_colors(col_sR, col_d),
         full=True,
-        zeros_tol=1e-14,
+        zeros_tol=1e-13,
     )
     D_R = new_lambda_R.size
     new_lambda_R /= new_lambda_R.sum()
