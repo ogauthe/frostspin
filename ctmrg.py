@@ -111,76 +111,52 @@ class CTMRG(object):
 
     def check_symetries(self):
         for (x, y) in self._neq_coords:
-            cC1 = checkU1(
-                self._env.get_C1(x, y),
-                (self._env.get_color_C1_r(x, y), self._env.get_color_C1_d(x, y)),
+            colC1 = (self._env.get_color_C1_r(x, y), self._env.get_color_C1_d(x, y))
+            colT1 = (
+                self._env.get_color_T1_r(x, y),
+                self._env.get_color_T1_d(x, y),
+                -self._env.get_color_T1_d(x, y),
+                self._env.get_color_T1_l(x, y),
             )
-            cT1 = checkU1(
-                self._env.get_T1(x, y),
-                (
-                    self._env.get_color_T1_r(x, y),
-                    self._env.get_color_T1_d(x, y),
-                    -self._env.get_color_T1_d(x, y),
-                    self._env.get_color_T1_l(x, y),
-                ),
+            colC2 = (self._env.get_color_C2_d(x, y), self._env.get_color_C2_l(x, y))
+            colT2 = (
+                self._env.get_color_T2_u(x, y),
+                self._env.get_color_T2_d(x, y),
+                self._env.get_color_T2_l(x, y),
+                -self._env.get_color_T2_l(x, y),
             )
-            cC2 = checkU1(
-                self._env.get_C2(x, y),
-                (self._env.get_color_C2_d(x, y), self._env.get_color_C2_l(x, y)),
+            colC3 = (self._env.get_color_C3_u(x, y), self._env.get_color_C3_l(x, y))
+            colT3 = (
+                self._env.get_color_T3_u(x, y),
+                -self._env.get_color_T3_u(x, y),
+                self._env.get_color_T3_r(x, y),
+                self._env.get_color_T3_l(x, y),
             )
-            cT2 = checkU1(
-                self._env.get_T2(x, y),
-                (
-                    self._env.get_color_T2_u(x, y),
-                    self._env.get_color_T2_d(x, y),
-                    self._env.get_color_T2_l(x, y),
-                    -self._env.get_color_T2_l(x, y),
-                ),
-            )
-            cC3 = checkU1(
-                self._env.get_C3(x, y),
-                (self._env.get_color_C3_u(x, y), self._env.get_color_C3_l(x, y)),
-            )
-            cT3 = checkU1(
-                self._env.get_T3(x, y),
-                (
-                    self._env.get_color_T3_u(x, y),
-                    -self._env.get_color_T3_u(x, y),
-                    self._env.get_color_T3_r(x, y),
-                    self._env.get_color_T3_l(x, y),
-                ),
-            )
-            cC4 = checkU1(
-                self._env.get_C4(x, y),
-                (self._env.get_color_C4_u(x, y), self._env.get_color_C4_r(x, y)),
-            )
-            cT4 = checkU1(
-                self._env.get_T4(x, y),
-                (
-                    self._env.get_color_T4_u(x, y),
-                    self._env.get_color_T4_r(x, y),
-                    -self._env.get_color_T4_r(x, y),
-                    self._env.get_color_T4_d(x, y),
-                ),
+            colC4 = (self._env.get_color_C4_u(x, y), self._env.get_color_C4_r(x, y))
+            colT4 = (
+                self._env.get_color_T4_u(x, y),
+                self._env.get_color_T4_r(x, y),
+                -self._env.get_color_T4_r(x, y),
+                self._env.get_color_T4_d(x, y),
             )
             print(
                 f"({x},{y}):",
                 "C1",
-                cC1,
+                checkU1(self._env.get_C1(x, y), colC1),
                 "T1",
-                cT1,
+                checkU1(self._env.get_T1(x, y), colT1),
                 "C2",
-                cC2,
+                checkU1(self._env.get_C2(x, y), colC2),
                 "T2",
-                cT2,
+                checkU1(self._env.get_T2(x, y), colT2),
                 "C3",
-                cC3,
+                checkU1(self._env.get_C3(x, y), colC3),
                 "T3",
-                cT3,
+                checkU1(self._env.get_T3(x, y), colT3),
                 "C4",
-                cC4,
+                checkU1(self._env.get_C4(x, y), colC4),
                 "T4",
-                cT4,
+                checkU1(self._env.get_T4(x, y), colT4),
             )
 
     def iterate(self):
