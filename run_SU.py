@@ -76,10 +76,11 @@ print(f"Converge CTMRG with tol = {ctm_tol} for a max of {ctm_maxiter} iteration
 energies = []
 save_su_root = str(config["save_su_root"])
 save_ctm_root = str(config["save_ctm_root"])
-save_rdm_root = str(config["save_rdm_root"])
 print("\nSave simple update data in files " + save_su_root + "{beta}.npz")
-print("Save CTMRG data in files " + save_ctm_root + "{beta}_chi{chi}.npz")
-print("Save reduced density matrices in files " + save_rdm_root + "{beta}_chi{chi}.npz")
+print(
+    "Save CTMRG and density matrices data in files",
+    save_ctm_root + "{beta}_chi{chi}.npz",
+)
 
 
 ########################################################################################
@@ -104,7 +105,10 @@ for new_beta in beta_list:
     print("colors =", *su.colors[1:], sep="\n")
     if beta_evolve > 3 * tau:  # do not save again SU after just 1 update
         save_su = save_su_root + f"{beta}.npz"
-        su.save_to_file(save_su)
+        data_su = su.save_to_file()
+        data_su["J2"] = J2
+        data_su["beta"] = beta
+        np.savez_compressed(save_su, **data_su)
         print("Simple update data saved in file", save_su)
     tensors = su.get_ABCD()
     colors = su.get_colors_ABCD()
@@ -126,16 +130,20 @@ for new_beta in beta_list:
         i, rdm_1st_nei = ctm.converge(ctm_tol, maxiter=ctm_maxiter)
         print(f"    done, converged after {i} iterations, t = {time.time()-t:.0f}")
         save_ctm = save_ctm_root + f"{beta}_chi{ctm.chi}.npz"
-        ctm.save_to_file(save_ctm)
+        data_ctm = ctm.save_to_file()
+        data_ctm["chi"] = ctm.chi
+        data_ctm["J2"] = J2
+        data_ctm["beta"] = beta
+        data_ctm["rdm_1st_nei"] = rdm_1st_nei
+        np.savez_compressed(save_ctm, **data_ctm)
         print("    CTMRG data saved in file", save_ctm)
 
         print("    Compute reduced density matrix cell average for second neighbor...")
         t = time.time()
         rdm_2nd_nei = ctm.compute_rdm_cell_average_2nd_nei()
         print(f"    done with rdm computation, t = {time.time()-t:.0f}")
-        save_rdm = save_rdm_root + f"{beta}_chi{ctm.chi}.npz"
-        np.savez_compressed(save_rdm, rdm_1st_nei=rdm_1st_nei, rdm_2nd_nei=rdm_2nd_nei)
-        print("    rdm saved in file", save_rdm)
+        np.savez_compressed(save_ctm, rdm_2nd_nei=rdm_2nd_nei, **data_ctm)
+        print("    rdm added to file", save_ctm)
         energies.append((rdm_1st_nei * h1).sum() + (rdm_2nd_nei * h2).sum())
         print(f"    energy = {energies[-1]}")
 
