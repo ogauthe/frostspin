@@ -97,21 +97,8 @@ for new_beta in beta_list:
     t = time.time()
     su.evolve(beta_evolve)
     print(f"done with imaginary time evolution, t = {time.time()-t:.0f}")
-    lambdas = su.lambdas
-    _, col1, col2, col3, col4, col5, col6, col7, col8 = su.colors
-    print(
-        "lambdas =",
-        lambdas[1],
-        lambdas[2],
-        lambdas[3],
-        lambdas[4],
-        lambdas[5],
-        lambdas[6],
-        lambdas[7],
-        lambdas[8],
-        sep="\n",
-    )
-    print("colors =", col1, col2, col3, col4, col5, col6, col7, col8, sep="\n")
+    print("lambdas =", *su.lambdas[1:], sep="\n")
+    print("colors =", *su.colors[1:], sep="\n")
     if beta_evolve > 3 * tau:  # do not save again SU after just 1 update
         save_su = save_su_root + f"{new_beta}.npz"
         su.save_to_file(save_su)
