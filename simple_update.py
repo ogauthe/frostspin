@@ -390,14 +390,6 @@ class SimpleUpdate2x2(object):
             self._D6 = 1
             self._D7 = 1
             self._D8 = 1
-            self._colors1 = np.zeros(1, dtype=np.int8)
-            self._colors2 = np.zeros(1, dtype=np.int8)
-            self._colors3 = np.zeros(1, dtype=np.int8)
-            self._colors4 = np.zeros(1, dtype=np.int8)
-            self._colors5 = np.zeros(1, dtype=np.int8)
-            self._colors6 = np.zeros(1, dtype=np.int8)
-            self._colors7 = np.zeros(1, dtype=np.int8)
-            self._colors8 = np.zeros(1, dtype=np.int8)
             self._gammaA = np.eye(d).reshape(d, a, 1, 1, 1, 1)
             self._gammaB = np.eye(d).reshape(d, a, 1, 1, 1, 1)
             self._gammaC = np.eye(d).reshape(d, a, 1, 1, 1, 1)
@@ -407,8 +399,16 @@ class SimpleUpdate2x2(object):
                     raise ValueError(
                         "For beta=0 thermal equilibrium, colors must be colors_p"
                     )
-                self._colors_p = np.asarray(colors, dtype=np.int8)
+                self._colors_p = np.ascontiguousarray(colors, dtype=np.int8)
                 self._colors_a = -self._colors_p
+                self._colors1 = np.zeros(1, dtype=np.int8)
+                self._colors2 = np.zeros(1, dtype=np.int8)
+                self._colors3 = np.zeros(1, dtype=np.int8)
+                self._colors4 = np.zeros(1, dtype=np.int8)
+                self._colors5 = np.zeros(1, dtype=np.int8)
+                self._colors6 = np.zeros(1, dtype=np.int8)
+                self._colors7 = np.zeros(1, dtype=np.int8)
+                self._colors8 = np.zeros(1, dtype=np.int8)
 
         else:
             raise ValueError("If tensors are not provided, a must be 1 or d")
