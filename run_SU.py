@@ -53,11 +53,16 @@ print(f"Physical model: d = {d}, a = {a}, J1 = 1, J2 = {J2}")
 # simple update parameters
 Dmax = int(config["Dmax"])
 tau = float(config["tau"])
+compute_capacity = bool(config["compute_capacity"])
 beta_list = np.array(config["beta_list"], dtype=float)
 print(f"\nSimple update parameters: tau = {tau}, Dmax = {Dmax}")
 print("Compute environment and observables for beta in", list(beta_list))
-pcol = np.array([1, -1], dtype=np.int8)  # U(1) colors for physical spin 1/2
-su = SimpleUpdate2x2(d, a, Dmax, h1, h2, tau, colors=pcol, verbosity=0)
+if compute_capacity:
+    print(
+        "Compute thermal capacity: for each beta, also compute energy for beta + 4*tau"
+    )
+    beta_list = np.sort(list(beta_list + 4 * tau) + list(beta_list))
+print("Actual beta list is now", list(beta_list))
 
 # CTMRG parameters
 chi_list = np.array(config["chi_list"], dtype=int)
@@ -79,14 +84,18 @@ print("Save reduced density matrices in files " + save_rdm_root + "{beta}_chi{ch
 # Computation starts
 ########################################################################################
 beta = 0.0
+pcol = np.array([1, -1], dtype=np.int8)  # U(1) colors for physical spin 1/2
+su = SimpleUpdate2x2(d, a, Dmax, h1, h2, tau, colors=pcol, verbosity=0)
+
 for new_beta in beta_list:
     ####################################################################################
     # Simple update
     ####################################################################################
     print("\n" + "#" * 79)
     print(f"Evolve in imaginary time for beta from {beta}/2 to {new_beta}/2...")
+    beta_evolve = (new_beta - beta) / 2  # rho is quadratic in mono-layer tensor
     t = time.time()
-    su.evolve((new_beta - beta) / 2)  # rho is quadratic in mono-layer tensor
+    su.evolve(beta_evolve)
     print(f"done with imaginary time evolution, t = {time.time()-t:.0f}")
     lambdas = su.lambdas
     _, col1, col2, col3, col4, col5, col6, col7, col8 = su.colors
@@ -103,9 +112,10 @@ for new_beta in beta_list:
         sep="\n",
     )
     print("colors =", col1, col2, col3, col4, col5, col6, col7, col8, sep="\n")
-    save_su = save_su_root + f"{new_beta}.npz"
-    su.save_to_file(save_su)
-    print("Simple update data saved in file", save_su)
+    if beta_evolve > 3 * tau:  # do not save again SU after just 1 update
+        save_su = save_su_root + f"{new_beta}.npz"
+        su.save_to_file(save_su)
+        print("Simple update data saved in file", save_su)
     tensors = su.get_ABCD()
     colors = su.get_colors_ABCD()
 

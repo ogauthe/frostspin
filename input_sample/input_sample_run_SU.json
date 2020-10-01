@@ -3,6 +3,7 @@
   "Dmax": 5,
   "tau": 1e-3,
   "beta_list": [0.5, 1.0],
+  "compute_capacity": true,
   "chi_list": [20,25],
   "ctm_tol": 1e-10,
   "ctm_maxiter": 100,
