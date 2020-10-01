@@ -159,7 +159,7 @@ class CTM_Environment(object):
             self._neq_C4s.append(C4)
             self._neq_T4s.append(T4)
 
-        if colors is not None:
+        if colors is not None and sum(sum(c.size for c in t) for t in colors):
             if len(colors) != self._Nneq:
                 raise ValueError("Color number do not match tensors")
             self._colors_A = []
@@ -299,6 +299,12 @@ class CTM_Environment(object):
     def set_tensors(self, tensors, colors=None):
         if self._Nneq != len(tensors):
             raise ValueError("Incompatible cell and tensors")
+        if colors is not None and sum(sum(c.size for c in t) for t in colors):
+            colorized = True
+            if self._Nneq != len(colors):
+                raise ValueError("Incompatible cell and colors")
+        else:
+            colorized = False
         for i, A in enumerate(tensors):  # or self._neq_coords?
             A = np.ascontiguousarray(A)
             if A.ndim == 5:  # if no ancila, add 1
@@ -309,14 +315,14 @@ class CTM_Environment(object):
                 raise ValueError("Elementary tensor must be of rank 5 or 6")
             oldA = self._neq_As[i]
             oldcol = self._colors_A[i]
-            if colors is None:
-                col = (default_color,) * 6
-            else:
+            if colorized:
                 col = colors[i]
                 if len(col) == 5:
                     col = (col[0], np.zeros(1, dtype=np.int8), *col[1:])
                 if tuple(len(c) for c in col) != A.shape:
                     raise ValueError("Colors do not match tensors")
+            else:
+                col = (default_color,) * 6
             if (
                 A.shape[0] != oldA.shape[0]
                 or A.shape[1] != oldA.shape[1]
