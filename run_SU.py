@@ -65,6 +65,7 @@ if compute_capacity:
 print("Actual beta list is now", list(beta_list))
 
 # CTMRG parameters
+ctm_list = []
 chi_list = np.array(config["chi_list"], dtype=int)
 ctm_tol = float(config["ctm_tol"])
 ctm_maxiter = int(config["ctm_maxiter"])
@@ -96,24 +97,23 @@ for new_beta in beta_list:
     beta_evolve = (new_beta - beta) / 2  # rho is quadratic in mono-layer tensor
     t = time.time()
     su.evolve(beta_evolve)
+    beta = new_beta
     print(f"done with imaginary time evolution, t = {time.time()-t:.0f}")
     print("lambdas =", *su.lambdas[1:], sep="\n")
     print("colors =", *su.colors[1:], sep="\n")
     if beta_evolve > 3 * tau:  # do not save again SU after just 1 update
-        save_su = save_su_root + f"{new_beta}.npz"
+        save_su = save_su_root + f"{beta}.npz"
         su.save_to_file(save_su)
         print("Simple update data saved in file", save_su)
     tensors = su.get_ABCD()
     colors = su.get_colors_ABCD()
 
-    if not beta:  # initialize CTMRG from 1st beta value
-        ctm_list = []
+    if not ctm_list:  # initialize CTMRG from 1st beta value
         for chi in chi_list:
             ctm_list.append(CTMRG(chi, tiling=tiling, tensors=tensors, colors=colors))
     else:  # set tensors to new values
         for ctm in ctm_list:
             ctm.set_tensors(tensors, colors)
-    beta = new_beta
 
     ####################################################################################
     # CTMRG
