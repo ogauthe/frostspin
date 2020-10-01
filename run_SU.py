@@ -73,6 +73,7 @@ print(f"\nCompute CTMRG environment for chi in {list(chi_list)}")
 print(f"Converge CTMRG with tol = {ctm_tol} for a max of {ctm_maxiter} iterations")
 
 # misc
+energies = []
 save_su_root = str(config["save_su_root"])
 save_ctm_root = str(config["save_ctm_root"])
 save_rdm_root = str(config["save_rdm_root"])
@@ -135,9 +136,12 @@ for new_beta in beta_list:
         save_rdm = save_rdm_root + f"{beta}_chi{ctm.chi}.npz"
         np.savez_compressed(save_rdm, rdm_1st_nei=rdm_1st_nei, rdm_2nd_nei=rdm_2nd_nei)
         print("    rdm saved in file", save_rdm)
-        energy = (rdm_1st_nei * h1).sum() + (rdm_2nd_nei * h2).sum()
-        print(f"    energy = {energy}")
+        energies.append((rdm_1st_nei * h1).sum() + (rdm_2nd_nei * h2).sum())
+        print(f"    energy = {energies[-1]}")
 
 
 print("\n" + "#" * 79)
-print("Program terminated.")
+print("Computations finished")
+print(" beta          energy")
+for b, e in zip(beta_list, energies):
+    print(f"{b:.4f}   {e}")
