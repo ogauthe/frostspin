@@ -211,30 +211,30 @@ class CTM_Environment(object):
         # do not store lists to avoid pickle
         # come back to elementary numpy arrays
         data = {}
-        data["cell"] = self._cell
-        data["indices"] = self._indices
-        data["neq_coords"] = self._neq_coords
+        data["_CTM_cell"] = self._cell
+        data["_CTM_indices"] = self._indices
+        data["_CTM_neq_coords"] = self._neq_coords
 
         for i in range(self._Nneq):
-            data[f"A_{i}"] = self._neq_As[i]
-            data[f"C1_{i}"] = self._neq_C1s[i]
-            data[f"T1_{i}"] = self._neq_T1s[i]
-            data[f"C2_{i}"] = self._neq_C2s[i]
-            data[f"T2_{i}"] = self._neq_T2s[i]
-            data[f"C3_{i}"] = self._neq_C3s[i]
-            data[f"T3_{i}"] = self._neq_T3s[i]
-            data[f"C4_{i}"] = self._neq_C4s[i]
-            data[f"T4_{i}"] = self._neq_T4s[i]
-            data[f"colors_C1_r_{i}"] = self._colors_C1_r[i]
-            data[f"colors_C1_d_{i}"] = self._colors_C1_d[i]
-            data[f"colors_C2_d_{i}"] = self._colors_C2_d[i]
-            data[f"colors_C2_l_{i}"] = self._colors_C2_l[i]
-            data[f"colors_C3_u_{i}"] = self._colors_C3_u[i]
-            data[f"colors_C3_l_{i}"] = self._colors_C3_l[i]
-            data[f"colors_C4_u_{i}"] = self._colors_C4_u[i]
-            data[f"colors_C4_r_{i}"] = self._colors_C4_r[i]
+            data[f"_CTM_A_{i}"] = self._neq_As[i]
+            data[f"_CTM_C1_{i}"] = self._neq_C1s[i]
+            data[f"_CTM_T1_{i}"] = self._neq_T1s[i]
+            data[f"_CTM_C2_{i}"] = self._neq_C2s[i]
+            data[f"_CTM_T2_{i}"] = self._neq_T2s[i]
+            data[f"_CTM_C3_{i}"] = self._neq_C3s[i]
+            data[f"_CTM_T3_{i}"] = self._neq_T3s[i]
+            data[f"_CTM_C4_{i}"] = self._neq_C4s[i]
+            data[f"_CTM_T4_{i}"] = self._neq_T4s[i]
+            data[f"_CTM_colors_C1_r_{i}"] = self._colors_C1_r[i]
+            data[f"_CTM_colors_C1_d_{i}"] = self._colors_C1_d[i]
+            data[f"_CTM_colors_C2_d_{i}"] = self._colors_C2_d[i]
+            data[f"_CTM_colors_C2_l_{i}"] = self._colors_C2_l[i]
+            data[f"_CTM_colors_C3_u_{i}"] = self._colors_C3_u[i]
+            data[f"_CTM_colors_C3_l_{i}"] = self._colors_C3_l[i]
+            data[f"_CTM_colors_C4_u_{i}"] = self._colors_C4_u[i]
+            data[f"_CTM_colors_C4_r_{i}"] = self._colors_C4_r[i]
             for leg in range(6):
-                data[f"colors_A_{i}_{leg}"] = self._colors_A[i][leg]
+                data[f"_CTM_colors_A_{i}_{leg}"] = self._colors_A[i][leg]
 
         if file is None:
             return data
@@ -245,9 +245,9 @@ class CTM_Environment(object):
         Load cell, tensors and colors from file. Erase any pre-existing data.
         """
         with np.load(file) as data:
-            self._cell = data["cell"]
-            self._indices = data["indices"]
-            self._neq_coords = data["neq_coords"]
+            self._cell = data["_CTM_cell"]
+            self._indices = data["_CTM_indices"]
+            self._neq_coords = data["_CTM_neq_coords"]
             self._Ly, self._Lx = self._cell.shape
             self._Nneq = len(self._neq_coords)
 
@@ -273,26 +273,26 @@ class CTM_Environment(object):
             self._colors_C4_r = [default_color] * self._Nneq
 
             for i in range(self._Nneq):
-                self._neq_As[i] = data[f"A_{i}"]
-                self._neq_C1s[i] = data[f"C1_{i}"]
-                self._neq_T1s[i] = data[f"T1_{i}"]
-                self._neq_C2s[i] = data[f"C2_{i}"]
-                self._neq_T2s[i] = data[f"T2_{i}"]
-                self._neq_C3s[i] = data[f"C3_{i}"]
-                self._neq_T3s[i] = data[f"T3_{i}"]
-                self._neq_C4s[i] = data[f"C4_{i}"]
-                self._neq_T4s[i] = data[f"T4_{i}"]
+                self._neq_As[i] = data[f"_CTM_A_{i}"]
+                self._neq_C1s[i] = data[f"_CTM_C1_{i}"]
+                self._neq_T1s[i] = data[f"_CTM_T1_{i}"]
+                self._neq_C2s[i] = data[f"_CTM_C2_{i}"]
+                self._neq_T2s[i] = data[f"_CTM_T2_{i}"]
+                self._neq_C3s[i] = data[f"_CTM_C3_{i}"]
+                self._neq_T3s[i] = data[f"_CTM_T3_{i}"]
+                self._neq_C4s[i] = data[f"_CTM_C4_{i}"]
+                self._neq_T4s[i] = data[f"_CTM_T4_{i}"]
                 self._colors_A[i] = tuple(
-                    data[f"colors_A_{i}_{leg}"] for leg in range(6)
+                    data[f"_CTM_colors_A_{i}_{leg}"] for leg in range(6)
                 )
-                self._colors_C1_r[i] = data[f"colors_C1_r_{i}"]
-                self._colors_C1_d[i] = data[f"colors_C1_d_{i}"]
-                self._colors_C2_d[i] = data[f"colors_C2_d_{i}"]
-                self._colors_C2_l[i] = data[f"colors_C2_l_{i}"]
-                self._colors_C3_u[i] = data[f"colors_C3_u_{i}"]
-                self._colors_C3_l[i] = data[f"colors_C3_l_{i}"]
-                self._colors_C4_u[i] = data[f"colors_C4_u_{i}"]
-                self._colors_C4_r[i] = data[f"colors_C4_r_{i}"]
+                self._colors_C1_r[i] = data[f"_CTM_colors_C1_r_{i}"]
+                self._colors_C1_d[i] = data[f"_CTM_colors_C1_d_{i}"]
+                self._colors_C2_d[i] = data[f"_CTM_colors_C2_d_{i}"]
+                self._colors_C2_l[i] = data[f"_CTM_colors_C2_l_{i}"]
+                self._colors_C3_u[i] = data[f"_CTM_colors_C3_u_{i}"]
+                self._colors_C3_l[i] = data[f"_CTM_colors_C3_l_{i}"]
+                self._colors_C4_u[i] = data[f"_CTM_colors_C4_u_{i}"]
+                self._colors_C4_r[i] = data[f"_CTM_colors_C4_r_{i}"]
 
         self._reset_projectors_temp()
 
