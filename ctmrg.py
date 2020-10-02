@@ -160,6 +160,8 @@ class CTMRG(object):
             )
 
     def iterate(self):
+        if self.verbosity > 0:
+            print("Begin CTM iteration")
         self.up_move()
         if self.verbosity > 1:
             self.print_tensor_shapes()
@@ -172,6 +174,8 @@ class CTMRG(object):
         self.left_move()
         if self.verbosity > 1:
             self.print_tensor_shapes()
+        if self.verbosity > 0:
+            print("Finished CTM iteration")
 
     def converge(self, tol, warmup=0, maxiter=100):
         """
