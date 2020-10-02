@@ -706,7 +706,7 @@ class SimpleUpdate2x2(object):
             print(f"Launch time evolution for time {beta}")
         if beta < 1.9 * self._tau:  # care for float round in case beta = 2*tau
             raise ValueError("Cannot evolve for time lesser than 2*tau")
-        niter = round(beta / self._tau / 2)  # 2nd order: evolve 2*tau by step
+        niter = round(float(beta / self._tau / 2))  # 2nd order: evolve 2*tau by step
 
         self.update_bond1(self._g1)
         for i in range(niter - 1):  # there is 1 step out of the loop
