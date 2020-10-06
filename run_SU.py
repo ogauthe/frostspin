@@ -123,6 +123,7 @@ for new_beta in beta_list:
     ####################################################################################
     # CTMRG
     ####################################################################################
+    eps_beta = []
     for ctm in ctm_list:
         print("\n" + " " * 4 + "#" * 75)
         print(f"    Converge CTMRG for D = {Dmax} and chi = {ctm.chi}...")
@@ -144,12 +145,13 @@ for new_beta in beta_list:
         print(f"    done with rdm computation, t = {time.time()-t:.0f}")
         np.savez_compressed(save_ctm, rdm_2nd_nei=rdm_2nd_nei, **data_ctm)
         print("    rdm added to file", save_ctm)
-        energies.append((rdm_1st_nei * h1).sum() + (rdm_2nd_nei * h2).sum())
-        print(f"    energy = {energies[-1]}")
+        eps_beta.append((rdm_1st_nei * h1).sum() + (rdm_2nd_nei * h2).sum())
+        print(f"    energy = {eps_beta[-1]}")
+    energies += [eps_beta]
 
 
 print("\n" + "#" * 79)
-print("Computations finished")
-print(" beta          energy")
-for b, e in zip(beta_list, energies):
-    print(f"{b:.4f}   {e}")
+print("Computations finished.\n\nEnergies:")
+print(" beta           ", *(f"chi = {chi}" + " " * 15 for chi in chi_list))
+for beta, eps_beta in zip(beta_list, energies):
+    print(f"{beta:.4f}  ", *(f"  {e:.17f}" for e in eps_beta))
