@@ -42,9 +42,9 @@ def rdm_1x1(C1, T1, C2, T4, A, T2, C4, T3, C3):
 def rdm_1x2(C1, T1l, T1r, C2, T4, Al, Ar, T2, C4, T3l, T3r, C3):
     """
     Compute reduced density matrix for 2 sites in a row
+    CPU: chi**2*D**6*(a*d + a*d**2) + d**2*chi**3*D**4 = O(D**10)
+    Memory: 2*d**2*chi**2*D**4
     """
-    # CPU optimal, not memory optimal
-
     #
     #   C1-0     3-T1-0           3-T1-0       1-C2
     #   |          ||               ||            |
@@ -60,26 +60,47 @@ def rdm_1x2(C1, T1l, T1r, C2, T4, Al, Ar, T2, C4, T3l, T3r, C3):
     #   |          ||               ||            |
     #   C4-1     3-T3-2           3-T3-2       1-C3
 
+    left = np.tensordot(C1, np.tensordot(T4, C4, ((3,), (0,))), ((1,), (0,)))
+    # |----0   <= put chi in leg 0 and let it there
+    # |  ||
+    # |  12
+    # |=3,4
+    # |-5
+    left = np.tensordot(T1l, left, ((3,), (0,)))
+    # |----0
+    # |  ||
+    # |  24
+    # |=3,5
+    # |-1
+    left = left.transpose(0, 5, 2, 4, 1, 3).copy()
+    left = np.tensordot(left, Al, ((4, 5), (2, 5)))
+    left = left.transpose(0, 1, 4, 6, 7, 2, 3, 5).copy()
+    left = np.tensordot(left, Al.conj(), ((5, 6, 7), (2, 5, 1)))
+    left = left.transpose(
+        0, 2, 3, 5, 6, 7, 4, 1
+    ).copy()  # exchange bra-ket to optimize copy
+    left = np.tensordot(left, T3l, ((5, 6, 7), (1, 0, 3)))
+    left = left.transpose(1, 3, 0, 2, 4, 5).copy()
+
     right = np.tensordot(C2, T1r, ((1,), (0,)))
-    right = np.tensordot(np.tensordot(C3, T2, ((0,), (1,))), right, ((1,), (0,)))
-    right = np.tensordot(right, Ar, ((3, 1), (2, 3)))
-    right = np.tensordot(right, Ar.conj(), ((2, 5, 1), (2, 1, 3)))
-    right = np.tensordot(right, T3r, ((3, 6, 0), (0, 1, 2)))
+    right = right.swapaxes(0, 3).copy()  # put chi as leg 0
+    right = np.tensordot(right, np.tensordot(T2, C3, ((1,), (0,))), ((3,), (0,)))
+    right = right.transpose(0, 5, 2, 4, 1, 3).copy()
+    temp = Ar.transpose(2, 3, 1, 0, 5, 4).copy()
+    right = np.tensordot(right, temp, ((4, 5), (0, 1)))
+    right = right.transpose(0, 1, 5, 6, 7, 2, 3, 4).copy()  # 1st memory peak
+    temp = Ar.transpose(2, 3, 1, 0, 5, 4).conj().copy()
+    right = np.tensordot(right, temp, ((5, 6, 7), (0, 1, 2)))
+    right = right.transpose(0, 2, 3, 5, 6, 7, 4, 1).copy()  # 2nd memory peak
+    right = np.tensordot(right, T3r, ((5, 6, 7), (1, 0, 2)))
     right = right.transpose(0, 2, 4, 5, 1, 3).copy()
-    left = np.tensordot(C4, T4, ((0,), (3,)))
-    left = np.tensordot(left, T3l, ((0,), (3,)))
-    left = np.tensordot(left, Al, ((1, 3), (5, 4)))
-    left = np.tensordot(left, Al.conj(), ((1, 5, 2), (5, 1, 4)))
-    left = left.transpose(1, 2, 4, 5, 7, 0, 3, 6).copy()
-    T1lC1 = np.tensordot(T1l, C1, ((3,), (0,))).swapaxes(0, 3).copy()
-    left = np.tensordot(left, T1lC1, ((5, 6, 7), (0, 1, 2)))
-    del T1lC1
-    left = left.transpose(1, 3, 5, 2, 4, 0).copy()
+
     rdm = np.tensordot(left, right, ((2, 3, 4, 5), (0, 1, 2, 3)))
     rdm = rdm.swapaxes(1, 2).reshape(
         Al.shape[0] * Ar.shape[0], Al.shape[0] * Ar.shape[0]
     )
-    rdm = rdm / np.trace(rdm)
+    rdm /= rdm.trace()
+
     return rdm
 
 
