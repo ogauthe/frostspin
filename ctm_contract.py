@@ -1,8 +1,11 @@
-import numpy as np
-
+"""
+Corner and halves contraction for CTMRG algorithm
+Library agnostic module, only calls __matmul__, reshape and transpose methods.
+"""
 
 ###############################################################################
 #  construct 2x2 corners
+#  memory: peak at 2*a*d*chi**2*D**4
 ###############################################################################
 
 
@@ -10,7 +13,7 @@ def contract_ul_corner(C1, T1, T4, A):
     #  C1-03-T1-0
     #  |     ||
     #  1->3  12
-    ul = np.dot(T1.reshape(T1.shape[0] * T1.shape[1] ** 2, T1.shape[3]), C1)
+    ul = T1.reshape(T1.shape[0] * T1.shape[1] ** 2, T1.shape[3]) @ C1
 
     #  C1---T1-0
     #  |    ||
@@ -20,7 +23,7 @@ def contract_ul_corner(C1, T1, T4, A):
     #  T4=1,2 -> 3,4
     #  |
     #  3 -> 5
-    ul = np.dot(ul, T4.reshape(T4.shape[0], T4.shape[1] ** 2 * T4.shape[3])).reshape(
+    ul = (ul @ T4.reshape(T4.shape[0], T4.shape[1] ** 2 * T4.shape[3])).reshape(
         T1.shape[0], T1.shape[1], T1.shape[2], T4.shape[1], T4.shape[2], T4.shape[3]
     )
     ul = ul.transpose(0, 5, 2, 4, 1, 3).reshape(
@@ -38,7 +41,7 @@ def contract_ul_corner(C1, T1, T4, A):
     #  T4-51-A-4
     #  | \3  |\3
     #  1     5
-    ul = np.dot(ul, temp).reshape(
+    ul = (ul @ temp).reshape(
         T1.shape[0],
         T4.shape[3],
         T1.shape[2],
@@ -51,7 +54,7 @@ def contract_ul_corner(C1, T1, T4, A):
     ul = ul.transpose(0, 1, 6, 7, 2, 3, 4, 5).reshape(
         T1.shape[0] * T4.shape[3] * A.shape[3] * A.shape[4],
         T1.shape[2] * T4.shape[2] * A.shape[0] * A.shape[1],
-    )
+    )  # memory peak 2*a*d*chi**2*D**4
     #  C1----T1-0
     #  |     ||
     #  |     |4
@@ -60,7 +63,7 @@ def contract_ul_corner(C1, T1, T4, A):
     #  T4----A-2      1-A*-4
     #  | \5  |\7        |\
     #  1     3          5 3
-    ul = np.dot(ul, temp.reshape(ul.shape[1], A.shape[3] * A.shape[4]).conj()).reshape(
+    ul = (ul @ temp.reshape(ul.shape[1], A.shape[3] * A.shape[4]).conj()).reshape(
         T1.shape[0], T4.shape[3], A.shape[3], A.shape[4], A.shape[3], A.shape[4]
     )
 
@@ -82,7 +85,7 @@ def contract_ur_corner(T1, C2, A, T2):
     #  3-T1-01-C2
     #    ||     |
     #    12     0
-    ur = np.dot(C2, T1.reshape(T1.shape[0], T1.shape[1] * T1.shape[2] * T1.shape[3]))
+    ur = C2 @ T1.reshape(T1.shape[0], T1.shape[1] * T1.shape[2] * T1.shape[3])
 
     #     2-T1---C1
     #       ||    |
@@ -92,8 +95,8 @@ def contract_ur_corner(T1, C2, A, T2):
     #   4,5<-2,3=T2
     #             |
     #         3<- 1
-    ur = np.dot(
-        ur.T, T2.reshape((T2.shape[0], T2.shape[1] * T2.shape[2] * T2.shape[3]))
+    ur = (
+        ur.T @ T2.reshape(T2.shape[0], T2.shape[1] * T2.shape[2] * T2.shape[3])
     ).reshape(
         T1.shape[1], T1.shape[2], T1.shape[3], T2.shape[1], T2.shape[2], T2.shape[3]
     )
@@ -111,7 +114,7 @@ def contract_ur_corner(T1, C2, A, T2):
     #     5-A-15-T2
     #       |\ 3  |
     #       4 3   0
-    ur = np.dot(ur, temp).reshape(
+    ur = (ur @ temp).reshape(
         T2.shape[1] * T1.shape[3],
         A.shape[2] * A.shape[3] * A.shape[0] * A.shape[1],
         A.shape[4] * A.shape[5],
@@ -120,7 +123,7 @@ def contract_ur_corner(T1, C2, A, T2):
         T2.shape[1] * T1.shape[3] * A.shape[4] * A.shape[5],
         A.shape[2] * A.shape[3] * A.shape[0] * A.shape[1],
     )
-    ur = np.dot(ur, temp.reshape(ur.shape[1], A.shape[4] * A.shape[5]).conj()).reshape(
+    ur = (ur @ temp.reshape(ur.shape[1], A.shape[4] * A.shape[5]).conj()).reshape(
         T2.shape[1], T1.shape[3], A.shape[4], A.shape[5], A.shape[4], A.shape[5]
     )
     #    /31-T1-C1
@@ -144,7 +147,7 @@ def contract_dr_corner(A, T2, T3, C3):
     dr = T3.transpose(2, 0, 1, 3).reshape(
         T3.shape[2], T3.shape[0] * T3.shape[1] * T3.shape[3]
     )
-    dr = np.dot(C3, dr)
+    dr = C3 @ dr
 
     #              0
     #              |
@@ -157,7 +160,7 @@ def contract_dr_corner(A, T2, T3, C3):
     temp = T2.transpose(0, 2, 3, 1).reshape(
         T2.shape[0] * T2.shape[2] * T2.shape[3], T2.shape[1]
     )
-    dr = np.dot(temp, dr).reshape(
+    dr = (temp @ dr).reshape(
         T2.shape[0], T2.shape[2], T2.shape[3], T3.shape[0], T3.shape[1], T3.shape[3]
     )
     dr = dr.transpose(0, 5, 2, 4, 1, 3).reshape(
@@ -166,7 +169,7 @@ def contract_dr_corner(A, T2, T3, C3):
     temp = A.transpose(3, 4, 0, 1, 2, 5).reshape(
         dr.shape[1], A.shape[0] * A.shape[1] * A.shape[2] * A.shape[5]
     )
-    dr = np.dot(dr, temp).reshape(
+    dr = (dr @ temp).reshape(
         T2.shape[0] * T3.shape[3],
         T2.shape[3] * T3.shape[1] * A.shape[0] * A.shape[1],
         A.shape[2] * A.shape[5],
@@ -183,7 +186,7 @@ def contract_dr_corner(A, T2, T3, C3):
         T2.shape[0] * T3.shape[3] * A.shape[2] * A.shape[5],
         T2.shape[3] * T3.shape[1] * A.shape[0] * A.shape[1],
     )
-    dr = np.dot(dr, temp.reshape(dr.shape[1], A.shape[2] * A.shape[5]).conj()).reshape(
+    dr = (dr @ temp.reshape(dr.shape[1], A.shape[2] * A.shape[5]).conj()).reshape(
         T2.shape[0], T3.shape[3], A.shape[2], A.shape[5], A.shape[2], A.shape[5]
     )
 
@@ -210,7 +213,7 @@ def contract_dl_corner(T4, A, C4, T3):
     #      0
     #      |
     #      C4-1
-    dl = np.dot(T4.reshape(T4.shape[0] * T4.shape[1] * T4.shape[2], T4.shape[3]), C4)
+    dl = T4.reshape(T4.shape[0] * T4.shape[1] * T4.shape[2], T4.shape[3]) @ C4
     #      0
     #      |
     #      T4=1,2
@@ -218,8 +221,8 @@ def contract_dl_corner(T4, A, C4, T3):
     #      |     01
     #      |     ||
     #      C4-33-T3-25
-    dl = np.dot(
-        dl, T3.reshape(T3.shape[0] * T3.shape[1] * T3.shape[2], T3.shape[3]).T
+    dl = (
+        dl @ T3.reshape(T3.shape[0] * T3.shape[1] * T3.shape[2], T3.shape[3]).T
     ).reshape(
         T4.shape[0], T4.shape[1], T4.shape[2], T3.shape[0], T3.shape[1], T3.shape[2]
     )
@@ -238,13 +241,13 @@ def contract_dl_corner(T4, A, C4, T3):
     #      |     42
     #      |     ||
     #      C4----T3-1
-    dl = np.dot(dl, temp).reshape(
+    dl = (dl @ temp).reshape(
         T4.shape[0] * T3.shape[2],
         temp.shape[0] * A.shape[0] * A.shape[1],
         A.shape[2] * A.shape[3],
     )
     dl = dl.swapaxes(1, 2).reshape(dl.shape[0] * dl.shape[2], dl.shape[1])
-    dl = np.dot(dl, temp.reshape(dl.shape[1], A.shape[2] * A.shape[3]).conj()).reshape(
+    dl = (dl @ temp.reshape(dl.shape[1], A.shape[2] * A.shape[3]).conj()).reshape(
         T4.shape[0], T3.shape[2], A.shape[2], A.shape[3], A.shape[2], A.shape[3]
     )
     #        0
@@ -263,6 +266,7 @@ def contract_dl_corner(T4, A, C4, T3):
 
 ###############################################################################
 # construct halves from corners
+# memory: max during corner construction
 ###############################################################################
 
 
