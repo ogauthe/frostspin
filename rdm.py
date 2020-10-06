@@ -187,17 +187,29 @@ def rdm_diag_dr(
     C1, T1l, T1r, C2, T4u, Aul, Aur, T2u, T4d, Adl, Adr, T2d, C4, T3l, T3r, C3
 ):
     """
-    ┌──┬──┐
-    │02│  │
-    ├──┼──┤
-    │  │13│
-    └──┴──┘
+    -------
+    |02|  |
+    |-----|
+    |  |13|
+    -------
+    memory: 3*d**2*chi**2*D**4
     """
-    # memory use: 3*chi**2*D**4*d**4
-    ul = np.tensordot(T1l, C1, ((3,), (0,)))
-    ul = np.tensordot(ul, T4u, ((3,), (0,)))
-    ul = np.tensordot(ul, Aul, ((1, 3), (2, 5)))
-    ul = np.tensordot(ul, Aul.conj(), ((1, 2, 5), (2, 5, 1)))
+    ul = np.tensordot(C1, T4u, ((1,), (0,)))
+    # |----0   <= put chi in leg 0 and let it there
+    # |  ||
+    # |  12
+    # |=3,4
+    # |-5
+    ul = np.tensordot(T1l, ul, ((3,), (0,)))
+    # |----0
+    # |  ||
+    # |  24
+    # |=3,5
+    # |-1
+    ul = ul.transpose(0, 5, 2, 4, 1, 3).copy()
+    ul = np.tensordot(ul, Aul, ((4, 5), (2, 5)))
+    ul = ul.transpose(0, 1, 4, 6, 7, 2, 3, 5).copy()  # mem 2*a*d*chi**2*D**4
+    ul = np.tensordot(ul, Aul.conj(), ((5, 6, 7), (2, 5, 1)))
     #   ------0
     #   | 2 ||
     #   |  \||
@@ -208,13 +220,13 @@ def rdm_diag_dr(
     ul = ul.transpose(0, 3, 6, 2, 5, 1, 4, 7).reshape(
         T1l.shape[0] * Aul.shape[3] ** 2 * Aul.shape[0] ** 2,
         T4u.shape[3] * Aul.shape[4] ** 2,
-    )
+    )  # mem 2*d**2*chi**2*D**4
     dl = contract_dl_corner(T4d, Adl, C4, T3l)
-    rdm = ul @ dl
+    rdm = ul @ dl  # mem (2*d**2+1)*chi**2*D**4
     rdm = rdm.reshape(T1l.shape[0] * Aul.shape[3] ** 2, Aul.shape[0] ** 2 * dl.shape[1])
     del ul, dl
     ur = contract_ur_corner(T1r, C2, Aur, T2u)
-    rdm = ur @ rdm
+    rdm = ur @ rdm  # mem (2*d**2+1)*chi**2*D**4
     rdm = rdm.reshape(ur.shape[0], Aul.shape[0] ** 2, T3l.shape[2] * Adl.shape[3] ** 2)
     del ur
     #   -----           -----
@@ -224,11 +236,31 @@ def rdm_diag_dr(
     rdm = rdm.swapaxes(0, 1).reshape(
         Aul.shape[0] ** 2,
         T2u.shape[1] * Aur.shape[4] ** 2 * T3l.shape[2] * Adl.shape[3] ** 2,
-    )
+    )  # mem 2*d**2*chi**2*D**4
+
+    #       0
+    #  1,2 =|
+    #       3
     dr = np.tensordot(T2d, C3, ((1,), (0,)))
+    #       0
+    #  1,2 =|
+    #       |
+    #   34  |
+    # 5-||---
     dr = np.tensordot(dr, T3r, ((3,), (2,)))
-    dr = np.tensordot(dr, Adr, ((1, 3), (3, 4)))
-    dr = np.tensordot(dr, Adr.conj(), ((1, 2, 5), (3, 4, 1)))
+    dr = dr.transpose(0, 5, 2, 4, 1, 3).copy()
+    dr = np.tensordot(dr, Adr.swapaxes(0, 1), ((4, 5), (3, 4)))
+    #     6    0            3    0
+    #     | 5  |            | 2  |
+    #     |/ 2-|            |/ 5-|
+    #   7------|   --->   4------|
+    #     |3 \ |            |6 \ |
+    #     ||  4|            ||  7|
+    #   1-------          1-------
+    dr = dr.transpose(
+        0, 1, 5, 6, 7, 2, 3, 4
+    ).copy()  # memory peak: chi**2*D**4*(d**2+2*a*d)
+    dr = np.tensordot(dr, Adr.conj(), ((5, 6, 7), (3, 4, 1)))
     #     36   0
     #     || 2 |
     #     ||/  |              0
@@ -238,7 +270,7 @@ def rdm_diag_dr(
     #   1-------
     dr = dr.transpose(0, 3, 6, 1, 4, 7, 2, 5).reshape(
         rdm.shape[1], Adr.shape[0] ** 2
-    )  # max mem
+    )  # memory peak: 3*d**2*chi**2*D**4
     rdm = rdm @ dr
     rdm = rdm.reshape(Aul.shape[0], Aul.shape[0], Adr.shape[0], Adr.shape[0])
     rdm = rdm.swapaxes(1, 2).reshape(
@@ -252,53 +284,74 @@ def rdm_diag_ur(
     C1, T1l, T1r, C2, T4u, Aul, Aur, T2u, T4d, Adl, Adr, T2d, C4, T3l, T3r, C3
 ):
     """
-    ┌──┬──┐
-    │  │02│
-    ├──┼──┤
-    │13│  │
-    └──┴──┘
+    -------
+    |  |02│
+    |-----|
+    |13|  |
+    -------
+    memory: 3*d**2*chi**2*D**4
     """
-    # memory use: 3*chi**2*D**4*d**4
     dl = np.tensordot(T4d, C4, ((3,), (0,)))
     dl = np.tensordot(dl, T3l, ((3,), (3,)))
-    dl = np.tensordot(dl, Adl, ((1, 3), (5, 4)))
-    dl = np.tensordot(dl, Adl.conj(), ((1, 2, 5), (5, 4, 1)))
-    #  0  36
-    #  |2 ||
-    #  | \||
-    #  |====4,7
-    #  | /||
-    #  |5 ||
-    #  ------1
+    #  0             0
+    #  |-1           |-5
+    #  |-2      -->  |-3
+    #  |  34         |  42
+    #  |  ||         |  ||
+    #  ------5       -------1
+    dl = dl.transpose(0, 5, 4, 2, 3, 1).copy()
+    dl = np.tensordot(dl, Adl.swapaxes(0, 1), ((4, 5), (4, 5)))
+    #  0   6          0   3
+    #  |   | 5        |   | 2
+    #  |-3 |/         |-5 |/
+    #  |---|--7  -->  |---|--4
+    #  |  2|\         |  6|\
+    #  |  || 4        |  || 7
+    #  ------1        ------1
+    dl = dl.transpose(0, 1, 5, 6, 7, 2, 3, 4).copy()  # 2*d*a*chi**2*D**4
+    dl = np.tensordot(dl, Adl.conj(), ((5, 6, 7), (4, 5, 1)))
+    #  0  36          0  12
+    #  |2 ||          |3 ||
+    #  | \||          | \||
+    #  |====4,7  -->  |====6,7
+    #  | /||          | /||
+    #  |5 ||          |4 ||
+    #  ------1        ------5
     dl = dl.transpose(0, 3, 6, 2, 5, 1, 4, 7).reshape(
         T4d.shape[0] * Adl.shape[2] ** 2,
         Adl.shape[0] ** 2 * T3l.shape[2] * Adl.shape[3] ** 2,
-    )
+    )  # 2*d**2*chi**2*D**4
     ul = contract_ul_corner(C1, T1l, T4u, Aul)
-    rdm = ul @ dl
+    rdm = ul @ dl  # (2*d**2+1)*chi**2*D**4
     rdm = rdm.reshape(ul.shape[0] * Adl.shape[0] ** 2, T3l.shape[2] * Adl.shape[3] ** 2)
     del ul, dl
     dr = contract_dr_corner(Adr, T2d, T3r, C3)
-    rdm = rdm @ dr.T
+    rdm = rdm @ dr.T  # (2*d**2+1)*chi**2*D**4
     rdm = rdm.reshape(T1l.shape[0] * Aul.shape[3] ** 2, Adl.shape[0] ** 2, dr.shape[0])
     del dr
+    # ---0          ---1
+    # |   2   -->   |   2
+    # |11 |         |00 |        mem 2*d**2*chi**2*D**4
+    # -----         -----
     rdm = rdm.swapaxes(0, 1).reshape(
         Adl.shape[0] ** 2,
         T1l.shape[0] * Aul.shape[3] ** 2 * T2d.shape[0] * Adr.shape[2] ** 2,
     )
-    # ---0          ---1
-    # |   2   -->   |   2
-    # |11 |         |00 |
-    # -----         -----
+
     ur = np.tensordot(C2, T1r, ((1,), (0,)))
-    ur = np.tensordot(ur, T2u, ((0,), (0,)))
-    ur = np.tensordot(ur, Aur, ((0, 4), (2, 3)))
-    ur = np.tensordot(ur, Aur.conj(), ((0, 3, 5), (2, 3, 1)))
+    ur = ur.swapaxes(0, 3).copy()  # put chi as leg 0
+    ur = np.tensordot(ur, T2u, ((3,), (0,)))
+    ur = ur.transpose(0, 3, 2, 5, 1, 4).copy()
+    temp = Aur.transpose(2, 3, 1, 0, 4, 5).copy()
+    ur = np.tensordot(ur, temp, ((4, 5), (0, 1)))
+    ur = ur.transpose(0, 1, 5, 6, 7, 2, 3, 4).copy()  # (d**2+2*a*d)*chi**2*D**4
+    temp = Aur.transpose(2, 3, 1, 0, 4, 5).conj().copy()
+    ur = np.tensordot(ur, temp, ((5, 6, 7), (0, 1, 2)))
     #   0--------
     #       || 2|
     #       ||/ |
-    #  4,7======|   -->   0----
-    #       ||\ |           22|
+    #  4,7======|   -->   0----   memory peak: 2*ur + rdm
+    #       ||\ |           22|               = 3*d**2*chi**2*D**4
     #       || 5|             |
     #       36  1             1
     ur = ur.transpose(0, 4, 7, 1, 3, 6, 2, 5).reshape(rdm.shape[1], Aur.shape[0] ** 2)
