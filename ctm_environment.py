@@ -262,15 +262,15 @@ class CTM_Environment(object):
             self._neq_T4s = [None] * self._Nneq
 
             # colors are always defined and stored, even if they are default_color
-            self._colors_A = [(default_color,) * 6] * self._Nneq
-            self._colors_C1_r = [default_color] * self._Nneq
-            self._colors_C1_d = [default_color] * self._Nneq
-            self._colors_C2_d = [default_color] * self._Nneq
-            self._colors_C2_l = [default_color] * self._Nneq
-            self._colors_C3_u = [default_color] * self._Nneq
-            self._colors_C3_l = [default_color] * self._Nneq
-            self._colors_C4_u = [default_color] * self._Nneq
-            self._colors_C4_r = [default_color] * self._Nneq
+            self._colors_A = [None] * self._Nneq
+            self._colors_C1_r = [None] * self._Nneq
+            self._colors_C1_d = [None] * self._Nneq
+            self._colors_C2_d = [None] * self._Nneq
+            self._colors_C2_l = [None] * self._Nneq
+            self._colors_C3_u = [None] * self._Nneq
+            self._colors_C3_l = [None] * self._Nneq
+            self._colors_C4_u = [None] * self._Nneq
+            self._colors_C4_r = [None] * self._Nneq
 
             for i in range(self._Nneq):
                 self._neq_As[i] = data[f"_CTM_A_{i}"]
