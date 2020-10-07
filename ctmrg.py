@@ -170,7 +170,7 @@ class CTMRG(object):
             #        L         R
             #        L         R
             #        L-1     0-R
-            P, Pt, color = construct_projectors(R, Rt, self.chi)
+            P, Pt = construct_projectors(R, Rt, self.chi)
             self._env.store_projectors(
                 x + 2, y, P, Pt
             )  # indices: Pt <=> renormalized T in R
@@ -183,8 +183,6 @@ class CTMRG(object):
         for x, y in self._neq_coords:
             P = self._env.get_P(x + 1, y)
             Pt = self._env.get_Pt(x, y)
-            color_P = self._env.get_color_P(x + 1, y)
-            color_Pt = -self._env.get_color_P(x, y)
             nC1 = renormalize_C1_up(
                 self._env.get_C1(x, y), self._env.get_T4(x, y + 1), P
             )
@@ -196,9 +194,7 @@ class CTMRG(object):
             nC2 = renormalize_C2_up(
                 self._env.get_C2(x, y), self._env.get_T2(x, y + 1), Pt
             )
-            self._env.store_renormalized_tensors(
-                x, y + 1, nC1, nT1, nC2, color_P, color_Pt
-            )
+            self._env.store_renormalized_tensors(x, y + 1, nC1, nT1, nC2)
 
         # 3) store renormalized tensors in the environment
         # renormalization reads C1[x,y] but writes C1[x,y+1]
@@ -238,8 +234,8 @@ class CTMRG(object):
                 self._env.get_A(x + 2, y + 1),
                 self._env.get_T2(x + 3, y + 1),
             )
-            P, Pt, color = construct_projectors(R, Rt, self.chi)
-            self._env.store_projectors(x + 3, y + 2, P, Pt, color)
+            P, Pt = construct_projectors(R, Rt, self.chi)
+            self._env.store_projectors(x + 3, y + 2, P, Pt)
             del R, Rt
 
         # 2) renormalize tensors by absorbing column
@@ -248,8 +244,6 @@ class CTMRG(object):
         for x, y in self._neq_coords:
             P = self._env.get_P(x, y + 1)
             Pt = self._env.get_Pt(x, y)
-            color_P = self._env.get_color_P(x, y + 1)
-            color_Pt = -self._env.get_color_P(x, y)
             nC2 = renormalize_C2_right(
                 self._env.get_C2(x, y), self._env.get_T1(x - 1, y), P
             )
@@ -261,9 +255,7 @@ class CTMRG(object):
             nC3 = renormalize_C3_right(
                 self._env.get_C3(x, y), self._env.get_T3(x - 1, y), Pt
             )
-            self._env.store_renormalized_tensors(
-                x - 1, y, nC2, nT2, nC3, color_P, color_Pt
-            )
+            self._env.store_renormalized_tensors(x - 1, y, nC2, nT2, nC3)
 
         # 3) store renormalized tensors in the environment
         self._env.fix_renormalized_right()
@@ -304,8 +296,8 @@ class CTMRG(object):
                 self._env.get_C3(x + 3, y + 3),
             )
 
-            P, Pt, color = construct_projectors(R, Rt, self.chi)
-            self._env.store_projectors(x + 3, y + 3, P, Pt, color)
+            P, Pt = construct_projectors(R, Rt, self.chi)
+            self._env.store_projectors(x + 3, y + 3, P, Pt)
             del R, Rt
 
         # 2) renormalize every non-equivalent C3, T3 and C4
@@ -314,8 +306,6 @@ class CTMRG(object):
         for x, y in self._neq_coords:
             P = self._env.get_P(x - 1, y)
             Pt = self._env.get_Pt(x, y)
-            color_P = self._env.get_color_P(x - 1, y)
-            color_Pt = -self._env.get_color_P(x, y)
             nC3 = renormalize_C3_down(
                 self._env.get_C3(x, y), self._env.get_T2(x, y - 1), P
             )
@@ -327,9 +317,7 @@ class CTMRG(object):
             nC4 = renormalize_C4_down(
                 self._env.get_C4(x, y), self._env.get_T4(x, y - 1), Pt
             )
-            self._env.store_renormalized_tensors(
-                x, y - 1, nC3, nT3, nC4, color_P, color_Pt
-            )
+            self._env.store_renormalized_tensors(x, y - 1, nC3, nT3, nC4)
 
         # 3) store renormalized tensors in the environment
         self._env.fix_renormalized_down()
@@ -367,8 +355,8 @@ class CTMRG(object):
                 self._env.get_T3(x + 2, y + 3),
                 self._env.get_C3(x + 3, y + 3),
             )
-            P, Pt, color = construct_projectors(R, Rt, self.chi)
-            self._env.store_projectors(x, y + 1, P, Pt, color)
+            P, Pt = construct_projectors(R, Rt, self.chi)
+            self._env.store_projectors(x, y + 1, P, Pt)
             del R, Rt
 
         # 2) renormalize every non-equivalent C4, T4 and C1
@@ -377,8 +365,6 @@ class CTMRG(object):
         for x, y in self._neq_coords:
             P = self._env.get_P(x, y - 1)
             Pt = self._env.get_Pt(x, y)
-            color_P = self._env.get_color_P(x, y - 1)
-            color_Pt = -self._env.get_color_P(x, y)
             nC4 = renormalize_C4_left(
                 self._env.get_C4(x, y), self._env.get_T3(x + 1, y), P
             )
@@ -390,9 +376,7 @@ class CTMRG(object):
             nC1 = renormalize_C1_left(
                 self._env.get_C1(x, y), self._env.get_T1(x + 1, y), Pt
             )
-            self._env.store_renormalized_tensors(
-                x + 1, y, nC4, nT4, nC1, color_P, color_Pt
-            )
+            self._env.store_renormalized_tensors(x + 1, y, nC4, nT4, nC1)
 
         # 3) store renormalized tensors in the environment
         self._env.fix_renormalized_left()
