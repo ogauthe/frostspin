@@ -39,6 +39,10 @@ def reduce_matrix_to_blocks(m, row_colors, col_colors):
             block_colors.append(sorted_row_colors[row_blocks[rb]])
             rb += 1
             cb += 1
+        elif sorted_row_colors[row_blocks[rb]] < sorted_col_colors[col_blocks[cb]]:
+            rb += 1
+        else:
+            cb += 1
     return blocks, block_colors, row_indices, col_indices
 
 
