@@ -1,6 +1,10 @@
 import rdm
 from ctm_environment import CTM_Environment
 from ctm_contract import (
+    contract_ul_corner,
+    contract_ur_corner,
+    contract_dl_corner,
+    contract_dr_corner,
     contract_u_half,
     contract_l_half,
     contract_d_half,
@@ -8,6 +12,7 @@ from ctm_contract import (
 )
 from ctm_renormalize import (
     construct_projectors,
+    construct_projectors_U1,
     renormalize_C1_up,
     renormalize_T1,
     renormalize_C2_up,
@@ -21,7 +26,7 @@ from ctm_renormalize import (
     renormalize_T4,
     renormalize_C1_left,
 )
-from toolsU1 import combine_colors, checkU1
+from toolsU1 import combine_colors, checkU1, reduce_matrix_to_blocks
 
 
 class CTMRG(object):
@@ -621,43 +626,84 @@ class CTMRG_U1(CTMRG):
         # 1) compute isometries for every non-equivalent sites
         # convention : get projectors from svd(R @ Rt)
         for x, y in self._neq_coords:
-            R = contract_r_half(
+
+            # define corner colors
+            col_Aul_r = self._env.get_colors_A(x + 1, y + 1)[3]
+            col_Aur_d = self._env.get_colors_A(x + 2, y + 1)[4]
+            col_Adr_l = self._env.get_colors_A(x + 2, y + 2)[5]
+            col_Adl_u = self._env.get_colors_A(x + 1, y + 2)[2]
+            colors_u = combine_colors(
+                self._env.get_color_T1_r(x + 1, y), col_Aul_r, -col_Aul_r
+            )
+            colors_r = combine_colors(
+                self._env.get_color_T2_d(x + 3, y + 1), col_Aur_d, -col_Aur_d
+            )
+            colors_d = combine_colors(
+                self._env.get_color_T3_l(x + 2, y + 3), col_Adr_l, -col_Adr_l
+            )
+            colors_l = combine_colors(
+                self._env.get_color_T4_u(x, y + 2), col_Adl_u, -col_Adl_u
+            )
+
+            dl = contract_dl_corner(
+                self._env.get_T4(x, y + 2),
+                self._env.get_A(x + 1, y + 2),
+                self._env.get_C4(x, y + 3),
+                self._env.get_T3(x + 1, y + 3),
+            ).T
+            dl_blocks, dl_colors, _, _ = reduce_matrix_to_blocks(
+                dl, colors_d, -colors_l
+            )
+            del dl
+
+            ul = contract_ul_corner(
+                self._env.get_C1(x, y),
+                self._env.get_T1(x + 1, y),
+                self._env.get_T4(x, y + 1),
+                self._env.get_A(x + 1, y + 1),
+            ).T
+            ul_blocks, ul_colors, _, ul_col_indices = reduce_matrix_to_blocks(
+                ul, colors_l, -colors_u
+            )
+            del ul
+
+            ur = contract_ur_corner(
                 self._env.get_T1(x + 2, y),
                 self._env.get_C2(x + 3, y),
                 self._env.get_A(x + 2, y + 1),
                 self._env.get_T2(x + 3, y + 1),
+            ).T
+            ur_blocks, ur_colors, _, _ = reduce_matrix_to_blocks(
+                ur, colors_u, -colors_r
+            )
+            del ur
+
+            dr = contract_dr_corner(
                 self._env.get_A(x + 2, y + 2),
                 self._env.get_T2(x + 3, y + 2),
                 self._env.get_T3(x + 2, y + 3),
                 self._env.get_C3(x + 3, y + 3),
             )
-            Rt = contract_l_half(
-                self._env.get_C1(x, y),
-                self._env.get_T1(x + 1, y),
-                self._env.get_T4(x, y + 1),
-                self._env.get_A(x + 1, y + 1),
-                self._env.get_T4(x, y + 2),
-                self._env.get_A(x + 1, y + 2),
-                self._env.get_C4(x, y + 3),
-                self._env.get_T3(x + 1, y + 3),
+            dr_blocks, dr_colors, _, _ = reduce_matrix_to_blocks(
+                dr, colors_r, -colors_d
             )
-            #        L-0  == 1-R
-            #        L         R
-            #        L         R
-            #        L-1     0-R
-            col_Adr_l = self._env.get_colors_A(x + 2, y + 2)[5]
-            ext_colors = combine_colors(
-                self._env.get_color_T3_l(x + 2, y + 3), col_Adr_l, -col_Adr_l
+            del dr
+
+            P, Pt, colors = construct_projectors_U1(
+                dl_blocks,
+                dl_colors,
+                ul_blocks,
+                ul_colors,
+                ur_blocks,
+                ur_colors,
+                dr_blocks,
+                dr_colors,
+                ul_col_indices,
+                self.chi,
             )
-            col_Aul_r = self._env.get_colors_A(x + 1, y + 1)[3]
-            int_colors = combine_colors(
-                self._env.get_color_T1_r(x + 1, y), col_Aul_r, -col_Aul_r
-            )
-            P, Pt, color = construct_projectors(R, Rt, self.chi, ext_colors, int_colors)
             self._env.store_projectors(
-                x + 2, y, P, Pt, color
+                x + 2, y, P, Pt, colors
             )  # indices: Pt <=> renormalized T in R
-            del R, Rt
 
         # 2) renormalize every non-equivalent C1, T1 and C2
         # need all projectors to be constructed at this time
