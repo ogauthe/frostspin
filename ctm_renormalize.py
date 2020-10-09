@@ -28,6 +28,7 @@ def construct_projectors_U1(
     corner4_blocks,
     colors4,
     interior_indices,
+    proj_nrows,
     chi,
 ):
     # once corner are constructed, no reshape or transpose is done. Decompose corner in
@@ -38,12 +39,14 @@ def construct_projectors_U1(
     # needed.
     k = 0
     max_k = sum(min(chi, m.shape[0]) for m in corner1_blocks)  # upper bound
-    proj_nrows = sum(ii.size for ii in interior_indices)
     P = np.zeros((proj_nrows, max_k))
     Pt = np.zeros((proj_nrows, max_k))
     S = np.empty(max_k)
     colors = np.empty(max_k, dtype=np.int8)
-    for c in set(colors1 + colors2 + colors3 + colors4):
+    shared = (
+        set(colors1).intersection(colors2).intersection(colors3).intersection(colors4)
+    )
+    for c in shared:
         i1 = colors1.index(c)
         i2 = colors2.index(c)
         i3 = colors3.index(c)
