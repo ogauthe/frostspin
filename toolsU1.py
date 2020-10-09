@@ -47,6 +47,13 @@ def reduce_matrix_to_blocks(m, row_colors, col_colors):
     return blocks, block_colors, row_indices, col_indices
 
 
+def toarray(blocks, row_indices, col_indices, sh):
+    d = np.zeros(sh)
+    for b, ri, ci in zip(blocks, row_indices, col_indices):
+        d[ri[:, None], ci] = b
+    return d
+
+
 def checkU1(T, colorsT, tol=1e-14):
     """
     Check tensor has U(1) symmetry up to tolerance
