@@ -28,21 +28,22 @@ def reduce_matrix_to_blocks(m, row_colors, col_colors):
     block_colors = []
     row_indices = []
     col_indices = []
-    rb, cb, rbmax, cbmax = 0, 0, len(row_blocks) - 1, len(col_blocks) - 1
-    while rb < rbmax and cb < cbmax:
-        if sorted_row_colors[row_blocks[rb]] == sorted_col_colors[col_blocks[cb]]:
-            ri = row_sort[row_blocks[rb] : row_blocks[rb + 1]].copy()
-            ci = col_sort[col_blocks[cb] : col_blocks[cb + 1]].copy()
+    rbi, cbi, rbimax, cbimax = 0, 0, len(row_blocks) - 1, len(col_blocks) - 1
+    while rbi < rbimax and cbi < cbimax:
+        if sorted_row_colors[row_blocks[rbi]] == sorted_col_colors[col_blocks[cbi]]:
+            ri = row_sort[row_blocks[rbi] : row_blocks[rbi + 1]].copy()
+            ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]].copy()
             row_indices.append(ri)  # copy ri to own data and delete row_sort at exit
             col_indices.append(ci)  # same for ci
             blocks.append(np.ascontiguousarray(m[ri][:, ci]))
-            block_colors.append(sorted_row_colors[row_blocks[rb]])
-            rb += 1
-            cb += 1
-        elif sorted_row_colors[row_blocks[rb]] < sorted_col_colors[col_blocks[cb]]:
-            rb += 1
+            block_colors.append(sorted_row_colors[row_blocks[rbi]])
+            rbi += 1
+            cbi += 1
+        elif sorted_row_colors[row_blocks[rbi]] < sorted_col_colors[col_blocks[cbi]]:
+            rbi += 1
         else:
-            cb += 1
+            cbi += 1
+
     return blocks, block_colors, row_indices, col_indices
 
 
