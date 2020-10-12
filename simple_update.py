@@ -281,6 +281,7 @@ class SimpleUpdate2x2(object):
         self._h1 = h1
         self._h2 = h2
         self.tau = tau
+        self._beta = 0.0
 
         if colors is None:  # default color whatever tensor shapes
             self._colors_p = default_color
@@ -424,13 +425,17 @@ class SimpleUpdate2x2(object):
         self._lambda8 = np.ones(self._D8)
 
     @property
+    def beta(self):
+        return self._beta
+
+    @property
     def tau(self):
         return self._tau
 
     @tau.setter
     def tau(self, tau):
         if self.verbosity > 0:
-            print(f"set tau to  {tau}")
+            print(f"set tau to {tau}")
         self._tau = tau
         self._g1 = lg.expm(-tau * self._h1)
         self._g2 = lg.expm(-tau / 2 * self._h2)  # apply twice sqrt(gate)
@@ -531,6 +536,7 @@ class SimpleUpdate2x2(object):
             self._h1 = data["_SU2x2_h1"]
             self._h2 = data["_SU2x2_h2"]
             self.tau = data["_SU2x2_tau"][()]
+            self._beta = data["_SU2x2_beta"][()]
             self.Dmax = data["_SU2x2_Dmax"][()]
         self._d = self._gammaA.shape[0]
         self._a = self._gammaA.shape[1]
@@ -572,6 +578,7 @@ class SimpleUpdate2x2(object):
         data["_SU2x2_h1"] = self._h1
         data["_SU2x2_h2"] = self._h2
         data["_SU2x2_tau"] = self._tau
+        data["_SU2x2_beta"] = self._beta
         data["_SU2x2_Dmax"] = self.Dmax
         if file is None:
             return data
@@ -701,12 +708,14 @@ class SimpleUpdate2x2(object):
     def evolve(self, beta):
         """
         Evolve in imaginary time using second order Trotter-Suzuki up to beta.
+        Convention: temperature value is the bilayer tensor one, twice the monolayer
+        one.
         """
         if self.verbosity > 0:
             print(f"Launch time evolution for time {beta}")
-        if beta < 1.9 * self._tau:  # care for float round in case beta = 2*tau
-            raise ValueError("Cannot evolve for time lesser than 2*tau")
-        niter = round(float(beta / self._tau / 2))  # 2nd order: evolve 2*tau by step
+        if beta < 3.9 * self._tau:  # care for float round in case beta = 4*tau
+            raise ValueError("Cannot evolve for time lesser than 4*tau")
+        niter = round(float(beta / self._tau / 4))  # 2nd order: evolve 2*tau by step
 
         self.update_bond1(self._g1)
         for i in range(niter - 1):  # there is 1 step out of the loop
@@ -714,6 +723,7 @@ class SimpleUpdate2x2(object):
             self.update_bond1(self._g1_squared)
         self._2nd_order_step_no1()
         self.update_bond1(self._g1)
+        self._beta += 4 * niter * self._tau
 
     def _2nd_order_step_no1(self):
         """

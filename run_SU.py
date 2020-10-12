@@ -88,28 +88,25 @@ print(
 ########################################################################################
 # Computation starts
 ########################################################################################
-beta = 0.0
 pcol = np.array([1, -1], dtype=np.int8)  # U(1) colors for physical spin 1/2
 su = SimpleUpdate2x2(d, a, Dmax, h1, h2, tau, colors=pcol, verbosity=0)
 
-for new_beta in beta_list:
+for beta in beta_list:
     ####################################################################################
     # Simple update
     ####################################################################################
     print("\n" + "#" * 79)
-    print(f"Evolve in imaginary time for beta from {beta}/2 to {new_beta}/2...")
-    beta_evolve = (new_beta - beta) / 2  # rho is quadratic in mono-layer tensor
+    print(f"Evolve in imaginary time for beta from {su.beta} to {beta}...")
+    beta_evolve = beta - su.beta
     t = time.time()
     su.evolve(beta_evolve)
-    beta = new_beta
     print(f"done with imaginary time evolution, t = {time.time()-t:.0f}")
     print("lambdas =", *su.lambdas[1:], sep="\n")
     print("colors =", *su.colors[1:], sep="\n")
-    if beta_evolve > 3 * tau:  # do not save again SU after just 1 update
-        save_su = save_su_root + f"{beta}.npz"
+    if beta_evolve > 5 * tau:  # do not save again SU after just 1 update
+        save_su = save_su_root + f"{su.beta}.npz"
         data_su = su.save_to_file()
         data_su["J2"] = J2
-        data_su["beta"] = beta
         np.savez_compressed(save_su, **data_su)
         print("Simple update data saved in file", save_su)
     tensors = su.get_ABCD()
@@ -136,11 +133,11 @@ for new_beta in beta_list:
         t = time.time()
         i, rdm_1st_nei = ctm.converge(ctm_tol, maxiter=ctm_maxiter)
         print(f"    done, converged after {i} iterations, t = {time.time()-t:.0f}")
-        save_ctm = save_ctm_root + f"{beta}_chi{ctm.chi}.npz"
+        save_ctm = save_ctm_root + f"{su.beta}_chi{ctm.chi}.npz"
         data_ctm = ctm.save_to_file()
         data_ctm["chi"] = ctm.chi
         data_ctm["J2"] = J2
-        data_ctm["beta"] = beta
+        data_ctm["su.beta"] = su.beta
         data_ctm["rdm_1st_nei"] = rdm_1st_nei
         np.savez_compressed(save_ctm, **data_ctm)
         print("    CTMRG data saved in file", save_ctm)
