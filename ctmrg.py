@@ -1,6 +1,10 @@
 import rdm
 from ctm_environment import CTM_Environment
 from ctm_contract import (
+    contract_ul_corner,
+    contract_ur_corner,
+    contract_dl_corner,
+    contract_dr_corner,
     contract_u_half,
     contract_l_half,
     contract_d_half,
@@ -8,6 +12,7 @@ from ctm_contract import (
 )
 from ctm_renormalize import (
     construct_projectors,
+    construct_projectors_U1,
     renormalize_C1_up,
     renormalize_T1,
     renormalize_C2_up,
@@ -21,7 +26,7 @@ from ctm_renormalize import (
     renormalize_T4,
     renormalize_C1_left,
 )
-from toolsU1 import combine_colors, checkU1
+from toolsU1 import combine_colors, checkU1, reduce_matrix_to_blocks
 
 
 class CTMRG(object):
@@ -40,30 +45,17 @@ class CTMRG(object):
     to right, from up to down.
     """
 
-    def __init__(
-        self,
-        chi,
-        tensors=(),
-        cell=None,
-        tiling=None,
-        colors=None,
-        file=None,
-        verbosity=0,
-    ):
+    def __init__(self, chi, tensors=(), cell=None, tiling=None, file=None, verbosity=0):
         self.verbosity = verbosity
         if self.verbosity > 0:
             print(f"initalize CTMRG with chi = {chi} and verbosity = {self.verbosity}")
         self.chi = chi
-        self._env = CTM_Environment(
-            tensors, cell=cell, tiling=tiling, colors=colors, file=file
-        )
+        self._env = CTM_Environment(tensors, cell=cell, tiling=tiling, file=file)
         self._neq_coords = self._env.neq_coords
         if self.verbosity > 0:
             print("CTMRG constructed")
             print("unit cell =", self._env.cell, sep="\n")
             self.print_tensor_shapes()
-            if colors is not None:
-                print("colors =", colors, sep="\n")
 
     def save_to_file(self, file=None):
         """
@@ -83,15 +75,13 @@ class CTMRG(object):
     def cell(self):
         return self._env.cell
 
-    def set_tensors(self, tensors, colors=None, keep_env=True):
+    def set_tensors(self, tensors, keep_env=True):
         if self.verbosity > 0:
             print("set new tensors")
         if keep_env:
-            self._env.set_tensors(tensors, colors=colors)
+            self._env.set_tensors(tensors)
         else:  # restart from fresh
-            self._env = CTM_Environment(
-                tensors, cell=self._env.cell.copy(), colors=colors
-            )
+            self._env = CTM_Environment(tensors, cell=self._env.cell.copy())
 
     def print_tensor_shapes(self):
         print("tensor shapes for C1 T1 C2 // T4 A T2 // C4 T3 C4:")
@@ -107,56 +97,6 @@ class CTMRG(object):
                 self._env.get_C4(x, y + 3).shape,
                 self._env.get_T3(x + 1, y + 2).shape,
                 self._env.get_C3(x + 2, y + 2).shape,
-            )
-
-    def check_symetries(self):
-        for (x, y) in self._neq_coords:
-            colC1 = (self._env.get_color_C1_r(x, y), self._env.get_color_C1_d(x, y))
-            colT1 = (
-                self._env.get_color_T1_r(x, y),
-                self._env.get_color_T1_d(x, y),
-                -self._env.get_color_T1_d(x, y),
-                self._env.get_color_T1_l(x, y),
-            )
-            colC2 = (self._env.get_color_C2_d(x, y), self._env.get_color_C2_l(x, y))
-            colT2 = (
-                self._env.get_color_T2_u(x, y),
-                self._env.get_color_T2_d(x, y),
-                self._env.get_color_T2_l(x, y),
-                -self._env.get_color_T2_l(x, y),
-            )
-            colC3 = (self._env.get_color_C3_u(x, y), self._env.get_color_C3_l(x, y))
-            colT3 = (
-                self._env.get_color_T3_u(x, y),
-                -self._env.get_color_T3_u(x, y),
-                self._env.get_color_T3_r(x, y),
-                self._env.get_color_T3_l(x, y),
-            )
-            colC4 = (self._env.get_color_C4_u(x, y), self._env.get_color_C4_r(x, y))
-            colT4 = (
-                self._env.get_color_T4_u(x, y),
-                self._env.get_color_T4_r(x, y),
-                -self._env.get_color_T4_r(x, y),
-                self._env.get_color_T4_d(x, y),
-            )
-            print(
-                f"({x},{y}):",
-                "C1",
-                checkU1(self._env.get_C1(x, y), colC1),
-                "T1",
-                checkU1(self._env.get_T1(x, y), colT1),
-                "C2",
-                checkU1(self._env.get_C2(x, y), colC2),
-                "T2",
-                checkU1(self._env.get_T2(x, y), colT2),
-                "C3",
-                checkU1(self._env.get_C3(x, y), colC3),
-                "T3",
-                checkU1(self._env.get_T3(x, y), colT3),
-                "C4",
-                checkU1(self._env.get_C4(x, y), colC4),
-                "T4",
-                checkU1(self._env.get_T4(x, y), colT4),
             )
 
     def iterate(self):
@@ -235,17 +175,9 @@ class CTMRG(object):
             #        L         R
             #        L         R
             #        L-1     0-R
-            col_Adr_l = self._env.get_colors_A(x + 2, y + 2)[5]
-            ext_colors = combine_colors(
-                self._env.get_color_T3_l(x + 2, y + 3), col_Adr_l, -col_Adr_l
-            )
-            col_Aul_r = self._env.get_colors_A(x + 1, y + 1)[3]
-            int_colors = combine_colors(
-                self._env.get_color_T1_r(x + 1, y), col_Aul_r, -col_Aul_r
-            )
-            P, Pt, color = construct_projectors(R, Rt, self.chi, ext_colors, int_colors)
+            P, Pt = construct_projectors(R, Rt, self.chi)
             self._env.store_projectors(
-                x + 2, y, P, Pt, color
+                x + 2, y, P, Pt
             )  # indices: Pt <=> renormalized T in R
             del R, Rt
 
@@ -256,8 +188,6 @@ class CTMRG(object):
         for x, y in self._neq_coords:
             P = self._env.get_P(x + 1, y)
             Pt = self._env.get_Pt(x, y)
-            color_P = self._env.get_color_P(x + 1, y)
-            color_Pt = -self._env.get_color_P(x, y)
             nC1 = renormalize_C1_up(
                 self._env.get_C1(x, y), self._env.get_T4(x, y + 1), P
             )
@@ -269,9 +199,7 @@ class CTMRG(object):
             nC2 = renormalize_C2_up(
                 self._env.get_C2(x, y), self._env.get_T2(x, y + 1), Pt
             )
-            self._env.store_renormalized_tensors(
-                x, y + 1, nC1, nT1, nC2, color_P, color_Pt
-            )
+            self._env.store_renormalized_tensors(x, y + 1, nC1, nT1, nC2)
 
         # 3) store renormalized tensors in the environment
         # renormalization reads C1[x,y] but writes C1[x,y+1]
@@ -311,16 +239,8 @@ class CTMRG(object):
                 self._env.get_A(x + 2, y + 1),
                 self._env.get_T2(x + 3, y + 1),
             )
-            col_Adl_u = self._env.get_colors_A(x + 1, y + 2)[2]
-            ext_colors = combine_colors(
-                self._env.get_color_T4_u(x, y + 2), col_Adl_u, -col_Adl_u
-            )
-            col_Aur_d = self._env.get_colors_A(x + 2, y + 1)[4]
-            int_colors = combine_colors(
-                self._env.get_color_T2_d(x + 3, y + 1), col_Aur_d, -col_Aur_d
-            )
-            P, Pt, color = construct_projectors(R, Rt, self.chi, ext_colors, int_colors)
-            self._env.store_projectors(x + 3, y + 2, P, Pt, color)
+            P, Pt = construct_projectors(R, Rt, self.chi)
+            self._env.store_projectors(x + 3, y + 2, P, Pt)
             del R, Rt
 
         # 2) renormalize tensors by absorbing column
@@ -329,8 +249,6 @@ class CTMRG(object):
         for x, y in self._neq_coords:
             P = self._env.get_P(x, y + 1)
             Pt = self._env.get_Pt(x, y)
-            color_P = self._env.get_color_P(x, y + 1)
-            color_Pt = -self._env.get_color_P(x, y)
             nC2 = renormalize_C2_right(
                 self._env.get_C2(x, y), self._env.get_T1(x - 1, y), P
             )
@@ -342,9 +260,7 @@ class CTMRG(object):
             nC3 = renormalize_C3_right(
                 self._env.get_C3(x, y), self._env.get_T3(x - 1, y), Pt
             )
-            self._env.store_renormalized_tensors(
-                x - 1, y, nC2, nT2, nC3, color_P, color_Pt
-            )
+            self._env.store_renormalized_tensors(x - 1, y, nC2, nT2, nC3)
 
         # 3) store renormalized tensors in the environment
         self._env.fix_renormalized_right()
@@ -385,16 +301,8 @@ class CTMRG(object):
                 self._env.get_C3(x + 3, y + 3),
             )
 
-            col_Aul_r = self._env.get_colors_A(x + 1, y + 1)[3]
-            ext_colors = combine_colors(
-                self._env.get_color_T1_r(x + 1, y), col_Aul_r, -col_Aul_r
-            )
-            col_Adr_l = self._env.get_colors_A(x + 2, y + 2)[5]
-            int_colors = combine_colors(
-                self._env.get_color_T3_l(x + 2, y + 3), col_Adr_l, -col_Adr_l
-            )
-            P, Pt, color = construct_projectors(R, Rt, self.chi, ext_colors, int_colors)
-            self._env.store_projectors(x + 3, y + 3, P, Pt, color)
+            P, Pt = construct_projectors(R, Rt, self.chi)
+            self._env.store_projectors(x + 3, y + 3, P, Pt)
             del R, Rt
 
         # 2) renormalize every non-equivalent C3, T3 and C4
@@ -403,8 +311,6 @@ class CTMRG(object):
         for x, y in self._neq_coords:
             P = self._env.get_P(x - 1, y)
             Pt = self._env.get_Pt(x, y)
-            color_P = self._env.get_color_P(x - 1, y)
-            color_Pt = -self._env.get_color_P(x, y)
             nC3 = renormalize_C3_down(
                 self._env.get_C3(x, y), self._env.get_T2(x, y - 1), P
             )
@@ -416,9 +322,7 @@ class CTMRG(object):
             nC4 = renormalize_C4_down(
                 self._env.get_C4(x, y), self._env.get_T4(x, y - 1), Pt
             )
-            self._env.store_renormalized_tensors(
-                x, y - 1, nC3, nT3, nC4, color_P, color_Pt
-            )
+            self._env.store_renormalized_tensors(x, y - 1, nC3, nT3, nC4)
 
         # 3) store renormalized tensors in the environment
         self._env.fix_renormalized_down()
@@ -456,16 +360,8 @@ class CTMRG(object):
                 self._env.get_T3(x + 2, y + 3),
                 self._env.get_C3(x + 3, y + 3),
             )
-            col_Aur_d = self._env.get_colors_A(x + 2, y + 1)[4]
-            ext_colors = combine_colors(
-                self._env.get_color_T2_d(x + 3, y + 1), col_Aur_d, -col_Aur_d
-            )
-            col_Adl_u = self._env.get_colors_A(x + 1, y + 2)[2]
-            int_colors = combine_colors(
-                self._env.get_color_T4_u(x, y + 2), col_Adl_u, -col_Adl_u
-            )
-            P, Pt, color = construct_projectors(R, Rt, self.chi, ext_colors, int_colors)
-            self._env.store_projectors(x, y + 1, P, Pt, color)
+            P, Pt = construct_projectors(R, Rt, self.chi)
+            self._env.store_projectors(x, y + 1, P, Pt)
             del R, Rt
 
         # 2) renormalize every non-equivalent C4, T4 and C1
@@ -474,8 +370,6 @@ class CTMRG(object):
         for x, y in self._neq_coords:
             P = self._env.get_P(x, y - 1)
             Pt = self._env.get_Pt(x, y)
-            color_P = self._env.get_color_P(x, y - 1)
-            color_Pt = -self._env.get_color_P(x, y)
             nC4 = renormalize_C4_left(
                 self._env.get_C4(x, y), self._env.get_T3(x + 1, y), P
             )
@@ -487,9 +381,7 @@ class CTMRG(object):
             nC1 = renormalize_C1_left(
                 self._env.get_C1(x, y), self._env.get_T1(x + 1, y), Pt
             )
-            self._env.store_renormalized_tensors(
-                x + 1, y, nC4, nT4, nC1, color_P, color_Pt
-            )
+            self._env.store_renormalized_tensors(x + 1, y, nC4, nT4, nC1)
 
         # 3) store renormalized tensors in the environment
         self._env.fix_renormalized_left()
@@ -640,3 +532,413 @@ class CTMRG(object):
         for x, y in self._neq_coords:
             rdm = rdm + self.compute_rdm_diag_dr(x, y) + self.compute_rdm_diag_ur(x, y)
         return rdm / len(self._neq_coords)
+
+
+class CTMRG_U1(CTMRG):
+    def __init__(
+        self,
+        chi,
+        tensors=(),
+        cell=None,
+        tiling=None,
+        colors=None,
+        file=None,
+        verbosity=0,
+    ):
+        self.verbosity = verbosity
+        if self.verbosity > 0:
+            print(f"initalize CTMRG with chi = {chi} and verbosity = {self.verbosity}")
+        self.chi = chi
+        self._env = CTM_Environment(
+            tensors, cell=cell, tiling=tiling, colors=colors, file=file
+        )
+        self._neq_coords = self._env.neq_coords
+        if self.verbosity > 0:
+            print("CTMRG constructed")
+            print("unit cell =", self._env.cell, sep="\n")
+            self.print_tensor_shapes()
+            if colors is not None:
+                print("colors =", colors, sep="\n")
+
+    def set_tensors(self, tensors, colors, keep_env=True):
+        if self.verbosity > 0:
+            print("set new tensors")
+        if keep_env:
+            self._env.set_tensors(tensors, colors=colors)
+        else:  # restart from fresh
+            self._env = CTM_Environment(
+                tensors, cell=self._env.cell.copy(), colors=colors
+            )
+
+    def check_symetries(self):
+        for (x, y) in self._neq_coords:
+            colC1 = (self._env.get_color_C1_r(x, y), self._env.get_color_C1_d(x, y))
+            colT1 = (
+                self._env.get_color_T1_r(x, y),
+                self._env.get_color_T1_d(x, y),
+                -self._env.get_color_T1_d(x, y),
+                self._env.get_color_T1_l(x, y),
+            )
+            colC2 = (self._env.get_color_C2_d(x, y), self._env.get_color_C2_l(x, y))
+            colT2 = (
+                self._env.get_color_T2_u(x, y),
+                self._env.get_color_T2_d(x, y),
+                self._env.get_color_T2_l(x, y),
+                -self._env.get_color_T2_l(x, y),
+            )
+            colC3 = (self._env.get_color_C3_u(x, y), self._env.get_color_C3_l(x, y))
+            colT3 = (
+                self._env.get_color_T3_u(x, y),
+                -self._env.get_color_T3_u(x, y),
+                self._env.get_color_T3_r(x, y),
+                self._env.get_color_T3_l(x, y),
+            )
+            colC4 = (self._env.get_color_C4_u(x, y), self._env.get_color_C4_r(x, y))
+            colT4 = (
+                self._env.get_color_T4_u(x, y),
+                self._env.get_color_T4_r(x, y),
+                -self._env.get_color_T4_r(x, y),
+                self._env.get_color_T4_d(x, y),
+            )
+            print(
+                f"({x},{y}):",
+                "C1",
+                checkU1(self._env.get_C1(x, y), colC1),
+                "T1",
+                checkU1(self._env.get_T1(x, y), colT1),
+                "C2",
+                checkU1(self._env.get_C2(x, y), colC2),
+                "T2",
+                checkU1(self._env.get_T2(x, y), colT2),
+                "C3",
+                checkU1(self._env.get_C3(x, y), colC3),
+                "T3",
+                checkU1(self._env.get_T3(x, y), colT3),
+                "C4",
+                checkU1(self._env.get_C4(x, y), colC4),
+                "T4",
+                checkU1(self._env.get_T4(x, y), colT4),
+            )
+
+    def construct_reduced_dr(self, x, y):
+        col_Aur_d = self._env.get_colors_A(x + 2, y + 1)[4]
+        col_Adr_l = self._env.get_colors_A(x + 2, y + 2)[5]
+        colors_r = combine_colors(
+            self._env.get_color_T2_d(x + 3, y + 1), col_Aur_d, -col_Aur_d
+        )
+        colors_d = combine_colors(
+            self._env.get_color_T3_l(x + 2, y + 3), col_Adr_l, -col_Adr_l
+        )
+        dr = contract_dr_corner(
+            self._env.get_A(x + 2, y + 2),
+            self._env.get_T2(x + 3, y + 2),
+            self._env.get_T3(x + 2, y + 3),
+            self._env.get_C3(x + 3, y + 3),
+        ).T
+        blocks, block_colors, row_indices, col_indices = reduce_matrix_to_blocks(
+            dr, colors_d, colors_r
+        )
+        return blocks, block_colors, row_indices, col_indices, dr.shape
+
+    def construct_reduced_dl(self, x, y):
+        col_Adr_l = self._env.get_colors_A(x + 2, y + 2)[5]
+        col_Adl_u = self._env.get_colors_A(x + 1, y + 2)[2]
+        colors_d = combine_colors(
+            self._env.get_color_T3_l(x + 2, y + 3), col_Adr_l, -col_Adr_l
+        )
+        colors_l = combine_colors(
+            self._env.get_color_T4_u(x, y + 2), col_Adl_u, -col_Adl_u
+        )
+
+        dl = contract_dl_corner(
+            self._env.get_T4(x, y + 2),
+            self._env.get_A(x + 1, y + 2),
+            self._env.get_C4(x, y + 3),
+            self._env.get_T3(x + 1, y + 3),
+        )
+        blocks, block_colors, row_indices, col_indices = reduce_matrix_to_blocks(
+            dl, colors_l, colors_d
+        )
+        return blocks, block_colors, row_indices, col_indices, dl.shape
+
+    def construct_reduced_ul(self, x, y):
+        col_Aul_r = self._env.get_colors_A(x + 1, y + 1)[3]
+        col_Adl_u = self._env.get_colors_A(x + 1, y + 2)[2]
+        colors_u = combine_colors(
+            self._env.get_color_T1_r(x + 1, y), col_Aul_r, -col_Aul_r
+        )
+        colors_l = combine_colors(
+            self._env.get_color_T4_u(x, y + 2), col_Adl_u, -col_Adl_u
+        )
+
+        ul = contract_ul_corner(
+            self._env.get_C1(x, y),
+            self._env.get_T1(x + 1, y),
+            self._env.get_T4(x, y + 1),
+            self._env.get_A(x + 1, y + 1),
+        )
+        blocks, block_colors, row_indices, col_indices = reduce_matrix_to_blocks(
+            ul, colors_u, colors_l
+        )
+        return blocks, block_colors, row_indices, col_indices, ul.shape
+
+    def construct_reduced_ur(self, x, y):
+        col_Aul_r = self._env.get_colors_A(x + 1, y + 1)[3]
+        col_Aur_d = self._env.get_colors_A(x + 2, y + 1)[4]
+        colors_u = combine_colors(
+            self._env.get_color_T1_r(x + 1, y), col_Aul_r, -col_Aul_r
+        )
+        colors_r = combine_colors(
+            self._env.get_color_T2_d(x + 3, y + 1), col_Aur_d, -col_Aur_d
+        )
+        ur = contract_ur_corner(
+            self._env.get_T1(x + 2, y),
+            self._env.get_C2(x + 3, y),
+            self._env.get_A(x + 2, y + 1),
+            self._env.get_T2(x + 3, y + 1),
+        )
+        blocks, block_colors, row_indices, col_indices = reduce_matrix_to_blocks(
+            ur, colors_r, colors_u
+        )
+        return blocks, block_colors, row_indices, col_indices, ur.shape
+
+    def up_move(self):
+        if self.verbosity > 1:
+            print("\nstart up move")
+        # 1) compute isometries for every non-equivalent sites
+        for x, y in self._neq_coords:
+
+            dr_blocks, dr_colors, _, _, _ = self.construct_reduced_dr(x, y)
+            (
+                ur_blocks,
+                ur_colors,
+                _,
+                ur_col_indices,
+                (_, ur_ncol),
+            ) = self.construct_reduced_ur(x, y)
+            ul_blocks, ul_colors, _, _, _ = self.construct_reduced_ul(x, y)
+            dl_blocks, dl_colors, _, _, _ = self.construct_reduced_dl(x, y)
+
+            P, Pt, colors = construct_projectors_U1(
+                dr_blocks,
+                dr_colors,
+                ur_blocks,
+                ur_colors,
+                ul_blocks,
+                ul_colors,
+                dl_blocks,
+                dl_colors,
+                ur_col_indices,
+                ur_ncol,
+                self.chi,
+            )
+            # indices: Pt (x,y) are (x,y) from the T1 in R half
+            self._env.store_projectors(x + 2, y, P, Pt, colors)
+
+        # 2) renormalize every non-equivalent C1, T1 and C2
+        # need all projectors to be constructed at this time
+        if self.verbosity > 1:
+            print("Projectors constructed, renormalize tensors")
+        for x, y in self._neq_coords:
+            P = self._env.get_P(x + 1, y)
+            Pt = self._env.get_Pt(x, y)
+            color_P = self._env.get_color_P(x + 1, y)
+            color_Pt = -self._env.get_color_P(x, y)
+            nC1 = renormalize_C1_up(
+                self._env.get_C1(x, y), self._env.get_T4(x, y + 1), P
+            )
+
+            nT1 = renormalize_T1(
+                Pt, self._env.get_T1(x, y), self._env.get_A(x, y + 1), P
+            )
+
+            nC2 = renormalize_C2_up(
+                self._env.get_C2(x, y), self._env.get_T2(x, y + 1), Pt
+            )
+            self._env.store_renormalized_tensors(
+                x, y + 1, nC1, nT1, nC2, color_P, color_Pt
+            )
+
+        # 3) store renormalized tensors in the environment
+        # renormalization reads C1[x,y] but writes C1[x,y+1]
+        # => need to compute every renormalized tensors before storing any of them
+        self._env.fix_renormalized_up()
+        if self.verbosity > 1:
+            print("up move completed")
+
+    def right_move(self):
+        if self.verbosity > 1:
+            print("\nstart right move")
+        # 1) compute isometries for every non-equivalent sites
+        for x, y in self._neq_coords:
+            ur_blocks, ur_colors, _, _, _ = self.construct_reduced_ur(x, y)
+            (
+                dr_blocks,
+                dr_colors,
+                _,
+                dr_col_indices,
+                (_, dr_ncol),
+            ) = self.construct_reduced_dr(x, y)
+            ul_blocks, ul_colors, _, _, _ = self.construct_reduced_ul(x, y)
+            dl_blocks, dl_colors, _, _, _ = self.construct_reduced_dl(x, y)
+
+            P, Pt, colors = construct_projectors_U1(
+                dl_blocks,
+                dl_colors,
+                dr_blocks,
+                dr_colors,
+                ur_blocks,
+                ur_colors,
+                ul_blocks,
+                ul_colors,
+                dr_col_indices,
+                dr_ncol,
+                self.chi,
+            )
+            self._env.store_projectors(x + 3, y + 2, P, Pt, colors)
+
+        # 2) renormalize tensors by absorbing column
+        if self.verbosity > 1:
+            print("Projectors constructed, renormalize tensors")
+        for x, y in self._neq_coords:
+            P = self._env.get_P(x, y + 1)
+            Pt = self._env.get_Pt(x, y)
+            color_P = self._env.get_color_P(x, y + 1)
+            color_Pt = -self._env.get_color_P(x, y)
+            nC2 = renormalize_C2_right(
+                self._env.get_C2(x, y), self._env.get_T1(x - 1, y), P
+            )
+
+            nT2 = renormalize_T2(
+                Pt, self._env.get_A(x - 1, y), self._env.get_T2(x, y), P
+            )
+
+            nC3 = renormalize_C3_right(
+                self._env.get_C3(x, y), self._env.get_T3(x - 1, y), Pt
+            )
+            self._env.store_renormalized_tensors(
+                x - 1, y, nC2, nT2, nC3, color_P, color_Pt
+            )
+
+        # 3) store renormalized tensors in the environment
+        self._env.fix_renormalized_right()
+        if self.verbosity > 1:
+            print("right move completed")
+
+    def down_move(self):
+        if self.verbosity > 1:
+            print("\nstart down move")
+        # 1) compute isometries for every non-equivalent sites
+        for x, y in self._neq_coords:
+            ur_blocks, ur_colors, _, _, _ = self.construct_reduced_ur(x, y)
+            (
+                dl_blocks,
+                dl_colors,
+                _,
+                dl_col_indices,
+                (_, dl_ncol),
+            ) = self.construct_reduced_dl(x, y)
+            ul_blocks, ul_colors, _, _, _ = self.construct_reduced_ul(x, y)
+            dr_blocks, dr_colors, _, _, _ = self.construct_reduced_dr(x, y)
+
+            P, Pt, colors = construct_projectors_U1(
+                ul_blocks,
+                ul_colors,
+                dl_blocks,
+                dl_colors,
+                dr_blocks,
+                dr_colors,
+                ur_blocks,
+                ur_colors,
+                dl_col_indices,
+                dl_ncol,
+                self.chi,
+            )
+            self._env.store_projectors(x + 3, y + 3, P, Pt, colors)
+
+        # 2) renormalize every non-equivalent C3, T3 and C4
+        if self.verbosity > 1:
+            print("Projectors constructed, renormalize tensors")
+        for x, y in self._neq_coords:
+            P = self._env.get_P(x - 1, y)
+            Pt = self._env.get_Pt(x, y)
+            color_P = self._env.get_color_P(x - 1, y)
+            color_Pt = -self._env.get_color_P(x, y)
+            nC3 = renormalize_C3_down(
+                self._env.get_C3(x, y), self._env.get_T2(x, y - 1), P
+            )
+
+            nT3 = renormalize_T3(
+                Pt, self._env.get_T3(x, y), self._env.get_A(x, y - 1), P
+            )
+
+            nC4 = renormalize_C4_down(
+                self._env.get_C4(x, y), self._env.get_T4(x, y - 1), Pt
+            )
+            self._env.store_renormalized_tensors(
+                x, y - 1, nC3, nT3, nC4, color_P, color_Pt
+            )
+
+        # 3) store renormalized tensors in the environment
+        self._env.fix_renormalized_down()
+        if self.verbosity > 1:
+            print("down move completed")
+
+    def left_move(self):
+        if self.verbosity > 1:
+            print("\nstart left move")
+        # 1) compute isometries for every non-equivalent sites
+        for x, y in self._neq_coords:
+            ur_blocks, ur_colors, _, _, _ = self.construct_reduced_ur(x, y)
+            (
+                ul_blocks,
+                ul_colors,
+                _,
+                ul_col_indices,
+                (_, ul_ncol),
+            ) = self.construct_reduced_ul(x, y)
+            dl_blocks, dl_colors, _, _, _ = self.construct_reduced_dl(x, y)
+            dr_blocks, dr_colors, _, _, _ = self.construct_reduced_dr(x, y)
+
+            P, Pt, colors = construct_projectors_U1(
+                ur_blocks,
+                ur_colors,
+                ul_blocks,
+                ul_colors,
+                dl_blocks,
+                dl_colors,
+                dr_blocks,
+                dr_colors,
+                ul_col_indices,
+                ul_ncol,
+                self.chi,
+            )
+            self._env.store_projectors(x, y + 1, P, Pt, colors)
+
+        # 2) renormalize every non-equivalent C4, T4 and C1
+        if self.verbosity > 1:
+            print("Projectors constructed, renormalize tensors")
+        for x, y in self._neq_coords:
+            P = self._env.get_P(x, y - 1)
+            Pt = self._env.get_Pt(x, y)
+            color_P = self._env.get_color_P(x, y - 1)
+            color_Pt = -self._env.get_color_P(x, y)
+            nC4 = renormalize_C4_left(
+                self._env.get_C4(x, y), self._env.get_T3(x + 1, y), P
+            )
+
+            nT4 = renormalize_T4(
+                Pt, self._env.get_T4(x, y), self._env.get_A(x + 1, y), P
+            )
+
+            nC1 = renormalize_C1_left(
+                self._env.get_C1(x, y), self._env.get_T1(x + 1, y), Pt
+            )
+            self._env.store_renormalized_tensors(
+                x + 1, y, nC4, nT4, nC1, color_P, color_Pt
+            )
+
+        # 3) store renormalized tensors in the environment
+        self._env.fix_renormalized_left()
+        if self.verbosity > 1:
+            print("left move completed")

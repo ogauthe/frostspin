@@ -7,7 +7,9 @@ import time
 import numpy as np
 
 from simple_update import SimpleUpdate2x2
-from ctmrg import CTMRG
+
+# from ctmrg import CTMRG
+from ctmrg import CTMRG_U1
 
 
 ########################################################################################
@@ -115,9 +117,13 @@ for new_beta in beta_list:
 
     if not ctm_list:  # initialize CTMRG from 1st beta value
         for chi in chi_list:
-            ctm_list.append(CTMRG(chi, tiling=tiling, tensors=tensors, colors=colors))
+            ctm_list.append(
+                # CTMRG(chi, tiling=tiling, tensors=tensors)
+                CTMRG_U1(chi, tiling=tiling, tensors=tensors, colors=colors)
+            )
     else:  # set tensors to new values
         for ctm in ctm_list:
+            # ctm.set_tensors(tensors)
             ctm.set_tensors(tensors, colors)
 
     ####################################################################################
