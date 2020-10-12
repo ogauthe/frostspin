@@ -347,7 +347,7 @@ class CTM_Environment(object):
                 j = self._indices[x % self._Lx, (y - 1) % self._Ly]
                 oldT1 = self._neq_T1s[j]
                 newT1 = np.zeros(
-                    (oldT1.shape[0], A.shape[2], A.shape[2], oldT1.shape[2])
+                    (oldT1.shape[0], A.shape[2], A.shape[2], oldT1.shape[3])
                 )
                 if oldcol[2].size:  # colorwise copy
                     old_rows, new_rows = _color_correspondence(
