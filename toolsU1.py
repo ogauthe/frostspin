@@ -9,9 +9,14 @@ default_color = np.array([], dtype=np.int8)
 @jit(nopython=True)
 def reduce_matrix_to_blocks(M, row_colors, col_colors):
     assert M.shape == (row_colors.size, col_colors.size), "Colors do not match array"
-    row_sort = row_colors.argsort()
+    # quicksort implementation may not be deterministic if a random pivot is used. This
+    # is a problem since two matrices with compatible columns and rows may end being
+    # incompatible due to different axes permutations in two different calls. A stable
+    # sort has a unique solution which solves the problem. It may also allows for more
+    # efficient cache use thanks to more contiguous data (and always increasing order)
+    row_sort = row_colors.argsort(kind="mergesort")
     sorted_row_colors = row_colors[row_sort]
-    col_sort = col_colors.argsort()
+    col_sort = col_colors.argsort(kind="mergesort")
     sorted_col_colors = col_colors[col_sort]
     row_blocks = (
         [0]

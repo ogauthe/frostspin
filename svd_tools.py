@@ -217,9 +217,10 @@ def sparse_svdU1(
     if col_colors.shape != (M.shape[1],):
         raise ValueError("col_colors has to be (M.shape[1])")
 
-    row_sort = row_colors.argsort()
+    # optimize cache in matrix block reduction with stable sort
+    row_sort = row_colors.argsort(kind="stable")
     sorted_row_colors = row_colors[row_sort]
-    col_sort = col_colors.argsort()
+    col_sort = col_colors.argsort(kind="stable")
     sorted_col_colors = col_colors[col_sort]
     row_blocks = np.array(
         [

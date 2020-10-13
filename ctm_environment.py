@@ -57,7 +57,7 @@ def _color_correspondence(old_col, new_col):
         new_rows += list(newrc[: len(oldrc)])
     old_rows = np.array(old_rows)
     new_rows = np.array(new_rows)
-    s = old_rows.argsort()
+    s = old_rows.argsort(kind="stable")  # minimal disruption
     old_rows = old_rows[s]  # != range(d) if some rows are removed
     new_rows = new_rows[s]  # this is a bit tedious, but optimises copy
     return old_rows, new_rows
