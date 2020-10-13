@@ -6,6 +6,15 @@ from numba import jit
 default_color = np.array([], dtype=np.int8)
 
 
+def random_U1_tensor(*colors):
+    col1D = combine_colors(*colors)
+    nnz = col1D == 0
+    t = np.zeros(col1D.size)
+    t[nnz] = np.random.random(nnz.sum())
+    t = t.reshape(tuple(c.size for c in colors))
+    return t
+
+
 @jit(nopython=True)
 def reduce_matrix_to_blocks(M, row_colors, col_colors):
     assert M.shape == (row_colors.size, col_colors.size), "Colors do not match array"
