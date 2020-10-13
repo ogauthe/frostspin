@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.linalg as lg
 
-from toolsU1 import default_color, dotU1, combine_colors, svdU1, tensordotU1
+from toolsU1 import default_color, combine_colors, svdU1
 from svd_tools import svd_truncate
 
 # more convenient than [:,None,None,None,None,None] everywhere?
@@ -52,34 +52,18 @@ def update_first_neighbor(
     #                \  /
     #   theta =       gg
     #                /  \
-    row_col = combine_colors(col_sL, col_d)
-    col_gate = combine_colors(-col_d, col_d)  # opposite sublattice
     theta = M_L.reshape(D_effL * d, D) * lambda0
-    theta = dotU1(
-        theta,
-        M_R.reshape(D, d * D_effR),
-        row_col,
-        col_bond,
-        combine_colors(-col_d, -col_sR),
-    )
-    theta = (
-        theta.reshape(D_effL, d, d, D_effR)
-        .transpose(0, 3, 1, 2)
-        .reshape(D_effL * D_effR, d ** 2)
-    )
-    theta = dotU1(theta, gate, combine_colors(col_sL, -col_sR), -col_gate, -col_gate)
+    theta = (theta @ M_R.reshape(D, d * D_effR)).reshape(D_effL, d, d, D_effR)
+    theta = theta.transpose(0, 3, 1, 2).reshape(D_effL * D_effR, d ** 2)
+    theta = (theta @ gate).reshape(D_effL, D_effR, d, d)
 
     # 3) cut theta with SVD
-    theta = (
-        theta.reshape(D_effL, D_effR, d, d)
-        .swapaxes(1, 2)
-        .reshape(D_effL * d, D_effR * d)
-    )
+    theta = theta.swapaxes(1, 2).reshape(D_effL * d, D_effR * d)
     M_L, new_lambda, M_R, new_col_lambda = svd_truncate(
         theta,
         Dmax,
-        row_colors=row_col,
-        col_colors=-combine_colors(-col_sR, -col_d),
+        row_colors=combine_colors(col_sL, col_d),
+        col_colors=combine_colors(col_sR, col_d),
         full=True,
         zeros_tol=1e-13,
     )
@@ -90,14 +74,14 @@ def update_first_neighbor(
 
     # 5) start reconstruction of new gammaX and gammaY by unifying cst and eff parts
     M_L = (M_L * new_lambda).reshape(D_effL, d * D)
-    M_L = dotU1(W_L, M_L, col_L, -col_sL, combine_colors(col_d, -new_col_lambda))
+    M_L = W_L @ M_L
     M_R = (
         (M_R * new_lambda[:, None])
         .reshape(D, D_effR, d)
         .swapaxes(1, 2)
         .reshape(D * d, D_effR)
     )
-    M_R = dotU1(M_R, W_R, combine_colors(new_col_lambda, -col_d), -col_sR, -col_R)
+    M_R = M_R @ W_R
     return M_L, new_lambda, M_R, -new_col_lambda
 
 
@@ -149,32 +133,20 @@ def update_second_neighbor(
     #     \|                              \|
     #     -R-   ->  (D_R)  lambda_R-effR==cstR
     #      |\                              |\
-    col_effR = combine_colors(col_bR, col_d)
-    eff_R, s_R, cst_R, col_sR = svdU1(M0_R, -col_effR, col_R)
+    eff_R, s_R, cst_R, col_sR = svdU1(M0_R, -combine_colors(col_bR, col_d), col_R)
     D_effR = s_R.size
-    eff_R = (eff_R * s_R).reshape(D_R, d, D_effR) * lambda_R[:, None, None]
+    eff_R = (eff_R * s_R).reshape(D_R, d * D_effR) * lambda_R[:, None]
 
     # contract tensor network
     #                         ||
     #    =effL-lambdaL -- eff_mid -- lambdaR-effR=
     #         \                             /
     #          \----------- gate ----------/
-    theta = dotU1(
-        eff_L,
-        eff_m,
-        combine_colors(col_sL, col_d),
-        col_bL,
-        -combine_colors(col_bR, col_sm),
-    )
-    theta = theta.reshape(D_effL, d, D_R, D_effm)
-    col_th = (col_sL, col_d, -col_bR, -col_sm)
-    col_gate = combine_colors(col_d, col_d)  # same sublattice
-    theta = tensordotU1(theta, eff_R, (2,), (0,), col_th, (col_bR, col_d, col_sR))
+    theta = (eff_L @ eff_m).reshape(D_effL * d, D_R, D_effm)
+    theta = theta.swapaxes(1, 2).reshape(D_effL * d * D_effm, D_R)
+    theta = (theta @ eff_R).reshape(D_effL, d, D_effm, d, D_effR)
     theta = theta.transpose(0, 2, 4, 1, 3).reshape(D_effL * D_effm * D_effR, d ** 2)
-    col_th = combine_colors(col_sL, -col_sm, col_sR)
-    theta = dotU1(theta, gate, col_th, col_gate, col_gate).reshape(
-        D_effL, D_effm, D_effR, d, d
-    )
+    theta = (theta @ gate).reshape(D_effL, D_effm, D_effR, d, d)
     theta = theta.transpose(0, 3, 1, 2, 4).reshape(D_effL * d, D_effm * D_effR * d)
 
     # first SVD: cut left part
@@ -206,13 +178,11 @@ def update_second_neighbor(
     new_R = new_R.reshape(D_R, D_effR, d) * new_lambda_R[:, None, None]
 
     # bring back constant parts
-    new_L = dotU1(cst_L, new_L, col_L, -col_sL, combine_colors(col_d, -col_nbL))
+    new_L = cst_L @ new_L
     new_mid = new_mid.swapaxes(1, 2).reshape(D_L * D_R, D_effm)
-    new_mid = dotU1(
-        new_mid, cst_m, combine_colors(col_nbL, -col_nbR), -col_sm, -col_mid
-    )
+    new_mid = new_mid @ cst_m
     new_R = new_R.swapaxes(1, 2).reshape(D_R * d, D_effR)
-    new_R = dotU1(new_R, cst_R, combine_colors(col_nbR, col_d), col_sR, col_R)
+    new_R = new_R @ cst_R
 
     return new_L, new_mid, new_R, new_lambda_L, new_lambda_R, -col_nbL, col_nbR
 
