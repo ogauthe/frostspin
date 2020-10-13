@@ -7,8 +7,8 @@ default_color = np.array([], dtype=np.int8)
 
 
 @jit(nopython=True)
-def reduce_matrix_to_blocks(m, row_colors, col_colors):
-    assert m.shape == (row_colors.size, col_colors.size), "Colors do not match array"
+def reduce_matrix_to_blocks(M, row_colors, col_colors):
+    assert M.shape == (row_colors.size, col_colors.size), "Colors do not match array"
     row_sort = row_colors.argsort()
     sorted_row_colors = row_colors[row_sort]
     col_sort = col_colors.argsort()
@@ -16,12 +16,12 @@ def reduce_matrix_to_blocks(m, row_colors, col_colors):
     row_blocks = (
         [0]
         + list((sorted_row_colors[:-1] != sorted_row_colors[1:]).nonzero()[0] + 1)
-        + [m.shape[0]]
+        + [M.shape[0]]
     )
     col_blocks = (
         [0]
         + list((sorted_col_colors[:-1] != sorted_col_colors[1:]).nonzero()[0] + 1)
-        + [m.shape[1]]
+        + [M.shape[1]]
     )
 
     blocks = []
@@ -35,7 +35,12 @@ def reduce_matrix_to_blocks(m, row_colors, col_colors):
             ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]].copy()
             row_indices.append(ri)  # copy ri to own data and delete row_sort at exit
             col_indices.append(ci)  # same for ci
-            blocks.append(np.ascontiguousarray(m[ri][:, ci]))
+            m = np.empty((ri.size, ci.size))
+            for i, r in enumerate(ri):
+                for j, c in enumerate(ci):
+                    m[i, j] = M[r, c]
+
+            blocks.append(m)
             block_colors.append(sorted_row_colors[row_blocks[rbi]])
             rbi += 1
             cbi += 1
@@ -262,12 +267,12 @@ def svdU1(M, row_colors, col_colors):
     sorted_row_colors = row_colors[row_sort]
     col_sort = col_colors.argsort()
     sorted_col_colors = col_colors[col_sort]
-    row_inds = (
+    row_blocks = (
         [0]
         + list((sorted_row_colors[:-1] != sorted_row_colors[1:]).nonzero()[0] + 1)
         + [M.shape[0]]
     )
-    col_inds = (
+    col_blocks = (
         [0]
         + list((sorted_col_colors[:-1] != sorted_col_colors[1:]).nonzero()[0] + 1)
         + [M.shape[1]]
@@ -279,24 +284,27 @@ def svdU1(M, row_colors, col_colors):
     colors = np.empty(dmin, dtype=np.int8)
 
     # match blocks with same color and compute SVD inside those blocks only
-    k, br, bc, brmax, bcmax = 0, 0, 0, len(row_inds) - 1, len(col_inds) - 1
-    while br < brmax and bc < bcmax:
-        if sorted_row_colors[row_inds[br]] == sorted_col_colors[col_inds[bc]]:
-            ir = row_sort[row_inds[br] : row_inds[br + 1]]
-            ic = col_sort[col_inds[bc] : col_inds[bc + 1]]
-            m = np.ascontiguousarray(M[ir][:, ic])
+    k, rbi, cbi, rbimax, cbimax = 0, 0, 0, len(row_blocks) - 1, len(col_blocks) - 1
+    while rbi < rbimax and cbi < cbimax:
+        if sorted_row_colors[row_blocks[rbi]] == sorted_col_colors[col_blocks[cbi]]:
+            ri = row_sort[row_blocks[rbi] : row_blocks[rbi + 1]]
+            ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]]
+            m = np.empty((ri.size, ci.size))
+            for i, r in enumerate(ri):
+                for j, c in enumerate(ci):
+                    m[i, j] = M[r, c]
             d = min(m.shape)
-            U[ir, k : k + d], s[k : k + d], V[k : k + d, ic] = np.linalg.svd(
+            U[ri, k : k + d], s[k : k + d], V[k : k + d, ci] = np.linalg.svd(
                 m, full_matrices=False
             )
-            colors[k : k + d] = sorted_row_colors[row_inds[br]]
+            colors[k : k + d] = sorted_row_colors[row_blocks[rbi]]
             k += d
-            br += 1
-            bc += 1
-        elif sorted_row_colors[row_inds[br]] < sorted_col_colors[col_inds[bc]]:
-            br += 1
+            rbi += 1
+            cbi += 1
+        elif sorted_row_colors[row_blocks[rbi]] < sorted_col_colors[col_blocks[cbi]]:
+            rbi += 1
         else:
-            bc += 1
+            cbi += 1
 
     if k < dmin:  # if U(1) sectors do not match for more than dmin values
         if k == 0:  # pathological case with 0 matching colors.

@@ -221,14 +221,14 @@ def sparse_svdU1(
     sorted_row_colors = row_colors[row_sort]
     col_sort = col_colors.argsort()
     sorted_col_colors = col_colors[col_sort]
-    row_inds = np.array(
+    row_blocks = np.array(
         [
             0,
             *((sorted_row_colors[:-1] != sorted_row_colors[1:]).nonzero()[0] + 1),
             M.shape[0],
         ]
     )
-    col_inds = [
+    col_blocks = [
         0,
         *((sorted_col_colors[:-1] != sorted_col_colors[1:]).nonzero()[0] + 1),
         M.shape[1],
@@ -239,40 +239,40 @@ def sparse_svdU1(
     # A fully memory efficient code would only store 2*cut vectors. Here we select the
     # cut largest values selection once all vector are computed, so we need to store
     # sum( min(cut, sector_size) for each sector) different vectors.
-    # Dealing with different block numbers in row_inds and col_inds here is cumbersome,
-    # so we consider the sub-optimal min(cut, sector_rows_number) while columns number
-    # may be smaller. In CTMRG projector construction, row and column colors are the
-    # same anyway.
-    max_k = np.minimum(cut, row_inds[1:] - row_inds[:-1]).sum()
+    # Dealing with different block numbers in row_blocks and col_blocks here is
+    # cumbersome, so we consider the sub-optimal min(cut, sector_rows_number) while
+    # columns number may be smaller. In CTMRG projector construction, row and column
+    # colors are the same anyway.
+    max_k = np.minimum(cut, row_blocks[1:] - row_blocks[:-1]).sum()
     U = np.zeros((M.shape[0], max_k))
     S = np.empty(max_k)
     V = np.zeros((max_k, M.shape[1]))
     colors = np.empty(max_k, dtype=np.int8)
 
     # match blocks with same color and compute SVD inside those blocks only
-    k, br, bc, brmax, bcmax = 0, 0, 0, row_inds.size - 1, len(col_inds) - 1
-    while br < brmax and bc < bcmax:
-        if sorted_row_colors[row_inds[br]] == sorted_col_colors[col_inds[bc]]:
-            ir = row_sort[row_inds[br] : row_inds[br + 1]]
-            ic = col_sort[col_inds[bc] : col_inds[bc + 1]]
-            m = np.ascontiguousarray(M[ir[:, None], ic])
+    k, rbi, cbi, rbimax, cbimax = 0, 0, 0, row_blocks.size - 1, len(col_blocks) - 1
+    while rbi < rbimax and cbi < cbimax:
+        if sorted_row_colors[row_blocks[rbi]] == sorted_col_colors[col_blocks[cbi]]:
+            ri = row_sort[row_blocks[rbi] : row_blocks[rbi + 1]]
+            ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]]
+            m = np.ascontiguousarray(M[ri[:, None], ci])  # no numba
             if min(m.shape) < 3 * cut:  # use exact svd for small blocks
                 u, s, v = lg.svd(m, full_matrices=False, overwrite_a=True)
             else:
                 u, s, v = sparse_svd(m, k=cut, maxiter=maxiter)
 
             d = min(cut, s.size)  # may be smaller than cut
-            U[ir, k : k + d] = u[:, :d]
+            U[ri, k : k + d] = u[:, :d]
             S[k : k + d] = s[:d]
-            V[k : k + d, ic] = v[:d]
-            colors[k : k + d] = sorted_row_colors[row_inds[br]]
+            V[k : k + d, ci] = v[:d]
+            colors[k : k + d] = sorted_row_colors[row_blocks[rbi]]
             k += d
-            br += 1
-            bc += 1
-        elif sorted_row_colors[row_inds[br]] < sorted_col_colors[col_inds[bc]]:
-            br += 1
+            rbi += 1
+            cbi += 1
+        elif sorted_row_colors[row_blocks[rbi]] < sorted_col_colors[col_blocks[cbi]]:
+            rbi += 1
         else:
-            bc += 1
+            cbi += 1
 
     s_sort = S[:k].argsort()[::-1]  # k <= max_k
     S = S[s_sort]
