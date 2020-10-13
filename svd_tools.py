@@ -146,11 +146,11 @@ def sparse_svd(
     )
     u = X_matmat(eigvec)
     if not return_singular_vectors:
-        s = lg.svd(u, compute_uv=False)
+        s = lg.svd(u, compute_uv=False, overwrite_a=True)
         return s
 
     # compute the right singular vectors of X and update the left ones accordingly
-    u, s, vh = lg.svd(u, full_matrices=False)
+    u, s, vh = lg.svd(u, full_matrices=False, overwrite_a=True)
     if transpose:
         u, vh = eigvec @ vh.T.conj(), u.T.conj()
     else:
@@ -158,6 +158,7 @@ def sparse_svd(
     return u, s, vh
 
 
+# use of eigsh forbids numba
 def sparse_svdU1(
     M,
     cut,
@@ -256,7 +257,7 @@ def sparse_svdU1(
             ic = col_sort[col_inds[bc] : col_inds[bc + 1]]
             m = np.ascontiguousarray(M[ir[:, None], ic])
             if min(m.shape) < 3 * cut:  # use exact svd for small blocks
-                u, s, v = lg.svd(m, full_matrices=False)
+                u, s, v = lg.svd(m, full_matrices=False, overwrite_a=True)
             else:
                 u, s, v = sparse_svd(m, k=cut, maxiter=maxiter)
 
