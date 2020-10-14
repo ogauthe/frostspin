@@ -128,7 +128,7 @@ for beta in beta_list:
         for chi in chi_list:
             ctm_list.append(
                 # CTMRG(chi, tiling=tiling, tensors=tensors)
-                CTMRG_U1(chi, tiling=tiling, tensors=tensors, colors=colors)
+                CTMRG_U1(chi, tiling, tensors=tensors, colors=colors)
             )
     else:  # set tensors to new values
         for ctm in ctm_list:

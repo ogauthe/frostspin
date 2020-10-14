@@ -75,23 +75,19 @@ class CTM_Environment(object):
 
         Parameters
         ----------
-        tensors: iterable of Nneq numpy arrays
+        tensors : iterable of Nneq numpy arrays
           Tensors given from left to right and up to down (as in array.flat)
-        cell: array of characters
+        cell : array of characters
           Elementary cell, each letter representing non-equivalent tensors.
-        tiling: string, optional.
+        tiling : string, optional.
           Tiling pattern. If cell is not provided, parse tiling to construct it.
-        colors: list of Nneq colors
+        colors : list of Nneq colors
           U(1) quantum numbers corresponding to the tensors. Note that dimensions are
           check for compatibility with tensors, but color compatibility between legs to
           contract is not checked.
-        file: string
+        file : string
           Restart environment from npz save. If present, other arguments are not read.
         """
-        if file is not None:
-            self.load_from_file(file)
-            return
-
         if cell is None:
             if tiling is None:  # default constructor, then call load_from_file
                 cell = np.array([], dtype="U1").reshape(0, 0)  # need ndim=2 for Lx,Ly
@@ -101,6 +97,12 @@ class CTM_Environment(object):
                 )
         else:
             cell = np.asarray(cell)
+
+        if file is not None:
+            self.load_from_file(file)
+            if (cell != self._cell).any():
+                raise ValueError("Cell differs between save and input")
+            return
 
         # construct list of unique letters sorted according to appearance order in cell
         # (may be different from lexicographic order)
@@ -142,7 +144,7 @@ class CTM_Environment(object):
 
         for A in tensors:
             A = np.ascontiguousarray(A)
-            if A.ndim == 5:  # if no ancila, add 1
+            if A.ndim == 5:  # if no ancilla, add 1
                 A = A.reshape(
                     A.shape[0], 1, A.shape[1], A.shape[2], A.shape[3], A.shape[4]
                 )
@@ -175,7 +177,7 @@ class CTM_Environment(object):
             for A, colA in zip(tensors, colors):
                 if tuple(len(c) for c in colA) != A.shape:
                     raise ValueError("Colors do not match tensors")
-                if len(colA) == 5:  # add empty ancila
+                if len(colA) == 5:  # add empty ancilla
                     colA = (colA[0], np.zeros(1, dtype=np.int8), *colA[1:])
                 c2 = combine_colors(colA[2], -colA[2])
                 c3 = combine_colors(colA[3], -colA[3])
@@ -307,7 +309,7 @@ class CTM_Environment(object):
             colorized = False
         for i, A in enumerate(tensors):  # or self._neq_coords?
             A = np.ascontiguousarray(A)
-            if A.ndim == 5:  # if no ancila, add 1
+            if A.ndim == 5:  # if no ancilla, add 1
                 A = A.reshape(
                     A.shape[0], 1, A.shape[1], A.shape[2], A.shape[3], A.shape[4]
                 )
@@ -331,7 +333,7 @@ class CTM_Environment(object):
             ):
                 # not a problem for the code, but physically meaningless
                 raise ValueError(
-                    "Physical and ancila dimensions and colors cannot change"
+                    "Physical and ancilla dimensions and colors cannot change"
                 )
 
             # when the shape of a tensor (or its quantum numbers) changes, we still

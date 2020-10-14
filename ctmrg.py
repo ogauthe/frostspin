@@ -31,7 +31,22 @@ from toolsU1 import combine_colors, checkU1, BlockMatrixU1
 
 class CTMRG(object):
     """
-    Convention: legs and tensors are taken clockwise starting from upper right:
+    Corner Transfer Matrix Renormalization Group algorithm. Approximately contract
+    a square tensor network with precision controlled by corner dimension chi. This
+    implementation is designed for quantum systems where the elementary tensor has a
+    bi-layer structure. The tensor can describe both a thermal ensemble, with an
+    additional ancilla leg, or a pure wavefunction. It accepts arbitrary unit cells, no
+    assumption is made on the dimensions of inequivalent legs.
+
+    Conventions:
+    - when passed as arguments to a function for contraction, tensors are sorted from
+      left to right, from top to bottom.
+    - leg ordering is always (physical, ancilla, *virtual)
+    - d stands for the physical dimension
+    - a stands for the ancilla dimension (a=d for a thermal ensemble and a=1 for a pure
+      wavefunction)
+    - Dx stand for the virtual bond dimensions.
+    - virtual legs and tensor names are taken clockwise starting from upper right:
 
         C1-T1-T1-C2
         |  |  |   |
@@ -41,16 +56,40 @@ class CTMRG(object):
         |  |  |   |
         C4-T3-T3-C3
 
-    When passed as arguments to a function for contraction, tensors are sorted from left
-    to right, from up to down.
+    The environment tensors are stored in a custom CTM_Environment class to easily deal
+    with periodic boundary conditions and non-equivalent coordinates. Tensor
+    contractions, renormalization and reduced density matrix construction functions are
+    defined in distinct modules. This class has very few members and makes no
+    computation, it is mostly interface and tensor selection.
     """
 
-    def __init__(self, chi, tensors=(), cell=None, tiling=None, file=None, verbosity=0):
+    def __init__(self, chi, tiling, tensors=(), file=None, verbosity=0):
+        """
+        Constructor for totally asymmetric CTMRG algorithm.
+
+        Parameters
+        ----------
+        chi : integer
+          Maximal corner dimension.
+        tiling : string
+          String defining the shape of the unit cell, typically "A" or "AB\nCD".
+        tensors : optional, enumerable of tensors with shape (d,a,D1,D2,D3,D4)
+          Elementary tensors of unit cell, from left to right from top to bottom. Can be
+          omitted if file is provided.
+        file : str, optional
+          Save file containing data to restart computation from. File must follow
+          save_to_file syntax. If file is provided, tiling is used to check consistency
+          between save and input, chi and verbosity are set from input values which may
+          differ from saved ones. The other parameters are not read and are set from
+          file.
+        verbosity : int
+          Level of log verbosity. Default is no log.
+        """
         self.verbosity = verbosity
         if self.verbosity > 0:
             print(f"initalize CTMRG with chi = {chi} and verbosity = {self.verbosity}")
         self.chi = chi
-        self._env = CTM_Environment(tensors, cell=cell, tiling=tiling, file=file)
+        self._env = CTM_Environment(tensors, tiling=tiling, file=file)
         self._neq_coords = self._env.neq_coords
         if self.verbosity > 0:
             print("CTMRG constructed")
@@ -535,23 +574,48 @@ class CTMRG(object):
 
 
 class CTMRG_U1(CTMRG):
-    def __init__(
-        self,
-        chi,
-        tensors=(),
-        cell=None,
-        tiling=None,
-        colors=None,
-        file=None,
-        verbosity=0,
-    ):
+    """
+    Specialized CTMRG algorithm for U(1) symmetric tensors. U(1) symmetry is implemented
+    in SVD and cannot be broken during the process. It is also used to speed up certain
+    contractions. Refer to CTMRG class for details and conventions.
+
+    Projectors are efficiently constructed using U(1) symmetry. As soon as CTTA corners
+    are constructed, they are reduced to a list of submatrices corresponding to U(1)
+    blocks. Halves are only constructed blockwise and their SVD is computed on the fly.
+    This is efficient since no reshape or transpose happens once corners are
+    constructed. However using U(1) in corner construction is not efficient due to
+    transposes arising at each step.
+    """
+
+    def __init__(self, chi, tiling, tensors=(), colors=(), file=None, verbosity=0):
+        """
+        Initialize U(1) symmetric CTMRG. Symmetry is NOT checked for elementary tensors.
+
+        Parameters
+        ----------
+        chi : interger
+          Maximal corner dimension.
+        tiling: string
+          String defining the shape of the unit cell, typically "A" or "AB\nCD".
+        tensors: enumerable of tensors with shapes (d,a,D1,D2,D3,D4)
+          Elementary tensors of unit cell, from left to right from top to bottom. Can be
+          omitted if file is provided.
+        colors : enumerable of enumerable of integer arrays matching tensors.
+          Quantum numbers for elementary tensors. Can be omitted if file is provided.
+        file : str, optional
+          Save file containing data to restart computation from. File must follow
+          save_to_file syntax. If file is provided, tiling is used to check consistency
+          between save and input, chi and verbosity are set from input values which may
+          differ from saved ones. The other parameters are not read and are set from
+          file.
+        verbosity : int
+          Level of log verbosity. Default is no log.
+        """
         self.verbosity = verbosity
         if self.verbosity > 0:
             print(f"initalize CTMRG with chi = {chi} and verbosity = {self.verbosity}")
         self.chi = chi
-        self._env = CTM_Environment(
-            tensors, cell=cell, tiling=tiling, colors=colors, file=file
-        )
+        self._env = CTM_Environment(tensors, tiling=tiling, colors=colors, file=file)
         self._neq_coords = self._env.neq_coords
         if self.verbosity > 0:
             print("CTMRG constructed")
@@ -571,6 +635,10 @@ class CTMRG_U1(CTMRG):
             )
 
     def check_symetries(self):
+        """
+        Check U(1) symmetry for every unit cell and environment tensors and display
+        the result.
+        """
         for (x, y) in self._neq_coords:
             colC1 = (self._env.get_color_C1_r(x, y), self._env.get_color_C1_d(x, y))
             colT1 = (
@@ -702,7 +770,6 @@ class CTMRG_U1(CTMRG):
             P, Pt, colors = construct_projectors_U1(
                 reduced_dr, reduced_ur, reduced_ul, reduced_dl, self.chi
             )
-            # indices: Pt (x,y) are (x,y) from the T1 in R half
             self._env.store_projectors(x + 2, y, P, Pt, colors)
 
         # 2) renormalize every non-equivalent C1, T1 and C2

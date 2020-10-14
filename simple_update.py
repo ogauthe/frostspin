@@ -206,12 +206,12 @@ class SimpleUpdate2x2(object):
 
         Parameters
         ----------
-        d: integer
+        d : integer
           Dimension of physical leg.
-        a: integer
-          Dimension of ancila leg. a=1 for a pure wavefunction and a=d for a thermal
+        a : integer
+          Dimension of ancilla leg. a=1 for a pure wavefunction and a=d for a thermal
           ensemble.
-        Dmax: int
+        Dmax : int
           Maximal bond dimension. If provided, tensors may have different D at
           initialization.
         tau : float
@@ -223,16 +223,19 @@ class SimpleUpdate2x2(object):
         tensors : optional, enumerable of 4 ndarrays with shapes (d,a,D,D,D,D)
           Initial tensors. If not provided, random tensors are taken. Not used if file
           is given.
-        colors : optional, quantum numbers for physical, ancila and virtual legs. Not
-          used if file is given.
+        colors : optional, if provided either integer array of dimension d or enumerable
+          of 10 integer arrays for physical, ancilla + 8 virtual legs matching tensors.
+          Quantum numbers for physical leg / physical, ancilla and virtual legs. Not
+          used if file is given. If not provided at first construction, no symmetry is
+          assumed.
         file : str, optional
           Save file containing data to restart computation from. File must follow
           save_to_file / load_from_file syntax. If file is provided, d and a are read to
-          check consistancy between save and input, Dmax tau and verbosity are set from
+          check consistency between save and input, Dmax tau and verbosity are set from
           input values which may differ from saved ones. The other parameters are not
-          read and are set from file.
+          read and directly set from file.
         verbosity : int
-          level of log verbosity. Default is no log.
+          Level of log verbosity. Default is no log.
 
 
         Conventions for leg ordering
@@ -313,7 +316,7 @@ class SimpleUpdate2x2(object):
                     raise ValueError("physical leg colors length is not d")
                 self._colors_p = np.asarray(colors[0], dtype=np.int8)
                 if len(colors[1]) != a:
-                    raise ValueError("ancila leg colors length is not a")
+                    raise ValueError("ancilla leg colors length is not a")
                 self._colors_a = np.asarray(colors[1], dtype=np.int8)
                 if len(colors[2]) != self._D1:
                     raise ValueError("virtual leg 1 colors length is not D1")
@@ -462,7 +465,7 @@ class SimpleUpdate2x2(object):
         """
         Tuple
         U(1) quantum numbers for non-equivalent legs.
-        Convention: sort as ((physical,ancila),leg_i) to have colors[i] = color_i.
+        Convention: sort as ((physical,ancilla),leg_i) to have colors[i] = color_i.
         """
         return (
             (self._colors_p, self._colors_a),
