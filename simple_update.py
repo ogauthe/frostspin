@@ -701,8 +701,10 @@ class SimpleUpdate2x2(object):
         """
         if self.verbosity > 0:
             print(f"Launch time evolution for time {beta}")
+        if beta < -1e-16:
+            raise ValueError("Cannot evolve for negative imaginary time")
         if beta < 3.9 * self._tau:  # care for float round in case beta = 4*tau
-            raise ValueError("Cannot evolve for time lesser than 4*tau")
+            return  # else evolve for 1 step out of niter loop
         niter = round(float(beta / self._tau / 4))  # 2nd order: evolve 2*tau by step
 
         self.update_bond1(self._g1)
