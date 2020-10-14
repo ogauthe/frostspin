@@ -66,6 +66,20 @@ if compute_capacity:
     beta_list = np.sort(list(beta_list + 4 * tau) + list(beta_list))
 print("Actual beta list is now", list(beta_list))
 
+# initilialize SU
+if config["su_restart_file"] is not None:
+    su_restart = str(config["su_restart_file"])
+    print("Restart simple update from file", su_restart)
+    su = SimpleUpdate2x2(d, a, Dmax, tau, file=su_restart)
+    if ((su.h1 - h1) ** 2).sum() ** 0.5 > 1e-16 or (
+        (su.h2 - h2) ** 2
+    ).sum() ** 0.5 > 1e-16:
+        raise ValueError("Saved hamiltonians differ from input")
+else:
+    pcol = np.array([1, -1], dtype=np.int8)  # U(1) colors for physical spin 1/2
+    su = SimpleUpdate2x2(d, a, Dmax, tau, h1, h2, colors=pcol, verbosity=0)
+print(f"Start from beta = {su.beta}")
+
 # CTMRG parameters
 ctm_list = []
 chi_list = np.array(config["chi_list"], dtype=int)
@@ -88,18 +102,6 @@ print(
 ########################################################################################
 # Computation starts
 ########################################################################################
-if config["su_restart_file"] is not None:
-    su_restart = str(config["su_restart_file"])
-    print("Restart simple update from file", su_restart)
-    su = SimpleUpdate2x2(d, a, Dmax, tau, file=su_restart)
-    if ((su.h1 - h1) ** 2).sum() ** 0.5 > 1e-16 or (
-        (su.h2 - h2) ** 2
-    ).sum() ** 0.5 > 1e-16:
-        raise ValueError("Saved hamiltonians differ from input")
-else:
-    pcol = np.array([1, -1], dtype=np.int8)  # U(1) colors for physical spin 1/2
-    su = SimpleUpdate2x2(d, a, Dmax, tau, h1, h2, colors=pcol, verbosity=0)
-
 
 for beta in beta_list:
     ####################################################################################
