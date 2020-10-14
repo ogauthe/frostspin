@@ -189,7 +189,17 @@ def update_second_neighbor(
 
 class SimpleUpdate2x2(object):
     def __init__(
-        self, d, a, Dmax, h1, h2, tau, tensors=None, colors=None, file=None, verbosity=0
+        self,
+        d,
+        a,
+        Dmax,
+        tau,
+        h1=None,
+        h2=None,
+        tensors=None,
+        colors=None,
+        file=None,
+        verbosity=0,
     ):
         """
         Simple update algorithm on plaquette AB//CD.
@@ -204,18 +214,23 @@ class SimpleUpdate2x2(object):
         Dmax: int
           Maximal bond dimension. If provided, tensors may have different D at
           initialization.
-        h1 : (d**2,d**2) float or complex ndarray
-          First neigbor Hamltionian.
-        h2 : (d**2,d**2) float or complex ndarray
-          Second neigbor Hamltionian.
         tau : float
           Imaginary time step.
+        h1 : (d**2,d**2) float or complex ndarray
+          First neigbor Hamltionian. Not used if file is given, take it back from save.
+        h2 : (d**2,d**2) float or complex ndarray
+          Second neigbor Hamltionian. Not used if file is given.
         tensors : optional, enumerable of 4 ndarrays with shapes (d,a,D,D,D,D)
-          Initial tensors. If not provided, random tensors are taken.
-        colors : optional, quantum numbers for physical, ancila and virtual legs.
+          Initial tensors. If not provided, random tensors are taken. Not used if file
+          is given.
+        colors : optional, quantum numbers for physical, ancila and virtual legs. Not
+          used if file is given.
         file : str, optional
-          If provided, every parameter but verbosity is ignored and the computation
-          restarts from the file.
+          Save file containing data to restart computation from. File must follow
+          save_to_file / load_from_file syntax. If file is provided, d and a are read to
+          check consistancy between save and input, Dmax tau and verbosity are set from
+          input values which may differ from saved ones. The other parameters are not
+          read and are set from file.
         verbosity : int
           level of log verbosity. Default is no log.
 
@@ -233,16 +248,17 @@ class SimpleUpdate2x2(object):
               1     5
         """
 
-        self.verbosity = verbosity
-        if file is not None:  # do not read other input values, restart from file
-            self.load_from_file(file)
-            return
-
-        if self.verbosity > 0:
-            print(f"construct SimpleUpdate2x2 with d = {d}, a = {a} and Dmax = {Dmax}")
         self._d = d
         self._a = a
         self.Dmax = Dmax
+        self.verbosity = verbosity
+        if self.verbosity > 0:
+            print(f"construct SimpleUpdate2x2 with d = {d}, a = {a} and Dmax = {Dmax}")
+
+        if file is not None:  # do not read other input values, restart from file
+            self.load_from_file(file)
+            self.tau = tau
+            return
 
         if h1.shape != (d ** 2, d ** 2):
             raise ValueError("invalid shape for Hamiltonian h1")
@@ -480,6 +496,9 @@ class SimpleUpdate2x2(object):
         )
 
     def load_from_file(self, file):
+        if self.verbosity > 0:
+            print("Restart simple update from file", file)
+        # do not read tau tand Dmax, set them from __init__ input
         with np.load(file) as data:
             self._lambda1 = data["_SU2x2_lambda1"]
             self._lambda2 = data["_SU2x2_lambda2"]
@@ -505,11 +524,7 @@ class SimpleUpdate2x2(object):
             self._gammaD = data["_SU2x2_gammaD"]
             self._h1 = data["_SU2x2_h1"]
             self._h2 = data["_SU2x2_h2"]
-            self.tau = data["_SU2x2_tau"][()]
             self._beta = data["_SU2x2_beta"][()]
-            self.Dmax = data["_SU2x2_Dmax"][()]
-        self._d = self._gammaA.shape[0]
-        self._a = self._gammaA.shape[1]
         self._D1 = self._lambda1.size
         self._D2 = self._lambda2.size
         self._D3 = self._lambda3.size
@@ -518,8 +533,11 @@ class SimpleUpdate2x2(object):
         self._D6 = self._lambda6.size
         self._D7 = self._lambda7.size
         self._D8 = self._lambda8.size
-        if self.verbosity > 0:
-            print("Simple update restarted from file", file)
+
+        if self._d != self._gammaA.shape[0]:
+            raise ValueError("Physical dimension differs from save")
+        if self._a != self._gammaA.shape[1]:
+            raise ValueError("Ancila dimension differs from save")
 
     def save_to_file(self, file=None):
         data = {}

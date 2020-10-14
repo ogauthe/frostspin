@@ -1,6 +1,7 @@
 {
   "J2": 0.8,
   "Dmax": 5,
+  "su_restart_file": null,
   "tau": 1e-3,
   "beta_list": [0.5, 1.0],
   "compute_capacity": true,
