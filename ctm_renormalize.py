@@ -18,19 +18,7 @@ def construct_projectors(R, Rt, chi):
     return P, Pt
 
 
-def construct_projectors_U1(
-    corner1_blocks,
-    colors1,
-    corner2_blocks,
-    colors2,
-    corner3_blocks,
-    colors3,
-    corner4_blocks,
-    colors4,
-    interior_indices,
-    proj_nrows,
-    chi,
-):
+def construct_projectors_U1(corner1, corner2, corner3, corner4, chi):
     # once corner are constructed, no reshape or transpose is done. Decompose corner in
     # U(1) sectors as soon as they are constructed, then construct halves and R @ Rt
     # blockwise only. SVD and projectors can also be computed blockwise in same loop.
@@ -38,22 +26,25 @@ def construct_projectors_U1(
     # refer to indices of each color blocks between R and Rt, where projectors are
     # needed.
     k = 0
-    max_k = sum(min(chi, m.shape[0]) for m in corner1_blocks)  # upper bound
-    P = np.zeros((proj_nrows, max_k))
-    Pt = np.zeros((proj_nrows, max_k))
+    max_k = sum(min(chi, m.shape[0]) for m in corner1.blocks)  # upper bound
+    P = np.zeros((corner2.shape[1], max_k))
+    Pt = np.zeros((corner2.shape[1], max_k))
     S = np.empty(max_k)
     colors = np.empty(max_k, dtype=np.int8)
     shared = (
-        set(colors1).intersection(colors2).intersection(colors3).intersection(colors4)
+        set(corner1.block_colors)
+        .intersection(corner2.block_colors)
+        .intersection(corner3.block_colors)
+        .intersection(corner4.block_colors)
     )
     for c in shared:
-        i1 = colors1.index(c)
-        i2 = colors2.index(c)
-        i3 = colors3.index(c)
-        i4 = colors4.index(c)
+        m1, _, _ = corner1.get_block_row_col_with_color(c)
+        m2, _, proj_indices = corner2.get_block_row_col_with_color(c)
+        m3, _, _ = corner3.get_block_row_col_with_color(c)
+        m4, _, _ = corner4.get_block_row_col_with_color(c)
 
-        r = corner1_blocks[i1] @ corner2_blocks[i2]
-        rt = corner3_blocks[i3] @ corner4_blocks[i4]
+        r = m1 @ m2
+        rt = m3 @ m4
         m = r @ rt
         if min(m.shape) < 3 * chi:  # use full svd for small blocks
             u, s, v = np.linalg.svd(m, full_matrices=False)
@@ -65,8 +56,8 @@ def construct_projectors_U1(
         colors[k : k + d] = c
         # not all blocks are used, the information which color sectors are used is
         # only known here. Need it to find row indices for P and Pt.
-        P[interior_indices[i2], k : k + d] = r.T @ u[:, :d].conj()
-        Pt[interior_indices[i2], k : k + d] = rt @ v[:d].T.conj()
+        P[proj_indices, k : k + d] = r.T @ u[:, :d].conj()
+        Pt[proj_indices, k : k + d] = rt @ v[:d].T.conj()
         k += d
 
     s_sort = S[:k].argsort()[::-1]

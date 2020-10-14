@@ -26,7 +26,7 @@ from ctm_renormalize import (
     renormalize_T4,
     renormalize_C1_left,
 )
-from toolsU1 import combine_colors, checkU1, reduce_matrix_to_blocks
+from toolsU1 import combine_colors, checkU1, BlockMatrixU1
 
 
 class CTMRG(object):
@@ -635,10 +635,7 @@ class CTMRG_U1(CTMRG):
             self._env.get_T3(x + 2, y + 3),
             self._env.get_C3(x + 3, y + 3),
         ).T
-        blocks, block_colors, row_indices, col_indices = reduce_matrix_to_blocks(
-            dr, colors_d, colors_r
-        )
-        return blocks, block_colors, row_indices, col_indices, dr.shape
+        return BlockMatrixU1(dr, colors_d, colors_r)
 
     def construct_reduced_dl(self, x, y):
         col_Adr_l = self._env.get_colors_A(x + 2, y + 2)[5]
@@ -656,10 +653,7 @@ class CTMRG_U1(CTMRG):
             self._env.get_C4(x, y + 3),
             self._env.get_T3(x + 1, y + 3),
         )
-        blocks, block_colors, row_indices, col_indices = reduce_matrix_to_blocks(
-            dl, colors_l, colors_d
-        )
-        return blocks, block_colors, row_indices, col_indices, dl.shape
+        return BlockMatrixU1(dl, colors_l, colors_d)
 
     def construct_reduced_ul(self, x, y):
         col_Aul_r = self._env.get_colors_A(x + 1, y + 1)[3]
@@ -677,10 +671,7 @@ class CTMRG_U1(CTMRG):
             self._env.get_T4(x, y + 1),
             self._env.get_A(x + 1, y + 1),
         )
-        blocks, block_colors, row_indices, col_indices = reduce_matrix_to_blocks(
-            ul, colors_u, colors_l
-        )
-        return blocks, block_colors, row_indices, col_indices, ul.shape
+        return BlockMatrixU1(ul, colors_u, colors_l)
 
     def construct_reduced_ur(self, x, y):
         col_Aul_r = self._env.get_colors_A(x + 1, y + 1)[3]
@@ -697,40 +688,19 @@ class CTMRG_U1(CTMRG):
             self._env.get_A(x + 2, y + 1),
             self._env.get_T2(x + 3, y + 1),
         )
-        blocks, block_colors, row_indices, col_indices = reduce_matrix_to_blocks(
-            ur, colors_r, colors_u
-        )
-        return blocks, block_colors, row_indices, col_indices, ur.shape
+        return BlockMatrixU1(ur, colors_r, colors_u)
 
     def up_move(self):
         if self.verbosity > 1:
             print("\nstart up move")
         # 1) compute isometries for every non-equivalent sites
         for x, y in self._neq_coords:
-
-            dr_blocks, dr_colors, _, _, _ = self.construct_reduced_dr(x, y)
-            (
-                ur_blocks,
-                ur_colors,
-                _,
-                ur_col_indices,
-                (_, ur_ncol),
-            ) = self.construct_reduced_ur(x, y)
-            ul_blocks, ul_colors, _, _, _ = self.construct_reduced_ul(x, y)
-            dl_blocks, dl_colors, _, _, _ = self.construct_reduced_dl(x, y)
-
+            reduced_dr = self.construct_reduced_dr(x, y)
+            reduced_ur = self.construct_reduced_ur(x, y)
+            reduced_ul = self.construct_reduced_ul(x, y)
+            reduced_dl = self.construct_reduced_dl(x, y)
             P, Pt, colors = construct_projectors_U1(
-                dr_blocks,
-                dr_colors,
-                ur_blocks,
-                ur_colors,
-                ul_blocks,
-                ul_colors,
-                dl_blocks,
-                dl_colors,
-                ur_col_indices,
-                ur_ncol,
-                self.chi,
+                reduced_dr, reduced_ur, reduced_ul, reduced_dl, self.chi
             )
             # indices: Pt (x,y) are (x,y) from the T1 in R half
             self._env.store_projectors(x + 2, y, P, Pt, colors)
@@ -771,29 +741,12 @@ class CTMRG_U1(CTMRG):
             print("\nstart right move")
         # 1) compute isometries for every non-equivalent sites
         for x, y in self._neq_coords:
-            ur_blocks, ur_colors, _, _, _ = self.construct_reduced_ur(x, y)
-            (
-                dr_blocks,
-                dr_colors,
-                _,
-                dr_col_indices,
-                (_, dr_ncol),
-            ) = self.construct_reduced_dr(x, y)
-            ul_blocks, ul_colors, _, _, _ = self.construct_reduced_ul(x, y)
-            dl_blocks, dl_colors, _, _, _ = self.construct_reduced_dl(x, y)
-
+            reduced_dl = self.construct_reduced_dl(x, y)
+            reduced_dr = self.construct_reduced_dr(x, y)
+            reduced_ur = self.construct_reduced_ur(x, y)
+            reduced_ul = self.construct_reduced_ul(x, y)
             P, Pt, colors = construct_projectors_U1(
-                dl_blocks,
-                dl_colors,
-                dr_blocks,
-                dr_colors,
-                ur_blocks,
-                ur_colors,
-                ul_blocks,
-                ul_colors,
-                dr_col_indices,
-                dr_ncol,
-                self.chi,
+                reduced_dl, reduced_dr, reduced_ur, reduced_ul, self.chi
             )
             self._env.store_projectors(x + 3, y + 2, P, Pt, colors)
 
@@ -830,29 +783,12 @@ class CTMRG_U1(CTMRG):
             print("\nstart down move")
         # 1) compute isometries for every non-equivalent sites
         for x, y in self._neq_coords:
-            ur_blocks, ur_colors, _, _, _ = self.construct_reduced_ur(x, y)
-            (
-                dl_blocks,
-                dl_colors,
-                _,
-                dl_col_indices,
-                (_, dl_ncol),
-            ) = self.construct_reduced_dl(x, y)
-            ul_blocks, ul_colors, _, _, _ = self.construct_reduced_ul(x, y)
-            dr_blocks, dr_colors, _, _, _ = self.construct_reduced_dr(x, y)
-
+            reduced_ul = self.construct_reduced_ul(x, y)
+            reduced_dl = self.construct_reduced_dl(x, y)
+            reduced_dr = self.construct_reduced_dr(x, y)
+            reduced_ur = self.construct_reduced_ur(x, y)
             P, Pt, colors = construct_projectors_U1(
-                ul_blocks,
-                ul_colors,
-                dl_blocks,
-                dl_colors,
-                dr_blocks,
-                dr_colors,
-                ur_blocks,
-                ur_colors,
-                dl_col_indices,
-                dl_ncol,
-                self.chi,
+                reduced_ul, reduced_dl, reduced_dr, reduced_ur, self.chi
             )
             self._env.store_projectors(x + 3, y + 3, P, Pt, colors)
 
@@ -889,30 +825,14 @@ class CTMRG_U1(CTMRG):
             print("\nstart left move")
         # 1) compute isometries for every non-equivalent sites
         for x, y in self._neq_coords:
-            ur_blocks, ur_colors, _, _, _ = self.construct_reduced_ur(x, y)
-            (
-                ul_blocks,
-                ul_colors,
-                _,
-                ul_col_indices,
-                (_, ul_ncol),
-            ) = self.construct_reduced_ul(x, y)
-            dl_blocks, dl_colors, _, _, _ = self.construct_reduced_dl(x, y)
-            dr_blocks, dr_colors, _, _, _ = self.construct_reduced_dr(x, y)
-
+            reduced_ur = self.construct_reduced_ur(x, y)
+            reduced_ul = self.construct_reduced_ul(x, y)
+            reduced_dl = self.construct_reduced_dl(x, y)
+            reduced_dr = self.construct_reduced_dr(x, y)
             P, Pt, colors = construct_projectors_U1(
-                ur_blocks,
-                ur_colors,
-                ul_blocks,
-                ul_colors,
-                dl_blocks,
-                dl_colors,
-                dr_blocks,
-                dr_colors,
-                ul_col_indices,
-                ul_ncol,
-                self.chi,
+                reduced_ur, reduced_ul, reduced_dl, reduced_dr, self.chi
             )
+
             self._env.store_projectors(x, y + 1, P, Pt, colors)
 
         # 2) renormalize every non-equivalent C4, T4 and C1

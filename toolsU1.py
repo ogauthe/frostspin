@@ -17,7 +17,6 @@ def random_U1_tensor(*colors):
 
 @jit(nopython=True)
 def reduce_matrix_to_blocks(M, row_colors, col_colors):
-    assert M.shape == (row_colors.size, col_colors.size), "Colors do not match array"
     # quicksort implementation may not be deterministic if a random pivot is used. This
     # is a problem since two matrices with compatible columns and rows may end being
     # incompatible due to different axes permutations in two different calls. A stable
@@ -66,11 +65,62 @@ def reduce_matrix_to_blocks(M, row_colors, col_colors):
     return blocks, block_colors, row_indices, col_indices
 
 
-def toarray(blocks, row_indices, col_indices, sh):
-    d = np.zeros(sh)
-    for b, ri, ci in zip(blocks, row_indices, col_indices):
-        d[ri[:, None], ci] = b
-    return d
+class BlockMatrixU1(object):
+    """
+    Efficient storage for U(1) symmetric matrices.
+    """
+
+    def __init__(self, M, row_colors, col_colors):
+        """
+        Constructor from matrix M and U(1) quantum numbers for rows and columns.
+        """
+        assert M.shape == (
+            row_colors.size,
+            col_colors.size,
+        ), "Colors do not match array"
+        self._shape = M.shape
+        # put everything inside jitted reduce_matrix_to_blocks function
+        (
+            self._blocks,
+            self._block_colors,
+            self._row_indices,
+            self._col_indices,
+        ) = reduce_matrix_to_blocks(M, row_colors, col_colors)
+        self._nblocks = len(self._blocks)
+
+    @property
+    def shape(self):
+        return self._shape
+
+    @property
+    def nblocks(self):
+        return self._nblocks
+
+    @property
+    def blocks(self):
+        return self._blocks
+
+    @property
+    def block_colors(self):
+        return self._block_colors
+
+    @property
+    def row_indices(self):
+        return self._row_indices
+
+    @property
+    def col_indices(self):
+        return self._col_indices
+
+    def toarray(self):
+        ar = np.zeros(self._shape)
+        for b, ri, ci in zip(self._blocks, self._row_indices, self._col_indices):
+            ar[ri[:, None], ci] = b
+        return ar
+
+    def get_block_row_col_with_color(self, color):
+        i = self._block_colors.index(color)
+        return self._blocks[i], self._row_indices[i], self._col_indices[i]
 
 
 def checkU1(T, colorsT, tol=1e-14):
