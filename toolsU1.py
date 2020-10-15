@@ -79,6 +79,7 @@ class BlockMatrixU1(object):
             col_colors.size,
         ), "Colors do not match array"
         self._shape = M.shape
+        self._dtype = M.dtype
         # put everything inside jitted reduce_matrix_to_blocks function
         (
             self._blocks,
@@ -91,6 +92,10 @@ class BlockMatrixU1(object):
     @property
     def shape(self):
         return self._shape
+
+    @property
+    def dtype(self):
+        return self._dtype
 
     @property
     def nblocks(self):
@@ -111,6 +116,17 @@ class BlockMatrixU1(object):
     @property
     def col_indices(self):
         return self._col_indices
+
+    @property
+    def T(self):
+        t = BlockMatrixU1.__new__(BlockMatrixU1)  # bypass __init__, quick and dirty
+        t._shape = (self._shape[1], self._shape[0])
+        t._dtype = self._dtype
+        t._blocks = [m.T for m in self._blocks]
+        t._block_colors = self._block_colors
+        t._row_indices = self._col_indices
+        t._col_indices = self._row_indices
+        return t
 
     def toarray(self):
         ar = np.zeros(self._shape)

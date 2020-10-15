@@ -996,3 +996,57 @@ class CTMRG_U1(CTMRG):
         self._env.fix_renormalized_left()
         if self.verbosity > 1:
             print("left move completed")
+
+    def compute_rdm_diag_dr(self, x=0, y=0):
+        if self.verbosity > 1:
+            print(
+                f"Compute rdm for down right diagonal sites ({x+1},{y+1}) and",
+                f"({x+2},{y+2})",
+            )
+        return rdm.rdm_diag_dr(
+            self._env.get_C1(x, y),
+            self._env.get_T1(x + 1, y),
+            self._env.get_T1(x + 2, y),
+            self._env.get_C2(x + 3, y),
+            self._env.get_T4(x, y + 1),
+            self._env.get_A(x + 1, y + 1),
+            self._env.get_A(x + 2, y + 1),
+            self._env.get_T2(x + 3, y + 1),
+            self._env.get_T4(x, y + 2),
+            self._env.get_A(x + 1, y + 2),
+            self._env.get_A(x + 2, y + 2),
+            self._env.get_T2(x + 3, y + 2),
+            self._env.get_C4(x, y + 3),
+            self._env.get_T3(x + 1, y + 3),
+            self._env.get_T3(x + 2, y + 3),
+            self._env.get_C3(x + 3, y + 3),
+            ur=self.construct_reduced_ur(x, y),
+            dl=self.construct_reduced_dl(x, y),
+        )
+
+    def compute_rdm_diag_ur(self, x=0, y=0):
+        if self.verbosity > 1:
+            print(
+                f"Compute rdm for upper right diagonal sites ({x+1},{y+2}) and",
+                f"({x+2},{y+1})",
+            )
+        return rdm.rdm_diag_ur(
+            self._env.get_C1(x, y),
+            self._env.get_T1(x + 1, y),
+            self._env.get_T1(x + 2, y),
+            self._env.get_C2(x + 3, y),
+            self._env.get_T4(x, y + 1),
+            self._env.get_A(x + 1, y + 1),
+            self._env.get_A(x + 2, y + 1),
+            self._env.get_T2(x + 3, y + 1),
+            self._env.get_T4(x, y + 2),
+            self._env.get_A(x + 1, y + 2),
+            self._env.get_A(x + 2, y + 2),
+            self._env.get_T2(x + 3, y + 2),
+            self._env.get_C4(x, y + 3),
+            self._env.get_T3(x + 1, y + 3),
+            self._env.get_T3(x + 2, y + 3),
+            self._env.get_C3(x + 3, y + 3),
+            ul=self.construct_reduced_ul(x, y),
+            dr=self.construct_reduced_dr(x, y).T,
+        )
