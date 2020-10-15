@@ -204,6 +204,10 @@ class CTM_Environment(object):
             self._colors_C4_r = [default_color] * self._Nneq
 
         self._reset_projectors_temp()
+        self._corners_ul = [None] * self._Nneq
+        self._corners_ur = [None] * self._Nneq
+        self._corners_dl = [None] * self._Nneq
+        self._corners_dr = [None] * self._Nneq
 
     def save_to_file(self, file=None):
         """
@@ -297,6 +301,10 @@ class CTM_Environment(object):
                 self._colors_C4_r[i] = data[f"_CTM_colors_C4_r_{i}"]
 
         self._reset_projectors_temp()
+        self._corners_ul = [None] * self._Nneq
+        self._corners_ur = [None] * self._Nneq
+        self._corners_dl = [None] * self._Nneq
+        self._corners_dr = [None] * self._Nneq
 
     def set_tensors(self, tensors, colors=None):
         if self._Nneq != len(tensors):
@@ -406,6 +414,12 @@ class CTM_Environment(object):
 
             self._neq_As[i] = A
             self._colors_A[i] = col
+
+        # reset all corners C-T // T-A since A changed
+        self._corners_ul = [None] * self._Nneq
+        self._corners_ur = [None] * self._Nneq
+        self._corners_dl = [None] * self._Nneq
+        self._corners_dr = [None] * self._Nneq
 
     @property
     def cell(self):
@@ -532,6 +546,30 @@ class CTM_Environment(object):
     def get_color_Pt(self, x, y):
         return self._colors_Pt[self._indices[x % self._Lx, y % self._Ly]]
 
+    def get_corner_ul(self, x, y):
+        return self._corners_ul[self._indices[x % self._Lx, y % self._Ly]]
+
+    def get_corner_ur(self, x, y):
+        return self._corners_ur[self._indices[x % self._Lx, y % self._Ly]]
+
+    def get_corner_dl(self, x, y):
+        return self._corners_dl[self._indices[x % self._Lx, y % self._Ly]]
+
+    def get_corner_dr(self, x, y):
+        return self._corners_dr[self._indices[x % self._Lx, y % self._Ly]]
+
+    def set_corner_ul(self, x, y, ul):
+        self._corners_ul[self._indices[x % self._Lx, y % self._Ly]] = ul
+
+    def set_corner_ur(self, x, y, ur):
+        self._corners_ur[self._indices[x % self._Lx, y % self._Ly]] = ur
+
+    def set_corner_dl(self, x, y, dl):
+        self._corners_dl[self._indices[x % self._Lx, y % self._Ly]] = dl
+
+    def set_corner_dr(self, x, y, dr):
+        self._corners_dr[self._indices[x % self._Lx, y % self._Ly]] = dr
+
     def _reset_projectors_temp(self):
         # free projectors memory, other arrays are stored anyway. Is it worth it?
         self._neq_P = [None] * self._Nneq
@@ -566,6 +604,8 @@ class CTM_Environment(object):
         self._colors_C1_r = self._colors_CX
         self._colors_C2_l = self._colors_CY
         self._reset_projectors_temp()
+        self._corners_ul = [None] * self._Nneq
+        self._corners_ur = [None] * self._Nneq
 
     def fix_renormalized_right(self):
         self._neq_C2s = self._nCX
@@ -574,6 +614,8 @@ class CTM_Environment(object):
         self._colors_C2_d = self._colors_CX
         self._colors_C3_u = self._colors_CY
         self._reset_projectors_temp()
+        self._corners_ur = [None] * self._Nneq
+        self._corners_dr = [None] * self._Nneq
 
     def fix_renormalized_down(self):
         self._neq_C3s = self._nCX
@@ -582,6 +624,8 @@ class CTM_Environment(object):
         self._colors_C3_l = self._colors_CX
         self._colors_C4_r = self._colors_CY
         self._reset_projectors_temp()
+        self._corners_dr = [None] * self._Nneq
+        self._corners_dl = [None] * self._Nneq
 
     def fix_renormalized_left(self):
         self._neq_C4s = self._nCX
@@ -590,3 +634,5 @@ class CTM_Environment(object):
         self._colors_C4_u = self._colors_CX
         self._colors_C1_d = self._colors_CY
         self._reset_projectors_temp()
+        self._corners_dl = [None] * self._Nneq
+        self._corners_ul = [None] * self._Nneq

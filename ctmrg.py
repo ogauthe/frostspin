@@ -585,6 +585,13 @@ class CTMRG_U1(CTMRG):
     This is efficient since no reshape or transpose happens once corners are
     constructed. However using U(1) in corner construction is not efficient due to
     transposes arising at each step.
+
+    At each move, two corners among ul, ur, dl and dr are renormalized, but the other
+    two can still be used for next moves. So every time a corner is computed, store it
+    in the environment to be used later (including by compute_rdm_diag ur and dr). After
+    each renormalization, delete the two corners that have been renormalized. In total,
+    in addition to C and T environment tensors, 4*Lx*Ly corners are stored in reduced
+    block form.
     """
 
     def __init__(self, chi, tiling, tensors=(), colors=(), file=None, verbosity=0):
@@ -689,6 +696,14 @@ class CTMRG_U1(CTMRG):
             )
 
     def construct_reduced_dr(self, x, y):
+        """
+        Return down right corner reduced to U(1) blocks as a BlockMatrixU1. Check _env
+        to find an already computed corner, if it does not exist construct it and store
+        it in _env.
+        """
+        dr = self._env.get_corner_dr(x, y)
+        if dr is not None:
+            return dr
         col_Aur_d = self._env.get_colors_A(x + 2, y + 1)[4]
         col_Adr_l = self._env.get_colors_A(x + 2, y + 2)[5]
         colors_r = combine_colors(
@@ -703,9 +718,19 @@ class CTMRG_U1(CTMRG):
             self._env.get_T3(x + 2, y + 3),
             self._env.get_C3(x + 3, y + 3),
         ).T
-        return BlockMatrixU1(dr, colors_d, colors_r)
+        dr = BlockMatrixU1(dr, colors_d, colors_r)
+        self._env.set_corner_dr(x, y, dr)
+        return dr
 
     def construct_reduced_dl(self, x, y):
+        """
+        Return down left corner reduced to U(1) blocks as a BlockMatrixU1. Check _env
+        to find an already computed corner, if it does not exist construct it and store
+        it in _env.
+        """
+        dl = self._env.get_corner_dl(x, y)
+        if dl is not None:
+            return dl
         col_Adr_l = self._env.get_colors_A(x + 2, y + 2)[5]
         col_Adl_u = self._env.get_colors_A(x + 1, y + 2)[2]
         colors_d = combine_colors(
@@ -721,9 +746,19 @@ class CTMRG_U1(CTMRG):
             self._env.get_C4(x, y + 3),
             self._env.get_T3(x + 1, y + 3),
         )
-        return BlockMatrixU1(dl, colors_l, colors_d)
+        dl = BlockMatrixU1(dl, colors_l, colors_d)
+        self._env.set_corner_dl(x, y, dl)
+        return dl
 
     def construct_reduced_ul(self, x, y):
+        """
+        Return upper left corner reduced to U(1) blocks as a BlockMatrixU1. Check _env
+        to find an already computed corner, if it does not exist construct it and store
+        it in _env.
+        """
+        ul = self._env.get_corner_ul(x, y)
+        if ul is not None:
+            return ul
         col_Aul_r = self._env.get_colors_A(x + 1, y + 1)[3]
         col_Adl_u = self._env.get_colors_A(x + 1, y + 2)[2]
         colors_u = combine_colors(
@@ -739,9 +774,19 @@ class CTMRG_U1(CTMRG):
             self._env.get_T4(x, y + 1),
             self._env.get_A(x + 1, y + 1),
         )
-        return BlockMatrixU1(ul, colors_u, colors_l)
+        ul = BlockMatrixU1(ul, colors_u, colors_l)
+        self._env.set_corner_ul(x, y, ul)
+        return ul
 
     def construct_reduced_ur(self, x, y):
+        """
+        Return upper right corner reduced to U(1) blocks as a BlockMatrixU1. Check _env
+        to find an already computed corner, if it does not exist construct it and store
+        it in _env.
+        """
+        ur = self._env.get_corner_ur(x, y)
+        if ur is not None:
+            return ur
         col_Aul_r = self._env.get_colors_A(x + 1, y + 1)[3]
         col_Aur_d = self._env.get_colors_A(x + 2, y + 1)[4]
         colors_u = combine_colors(
@@ -756,9 +801,16 @@ class CTMRG_U1(CTMRG):
             self._env.get_A(x + 2, y + 1),
             self._env.get_T2(x + 3, y + 1),
         )
-        return BlockMatrixU1(ur, colors_r, colors_u)
+        ur = BlockMatrixU1(ur, colors_r, colors_u)
+        self._env.set_corner_ur(x, y, ur)
+        return ur
 
     def up_move(self):
+        """
+        Absorb a row on the upper side of environment. Compute new ul / ur / dl / dr
+        corners only if they cannot be found in the environment. At the end, delete ul
+        and ur corners which have been renormalized.
+        """
         if self.verbosity > 1:
             print("\nstart up move")
         # 1) compute isometries for every non-equivalent sites
@@ -799,11 +851,16 @@ class CTMRG_U1(CTMRG):
         # 3) store renormalized tensors in the environment
         # renormalization reads C1[x,y] but writes C1[x,y+1]
         # => need to compute every renormalized tensors before storing any of them
-        self._env.fix_renormalized_up()
+        self._env.fix_renormalized_up()  # also removes corners ul and ur
         if self.verbosity > 1:
             print("up move completed")
 
     def right_move(self):
+        """
+        Absorb a column on the right side of environment. Compute new ul / ur / dl / dr
+        corners only if they cannot be found in the environment. At the end, delete ur
+        and dr corners which have been renormalized.
+        """
         if self.verbosity > 1:
             print("\nstart right move")
         # 1) compute isometries for every non-equivalent sites
@@ -846,6 +903,11 @@ class CTMRG_U1(CTMRG):
             print("right move completed")
 
     def down_move(self):
+        """
+        Absorb a row on the down side of environment. Compute new ul / ur / dl / dr
+        corners only if they cannot be found in the environment. At the end, delete dl
+        and dr corners which have been renormalized.
+        """
         if self.verbosity > 1:
             print("\nstart down move")
         # 1) compute isometries for every non-equivalent sites
@@ -888,6 +950,11 @@ class CTMRG_U1(CTMRG):
             print("down move completed")
 
     def left_move(self):
+        """
+        Absorb a column on the left side of environment. Compute new ul / ur / dl / dr
+        corners only if they cannot be found in the environment. At the end, delete ul
+        and dl corners which have been renormalized.
+        """
         if self.verbosity > 1:
             print("\nstart left move")
         # 1) compute isometries for every non-equivalent sites
