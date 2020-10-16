@@ -84,9 +84,11 @@ print(f"Start from beta = {su.beta}")
 ctm_list = []
 chi_list = np.array(config["chi_list"], dtype=int)
 ctm_tol = float(config["ctm_tol"])
+ctm_warmup = int(config["ctm_warmup"])
 ctm_maxiter = int(config["ctm_maxiter"])
 print(f"\nCompute CTMRG environment for chi in {list(chi_list)}")
-print(f"Converge CTMRG with tol = {ctm_tol} for a max of {ctm_maxiter} iterations")
+print(f"Converge CTMRG for at least {ctm_warmup} and at most {ctm_maxiter} iterations")
+print(f"Set converge tolerance to {ctm_tol}")
 
 # misc
 energies = []
@@ -143,7 +145,7 @@ for beta in beta_list:
         print("\n" + " " * 4 + "#" * 75)
         print(f"    Converge CTMRG for D = {Dmax} and chi = {ctm.chi}...")
         t = time.time()
-        i, rdm_1st_nei = ctm.converge(ctm_tol, maxiter=ctm_maxiter)
+        i, rdm_1st_nei = ctm.converge(ctm_tol, warmup=ctm_warmup, maxiter=ctm_maxiter)
         print(f"    done, converged after {i} iterations, t = {time.time()-t:.0f}")
         save_ctm = save_ctm_root + f"{su.beta}_chi{ctm.chi}.npz"
         data_ctm = ctm.save_to_file()

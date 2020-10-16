@@ -170,14 +170,14 @@ class CTMRG(object):
             print(f"{warmup} warmup iterations done")
         last_rho = self.compute_rdm_cell_average_1st_nei()
         last_last_rho = last_rho
-        for i in range(maxiter):
+        for i in range(warmup + 1, maxiter + 1):
             self.iterate()
             rho = self.compute_rdm_cell_average_1st_nei()
             r = ((last_rho - rho) ** 2).sum() ** 0.5  # shape never changes: 2 <=> inf
             if self.verbosity > 0:
                 print(f"i = {i}, ||rho - last_rho|| = {r}")
             if r < tol:
-                return i + warmup, rho  # avoid computing it twice
+                return i, rho  # avoid computing it twice
             if ((last_last_rho - rho) ** 2).sum() ** 0.5 < tol / 10:
                 raise RuntimeError("CTMRG oscillates between two converged states")
             last_last_rho = last_rho
