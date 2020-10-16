@@ -336,12 +336,8 @@ def svdU1(M, row_colors, col_colors):
         U, s, V = np.linalg.svd(M, full_matrices=False)
         return U, s, V, default_color.copy()  # needed for numba
 
-    if M.ndim != 2:
-        raise ValueError("M has to be a matrix")
-    if row_colors.shape != (M.shape[0],):
-        raise ValueError("row_colors has to be (M.shape[0])")
-    if col_colors.shape != (M.shape[1],):
-        raise ValueError("col_colors has to be (M.shape[1])")
+    if M.shape != (row_colors.size, col_colors.size):
+        raise ValueError("Colors do not match M")
 
     row_sort = row_colors.argsort()
     sorted_row_colors = row_colors[row_sort]
