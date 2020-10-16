@@ -382,11 +382,7 @@ def svdU1(M, row_colors, col_colors):
         else:
             cbi += 1
 
-    if k < dmin:  # if U(1) sectors do not match for more than dmin values
-        if k == 0:  # pathological case with 0 matching colors.
-            raise ValueError("No sector matching, M has to be zero")
-        s = s[:k]
-    s_sort = s.argsort()[::-1]
+    s_sort = s[:k].argsort()[::-1]
     U = U[:, s_sort]
     s = s[s_sort]
     V = V[s_sort]
