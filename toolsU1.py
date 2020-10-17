@@ -301,6 +301,48 @@ def tensordotU1(a, b, ax_a, ax_b, colors_a=None, colors_b=None):
     return res
 
 
+def diagU1(H, colors):
+    """
+    Diagonalize a real symmetric or complex Hermitian U(1) symmetric operator.
+
+    Parameters
+    ----------
+    H : (M, M) ndarray
+      Real symmetric or complex Hermitian U(1) symmetric operator to diagonalize.
+    colors : (M,) integer ndarray
+      U(1) quantum numbers (same for rows and columns)
+
+    Returns
+    -------
+    spec : (M,) float ndarray
+      Spectrum of H.
+    basis : (M, M) ndarray
+      Diagonalization basis.
+    eigvec_colors : (M,) int8 ndarray
+      Colors of H eigenvectors.
+    """
+    # revert to standard eigh if colors are not provided
+    if not colors.size:
+        s, U = np.linalg.eigh(H)
+        return s, U, default_color
+
+    M = colors.size
+    if H.shape != (M, M):
+        raise ValueError("Colors do not match H")
+
+    color_sort = colors.argsort(kind="mergesort")
+    eigvec_colors = colors[color_sort]
+    blocks = [0, *((eigvec_colors[:-1] != eigvec_colors[1:]).nonzero()[0] + 1), M]
+    spec = np.empty(M)
+    basis = np.zeros((M, M), dtype=H.dtype)
+
+    for i, j in zip(blocks, blocks[1:]):
+        m = H[color_sort[i:j, None], color_sort[i:j]]
+        spec[i:j], basis[color_sort[i:j], i:j] = np.linalg.eigh(m)
+
+    return spec, basis, eigvec_colors
+
+
 @jit(nopython=True)
 def svdU1(M, row_colors, col_colors):
     """

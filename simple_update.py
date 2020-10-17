@@ -1,7 +1,6 @@
 import numpy as np
-import scipy.linalg as lg
 
-from toolsU1 import default_color, combine_colors, svdU1
+from toolsU1 import default_color, combine_colors, diagU1, svdU1
 from svd_tools import svd_truncate
 
 # more convenient than [:,None,None,None,None,None] everywhere?
@@ -258,19 +257,15 @@ class SimpleUpdate2x2(object):
         if self.verbosity > 0:
             print(f"construct SimpleUpdate2x2 with d = {d}, a = {a} and Dmax = {Dmax}")
 
-        if file is not None:  # do not read other input values, restart from file
+        if file is not None:  # do not read optional input values, restart from file
             self.load_from_file(file)
-            self.tau = tau
+            self.tau = tau  # tau is set from input, not from file
             return
 
         if h1.shape != (d ** 2, d ** 2):
             raise ValueError("invalid shape for Hamiltonian h1")
         if h2.shape != (d ** 2, d ** 2):
             raise ValueError("invalid shape for Hamiltonian h2")
-        self._h1 = h1
-        self._h2 = h2
-        self.tau = tau
-        self._beta = 0.0
 
         if colors is None:  # default color whatever tensor shapes
             self._colors_p = default_color
@@ -363,10 +358,10 @@ class SimpleUpdate2x2(object):
             B0 = np.random.random((d, 1, self._D5, self._D4, self._D6, self._D2)) - 0.5
             C0 = np.random.random((d, 1, self._D3, self._D7, self._D1, self._D8)) - 0.5
             D0 = np.random.random((d, 1, self._D6, self._D8, self._D5, self._D7)) - 0.5
-            self._gammaA = A0 / lg.norm(A0)
-            self._gammaB = B0 / lg.norm(B0)
-            self._gammaC = C0 / lg.norm(C0)
-            self._gammaD = D0 / lg.norm(D0)
+            self._gammaA = A0 / np.amax(A0)
+            self._gammaB = B0 / np.amax(B0)
+            self._gammaC = C0 / np.amax(C0)
+            self._gammaD = D0 / np.amax(D0)
 
         # 3) thermal equilibrium, start from product state at beta=0
         elif a == d:
@@ -403,6 +398,14 @@ class SimpleUpdate2x2(object):
         else:
             raise ValueError("If tensors are not provided, a must be 1 or d")
 
+        # wait for colors_p to be set to use U(1) in h1 and h2 diagonalization.
+        colors_h1 = combine_colors(self._colors_p, -self._colors_p)
+        self._eigvals_h1, self._eigvecs_h1, _ = diagU1(h1, colors_h1)
+        colors_h2 = combine_colors(self._colors_p, self._colors_p)
+        self._eigvals_h2, self._eigvecs_h2, _ = diagU1(h2, colors_h2)
+        self.tau = tau  # need eigvals and eigvecs to set tau
+        self._beta = 0.0
+
         # now that dimensions are known, initialize weights to 1.
         self._lambda1 = np.ones(self._D1)
         self._lambda2 = np.ones(self._D2)
@@ -426,10 +429,27 @@ class SimpleUpdate2x2(object):
         if self.verbosity > 0:
             print(f"set tau to {tau}")
         self._tau = tau
-        self._g1 = lg.expm(-tau * self._h1)
-        self._g2 = lg.expm(-tau / 2 * self._h2)  # apply twice sqrt(gate)
-        self._g1_squared = lg.expm(-2 * tau * self._h1)  # 2nd order Trotter
-        self._g2_squared = lg.expm(-tau * self._h2)  # 2nd order Trotter
+        # symmetric / hermitian diagonalization is faster than expm and ensures U(1)
+        self._g1 = (
+            self._eigvecs_h1
+            * np.exp(-tau * self._eigvals_h1)
+            @ self._eigvecs_h1.T.conj()
+        )
+        self._g1_squared = (
+            self._eigvecs_h1
+            * np.exp(-2 * tau * self._eigvals_h1)
+            @ self._eigvecs_h1.T.conj()
+        )
+        self._g2_sqrt = (
+            self._eigvecs_h2
+            * np.exp(-tau / 2 * self._eigvals_h2)
+            @ self._eigvecs_h2.T.conj()
+        )
+        self._g2 = (
+            self._eigvecs_h2
+            * np.exp(-tau * self._eigvals_h2)
+            @ self._eigvecs_h2.T.conj()
+        )
 
     @property
     def d(self):
@@ -454,11 +474,11 @@ class SimpleUpdate2x2(object):
 
     @property
     def h1(self):
-        return self._h1
+        return self._eigvecs_h1 * self._eigvals_h1 @ self._eigvecs_h1.T.conj()
 
     @property
     def h2(self):
-        return self._h2
+        return self._eigvecs_h2 * self._eigvals_h2 @ self._eigvecs_h2.T.conj()
 
     @property
     def colors(self):
@@ -525,8 +545,10 @@ class SimpleUpdate2x2(object):
             self._gammaB = data["_SU2x2_gammaB"]
             self._gammaC = data["_SU2x2_gammaC"]
             self._gammaD = data["_SU2x2_gammaD"]
-            self._h1 = data["_SU2x2_h1"]
-            self._h2 = data["_SU2x2_h2"]
+            self._eigvals_h1 = data["_SU2x2_eigvals_h1"]
+            self._eigvecs_h1 = data["_SU2x2_eigvecs_h1"]
+            self._eigvals_h2 = data["_SU2x2_eigvals_h2"]
+            self._eigvecs_h2 = data["_SU2x2_eigvecs_h2"]
             self._beta = data["_SU2x2_beta"][()]
         self._D1 = self._lambda1.size
         self._D2 = self._lambda2.size
@@ -566,8 +588,10 @@ class SimpleUpdate2x2(object):
         data["_SU2x2_gammaB"] = self._gammaB
         data["_SU2x2_gammaC"] = self._gammaC
         data["_SU2x2_gammaD"] = self._gammaD
-        data["_SU2x2_h1"] = self._h1
-        data["_SU2x2_h2"] = self._h2
+        data["_SU2x2_eigvals_h1"] = self._eigvals_h1
+        data["_SU2x2_eigvecs_h1"] = self._eigvecs_h1
+        data["_SU2x2_eigvals_h2"] = self._eigvals_h2
+        data["_SU2x2_eigvecs_h2"] = self._eigvecs_h2
         data["_SU2x2_tau"] = self._tau
         data["_SU2x2_beta"] = self._beta
         data["_SU2x2_Dmax"] = self.Dmax
@@ -661,30 +685,30 @@ class SimpleUpdate2x2(object):
         if self.verbosity > 0:
             print("launch second neighbor update")
         # link AD right up
-        self.update_bonds25(self._g2)  # through B
-        self.update_bonds17(self._g2)  # through C
+        self.update_bonds25(self._g2_sqrt)  # through B
+        self.update_bonds17(self._g2_sqrt)  # through C
         # link AD right down
-        self.update_bonds26(self._g2)  # through B
-        self.update_bonds37(self._g2)  # through C
+        self.update_bonds26(self._g2_sqrt)  # through B
+        self.update_bonds37(self._g2_sqrt)  # through C
         # link AD left down
-        self.update_bonds46(self._g2)  # through B
-        self.update_bonds38(self._g2)  # through C
+        self.update_bonds46(self._g2_sqrt)  # through B
+        self.update_bonds38(self._g2_sqrt)  # through C
         # link AD left up
-        self.update_bonds45(self._g2)  # through B
-        self.update_bonds18(self._g2)  # through C
+        self.update_bonds45(self._g2_sqrt)  # through B
+        self.update_bonds18(self._g2_sqrt)  # through C
 
         # link BC right up
-        self.update_bonds41(self._g2)  # through A
-        self.update_bonds58(self._g2)  # through D
+        self.update_bonds41(self._g2_sqrt)  # through A
+        self.update_bonds58(self._g2_sqrt)  # through D
         # link BC right down
-        self.update_bonds43(self._g2)  # through A
-        self.update_bonds68(self._g2)  # through D
+        self.update_bonds43(self._g2_sqrt)  # through A
+        self.update_bonds68(self._g2_sqrt)  # through D
         # link BC left down
-        self.update_bonds23(self._g2)  # through A
-        self.update_bonds67(self._g2)  # through D
+        self.update_bonds23(self._g2_sqrt)  # through A
+        self.update_bonds67(self._g2_sqrt)  # through D
         # link BC left up
-        self.update_bonds21(self._g2)  # through A
-        self.update_bonds57(self._g2)  # through D
+        self.update_bonds21(self._g2_sqrt)  # through A
+        self.update_bonds57(self._g2_sqrt)  # through D
 
     def update_first_order(self):
         """
@@ -731,37 +755,37 @@ class SimpleUpdate2x2(object):
         self.update_bond6(self._g1)
         self.update_bond7(self._g1)
         self.update_bond8(self._g1)
-        self.update_bonds25(self._g2)
-        self.update_bonds17(self._g2)
-        self.update_bonds26(self._g2)
-        self.update_bonds37(self._g2)
-        self.update_bonds46(self._g2)
-        self.update_bonds38(self._g2)
-        self.update_bonds45(self._g2)
-        self.update_bonds18(self._g2)
-        self.update_bonds41(self._g2)
-        self.update_bonds58(self._g2)
-        self.update_bonds43(self._g2)
-        self.update_bonds68(self._g2)
-        self.update_bonds23(self._g2)
-        self.update_bonds67(self._g2)
-        self.update_bonds21(self._g2)
-        self.update_bonds57(self._g2_squared)
-        self.update_bonds21(self._g2)
-        self.update_bonds67(self._g2)
-        self.update_bonds23(self._g2)
-        self.update_bonds68(self._g2)
-        self.update_bonds43(self._g2)
-        self.update_bonds58(self._g2)
-        self.update_bonds41(self._g2)
-        self.update_bonds18(self._g2)
-        self.update_bonds45(self._g2)
-        self.update_bonds38(self._g2)
-        self.update_bonds46(self._g2)
-        self.update_bonds37(self._g2)
-        self.update_bonds26(self._g2)
-        self.update_bonds17(self._g2)
-        self.update_bonds25(self._g2)
+        self.update_bonds25(self._g2_sqrt)
+        self.update_bonds17(self._g2_sqrt)
+        self.update_bonds26(self._g2_sqrt)
+        self.update_bonds37(self._g2_sqrt)
+        self.update_bonds46(self._g2_sqrt)
+        self.update_bonds38(self._g2_sqrt)
+        self.update_bonds45(self._g2_sqrt)
+        self.update_bonds18(self._g2_sqrt)
+        self.update_bonds41(self._g2_sqrt)
+        self.update_bonds58(self._g2_sqrt)
+        self.update_bonds43(self._g2_sqrt)
+        self.update_bonds68(self._g2_sqrt)
+        self.update_bonds23(self._g2_sqrt)
+        self.update_bonds67(self._g2_sqrt)
+        self.update_bonds21(self._g2_sqrt)
+        self.update_bonds57(self._g2)
+        self.update_bonds21(self._g2_sqrt)
+        self.update_bonds67(self._g2_sqrt)
+        self.update_bonds23(self._g2_sqrt)
+        self.update_bonds68(self._g2_sqrt)
+        self.update_bonds43(self._g2_sqrt)
+        self.update_bonds58(self._g2_sqrt)
+        self.update_bonds41(self._g2_sqrt)
+        self.update_bonds18(self._g2_sqrt)
+        self.update_bonds45(self._g2_sqrt)
+        self.update_bonds38(self._g2_sqrt)
+        self.update_bonds46(self._g2_sqrt)
+        self.update_bonds37(self._g2_sqrt)
+        self.update_bonds26(self._g2_sqrt)
+        self.update_bonds17(self._g2_sqrt)
+        self.update_bonds25(self._g2_sqrt)
         self.update_bond8(self._g1)
         self.update_bond7(self._g1)
         self.update_bond6(self._g1)
