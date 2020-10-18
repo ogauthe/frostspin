@@ -90,15 +90,23 @@ print(f"\nCompute CTMRG environment for chi in {list(chi_list)}")
 print(f"Converge CTMRG for at least {ctm_warmup} and at most {ctm_maxiter} iterations")
 print(f"Set converge tolerance to {ctm_tol}")
 
-# misc
-energies = []
+# save parameters (do not mix internal CTM/SU stuff and simulation parameters)
+su_params = {"tau": tau, "J2": J2, "Dmax": Dmax}
+ctm_params = {
+    "ctm_tol": ctm_tol,
+    "ctm_warmup": ctm_warmup,
+    "ctm_maxiter": ctm_maxiter,
+    **su_params,
+}
 save_su_root = str(config["save_su_root"])
 save_ctm_root = str(config["save_ctm_root"])
+save_rdm_root = str(config["save_rdm_root"])
 print("\nSave simple update data in files " + save_su_root + "{beta}.npz")
-print(
-    "Save CTMRG and density matrices data in files",
-    save_ctm_root + "{beta}_chi{chi}.npz",
-)
+print("Save CTMRG data in files" + save_ctm_root + "{beta}_chi{chi}.npz")
+print("Save reduced density matrices in files " + save_rdm_root + "{beta}_chi{chi}.npz")
+
+# misc
+energies = []
 
 
 ########################################################################################
@@ -120,8 +128,7 @@ for beta in beta_list:
     if beta_evolve > 5 * tau:  # do not save again SU after just 1 update
         save_su = save_su_root + f"{su.beta}.npz"
         data_su = su.save_to_file()
-        data_su["J2"] = J2
-        np.savez_compressed(save_su, **data_su)
+        np.savez_compressed(save_su, beta=su.beta, **su_params, **data_su)
         print("Simple update data saved in file", save_su)
     tensors = su.get_ABCD()
     colors = su.get_colors_ABCD()
@@ -132,6 +139,7 @@ for beta in beta_list:
                 # CTMRG(chi, tiling=tiling, tensors=tensors)
                 CTMRG_U1(chi, tiling, tensors=tensors, colors=colors)
             )
+        rdm_params = {"cell_coords": ctm_list[-1].neq_coords.copy(), **ctm_params}
     else:  # set tensors to new values
         for ctm in ctm_list:
             # ctm.set_tensors(tensors)
@@ -145,24 +153,41 @@ for beta in beta_list:
         print("\n" + " " * 4 + "#" * 75)
         print(f"    Converge CTMRG for D = {Dmax} and chi = {ctm.chi}...")
         t = time.time()
-        i, rdm_1st_nei = ctm.converge(ctm_tol, warmup=ctm_warmup, maxiter=ctm_maxiter)
+        i, (rdm2x1_cell, rdm1x2_cell) = ctm.converge(
+            ctm_tol, warmup=ctm_warmup, maxiter=ctm_maxiter
+        )
         print(f"    done, converged after {i} iterations, t = {time.time()-t:.0f}")
         save_ctm = save_ctm_root + f"{su.beta}_chi{ctm.chi}.npz"
         data_ctm = ctm.save_to_file()
-        data_ctm["chi"] = ctm.chi
-        data_ctm["J2"] = J2
-        data_ctm["su.beta"] = su.beta
-        data_ctm["rdm_1st_nei"] = rdm_1st_nei
-        np.savez_compressed(save_ctm, **data_ctm)
+        np.savez_compressed(
+            save_ctm, beta=su.beta, chi=ctm.chi, **ctm_params, **data_ctm
+        )
         print("    CTMRG data saved in file", save_ctm)
 
-        print("    Compute reduced density matrix cell average for second neighbor...")
+        print("    Compute reduced density matrix for all second neighbor bonds...")
+        rdm2x1_cell = np.array(rdm2x1_cell)
+        rdm1x2_cell = np.array(rdm1x2_cell)
+        save_rdm = save_rdm_root + f"{su.beta}_chi{ctm.chi}.npz"
         t = time.time()
-        rdm_2nd_nei = ctm.compute_rdm_cell_average_2nd_nei()
+        rdm_dr_cell, rdm_ur_cell = ctm.compute_rdm_2nd_neighbor_cell()
+        rdm_dr_cell = np.array(rdm_dr_cell)
+        rdm_ur_cell = np.array(rdm_ur_cell)
         print(f"    done with rdm computation, t = {time.time()-t:.0f}")
-        np.savez_compressed(save_ctm, rdm_2nd_nei=rdm_2nd_nei, **data_ctm)
-        print("    rdm added to file", save_ctm)
-        eps_beta.append((rdm_1st_nei * h1).sum() + (rdm_2nd_nei * h2).sum())
+        np.savez_compressed(
+            save_rdm,
+            beta=su.beta,
+            chi=ctm.chi,
+            rdm1x2_cell=rdm1x2_cell,
+            rdm2x1_cell=rdm2x1_cell,
+            rdm_dr_cell=rdm_dr_cell,
+            rdm_ur_cell=rdm_ur_cell,
+            **rdm_params,
+        )
+        print("    rdm saved to file", save_rdm)
+        eps_beta.append(
+            ((rdm1x2_cell + rdm2x1_cell) * h1).sum() / 4
+            + ((rdm_dr_cell + rdm_ur_cell) * h2).sum() / 4
+        )
         print(f"    energy = {eps_beta[-1]}")
     energies += [eps_beta]
 
