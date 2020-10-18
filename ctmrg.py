@@ -91,6 +91,7 @@ class CTMRG(object):
         self.chi = chi
         self._env = CTM_Environment(tensors, tiling=tiling, file=file)
         self._neq_coords = self._env.neq_coords
+        self._cell_number_neq_sites = len(self._neq_coords)
         if self.verbosity > 0:
             print("CTMRG constructed")
             print("unit cell =", self._env.cell, sep="\n")
@@ -113,6 +114,14 @@ class CTMRG(object):
     @property
     def cell(self):
         return self._env.cell
+
+    @property
+    def neq_coords(self):
+        return self._neq_coords
+
+    @property
+    def cell_number_neq_sites(self):
+        return self._cell_number_neq_sites
 
     def set_tensors(self, tensors, keep_env=True):
         if self.verbosity > 0:
@@ -624,6 +633,7 @@ class CTMRG_U1(CTMRG):
         self.chi = chi
         self._env = CTM_Environment(tensors, tiling=tiling, colors=colors, file=file)
         self._neq_coords = self._env.neq_coords
+        self._cell_number_neq_sites = len(self._neq_coords)
         if self.verbosity > 0:
             print("CTMRG constructed")
             print("unit cell =", self._env.cell, sep="\n")
