@@ -177,16 +177,19 @@ class CTMRG(object):
             self.iterate()
         if self.verbosity > 0:
             print(f"{warmup} warmup iterations done")
-        last_rho = self.compute_rdm_cell_average_1st_nei()
+        (rdm_cell2x1, rdm1x2_cell) = self.compute_rdm_1st_neighbor_cell()
+        last_rho = (sum(rdm_cell2x1) + sum(rdm1x2_cell)) / self._cell_number_neq_sites
+
         last_last_rho = last_rho
         for i in range(warmup + 1, maxiter + 1):
             self.iterate()
-            rho = self.compute_rdm_cell_average_1st_nei()
+            (rdm_cell2x1, rdm1x2_cell) = self.compute_rdm_1st_neighbor_cell()
+            rho = (sum(rdm_cell2x1) + sum(rdm1x2_cell)) / self._cell_number_neq_sites
             r = ((last_rho - rho) ** 2).sum() ** 0.5  # shape never changes: 2 <=> inf
             if self.verbosity > 0:
                 print(f"i = {i}, ||rho - last_rho|| = {r}")
             if r < tol:
-                return i, rho  # avoid computing it twice
+                return i, (rdm_cell2x1, rdm1x2_cell)  # avoid computing it twice
             if ((last_last_rho - rho) ** 2).sum() ** 0.5 < tol / 10:
                 raise RuntimeError("CTMRG oscillates between two converged states")
             last_last_rho = last_rho
@@ -559,27 +562,35 @@ class CTMRG(object):
             self._env.get_C3(x + 3, y + 3),
         )
 
-    def compute_rdm_cell_average_1st_nei(self):
+    def compute_rdm_1st_neighbor_cell(self):
         """
-        Compute cell average of first neighbor reduced density matrices.
+        Compute reduced density matrix for every couple of inquivalent cell nearest
+        neighbor sites.
         """
         if self.verbosity > 0:
-            print("Compute rdm average on cell")
-        rdm = 0  # no need to initalize shape, avoid import of specific array lib
+            print(
+                "Compute reduced density matrix for every cell nearest neighbor sites"
+            )
+        rdm2x1_cell = []  # avoid import of specific array lib
+        rdm1x2_cell = []  # + allow for different d in cell
         for x, y in self._neq_coords:
-            rdm = rdm + self.compute_rdm2x1(x, y) + self.compute_rdm1x2(x, y)
-        return rdm / len(self._neq_coords)
+            rdm2x1_cell.append(self.compute_rdm2x1(x, y))
+            rdm1x2_cell.append(self.compute_rdm1x2(x, y))
+        return rdm2x1_cell, rdm1x2_cell
 
-    def compute_rdm_cell_average_2nd_nei(self):
+    def compute_rdm_2nd_neighbor_cell(self):
         """
-        Compute cell average of second neighbor reduced density matrices.
+        Compute reduced density matrix for every couple of inquivalent cell next nearest
+        neighbor sites.
         """
         if self.verbosity > 0:
-            print("Compute rdm average on cell")
-        rdm = 0
+            print("Compute rdm for every cell next nearest neighbor sites")
+        rdm_dr_cell = []
+        rdm_ur_cell = []
         for x, y in self._neq_coords:
-            rdm = rdm + self.compute_rdm_diag_dr(x, y) + self.compute_rdm_diag_ur(x, y)
-        return rdm / len(self._neq_coords)
+            rdm_dr_cell.append(self.compute_rdm_diag_dr(x, y))
+            rdm_ur_cell.append(self.compute_rdm_diag_ur(x, y))
+        return rdm_dr_cell, rdm_ur_cell
 
 
 class CTMRG_U1(CTMRG):
