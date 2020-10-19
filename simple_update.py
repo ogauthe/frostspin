@@ -191,8 +191,8 @@ class SimpleUpdate2x2(object):
         self,
         d,
         a,
-        Dmax,
-        tau,
+        Dmax=None,
+        tau=None,
         h1=None,
         h2=None,
         tensors=None,
@@ -212,27 +212,28 @@ class SimpleUpdate2x2(object):
           ensemble.
         Dmax : int
           Maximal bond dimension. If provided, tensors may have different D at
-          initialization.
+          initialization. Not read if file is given, retrieved from save.
         tau : float
-          Imaginary time step.
-        h1 : (d**2,d**2) float or complex ndarray
-          First neigbor Hamltionian. Not used if file is given, take it back from save.
-        h2 : (d**2,d**2) float or complex ndarray
-          Second neigbor Hamltionian. Not used if file is given.
+          Imaginary time step. Not read if file is given.
+        h1 : (d**2, d**2) float or complex ndarray
+          First neigbor Hamltionian. Must be real symmetric or hermitian. Not read if
+          file is given.
+        h2 : (d**2, d**2) float or complex ndarray
+          Second neigbor Hamltionian. Must be real symmetric or hermitian. Not read if
+          file is given.
         tensors : optional, enumerable of 4 ndarrays with shapes (d,a,D,D,D,D)
-          Initial tensors. If not provided, random tensors are taken. Not used if file
+          Initial tensors. If not provided, random tensors are taken. Not read if file
           is given.
         colors : optional, if provided either integer array of dimension d or enumerable
           of 10 integer arrays for physical, ancilla + 8 virtual legs matching tensors.
           Quantum numbers for physical leg / physical, ancilla and virtual legs. Not
-          used if file is given. If not provided at first construction, no symmetry is
+          read if file is given. If not provided at first construction, no symmetry is
           assumed.
         file : str, optional
           Save file containing data to restart computation from. File must follow
           save_to_file / load_from_file syntax. If file is provided, d and a are read to
-          check consistency between save and input, Dmax tau and verbosity are set from
-          input values which may differ from saved ones. The other parameters are not
-          read and directly set from file.
+          check consistency between save and input, the other parameter (except
+          verbosity) are not read and directly set from file.
         verbosity : int
           Level of log verbosity. Default is no log.
 
@@ -252,16 +253,15 @@ class SimpleUpdate2x2(object):
 
         self._d = d
         self._a = a
-        self.Dmax = Dmax
         self.verbosity = verbosity
         if self.verbosity > 0:
             print(f"construct SimpleUpdate2x2 with d = {d}, a = {a} and Dmax = {Dmax}")
 
         if file is not None:  # do not read optional input values, restart from file
             self.load_from_file(file)
-            self.tau = tau  # tau is set from input, not from file
             return
 
+        self.Dmax = Dmax
         if h1.shape != (d ** 2, d ** 2):
             raise ValueError("invalid shape for Hamiltonian h1")
         if h2.shape != (d ** 2, d ** 2):
@@ -549,7 +549,9 @@ class SimpleUpdate2x2(object):
             self._eigvecs_h1 = data["_SU2x2_eigvecs_h1"]
             self._eigvals_h2 = data["_SU2x2_eigvals_h2"]
             self._eigvecs_h2 = data["_SU2x2_eigvecs_h2"]
+            self.tau = data["_SU2x2_tau"][()]
             self._beta = data["_SU2x2_beta"][()]
+            self.Dmax = data["_SU2x2_Dmax"][()]
         self._D1 = self._lambda1.size
         self._D2 = self._lambda2.size
         self._D3 = self._lambda3.size
