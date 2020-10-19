@@ -1,0 +1,11 @@
+{
+  "J2": 0.8,
+  "su_restart_file": "data_su_sample_beta1.0.npz",
+  "ctm_restart_file": null,
+  "chi_list": [50,60],
+  "ctm_tol": 1e-10,
+  "ctm_warmup": 5,
+  "ctm_maxiter": 100,
+  "save_ctm_root": "data_ctm_sample_beta",
+  "save_rdm_root": "data_rdm_sample_beta"
+}
