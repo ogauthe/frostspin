@@ -381,9 +381,9 @@ def svdU1(M, row_colors, col_colors):
     if M.shape != (row_colors.size, col_colors.size):
         raise ValueError("Colors do not match M")
 
-    row_sort = row_colors.argsort()
+    row_sort = row_colors.argsort(kind="mergesort")  # optimize block reduction
     sorted_row_colors = row_colors[row_sort]
-    col_sort = col_colors.argsort()
+    col_sort = col_colors.argsort(kind="mergesort")
     sorted_col_colors = col_colors[col_sort]
     row_blocks = (
         [0]
