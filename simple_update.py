@@ -721,13 +721,16 @@ class SimpleUpdate2x2(object):
         # goes to 2nd order Trotter by reversing update order
         self.update_first_neighbor()
         self.update_second_neighbor()
+        self._beta += self._tau
 
-    def evolve(self, beta):
+    def evolve(self, beta=None):
         """
         Evolve in imaginary time using second order Trotter-Suzuki up to beta.
         Convention: temperature value is the bilayer tensor one, twice the monolayer
         one.
         """
+        if beta is None:
+            beta = 4 * self._tau
         if self.verbosity > 0:
             print(f"Launch time evolution for time {beta}")
         if beta < -1e-16:
