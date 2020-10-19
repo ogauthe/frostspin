@@ -4,12 +4,5 @@
   "su_restart_file": null,
   "tau": 1e-3,
   "beta_list": [0.5, 1.0],
-  "compute_capacity": true,
-  "chi_list": [20,25],
-  "ctm_tol": 1e-10,
-  "ctm_warmup": 5,
-  "ctm_maxiter": 100,
-  "save_su_root": "data_su_sample_beta",
-  "save_ctm_root": "data_ctm_sample_beta",
-  "save_rdm_root": "data_rdm_sample_beta"
+  "save_su_root": "data_su_sample_beta"
 }
