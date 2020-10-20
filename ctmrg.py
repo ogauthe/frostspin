@@ -148,21 +148,21 @@ class CTMRG(object):
             )
 
     def iterate(self):
-        if self.verbosity > 0:
+        if self.verbosity > 1:
             print("Begin CTM iteration")
         self.up_move()
-        if self.verbosity > 1:
+        if self.verbosity > 2:
             self.print_tensor_shapes()
         self.right_move()
-        if self.verbosity > 1:
+        if self.verbosity > 2:
             self.print_tensor_shapes()
         self.down_move()
-        if self.verbosity > 1:
+        if self.verbosity > 2:
             self.print_tensor_shapes()
         self.left_move()
-        if self.verbosity > 1:
+        if self.verbosity > 2:
             self.print_tensor_shapes()
-        if self.verbosity > 0:
+        if self.verbosity > 1:
             print("Finished CTM iteration")
 
     def converge(self, tol, warmup=0, maxiter=100):
@@ -172,7 +172,10 @@ class CTMRG(object):
         computation of larger density matrices as well as selecting one observable.
         """
         if self.verbosity > 0:
-            print(f"Converge CTMRG with tol = {tol}")
+            print(
+                f"Converge CTMRG with tol = {tol}, warmup = {warmup},",
+                f"maxiter = {maxiter}",
+            )
         for i in range(warmup):
             self.iterate()
         if self.verbosity > 0:
@@ -234,7 +237,7 @@ class CTMRG(object):
 
         # 2) renormalize every non-equivalent C1, T1 and C2
         # need all projectors to be constructed at this time
-        if self.verbosity > 1:
+        if self.verbosity > 2:
             print("Projectors constructed, renormalize tensors")
         for x, y in self._neq_coords:
             P = self._env.get_P(x + 1, y)
@@ -295,7 +298,7 @@ class CTMRG(object):
             del R, Rt
 
         # 2) renormalize tensors by absorbing column
-        if self.verbosity > 1:
+        if self.verbosity > 2:
             print("Projectors constructed, renormalize tensors")
         for x, y in self._neq_coords:
             P = self._env.get_P(x, y + 1)
@@ -357,7 +360,7 @@ class CTMRG(object):
             del R, Rt
 
         # 2) renormalize every non-equivalent C3, T3 and C4
-        if self.verbosity > 1:
+        if self.verbosity > 2:
             print("Projectors constructed, renormalize tensors")
         for x, y in self._neq_coords:
             P = self._env.get_P(x - 1, y)
@@ -416,7 +419,7 @@ class CTMRG(object):
             del R, Rt
 
         # 2) renormalize every non-equivalent C4, T4 and C1
-        if self.verbosity > 1:
+        if self.verbosity > 2:
             print("Projectors constructed, renormalize tensors")
         for x, y in self._neq_coords:
             P = self._env.get_P(x, y - 1)
@@ -567,7 +570,7 @@ class CTMRG(object):
         Compute reduced density matrix for every couple of inquivalent cell nearest
         neighbor sites.
         """
-        if self.verbosity > 0:
+        if self.verbosity > 1:
             print(
                 "Compute reduced density matrix for every cell nearest neighbor sites"
             )
@@ -583,7 +586,7 @@ class CTMRG(object):
         Compute reduced density matrix for every couple of inquivalent cell next nearest
         neighbor sites.
         """
-        if self.verbosity > 0:
+        if self.verbosity > 1:
             print("Compute rdm for every cell next nearest neighbor sites")
         rdm_dr_cell = []
         rdm_ur_cell = []
@@ -649,8 +652,8 @@ class CTMRG_U1(CTMRG):
             print("CTMRG constructed")
             print("unit cell =", self._env.cell, sep="\n")
             self.print_tensor_shapes()
-            if colors is not None:
-                print("colors =", colors, sep="\n")
+            if self.verbosity > 1:
+                self.print_colors()
 
     def set_tensors(self, tensors, colors, keep_env=True):
         if self.verbosity > 0:
@@ -660,6 +663,30 @@ class CTMRG_U1(CTMRG):
         else:  # restart from fresh
             self._env = CTM_Environment(
                 tensors, cell=self._env.cell.copy(), colors=colors
+            )
+
+    def print_colors(self):
+        print("colors_A, colorsC1, colorsC2, colorsC3, colorsC4:")
+        for (x, y) in self._neq_coords:
+            print(
+                f"coords = ({x},{y}), colors are:\nA:",
+                *self._env.get_colors_A(x + 1, y + 1),
+                "\nC1:",
+                self._env.get_color_C1_r(x, y),
+                "\n   ",
+                self._env.get_color_C1_d(x, y),
+                "\nC2:",
+                self._env.get_color_C2_l(x + 2, y),
+                "\n   ",
+                self._env.get_color_C2_d(x + 2, y),
+                "\nC3:",
+                self._env.get_color_C3_u(x + 2, y + 2),
+                "\n   ",
+                self._env.get_color_C3_l(x + 2, y + 2),
+                "\nC4:",
+                self._env.get_color_C4_u(x, y + 2),
+                "\n   ",
+                self._env.get_color_C4_r(x, y + 2),
             )
 
     def check_symetries(self):
@@ -847,7 +874,7 @@ class CTMRG_U1(CTMRG):
 
         # 2) renormalize every non-equivalent C1, T1 and C2
         # need all projectors to be constructed at this time
-        if self.verbosity > 1:
+        if self.verbosity > 2:
             print("Projectors constructed, renormalize tensors")
         for x, y in self._neq_coords:
             P = self._env.get_P(x + 1, y)
@@ -896,7 +923,7 @@ class CTMRG_U1(CTMRG):
             self._env.store_projectors(x + 3, y + 2, P, Pt, colors)
 
         # 2) renormalize tensors by absorbing column
-        if self.verbosity > 1:
+        if self.verbosity > 2:
             print("Projectors constructed, renormalize tensors")
         for x, y in self._neq_coords:
             P = self._env.get_P(x, y + 1)
@@ -943,7 +970,7 @@ class CTMRG_U1(CTMRG):
             self._env.store_projectors(x + 3, y + 3, P, Pt, colors)
 
         # 2) renormalize every non-equivalent C3, T3 and C4
-        if self.verbosity > 1:
+        if self.verbosity > 2:
             print("Projectors constructed, renormalize tensors")
         for x, y in self._neq_coords:
             P = self._env.get_P(x - 1, y)
@@ -991,7 +1018,7 @@ class CTMRG_U1(CTMRG):
             self._env.store_projectors(x, y + 1, P, Pt, colors)
 
         # 2) renormalize every non-equivalent C4, T4 and C1
-        if self.verbosity > 1:
+        if self.verbosity > 2:
             print("Projectors constructed, renormalize tensors")
         for x, y in self._neq_coords:
             P = self._env.get_P(x, y - 1)
