@@ -187,7 +187,7 @@ for chi in chi_list:
     print("\n" + "#" * 75)
     save_ctm = save_ctm_root + f"{beta0}_chi{ctm.chi}.npz"
     print("restart CTMRG from file", save_ctm)
-    ctm = CTMRG_U1(chi, tiling, file=save_ctm)
+    ctm = CTMRG_U1(chi, tiling, file=save_ctm, verbosity=1)
     energy, op = converge_compute_rdm(ctm, beta1)
     energies1.append(energy)
     order_parameter1.append(op)
