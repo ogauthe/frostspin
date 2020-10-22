@@ -60,9 +60,13 @@ if ((su.h1 - h1) ** 2).sum() ** 0.5 > 1e-15 or ((su.h2 - h2) ** 2).sum() ** 0.5 
 Dmax = su.Dmax
 tau = su.tau
 beta0 = su.beta
-print(f"\nSimple update parameters: tau = {tau}, Dmax = {Dmax}, beta={beta0}")
+if config["capacity_dbeta"] is None:
+    dbeta = 4 * su.tau  # one SU iteration
+else:
+    dbeta = float(config["dbeta"])
+print(f"\nSimple update parameters: tau = {tau}, Dmax = {Dmax}, beta = {beta0}")
 print(f"Compute environment and observables for beta = {su.beta}")
-print(f"Once done evolve simple update for minimal imaginary time step = {4 * su.tau}")
+print(f"Once done evolve simple update for imaginary time dbeta = {dbeta}")
 print("then recompute environment to evaluate thermal capacity.")
 
 # CTMRG parameters
@@ -170,9 +174,9 @@ for chi, eps, op in zip(chi_list, energies0, order_parameter0):
 # Imaginary time evolution for minimal step
 ########################################################################################
 print("\n" + "#" * 79)
-print("Compute thermal capacity: evolve simple update for minimal step")
+print(f"Compute thermal capacity: evolve simple update for imaginary time {dbeta}")
 t = time.time()
-su.evolve()
+su.evolve(dbeta)
 print(f"done with imaginary time evolution, t = {time.time()-t:.0f}")
 beta1 = su.beta
 print(f"beta is now {beta1}")
