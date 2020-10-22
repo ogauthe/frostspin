@@ -241,7 +241,7 @@ for i, chi in enumerate(chi_list):
         op = ((rdm1x2_cell - rdm2x1_cell) * h1).sum()
         energies1.append(energy)
         order_parameter1.append(op)
-        cap = -((beta0 + beta1) / 2) ** 2 * (energy - energies0[i]) / (beta1 - beta0)
+        cap = -(((beta0 + beta1) / 2) ** 2) * (energy - energies0[i]) / (beta1 - beta0)
         capacities.append(cap)
         print(f"energy = {energy}")
         print(f"Ising order parameter = {op}")
@@ -255,8 +255,14 @@ if compute_rdm_2nd_nei:
         f"Energy and order parameter and capacity for D = {Dmax}, tau = {tau},",
         f"beta = {beta1}:",
     )
+    print(
+        "chi"
+        + " " * 11
+        + "energy"
+        + " " * 12
+        + "order parameter"
+        + " " * 8
+        + "capacity"
+    )
     for chi, eps, op, cap in zip(chi_list, energies1, order_parameter1, capacities):
-        print(
-            f"chi = {chi}: energy = {eps:.17f}, order_parameter = {op:.6f},",
-            f"capacity = {cap:.6f}",
-        )
+        print(f"{chi}    {eps:.17f}       {op: .6f}           {cap: .6f}")
