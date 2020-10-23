@@ -201,7 +201,7 @@ print("colors =", *su.colors[1:], sep="\n")
 # restart CTMRG from environment with same chi at previous temperature value beta0
 for i, chi in enumerate(chi_list):
     print("\n" + "#" * 75)
-    save_ctm = save_ctm_root + f"{beta1}_chi{ctm.chi}.npz"
+    save_ctm = save_ctm_root + f"{beta0}_chi{ctm.chi}.npz"
     print("restart CTMRG from file", save_ctm)
     ctm = CTMRG_U1(chi, tiling, file=save_ctm, verbosity=1)
     print(f"Converge CTMRG for D = {Dmax} and chi = {ctm.chi}...")
