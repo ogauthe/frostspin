@@ -18,7 +18,7 @@ def construct_projectors(R, Rt, chi):
     return P, Pt
 
 
-def construct_projectors_U1(corner1, corner2, corner3, corner4, chi):
+def construct_projectors_U1(corner1, corner2, corner3, corner4, chi, cutoff=1e-16):
     # once corner are constructed, no reshape or transpose is done. Decompose corner in
     # U(1) sectors as soon as they are constructed, then construct halves and R @ Rt
     # blockwise only. SVD and projectors can also be computed blockwise in same loop.
@@ -62,7 +62,7 @@ def construct_projectors_U1(corner1, corner2, corner3, corner4, chi):
 
     s_sort = S[:k].argsort()[::-1]
     S = S[s_sort]
-    cut = min(chi, (S > 0).nonzero()[0][-1] + 1)
+    cut = min(chi, (S > cutoff * S[0]).nonzero()[0][-1] + 1)
     s12 = 1 / np.sqrt(S[:cut])
     colors = colors[s_sort[:cut]]
     P = P[:, s_sort[:cut]] * s12

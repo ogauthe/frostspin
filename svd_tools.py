@@ -16,7 +16,7 @@ def svd_truncate(
     keep_multiplets=False,
     window=10,
     degen_tol=1e-6,
-    zeros_tol=0,
+    cutoff=0,
 ):
     """
     Unique function to compute singular value decomposition of a matrix and truncate.
@@ -44,8 +44,8 @@ def svd_truncate(
       cut + window
     degen_tol : float
       Tolerance to consider two consecutive values as degenerate.
-    zeros_tol : float
-      Tolerance to consider a singular value as zero.
+    cutoff : float
+      Singular values smaller than cutoff * max(singular values) are set to 0.
 
     Returns
     -------
@@ -95,9 +95,9 @@ def svd_truncate(
     if cut is not None:
         if keep_multiplets:
             cut += (s[cut:] < degen_tol * s[cut - 1 : -1]).nonzero()[0][0]
-        cut = min(cut, (s > s[0] * zeros_tol).nonzero()[0][-1] + 1)
+        cut = min(cut, (s > cutoff * s[0]).nonzero()[0][-1] + 1)
     else:
-        cut = (s > s[0] * zeros_tol).nonzero()[0][-1] + 1
+        cut = (s > cutoff * s[0]).nonzero()[0][-1] + 1
 
     # truncate once only with respect to keep_multiplets and zeros_tol
     U = U[:, :cut]
