@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.linalg as lg
 
 from svd_tools import svd_truncate, sparse_svd
 
@@ -47,7 +48,7 @@ def construct_projectors_U1(corner1, corner2, corner3, corner4, chi, cutoff=1e-1
         rt = m3 @ m4
         m = r @ rt
         if min(m.shape) < 3 * chi:  # use full svd for small blocks
-            u, s, v = np.linalg.svd(m, full_matrices=False)
+            u, s, v = lg.svd(m, full_matrices=False, overwrite_a=True)
         else:
             u, s, v = sparse_svd(m, k=chi, maxiter=1000)
 
