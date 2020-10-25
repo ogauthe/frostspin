@@ -118,8 +118,9 @@ else:
 print()
 if config["ctm_restart_file"] is not None:
     ctm_restart = str(config["ctm_restart_file"])
-    print("Restart CTMRG from file", ctm_restart)
+    print("Restart environment tensors from file", ctm_restart)
     ctm = CTMRG_U1(chi, tiling, file=ctm_restart, verbosity=1)
+    ctm.set_tensors(su.get_ABCD(), su.get_colors_ABCD())
 else:
     ctm = CTMRG_U1(chi, tiling, su.get_ABCD(), su.get_colors_ABCD(), verbosity=1)
 
@@ -202,8 +203,9 @@ print("colors =", *su.colors[1:], sep="\n")
 for i, chi in enumerate(chi_list):
     print("\n" + "#" * 75)
     save_ctm = save_ctm_root + f"{beta0}_chi{ctm.chi}.npz"
-    print("restart CTMRG from file", save_ctm)
+    print("restart environment from file", save_ctm)
     ctm = CTMRG_U1(chi, tiling, file=save_ctm, verbosity=1)
+    ctm.set_tensors(su.get_ABCD(), su.get_colors_ABCD())
     print(f"Converge CTMRG for D = {Dmax} and chi = {ctm.chi}...")
     t = time.time()
     j, (rdm2x1_cell, rdm1x2_cell) = ctm.converge(
