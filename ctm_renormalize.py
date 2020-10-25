@@ -93,16 +93,16 @@ def renormalize_T(Pt, T, A, P):
     nT = np.tensordot(
         T, P.reshape(T.shape[3], A.shape[5], A.shape[5], P.shape[1]), ((3,), (0,))
     )
-    nT = nT.transpose(0, 3, 1, 2, 4, 5).copy()
+    nT = nT.transpose(0, 3, 1, 4, 2, 5).copy()
     nT = np.tensordot(A, nT, ((4, 5), (0, 1)))
-    nT = nT.transpose(2, 3, 5, 7, 0, 1, 4, 6).copy()
-    nT = np.tensordot(nT, A.conj(), ((4, 5, 6, 7), (0, 1, 4, 5)))
+    nT = nT.transpose(0, 1, 4, 5, 2, 3, 6, 7).copy()
+    nT = np.tensordot(A.conj(), nT, ((0, 1, 4, 5), (0, 1, 2, 3)))
     nT = (
-        nT.transpose(0, 4, 3, 2, 1, 5)
+        nT.transpose(4, 3, 1, 2, 0, 5)
         .copy()
-        .reshape(A.shape[2] ** 2 * P.shape[1], Pt.shape[0])
+        .reshape(Pt.shape[0], A.shape[2] ** 2 * P.shape[1])
     )
-    nT = (nT @ Pt).reshape(A.shape[2], A.shape[2], P.shape[1], Pt.shape[1])
+    nT = (Pt.T @ nT).reshape(Pt.shape[1], A.shape[2], A.shape[2], P.shape[1])
     nT /= np.amax(nT)
     return nT
 
@@ -155,7 +155,7 @@ def renormalize_T1(Pt, T1, A, P):
     # here gives messy reshapes, no effect on renlormalize_C
     return (
         renormalize_T(Pt, T1.transpose(1, 2, 3, 0), A.transpose(0, 1, 4, 5, 2, 3), P)
-        .transpose(2, 0, 1, 3)
+        .swapaxes(0, 3)
         .copy()
     )
 
@@ -232,7 +232,7 @@ def renormalize_T2(Pt, A, T2, P):
     #       1
     return (
         renormalize_T(Pt, T2.transpose(2, 3, 0, 1), A.transpose(0, 1, 5, 2, 3, 4), P)
-        .transpose(3, 2, 0, 1)
+        .transpose(0, 3, 1, 2)
         .copy()
     )
 
@@ -305,7 +305,7 @@ def renormalize_T3(Pt, T3, A, P):
     #        \    01    /
     #         \   ||   /
     #          03-T3-20
-    return renormalize_T(Pt, T3, A, P).swapaxes(2, 3).copy()
+    return renormalize_T(Pt, T3, A, P).transpose(1, 2, 0, 3).copy()
 
 
 def renormalize_C4_down(C4, T4, Pt):
@@ -381,7 +381,7 @@ def renormalize_T4(Pt, T4, A, P):
     #       1
     return (
         renormalize_T(Pt, T4.transpose(1, 2, 3, 0), A.transpose(0, 1, 3, 4, 5, 2), P)
-        .transpose(2, 0, 1, 3)
+        .swapaxes(0, 3)
         .copy()
     )
 
