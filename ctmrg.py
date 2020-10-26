@@ -760,12 +760,16 @@ class CTMRG_U1(CTMRG):
         colors_d = combine_colors(
             self._env.get_color_T3_l(x + 2, y + 3), col_Adr_l, -col_Adr_l
         )
-        dr = contract_dr_corner(
-            self._env.get_A(x + 2, y + 2),
-            self._env.get_T2(x + 3, y + 2),
-            self._env.get_T3(x + 2, y + 3),
-            self._env.get_C3(x + 3, y + 3),
-        ).T
+        dr = (
+            contract_dr_corner(
+                self._env.get_A(x + 2, y + 2),
+                self._env.get_T2(x + 3, y + 2),
+                self._env.get_T3(x + 2, y + 3),
+                self._env.get_C3(x + 3, y + 3),
+            )
+            .transpose(3, 4, 5, 0, 1, 2)
+            .reshape(colors_d.size, colors_r.size)
+        )
         dr = BlockMatrixU1(dr, colors_d, colors_r)
         self._env.set_corner_dr(x, y, dr)
         return dr
@@ -793,7 +797,7 @@ class CTMRG_U1(CTMRG):
             self._env.get_A(x + 1, y + 2),
             self._env.get_C4(x, y + 3),
             self._env.get_T3(x + 1, y + 3),
-        )
+        ).reshape(colors_l.size, colors_d.size)
         dl = BlockMatrixU1(dl, colors_l, colors_d)
         self._env.set_corner_dl(x, y, dl)
         return dl
@@ -821,7 +825,7 @@ class CTMRG_U1(CTMRG):
             self._env.get_T1(x + 1, y),
             self._env.get_T4(x, y + 1),
             self._env.get_A(x + 1, y + 1),
-        )
+        ).reshape(colors_u.size, colors_l.size)
         ul = BlockMatrixU1(ul, colors_u, colors_l)
         self._env.set_corner_ul(x, y, ul)
         return ul
@@ -848,7 +852,7 @@ class CTMRG_U1(CTMRG):
             self._env.get_C2(x + 3, y),
             self._env.get_A(x + 2, y + 1),
             self._env.get_T2(x + 3, y + 1),
-        )
+        ).reshape(colors_r.size, colors_u.size)
         ur = BlockMatrixU1(ur, colors_r, colors_u)
         self._env.set_corner_ur(x, y, ur)
         return ur

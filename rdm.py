@@ -242,6 +242,9 @@ def rdm_diag_dr(
     )  # mem 2*d**2*chi**2*D**4
     if dl is None:
         dl = contract_dl_corner(T4d, Adl, C4, T3l)
+        dl = dl.reshape(
+            T4d.shape[0] * Adl.shape[2] ** 2, T3l.shape[2] * Adl.shape[3] ** 2
+        )
     elif isinstance(dl, BlockMatrixU1):
         dl = dl.toarray()
     rdm = ul @ dl  # mem (2*d**2+1)*chi**2*D**4
@@ -249,6 +252,9 @@ def rdm_diag_dr(
     del ul, dl
     if ur is None:
         ur = contract_ur_corner(T1r, C2, Aur, T2u)
+        ur = ur.reshape(
+            T2u.shape[1] * Aur.shape[4] ** 2, T1r.shape[3] * Aur.shape[5] ** 2
+        )
     elif isinstance(ur, BlockMatrixU1):
         ur = ur.toarray()
     rdm = ur @ rdm  # mem (2*d**2+1)*chi**2*D**4
@@ -365,6 +371,9 @@ def rdm_diag_ur(
     )  # 2*d**2*chi**2*D**4
     if ul is None:
         ul = contract_ul_corner(C1, T1l, T4u, Aul)
+        ul = ul.reshape(
+            T1l.shape[0] * Aul.shape[3] ** 2, T4u.shape[3] * Aul.shape[4] ** 2
+        )
     elif isinstance(ul, BlockMatrixU1):
         ul = ul.toarray()
     rdm = ul @ dl  # (2*d**2+1)*chi**2*D**4
@@ -372,6 +381,9 @@ def rdm_diag_ur(
     del ul, dl
     if dr is None:
         dr = contract_dr_corner(Adr, T2d, T3r, C3)
+        dr = dr.reshape(
+            T2d.shape[0] * Adr.shape[2] ** 2, T3r.shape[3] * Adr.shape[5] ** 2
+        )
     elif isinstance(dr, BlockMatrixU1):
         dr = dr.toarray()
     rdm = rdm @ dr.T  # (2*d**2+1)*chi**2*D**4
