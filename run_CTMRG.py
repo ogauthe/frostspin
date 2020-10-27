@@ -202,7 +202,7 @@ print("colors =", *su.colors[1:], sep="\n")
 # restart CTMRG from environment with same chi at previous temperature value beta0
 for i, chi in enumerate(chi_list):
     print("\n" + "#" * 75)
-    save_ctm = save_ctm_root + f"{beta0}_chi{ctm.chi}.npz"
+    save_ctm = save_ctm_root + f"{beta0}_chi{chi}.npz"
     print("restart environment from file", save_ctm)
     ctm = CTMRG_U1(chi, tiling, file=save_ctm, verbosity=1)
     ctm.set_tensors(su.get_ABCD(), su.get_colors_ABCD())
