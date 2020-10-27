@@ -186,13 +186,13 @@ class CTMRG(object):
         last_last_rho = last_rho
         for i in range(warmup + 1, maxiter + 1):
             self.iterate()
-            (rdm_cell2x1, rdm1x2_cell) = self.compute_rdm_1st_neighbor_cell()
-            rho = (sum(rdm_cell2x1) + sum(rdm1x2_cell)) / self._cell_number_neq_sites
+            (rdm2x1_cell, rdm1x2_cell) = self.compute_rdm_1st_neighbor_cell()
+            rho = (sum(rdm2x1_cell) + sum(rdm1x2_cell)) / self._cell_number_neq_sites
             r = ((last_rho - rho) ** 2).sum() ** 0.5  # shape never changes: 2 <=> inf
             if self.verbosity > 0:
                 print(f"i = {i}, ||rho - last_rho|| = {r}")
             if r < tol:
-                return i, (rdm_cell2x1, rdm1x2_cell)  # avoid computing it twice
+                return i, (rdm2x1_cell, rdm1x2_cell)  # avoid computing it twice
             if ((last_last_rho - rho) ** 2).sum() ** 0.5 < tol / 10:
                 raise RuntimeError("CTMRG oscillates between two converged states")
             last_last_rho = last_rho
