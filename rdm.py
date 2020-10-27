@@ -5,6 +5,8 @@ from ctm_contract import (
     contract_ur_corner,
     contract_dl_corner,
     contract_dr_corner,
+    contract_open_corner,
+    contract_open_corner_mirror,
 )
 from toolsU1 import BlockMatrixU1
 
@@ -62,47 +64,46 @@ def rdm_1x2(C1, T1l, T1r, C2, T4, Al, Ar, T2, C4, T3l, T3r, C3):
     #   |          ||               ||            |
     #   C4-1     3-T3-2           3-T3-2       1-C3
 
-    left = np.tensordot(C1, np.tensordot(T4, C4, ((3,), (0,))), ((1,), (0,)))
-    # |----0   <= put chi in leg 0 and let it there
-    # |  ||
-    # |  12
-    # |=3,4
-    # |-5
-    left = np.tensordot(T1l, left, ((3,), (0,)))
-    # |----0
-    # |  ||
-    # |  24
-    # |=3,5
-    # |-1
-    left = left.transpose(0, 5, 2, 4, 1, 3).copy()
-    left = np.tensordot(left, Al, ((4, 5), (2, 5)))
-    left = left.transpose(0, 1, 4, 6, 7, 2, 3, 5).copy()
-    left = np.tensordot(left, Al.conj(), ((5, 6, 7), (2, 5, 1)))
-    left = left.transpose(
-        0, 2, 3, 5, 6, 7, 4, 1
-    ).copy()  # exchange bra-ket to optimize copy
-    left = np.tensordot(left, T3l, ((5, 6, 7), (1, 0, 3)))
-    left = left.transpose(1, 3, 0, 2, 4, 5).copy()
+    left = T4.reshape(T4.shape[0] * T4.shape[1] ** 2, T4.shape[3]) @ C4
+    left = left.reshape(T4.shape[0], T4.shape[1], T4.shape[1], C4.shape[1])
+    left = contract_open_corner(C1, T1l, left, Al)
+    left = left.copy().reshape(
+        Al.shape[0] ** 2 * T1l.shape[0] * Al.shape[3] ** 2,
+        Al.shape[4] ** 2 * C4.shape[1],
+    )
+    left = left @ T3l.swapaxes(2, 3).reshape(left.shape[1], T3l.shape[2])
+    left = left.reshape(
+        Al.shape[0] ** 2, T1l.shape[0] * Al.shape[3] ** 2 * T3l.shape[2]
+    )
+    # -----2
+    # | 0
+    # |  \
+    # |===3,4
+    # |  /
+    # | 1
+    # -----5
 
-    right = np.tensordot(C2, T1r, ((1,), (0,)))
-    right = right.swapaxes(0, 3).copy()  # put chi as leg 0
-    right = np.tensordot(right, np.tensordot(T2, C3, ((1,), (0,))), ((3,), (0,)))
-    right = right.transpose(0, 5, 2, 4, 1, 3).copy()
-    temp = Ar.transpose(2, 3, 1, 0, 5, 4).copy()
-    right = np.tensordot(right, temp, ((4, 5), (0, 1)))
-    right = right.transpose(0, 1, 5, 6, 7, 2, 3, 4).copy()  # 1st memory peak
-    temp = Ar.transpose(2, 3, 1, 0, 5, 4).conj().copy()
-    right = np.tensordot(right, temp, ((5, 6, 7), (0, 1, 2)))
-    right = right.transpose(0, 2, 3, 5, 6, 7, 4, 1).copy()  # 2nd memory peak
-    right = np.tensordot(right, T3r, ((5, 6, 7), (1, 0, 2)))
-    right = right.transpose(0, 2, 4, 5, 1, 3).copy()
+    right = T2.transpose(0, 2, 3, 1).reshape(
+        T2.shape[0] * T2.shape[2] ** 2, T2.shape[1]
+    )
+    right = (
+        (right @ C3)
+        .reshape(T2.shape[0], T2.shape[2], T2.shape[2], C3.shape[1])
+        .transpose(0, 3, 1, 2)
+    )
+    right = contract_open_corner_mirror(T1r, C2, Ar, right)
+    right = right.copy().reshape(
+        Ar.shape[0] ** 2 * T1r.shape[3] * Ar.shape[5] ** 2,
+        Ar.shape[4] ** 2 * C3.shape[1],
+    )
+    right = right @ T3r.reshape(right.shape[1], T3r.shape[3])
+    right = right.reshape(Ar.shape[0] ** 2, left.shape[1])
 
-    rdm = np.tensordot(left, right, ((2, 3, 4, 5), (0, 1, 2, 3)))
+    rdm = (left @ right.T).reshape(Al.shape[0], Al.shape[0], Ar.shape[0], Ar.shape[0])
     rdm = rdm.swapaxes(1, 2).reshape(
         Al.shape[0] * Ar.shape[0], Al.shape[0] * Ar.shape[0]
     )
     rdm /= rdm.trace()
-
     return rdm
 
 
