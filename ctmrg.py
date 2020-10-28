@@ -755,10 +755,10 @@ class CTMRG_U1(CTMRG):
         col_Aur_d = self._env.get_colors_A(x + 2, y + 1)[4]
         col_Adr_l = self._env.get_colors_A(x + 2, y + 2)[5]
         colors_r = combine_colors(
-            self._env.get_color_T2_d(x + 3, y + 1), col_Aur_d, -col_Aur_d
+            col_Aur_d, -col_Aur_d, self._env.get_color_T2_d(x + 3, y + 1)
         )
         colors_d = combine_colors(
-            self._env.get_color_T3_l(x + 2, y + 3), col_Adr_l, -col_Adr_l
+            col_Adr_l, -col_Adr_l, self._env.get_color_T3_l(x + 2, y + 3)
         )
         dr = (
             contract_dr_corner(
@@ -786,10 +786,10 @@ class CTMRG_U1(CTMRG):
         col_Adr_l = self._env.get_colors_A(x + 2, y + 2)[5]
         col_Adl_u = self._env.get_colors_A(x + 1, y + 2)[2]
         colors_d = combine_colors(
-            self._env.get_color_T3_l(x + 2, y + 3), col_Adr_l, -col_Adr_l
+            col_Adr_l, -col_Adr_l, self._env.get_color_T3_l(x + 2, y + 3)
         )
         colors_l = combine_colors(
-            self._env.get_color_T4_u(x, y + 2), col_Adl_u, -col_Adl_u
+            col_Adl_u, -col_Adl_u, self._env.get_color_T4_u(x, y + 2)
         )
 
         dl = contract_dl_corner(
@@ -814,10 +814,10 @@ class CTMRG_U1(CTMRG):
         col_Aul_r = self._env.get_colors_A(x + 1, y + 1)[3]
         col_Adl_u = self._env.get_colors_A(x + 1, y + 2)[2]
         colors_u = combine_colors(
-            self._env.get_color_T1_r(x + 1, y), col_Aul_r, -col_Aul_r
+            col_Aul_r, -col_Aul_r, self._env.get_color_T1_r(x + 1, y)
         )
         colors_l = combine_colors(
-            self._env.get_color_T4_u(x, y + 2), col_Adl_u, -col_Adl_u
+            col_Adl_u, -col_Adl_u, self._env.get_color_T4_u(x, y + 2)
         )
 
         ul = contract_ul_corner(
@@ -842,10 +842,10 @@ class CTMRG_U1(CTMRG):
         col_Aul_r = self._env.get_colors_A(x + 1, y + 1)[3]
         col_Aur_d = self._env.get_colors_A(x + 2, y + 1)[4]
         colors_u = combine_colors(
-            self._env.get_color_T1_r(x + 1, y), col_Aul_r, -col_Aul_r
+            col_Aul_r, -col_Aul_r, self._env.get_color_T1_r(x + 1, y)
         )
         colors_r = combine_colors(
-            self._env.get_color_T2_d(x + 3, y + 1), col_Aur_d, -col_Aur_d
+            col_Aur_d, -col_Aur_d, self._env.get_color_T2_d(x + 3, y + 1)
         )
         ur = contract_ur_corner(
             self._env.get_T1(x + 2, y),

@@ -87,13 +87,13 @@ def contract_corner(C1, T1, T4, A):
         A.shape[3], A.shape[4], A.shape[3], A.shape[4], T1.shape[0], T4.shape[3]
     )
 
-    #  C1-T1-4 ---->0
+    #  C1-T1-4 ---->2
     #  |  ||
-    #  T4=AA=2,0->1,2
+    #  T4=AA*=2,0->0,1
     #  |  ||
     #  5  31
-    #  3  45
-    return ul  # do not reshape to avoid copy here
+    #  5  34
+    return ul.transpose(2, 0, 4, 3, 1, 5)  # do not reshape to avoid copy here
 
 
 def contract_open_corner(C1, T1, T4, A):
@@ -174,13 +174,13 @@ def contract_open_corner(C1, T1, T4, A):
         A.shape[4],
         T1.shape[0],
         T4.shape[3],
-    ).transpose(3, 0, 6, 4, 1, 5, 2, 7)
-    # -----2
-    # | 0
-    # |  \
-    # |=====3,4
-    # |  /||
-    # 7 1 56
+    ).transpose(3, 0, 4, 1, 6, 5, 2, 7)
+    # -----4
+    # |  || 0
+    # |  ||/
+    # |=====2,3
+    # |  ||\
+    # 7  56 1
     return ul
 
 
@@ -235,24 +235,24 @@ def contract_open_corner_mirror(T1, C2, A, T2):
         T1.shape[3],
         T2.shape[1],
     )
-    ur = ur.transpose(3, 0, 6, 5, 2, 4, 1, 7)
-    #   2------
-    #    0    |
-    #     \   |
-    #  3,4====|
+    ur = ur.transpose(3, 0, 5, 2, 6, 4, 1, 7)
+    #   4------
+    #    0 || |
+    #     \|| |
+    #  2,3====|
     #     /|| |
     #    1 56 7
     return ur
 
 
 def contract_ul_corner(C1, T1, T4, A):
-    return contract_corner(C1, T1, T4, A).transpose(4, 2, 0, 5, 3, 1)
+    return contract_corner(C1, T1, T4, A)
 
 
 def contract_ur_corner(T1, C2, A, T2):
     return contract_corner(
         C2, T2.transpose(1, 2, 3, 0), T1, A.transpose(0, 1, 3, 4, 5, 2)
-    ).transpose(4, 2, 0, 5, 3, 1)
+    )
 
 
 def contract_dr_corner(A, T2, T3, C3):
@@ -261,13 +261,15 @@ def contract_dr_corner(A, T2, T3, C3):
         T3.transpose(3, 0, 1, 2),
         T2.transpose(1, 2, 3, 0),
         A.transpose(0, 1, 4, 5, 2, 3),
-    ).transpose(5, 3, 1, 4, 2, 0)
+    ).transpose(
+        3, 4, 5, 0, 1, 2
+    )  # transpose matrix to keep clockwise legs
 
 
 def contract_dl_corner(T4, A, C4, T3):
     return contract_corner(
         C4, T4, T3.transpose(3, 0, 1, 2), A.transpose(0, 1, 5, 2, 3, 4)
-    ).transpose(4, 2, 0, 5, 3, 1)
+    )
 
 
 ###############################################################################
@@ -278,9 +280,9 @@ def contract_dl_corner(T4, A, C4, T3):
 
 def contract_u_half(C1, T1l, T1r, C2, T4, Al, Ar, T2):
     ul = contract_ul_corner(C1, T1l, T4, Al).copy()
-    ul = ul.reshape(T1l.shape[0] * Al.shape[3] ** 2, T4.shape[3] * Al.shape[4] ** 2)
+    ul = ul.reshape(Al.shape[3] ** 2 * T1l.shape[0], Al.shape[4] ** 2 * T4.shape[3])
     ur = contract_ur_corner(T1r, C2, Ar, T2).copy()
-    ur = ur.reshape(T2.shape[1] * Ar.shape[4] ** 2, T1r.shape[3] * Ar.shape[5] ** 2)
+    ur = ur.reshape(Ar.shape[4] ** 2 * T2.shape[1], Ar.shape[5] ** 2 * T1r.shape[3])
     #  UL-01-UR
     #  |      |
     #  1      0
@@ -289,9 +291,9 @@ def contract_u_half(C1, T1l, T1r, C2, T4, Al, Ar, T2):
 
 def contract_l_half(C1, T1, T4u, Au, T4d, Ad, C4, T3):
     ul = contract_ul_corner(C1, T1, T4u, Au).copy()
-    ul = ul.reshape(T1.shape[0] * Au.shape[3] ** 2, T4u.shape[3] * Au.shape[4] ** 2)
+    ul = ul.reshape(Au.shape[3] ** 2 * T1.shape[0], Au.shape[4] ** 2 * T4u.shape[3])
     dl = contract_dl_corner(T4d, Ad, C4, T3).copy()
-    dl = dl.reshape(T4d.shape[0] * Ad.shape[2] ** 2, T3.shape[2] * Ad.shape[3] ** 2)
+    dl = dl.reshape(Ad.shape[2] ** 2 * T4d.shape[0], Ad.shape[3] ** 2 * T3.shape[2])
     #  UL-0
     #  |
     #  1
@@ -303,9 +305,10 @@ def contract_l_half(C1, T1, T4u, Au, T4d, Ad, C4, T3):
 
 def contract_d_half(T4, Al, Ar, T2, C4, T3l, T3r, C3):
     dl = contract_dl_corner(T4, Al, C4, T3l).copy()
-    dl = dl.reshape(T4.shape[0] * Al.shape[2] ** 2, T3l.shape[2] * Al.shape[3] ** 2)
+    dl = dl.reshape(Al.shape[2] ** 2 * T4.shape[0], Al.shape[3] ** 2 * T3l.shape[2])
+    # dr.T is needed in matrix product. Transpose *before* reshape to optimize copy
     dr = contract_dr_corner(Ar, T2, T3r, C3).transpose(3, 4, 5, 0, 1, 2).copy()
-    dr = dr.reshape(T3r.shape[3] * Ar.shape[5] ** 2, T2.shape[0] * Ar.shape[2] ** 2)
+    dr = dr.reshape(Ar.shape[5] ** 2 * T3r.shape[3], Ar.shape[2] ** 2 * T2.shape[0])
     #  0      1
     #  0      0
     #  |      |
@@ -315,9 +318,10 @@ def contract_d_half(T4, Al, Ar, T2, C4, T3l, T3r, C3):
 
 def contract_r_half(T1, C2, Au, T2u, Ad, T2d, T3, C3):
     ur = contract_ur_corner(T1, C2, Au, T2u).copy()
-    ur = ur.reshape(T2u.shape[1] * Au.shape[4] ** 2, T1.shape[3] * Au.shape[5] ** 2)
+    ur = ur.reshape(Au.shape[4] ** 2 * T2u.shape[1], Au.shape[5] ** 2 * T1.shape[3])
+    # dr.T is needed in matrix product. Transpose *before* reshape to optimize copy
     dr = contract_dr_corner(Ad, T2d, T3, C3).transpose(3, 4, 5, 0, 1, 2).copy()
-    dr = dr.reshape(T3.shape[3] * Ad.shape[5] ** 2, T2d.shape[0] * Ad.shape[2] ** 2)
+    dr = dr.reshape(Ad.shape[5] ** 2 * T3.shape[3], Ad.shape[2] ** 2 * T2d.shape[0])
     #      1-UR
     #         |
     #         0
