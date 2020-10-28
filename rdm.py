@@ -236,6 +236,8 @@ def rdm_diag_ur(
         T2d.transpose(2, 3, 0, 1),
         T2u.transpose(2, 3, 0, 1),
         C2.T,
+        ur=ul,
+        dl=dr.T,
     )
     rdm = (
         rdm.reshape(Adl.shape[0], Aur.shape[0], Adl.shape[0], Aur.shape[0])
