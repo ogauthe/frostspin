@@ -194,7 +194,7 @@ class CTMRG(object):
                 print(f"i = {i}, ||rho - last_rho|| = {r}")
             if r < tol:
                 return ret  # avoid computing rdm 1st neighbor twice
-            if ((last_last_rho - rho) ** 2).sum() ** 0.5 < tol / 10:
+            if ((last_last_rho - rho) ** 2).sum() ** 0.5 < tol / 100:
                 raise RuntimeError("CTMRG oscillates between two converged states", ret)
             last_last_rho = last_rho
             last_rho = rho
