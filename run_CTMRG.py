@@ -137,7 +137,7 @@ print("colors =", *su.colors[1:], sep="\n")
 for chi in chi_list:
     print("", "#" * 75, f"Set chi to {chi}", sep="\n")
     ctm.chi = chi  # restart from last envrionment, just change chi
-    print(f"Converge CTMRG for D = {Dmax} and chi = {ctm.chi}...")
+    print(f"Converge CTMRG at beta = {beta0} for D = {Dmax} and chi = {ctm.chi}...")
     t = time.time()
     try:
         j, rdm2x1_cell, rdm1x2_cell = ctm.converge(
@@ -211,7 +211,7 @@ for i, chi in enumerate(chi_list):
     print("restart environment from file", save_ctm)
     ctm = CTMRG_U1(chi, tiling, file=save_ctm, verbosity=1)
     ctm.set_tensors(su.get_ABCD(), su.get_colors_ABCD())
-    print(f"Converge CTMRG for D = {Dmax} and chi = {ctm.chi}...")
+    print(f"Converge CTMRG at beta = {beta1} for D = {Dmax} and chi = {ctm.chi}...")
     t = time.time()
     try:
         j, rdm2x1_cell, rdm1x2_cell = ctm.converge(

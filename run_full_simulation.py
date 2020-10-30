@@ -151,7 +151,10 @@ for beta in beta_list:
     eps_beta = []
     for ctm in ctm_list:
         print("\n" + " " * 4 + "#" * 75)
-        print(f"    Converge CTMRG for D = {Dmax} and chi = {ctm.chi}...")
+        print(
+            f"    Converge CTMRG at beta = {su.beta} for D = {Dmax} and",
+            f"chi = {ctm.chi}...",
+        )
         try:
             j, rdm2x1_cell, rdm1x2_cell = ctm.converge(
                 ctm_tol, warmup=ctm_warmup, maxiter=ctm_maxiter
