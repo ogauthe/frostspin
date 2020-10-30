@@ -152,11 +152,17 @@ for beta in beta_list:
     for ctm in ctm_list:
         print("\n" + " " * 4 + "#" * 75)
         print(f"    Converge CTMRG for D = {Dmax} and chi = {ctm.chi}...")
-        t = time.time()
-        i, (rdm2x1_cell, rdm1x2_cell) = ctm.converge(
-            ctm_tol, warmup=ctm_warmup, maxiter=ctm_maxiter
-        )
-        print(f"    done, converged after {i} iterations, t = {time.time()-t:.0f}")
+        try:
+            j, rdm2x1_cell, rdm1x2_cell = ctm.converge(
+                ctm_tol, warmup=ctm_warmup, maxiter=ctm_maxiter
+            )
+            print(f"done, converged after {j} iterations, t = {time.time()-t:.0f}")
+        except RuntimeError as err:
+            msg, (j, rdm2x1_cell, rdm1x2_cell) = err.args
+            print(
+                f"\n*** RuntimeError after {j} iterations, t = {time.time()-t:.0f} ***"
+            )
+            print(f"Error: '{msg}'. Save CTM and move on.\n")
         save_ctm = save_ctm_root + f"{su.beta}_chi{ctm.chi}.npz"
         data_ctm = ctm.save_to_file()
         np.savez_compressed(

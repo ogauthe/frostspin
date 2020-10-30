@@ -189,15 +189,16 @@ class CTMRG(object):
             (rdm2x1_cell, rdm1x2_cell) = self.compute_rdm_1st_neighbor_cell()
             rho = (sum(rdm2x1_cell) + sum(rdm1x2_cell)) / self._cell_number_neq_sites
             r = ((last_rho - rho) ** 2).sum() ** 0.5  # shape never changes: 2 <=> inf
+            ret = (i, rdm2x1_cell, rdm1x2_cell)
             if self.verbosity > 0:
                 print(f"i = {i}, ||rho - last_rho|| = {r}")
             if r < tol:
-                return i, (rdm2x1_cell, rdm1x2_cell)  # avoid computing it twice
+                return ret  # avoid computing rdm 1st neighbor twice
             if ((last_last_rho - rho) ** 2).sum() ** 0.5 < tol / 10:
-                raise RuntimeError("CTMRG oscillates between two converged states")
+                raise RuntimeError("CTMRG oscillates between two converged states", ret)
             last_last_rho = last_rho
             last_rho = rho
-        raise RuntimeError("CTMRG did not converge in maxiter")
+        raise RuntimeError("CTMRG did not converge in maxiter", ret)
 
     def up_move(self):
         if self.verbosity > 1:
