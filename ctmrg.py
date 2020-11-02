@@ -180,8 +180,8 @@ class CTMRG(object):
             self.iterate()
         if self.verbosity > 0:
             print(f"{warmup} warmup iterations done")
-        (rdm_cell2x1, rdm1x2_cell) = self.compute_rdm_1st_neighbor_cell()
-        last_rho = (sum(rdm_cell2x1) + sum(rdm1x2_cell)) / self._cell_number_neq_sites
+        (rdm2x1_cell, rdm1x2_cell) = self.compute_rdm_1st_neighbor_cell()
+        last_rho = (sum(rdm2x1_cell) + sum(rdm1x2_cell)) / self._cell_number_neq_sites
 
         last_last_rho = last_rho
         for i in range(warmup + 1, maxiter + 1):
