@@ -20,6 +20,8 @@ def svd_truncate(
 ):
     """
     Unique function to compute singular value decomposition of a matrix and truncate.
+    If row_colors and col_colors are provided, use U(1) symmetry to compute blockwise
+    SVD in every color sectors. Matrices are smaller, but more vectors are computed.
 
     Parameters
     ----------
@@ -33,19 +35,22 @@ def svd_truncate(
     col_colors : (n,) integer ndarray
       U(1) quantum numbers of the columns.
     full : boolean
-      Whether to compute the full SVD of the matrix.
+      Whether to compute the full SVD of the matrix (avoid calling sparse SVD function
+      and preserve numba performances)
     maxiter : integer
       If full is False, maximal number of arpack iterations. Finite by default allows
       clean crash instead of running forever.
     keep_multiplets : bool
-      If true, compute more than cut values and cut between two different multiplets
+      If True, preserve non-abelian symmetry by cutting between two different
+      multiplets.
     window : integer
-      If keep_multiplets is True, compute cut+window vectors and cut between cut and
-      cut + window
+      If keep_multiplets is True and full is false, compute cut + window vectors in each
+      sector to preserve multiplets.
     degen_tol : float
       Tolerance to consider two consecutive values as degenerate.
     cutoff : float
-      Singular values smaller than cutoff * max(singular values) are set to 0.
+      Singular values smaller than cutoff * max(singular values) are set to 0 and
+      associated singular vectors are removed.
 
     Returns
     -------
