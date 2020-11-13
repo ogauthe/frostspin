@@ -95,7 +95,6 @@ save_su_root = str(config["save_su_root"])
 print("Save simple update data in files " + save_su_root + "{beta}.npz")
 
 # CTMRG parameters
-ctm = None
 if not run_CTMRG:
     print("\nDo not compute CTMRG environment.")
 else:
@@ -103,6 +102,12 @@ else:
     ctm_warmup = int(config["ctm_warmup"])
     ctm_maxiter = int(config["ctm_maxiter"])
     print(f"\nCompute CTMRG environment for chi in {list(chi_list)}")
+    if config["ctm_restart_file"] is not None:
+        ctm_restart = str(config["ctm_restart_file"])
+        print("Restart environment from file", ctm_restart)
+    else:
+        ctm_restart = None
+        print("ctm_restart_file not provided, start from scratch")
     print(
         f"Converge CTMRG for at least {ctm_warmup} and at most {ctm_maxiter}",
         "iterations",
@@ -161,6 +166,7 @@ for beta in beta_list:
     ####################################################################################
     print("\n" + "#" * 79)
     print(f"Evolve in imaginary time for beta from {su.beta} to {beta}...")
+    last_beta = su.beta  # need it to restart CTMRG
     beta_evolve = beta - su.beta
     t = time.time()
     su.evolve(beta_evolve)
@@ -178,25 +184,23 @@ for beta in beta_list:
     # CTMRG
     ####################################################################################
     # CTMRG initialization
-    if ctm is None and run_CTMRG:
+    if run_CTMRG:
         print("", "#" * 75, "Initialize CTMRG", sep="\n")
-        if config["ctm_restart_file"] is not None:
-            ctm_restart = str(config["ctm_restart_file"])
-            print("Restart environment tensors from file", ctm_restart)
-            ctm = CTMRG_U1(chi_list[0], tiling, file=ctm_restart, verbosity=1)
-            ctm.set_tensors(su.get_ABCD(), su.get_colors_ABCD())
-        else:
+        chi = chi_list[0]
+        if ctm_restart is None:  # init from scratch
             print(
                 "ctm_restart_file not provided, initialize environment from SU tensors"
             )
             ctm = CTMRG_U1(
-                chi_list[0], tiling, su.get_ABCD(), su.get_colors_ABCD(), verbosity=1
+                chi, tiling, su.get_ABCD(), su.get_colors_ABCD(), verbosity=1
             )
-        if compute_rdm_2nd_nei:
-            rdm_params = {"cell_coords": ctm.neq_coords.copy(), **ctm_params}
-
-    elif run_CTMRG:
-        ctm.set_tensors(su.get_ABCD(), su.get_colors_ABCD())
+            if compute_rdm_2nd_nei:
+                rdm_params = {"cell_coords": ctm.neq_coords.copy(), **ctm_params}
+        else:
+            print("Restart environment tensors from file", ctm_restart)
+            ctm = CTMRG_U1(chi, tiling, file=ctm_restart, verbosity=1)
+            ctm.set_tensors(su.get_ABCD(), su.get_colors_ABCD())
+        ctm_restart = save_ctm_root + f"{su.beta}_chi{chi}.npz"  # prepare for next beta
 
     # prepare observable for several chis
     energy_chi, ising_chi, xi_h_chi, xi_v_chi, capacity_chi = [], [], [], [], []
