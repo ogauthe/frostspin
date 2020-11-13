@@ -14,5 +14,6 @@
   "ctm_maxiter": 10,
   "save_su_root": "data_su_sample_beta",
   "save_ctm_root": "data_ctm_sample_beta",
-  "save_rdm_root": "data_rdm_sample_beta"
+  "save_rdm_root": "data_rdm_sample_beta",
+  "save_obs_root": "data_obs_sample_beta"
 }

@@ -69,6 +69,7 @@ if run_CTMRG and measure_capacity:
     print(f"with dbeta = {dbeta}")
     beta_list = np.sort(list(beta_list + dbeta) + list(beta_list))
     print("Actual beta list is now", list(beta_list))
+    last_energy = [0] * chi_list.size
 
 # initilialize SU
 if config["su_restart_file"] is not None:
@@ -119,14 +120,13 @@ else:
 
     # observables
     obs_str = "chi   ising"
-    ising_global = []  # always compute 1st neighbor rdm
+    save_obs_root = str(config["save_obs_root"])
+    print("For all beta, save observables in files " + save_obs_root + "{beta}.npz\n")
 
     measure_xi = bool(config["measure_xi"])
     if measure_xi:
         print("Measure correlation length in both directions after convergence")
         obs_str += "   xi_h0   xi_h1   xi_v0   xi_v1"
-        xi_h_global = []
-        xi_v_global = []
     else:
         print("Do not measure correlation length.")
 
@@ -147,8 +147,6 @@ else:
             + save_rdm_root
             + "{beta}_chi{chi}.npz"
         )
-        energy_global = []
-        capacity_global = []
     else:
         print("Do not compute next nearest neighbor density matrix.")
 
@@ -283,7 +281,7 @@ for beta in beta_list:
 
             if dbeta_step:
                 x = -((su.beta - dbeta / 2) ** 2) / dbeta
-                c = x * (energy - energy_global[-1][chi_index])
+                c = x * (energy - last_energy[chi_index])
                 capacity_chi.append(c)
                 obs += f"   {c:.5f}"
         obs_chi.append(obs)
@@ -292,15 +290,20 @@ for beta in beta_list:
     # Save and display observables for all chis
     ################################################################################
     if run_CTMRG:
-        ising_global.append(ising_chi)
+        obs_dic = {"chi_list": chi_list, "ising": np.array(ising_chi)}
         if measure_xi:
-            xi_h_global.append(xi_h_chi)
-            xi_v_global.append(xi_v_chi)
+            obs_dic["xi_h"] = np.array(xi_h_chi)
+            obs_dic["xi_v"] = np.array(xi_v_chi)
         if compute_rdm_2nd_nei:
-            energy_global.append(energy_chi)
+            obs_dic["energy"] = np.array(energy_chi)
             if dbeta_step:
-                capacity_global.append(capacity_chi)
+                obs_dic["capacity"] = np.array(capacity_chi)
+            else:
+                last_energy = energy_chi
         print("", "#" * 75, sep="\n")
+        save_obs = save_obs_root + f"{su.beta}.npz"
+        np.savez_compressed(save_obs, beta=su.beta, **obs_dic, **ctm_params)
+        print("observables saved in file", save_obs)
         print(f"observables for D = {Dmax}, tau = {tau}, beta = {su.beta}:")
         print(obs_str + dbeta_step * compute_rdm_2nd_nei * "    capacity")
         for chi, obs in zip(chi_list, obs_chi):
