@@ -207,6 +207,7 @@ for beta in beta_list:
     # run CTMRG at fixed chi
     for chi_index, chi in enumerate(chi_list):
         print("\n" + "#" * 75)
+        ctm.chi = chi
         print(
             f"Compute environment at beta = {su.beta} for D = {Dmax} and chi =",
             f"{ctm.chi}...",
