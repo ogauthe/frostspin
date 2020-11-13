@@ -721,7 +721,7 @@ class SimpleUpdate2x2(object):
         # goes to 2nd order Trotter by reversing update order
         self.update_first_neighbor()
         self.update_second_neighbor()
-        self._beta += self._tau
+        self._beta = round(self._beta + self._tau, 10)
 
     def evolve(self, beta=None):
         """
@@ -745,7 +745,7 @@ class SimpleUpdate2x2(object):
             self.update_bond1(self._g1_squared)
         self._2nd_order_step_no1()
         self.update_bond1(self._g1)
-        self._beta += 4 * niter * self._tau
+        self._beta = round(self._beta + 4 * niter * self._tau, 10)
 
     def _2nd_order_step_no1(self):
         """

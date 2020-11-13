@@ -67,7 +67,7 @@ measure_capacity = bool(config["measure_capacity"])
 if run_CTMRG and measure_capacity:
     print("Compute thermal capacity: for each beta, add beta + dbeta to beta_list,")
     print(f"with dbeta = {dbeta}")
-    beta_list = np.sort(list(beta_list + dbeta) + list(beta_list))
+    beta_list = np.round(np.sort(list(beta_list + dbeta) + list(beta_list)), 10)
     print("Actual beta list is now", list(beta_list))
     last_energy = [0] * chi_list.size
 
