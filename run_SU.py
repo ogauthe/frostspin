@@ -254,7 +254,7 @@ for beta in beta_list:
             xi_v1 = ctm.compute_corr_length_v(1)
             xi_v_chi.append((xi_v0, xi_v1))
             print(f"done for vertical direction, t = {time.time()-t:.0f}")
-            print(f"xi_h = {xi_h0:.3f}, {xi_h1:.3f}")
+            print(f"xi_v = {xi_v0:.3f}, {xi_v1:.3f}")
             obs += f"   {xi_h0:.3f}   {xi_h1:.3f}   {xi_v0:.3f}   {xi_v1:.3f}"
 
         if compute_rdm_2nd_nei:
