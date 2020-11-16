@@ -214,6 +214,7 @@ for beta in beta_list:
             f"Compute environment at beta = {su.beta} for D = {Dmax} and chi =",
             f"{ctm.chi}...",
         )
+        t = time.time()
         try:
             j, rdm2x1_cell, rdm1x2_cell = ctm.converge(
                 ctm_tol, warmup=ctm_warmup, maxiter=ctm_maxiter
@@ -250,6 +251,7 @@ for beta in beta_list:
             xi_h_chi.append((xi_h0, xi_h1))
             print(f"done for horizontal direction, t = {time.time()-t:.0f}")
             print(f"xi_h = {xi_h0:.3f}, {xi_h1:.3f}")
+            t = time.time()
             xi_v0 = ctm.compute_corr_length_v(0)
             xi_v1 = ctm.compute_corr_length_v(1)
             xi_v_chi.append((xi_v0, xi_v1))
