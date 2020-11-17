@@ -194,8 +194,6 @@ for beta in beta_list:
             ctm = CTMRG_U1(
                 chi, tiling, su.get_ABCD(), su.get_colors_ABCD(), verbosity=1
             )
-            if compute_rdm_2nd_nei:
-                rdm_params = {"cell_coords": ctm.neq_coords.copy(), **ctm_params}
         else:
             print("Restart environment tensors from file", ctm_restart)
             ctm = CTMRG_U1(chi, tiling, file=ctm_restart, verbosity=1)
@@ -275,7 +273,8 @@ for beta in beta_list:
                 rdm2x1_cell=rdm2x1_cell,
                 rdm_dr_cell=rdm_dr_cell,
                 rdm_ur_cell=rdm_ur_cell,
-                **rdm_params,
+                cell_coords=ctm.neq_coords,
+                **ctm_params,
             )
             print("rdm saved to file", save_rdm)
             energy = ((rdm1x2_cell + rdm2x1_cell) * h1).sum() / 4 + (
