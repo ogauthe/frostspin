@@ -6,11 +6,28 @@ from numba import jit
 default_color = np.array([], dtype=np.int8)
 
 
-def random_U1_tensor(*colors):
+def random_U1_tensor(*colors, rng=None):
+    """
+    Construct random U(1) symmetric tensor. Non-zero coefficients are taken from
+    continuous uniform distribution in the half-open interval [0.0, 1.0).
+
+    Parameters
+    ----------
+    colors : enumerable of 1D integer arrays.
+      U(1) quantum numbers of each axis.
+    rng : optional, random number generator. Can be used to reproduce results.
+
+    Returns
+    -------
+    output : float array
+      random U(1) tensor, with shape following colors sizes.
+    """
+    if rng is None:
+        rng = np.random.default_rng()
     col1D = combine_colors(*colors)
     nnz = col1D == 0
     t = np.zeros(col1D.size)
-    t[nnz] = np.random.random(nnz.sum())
+    t[nnz] = rng.random(nnz.sum())
     t = t.reshape(tuple(c.size for c in colors))
     return t
 
