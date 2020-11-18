@@ -186,7 +186,7 @@ def sparse_svdU1(M, k_block, row_colors, col_colors, maxiter=1000):
 
     # revert to standard sparse svd if colors are not provided
     if not row_colors.size or not col_colors.size:
-        U, s, V = sparse_svd(M, full_matrices=False)
+        U, s, V = sparse_svd(M, k=k_block, maxiter=maxiter)
         return U, s, V, default_color
 
     if M.shape != (row_colors.shape, col_colors.shape):
