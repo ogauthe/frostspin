@@ -69,7 +69,7 @@ if run_CTMRG and measure_capacity:
     print(f"with dbeta = {dbeta}")
     beta_list = np.round(np.sort(list(beta_list + dbeta) + list(beta_list)), 10)
     print("Actual beta list is now", list(beta_list))
-    last_energy = [0] * chi_list.size
+    last_energy = np.full(chi_list.size, np.nan)
 
 # initilialize SU
 if config["su_restart_file"] is not None:
@@ -166,7 +166,6 @@ for beta in beta_list:
     ####################################################################################
     print("\n" + "#" * 79)
     print(f"Evolve in imaginary time for beta from {su.beta} to {beta}...")
-    last_beta = su.beta  # need it to restart CTMRG
     beta_evolve = beta - su.beta
     t = time.time()
     su.evolve(beta_evolve)
