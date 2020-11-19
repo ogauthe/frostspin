@@ -87,24 +87,30 @@ class BlockMatrixU1(object):
     Efficient storage for U(1) symmetric matrices.
     """
 
-    def __init__(self, M, row_colors, col_colors):
+    def __init__(self, shape, dtype, blocks, block_colors, row_indices, col_indices):
+        assert len(blocks) == len(block_colors) == len(row_indices) == len(col_indices)
+        self._shape = shape
+        self._dtype = dtype
+        self._blocks = blocks
+        self._block_colors = block_colors
+        self._row_indices = row_indices
+        self._col_indices = col_indices
+        self._nblocks = len(blocks)
+
+    @classmethod
+    def from_dense(cls, M, row_colors, col_colors):
         """
-        Constructor from matrix M and U(1) quantum numbers for rows and columns.
+        Constructor from dense matrix M and U(1) quantum numbers for rows and columns.
         """
         assert M.shape == (
             row_colors.size,
             col_colors.size,
         ), "Colors do not match array"
-        self._shape = M.shape
-        self._dtype = M.dtype
         # put everything inside jitted reduce_matrix_to_blocks function
-        (
-            self._blocks,
-            self._block_colors,
-            self._row_indices,
-            self._col_indices,
-        ) = reduce_matrix_to_blocks(M, row_colors, col_colors)
-        self._nblocks = len(self._blocks)
+        (blocks, block_colors, row_indices, col_indices) = reduce_matrix_to_blocks(
+            M, row_colors, col_colors
+        )
+        return cls(M.shape, M.dtype, blocks, block_colors, row_indices, col_indices)
 
     @property
     def shape(self):
@@ -136,14 +142,16 @@ class BlockMatrixU1(object):
 
     @property
     def T(self):
-        t = BlockMatrixU1.__new__(BlockMatrixU1)  # bypass __init__, quick and dirty
-        t._shape = (self._shape[1], self._shape[0])
-        t._dtype = self._dtype
-        t._blocks = [m.T for m in self._blocks]
-        t._block_colors = self._block_colors
-        t._row_indices = self._col_indices
-        t._col_indices = self._row_indices
-        return t
+        sh = (self._shape[1], self._shape[0])
+        blocks = [m.T for m in self._blocks]
+        return BlockMatrixU1(
+            sh,
+            self._dtype,
+            blocks,
+            self._block_colors,
+            self._col_indices,
+            self._row_indices,
+        )
 
     def toarray(self):
         ar = np.zeros(self._shape)
@@ -154,6 +162,34 @@ class BlockMatrixU1(object):
     def get_block_row_col_with_color(self, color):
         i = self._block_colors.index(color)
         return self._blocks[i], self._row_indices[i], self._col_indices[i]
+
+    def __matmul__(self, other):
+        """
+        Blockwise matrix product for U(1) symmetric matrices. For a given color, a block
+        may exist in one matrix and not in the other, but if both blocks exist they have
+        to match.
+        """
+        i1 = 0
+        i2 = 0
+        blocks = []
+        block_colors = []
+        row_indices = []
+        col_indices = []
+        while i1 < self._nblocks and i2 < other._nblocks:
+            if self._block_colors[i1] == self._block_colors[i2]:
+                blocks.append(self._blocks[i1] @ self._blocks[i2])
+                block_colors.append(self._block_colors[i1])
+                row_indices.append(self._row_indices[i1])
+                col_indices.append(other._col_indices[i2])
+                i1 += 1
+                i2 += 1
+            elif self._block_colors[i1] < self._block_colors[i2]:
+                i1 += 1
+            else:
+                i2 += 1
+        sh = (self._shape[0], other._shape[1])
+        dtype = max(self._dtype, other._dtype)
+        return BlockMatrixU1(sh, dtype, blocks, block_colors, row_indices, col_indices)
 
 
 def checkU1(T, colorsT, tol=1e-14):
