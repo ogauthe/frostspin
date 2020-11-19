@@ -176,14 +176,14 @@ class BlockMatrixU1(object):
         row_indices = []
         col_indices = []
         while i1 < self._nblocks and i2 < other._nblocks:
-            if self._block_colors[i1] == self._block_colors[i2]:
-                blocks.append(self._blocks[i1] @ self._blocks[i2])
+            if self._block_colors[i1] == other._block_colors[i2]:
+                blocks.append(self._blocks[i1] @ other._blocks[i2])
                 block_colors.append(self._block_colors[i1])
                 row_indices.append(self._row_indices[i1])
                 col_indices.append(other._col_indices[i2])
                 i1 += 1
                 i2 += 1
-            elif self._block_colors[i1] < self._block_colors[i2]:
+            elif self._block_colors[i1] < other._block_colors[i2]:
                 i1 += 1
             else:
                 i2 += 1
