@@ -184,20 +184,16 @@ for beta in beta_list:
     ####################################################################################
     # CTMRG initialization
     if run_CTMRG:
-        print("", "#" * 75, "Initialize CTMRG", sep="\n")
-        chi = chi_list[0]
+        print("", "#" * 75, sep="\n")
         if ctm_restart is None:  # init from scratch
-            print(
-                "ctm_restart_file not provided, initialize environment from SU tensors"
-            )
-            ctm = CTMRG_U1(
-                chi, tiling, su.get_ABCD(), su.get_colors_ABCD(), verbosity=1
+            ctm = CTMRG_U1.from_elementary_tensors(
+                su.get_ABCD(), su.get_colors_ABCD(), tiling, chi_list[0], verbosity=1
             )
         else:
-            print("Restart environment tensors from file", ctm_restart)
-            ctm = CTMRG_U1(chi, tiling, file=ctm_restart, verbosity=1)
+            ctm = CTMRG_U1.from_file(ctm_restart, verbosity=1)
             ctm.set_tensors(su.get_ABCD(), su.get_colors_ABCD())
-        ctm_restart = save_ctm_root + f"{su.beta}_chi{chi}.npz"  # prepare for next beta
+        ctm_params["beta"] = su.beta
+        ctm_restart = save_ctm_root + f"{su.beta}_chi{chi_list[0]}.npz"  # for next beta
 
     # prepare observable for several chis
     energy_chi, ising_chi, xi_h_chi, xi_v_chi, capacity_chi = [], [], [], [], []
@@ -224,11 +220,8 @@ for beta in beta_list:
             )
             print(f"Error: '{msg}'. Save CTM and move on.\n")
         save_ctm = save_ctm_root + f"{su.beta}_chi{ctm.chi}.npz"
-        data_ctm = ctm.save_to_file()
-        np.savez_compressed(
-            save_ctm, beta=su.beta, chi=ctm.chi, **ctm_params, **data_ctm
-        )
-        print("CTMRG data saved in file", save_ctm)
+        ctm_params["chi"] = ctm.chi
+        ctm.save_to_file(save_ctm, ctm_params)
 
         ################################################################################
         # Observables
@@ -266,8 +259,6 @@ for beta in beta_list:
             print(f"done with rdm computation, t = {time.time()-t:.0f}")
             np.savez_compressed(
                 save_rdm,
-                beta=su.beta,
-                chi=ctm.chi,
                 rdm1x2_cell=rdm1x2_cell,
                 rdm2x1_cell=rdm2x1_cell,
                 rdm_dr_cell=rdm_dr_cell,
@@ -306,7 +297,8 @@ for beta in beta_list:
                 last_energy = energy_chi
         print("", "#" * 75, sep="\n")
         save_obs = save_obs_root + f"{su.beta}.npz"
-        np.savez_compressed(save_obs, beta=su.beta, **obs_dic, **ctm_params)
+        del ctm_params["chi"]
+        np.savez_compressed(save_obs, **obs_dic, **ctm_params)
         print("observables saved in file", save_obs)
         print(f"observables for D = {Dmax}, tau = {tau}, beta = {su.beta}:")
         print(obs_str + dbeta_step * compute_rdm_2nd_nei * "    capacity")

@@ -64,25 +64,17 @@ class CTMRG(object):
     computation, it is mostly interface and tensor selection.
     """
 
-    def __init__(self, chi, tiling, tensors=(), file=None, verbosity=0):
+    def __init__(self, chi, env, verbosity=0):
         """
-        Constructor for totally asymmetric CTMRG algorithm.
+        Constructor for totally asymmetric CTMRG algorithm. Consider using from_file or
+        from_elementary_tensors methods instead of calling this one directly.
 
         Parameters
         ----------
         chi : integer
           Maximal corner dimension.
-        tiling : string
-          String defining the shape of the unit cell, typically "A" or "AB\nCD".
-        tensors : optional, enumerable of tensors with shape (d,a,D1,D2,D3,D4)
-          Elementary tensors of unit cell, from left to right from top to bottom. Can be
-          omitted if file is provided.
-        file : str, optional
-          Save file containing data to restart computation from. File must follow
-          save_to_file syntax. If file is provided, tiling is used to check consistency
-          between save and input, chi and verbosity are set from input values which may
-          differ from saved ones. The other parameters are not read and are set from
-          file.
+        env: CTM_Environment
+          Environment object, as construced by from_file or from_elementary_tensors.
         verbosity : int
           Level of log verbosity. Default is no log.
         """
@@ -90,19 +82,57 @@ class CTMRG(object):
         if self.verbosity > 0:
             print(f"initalize CTMRG with chi = {chi} and verbosity = {self.verbosity}")
         self.chi = chi
-        self._env = CTM_Environment(tensors, tiling=tiling, file=file)
+        self._env = env
         self._neq_coords = self._env.neq_coords
-        self._cell_number_neq_sites = len(self._neq_coords)
         if self.verbosity > 0:
             print("CTMRG constructed")
             print("unit cell =", self._env.cell, sep="\n")
             self.print_tensor_shapes()
 
-    def save_to_file(self, file=None):
+    @classmethod
+    def from_elementary_tensors(cls, tensors, tiling, chi, verbosity=0):
+        """
+        Construct CTMRG from elementary tensors and tiling.
+
+        Parameters
+        ----------
+        tensors : enumerable of tensors
+          Elementary tensors of unit cell, from left to right from top to bottom.
+        tiling : string
+          String defining the shape of the unit cell, typically "A" or "AB\nCD".
+        chi : integer
+          Maximal corner dimension.
+        verbosity : int
+          Level of log verbosity. Default is no log.
+        """
+        if verbosity > 0:
+            print("Start CTMRG from scratch using elementary tensors")
+        env = CTM_Environment.from_elementary_tensors(tensors, tiling)
+        return cls(chi, env, verbosity)
+
+    @classmethod
+    def from_file(cls, filename, verbosity=0):
+        """
+        Construct CTMRG from npz save file, as produced by save_to_file.
+        Parameters
+        ----------
+        filename : str
+          Path to npz file
+        verbosity : int
+          Level of log verbosity. Default is no log.
+       """
+        if verbosity > 0:
+            print("Restart CTMRG from file", filename)
+            chi, env = CTM_Environment.from_file(filename)
+        return cls(chi, env, verbosity)
+
+    def save_to_file(self, filename, additional_data={}):
         """
         Save CTMRG data in file. If file is not provided, a data dictionary is returned.
         """
-        return self._env.save_to_file(file)  # all the data is in env
+        self._env.save_to_file(filename, self.chi, additional_data)
+        if self.verbosity > 0:
+            print("CTMRG saved in file", filename)
 
     @property
     def Lx(self):
@@ -122,15 +152,18 @@ class CTMRG(object):
 
     @property
     def cell_number_neq_sites(self):
-        return self._cell_number_neq_sites
+        return self._env.Nneq
 
     def set_tensors(self, tensors, keep_env=True):
-        if self.verbosity > 0:
-            print("set new tensors")
         if keep_env:
+            if self.verbosity > 0:
+                print("set new tensors")
             self._env.set_tensors(tensors)
-        else:  # restart from fresh
-            self._env = CTM_Environment(tensors, cell=self._env.cell.copy())
+        else:  # restart from scratch
+            if self.verbosity > 0:
+                print("Restart with new tensors and new environment")
+            tiling = "\n".join("".join(s) for s in self.cell)
+            self._env = CTM_Environment.from_elementary_tensors(tensors, tiling)
 
     def print_tensor_shapes(self):
         print("tensor shapes for C1 T1 C2 // T4 A T2 // C4 T3 C4:")
@@ -182,13 +215,13 @@ class CTMRG(object):
         if self.verbosity > 0:
             print(f"{warmup} warmup iterations done")
         (rdm2x1_cell, rdm1x2_cell) = self.compute_rdm_1st_neighbor_cell()
-        last_rho = (sum(rdm2x1_cell) + sum(rdm1x2_cell)) / self._cell_number_neq_sites
+        last_rho = (sum(rdm2x1_cell) + sum(rdm1x2_cell)) / self._env.Nneq
 
         last_last_rho = last_rho
         for i in range(warmup + 1, maxiter + 1):
             self.iterate()
             (rdm2x1_cell, rdm1x2_cell) = self.compute_rdm_1st_neighbor_cell()
-            rho = (sum(rdm2x1_cell) + sum(rdm1x2_cell)) / self._cell_number_neq_sites
+            rho = (sum(rdm2x1_cell) + sum(rdm1x2_cell)) / self._env.Nneq
             r = ((last_rho - rho) ** 2).sum() ** 0.5  # shape never changes: 2 <=> inf
             ret = (i, rdm2x1_cell, rdm1x2_cell)
             if self.verbosity > 0:
@@ -641,53 +674,40 @@ class CTMRG_U1(CTMRG):
     block form.
     """
 
-    def __init__(self, chi, tiling, tensors=(), colors=(), file=None, verbosity=0):
+    @classmethod  # not specialized __init__ required
+    def from_elementary_tensors(cls, tensors, colors, tiling, chi, verbosity=0):
         """
-        Initialize U(1) symmetric CTMRG. Symmetry is NOT checked for elementary tensors.
+        Construct U(1) symmetric CTMRG from elementary tensors and tiling. Symmetry is
+        NOT checked for elementary tensors.
 
         Parameters
         ----------
-        chi : interger
-          Maximal corner dimension.
-        tiling: string
-          String defining the shape of the unit cell, typically "A" or "AB\nCD".
-        tensors: enumerable of tensors with shapes (d,a,D1,D2,D3,D4)
-          Elementary tensors of unit cell, from left to right from top to bottom. Can be
-          omitted if file is provided.
+        tensors : enumerable of tensors
+          Elementary tensors of unit cell, from left to right from top to bottom.
         colors : enumerable of enumerable of integer arrays matching tensors.
-          Quantum numbers for elementary tensors. Can be omitted if file is provided.
-        file : str, optional
-          Save file containing data to restart computation from. File must follow
-          save_to_file syntax. If file is provided, tiling is used to check consistency
-          between save and input, chi and verbosity are set from input values which may
-          differ from saved ones. The other parameters are not read and are set from
-          file.
+          Quantum numbers for elementary tensors.
+        tiling : string
+          String defining the shape of the unit cell, typically "A" or "AB\nCD".
+        chi : integer
+          Maximal corner dimension.
         verbosity : int
           Level of log verbosity. Default is no log.
         """
-        self.verbosity = verbosity
-        if self.verbosity > 0:
-            print(f"initalize CTMRG with chi = {chi} and verbosity = {self.verbosity}")
-        self.chi = chi
-        self._env = CTM_Environment(tensors, tiling=tiling, colors=colors, file=file)
-        self._neq_coords = self._env.neq_coords
-        self._cell_number_neq_sites = len(self._neq_coords)
-        if self.verbosity > 0:
-            print("CTMRG constructed")
-            print("unit cell =", self._env.cell, sep="\n")
-            self.print_tensor_shapes()
-            if self.verbosity > 1:
-                self.print_colors()
+        if verbosity > 0:
+            print("Start CTMRG from scratch using elementary tensors")
+        env = CTM_Environment.from_elementary_tensors(tensors, tiling, colors)
+        return cls(chi, env, verbosity)
 
     def set_tensors(self, tensors, colors, keep_env=True):
-        if self.verbosity > 0:
-            print("set new tensors")
         if keep_env:
-            self._env.set_tensors(tensors, colors=colors)
-        else:  # restart from fresh
-            self._env = CTM_Environment(
-                tensors, cell=self._env.cell.copy(), colors=colors
-            )
+            if self.verbosity > 0:
+                print("set new tensors")
+            self._env.set_tensors(tensors, colors)
+        else:  # restart from scratch
+            if self.verbosity > 0:
+                print("Restart with new tensors and new environment")
+            tiling = "\n".join("".join(s) for s in self.cell)
+            self._env = CTM_Environment.from_elementary_tensors(tensors, tiling, colors)
 
     def print_colors(self):
         print("colors_A, colorsC1, colorsC2, colorsC3, colorsC4:")
