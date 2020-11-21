@@ -123,7 +123,7 @@ class CTMRG(object):
        """
         if verbosity > 0:
             print("Restart CTMRG from file", filename)
-            chi, env = CTM_Environment.from_file(filename)
+        chi, env = CTM_Environment.from_file(filename)
         return cls(chi, env, verbosity)
 
     def save_to_file(self, filename, additional_data={}):
