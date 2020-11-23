@@ -291,10 +291,9 @@ for beta in beta_list:
             obs_dic["xi_v"] = np.array(xi_v_chi)
         if compute_rdm_2nd_nei:
             obs_dic["energy"] = np.array(energy_chi)
+            last_energy = energy_chi
             if dbeta_step:
                 obs_dic["capacity"] = np.array(capacity_chi)
-            else:
-                last_energy = energy_chi
         print("", "#" * 75, sep="\n")
         save_obs = save_obs_root + f"{su.beta}.npz"
         del ctm_params["chi"]
