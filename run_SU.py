@@ -195,9 +195,9 @@ for beta in beta_list:
         ctm_params["beta"] = su.beta
         ctm_restart = save_ctm_root + f"{su.beta}_chi{chi_list[0]}.npz"  # for next beta
 
-    # prepare observable for several chis
-    energy_chi, ising_chi, xi_h_chi, xi_v_chi, capacity_chi = [], [], [], [], []
-    obs_chi = []
+        # prepare observable for several chis
+        energy_chi, ising_chi, xi_h_chi, xi_v_chi, capacity_chi = [], [], [], [], []
+        obs_chi = []
 
     # run CTMRG at fixed chi
     for chi_index, chi in enumerate(chi_list):
