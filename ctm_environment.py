@@ -1,6 +1,6 @@
 import numpy as np
 
-from toolsU1 import default_color, combine_colors
+from toolsU1 import default_color, combine_colors, BlockMatrixU1
 
 
 def _initialize_env(A):
@@ -41,6 +41,24 @@ def _initialize_env(A):
         A.shape[2] ** 2, A.shape[3], A.shape[3], A.shape[4] ** 2
     )
     return C1, T1, C2, T4, T2, C4, T3, C3
+
+
+def _block_AAconj(A, col_A):
+    a = np.tensordot(A, A.conj(), ((0, 1), (0, 1)))
+    col_u = combine_colors(col_A[2], -col_A[2])
+    col_r = combine_colors(col_A[3], -col_A[3])
+    col_d = combine_colors(col_A[4], -col_A[4])
+    col_l = combine_colors(col_A[5], -col_A[5])
+    c_ul = combine_colors(col_u, col_l)
+    c_ur = combine_colors(col_u, col_r)
+    c_rd = combine_colors(col_r, col_d)
+    c_dl = combine_colors(col_d, col_l)
+    # a_ul used to contract corner_ul: u and l legs are *last* for a_ul @ TT
+    a_ul = a.transpose(1, 5, 2, 6, 0, 4, 3, 7).reshape(c_rd.size, c_ul.size)
+    a_ul = BlockMatrixU1.from_dense(a_ul, -c_rd, c_ul)
+    a_ur = a.transpose(2, 6, 3, 7, 0, 4, 1, 5).reshape(c_dl.size, c_ur.size)
+    a_ur = BlockMatrixU1.from_dense(a_ur, -c_dl, c_ur)
+    return a_ul, a_ur, c_ul, c_ur, c_rd, c_dl
 
 
 def _color_correspondence(old_col, new_col):
@@ -174,6 +192,18 @@ class CTM_Environment(object):
             self._colors_C3_l = colors_C3_l
             self._colors_C4_u = colors_C4_u
             self._colors_C4_r = colors_C4_r
+
+            # store blockwise A*A* to construct corners + colors (cannot tranpose lists)
+            self._a_col_ur = []
+            self._a_col_ul = []
+            self._a_col_rd = []
+            self._a_col_dl = []
+            for A, col_A in zip(neq_As, colors_A):
+                a_ul, a_ur, col_ul, col_ur, col_rd, col_dl = _block_AAconj(A, col_A)
+                self._a_col_ur.append((a_ur, col_dl, col_ur))
+                self._a_col_ul.append((a_ul, col_rd, col_ul))
+                self._a_col_rd.append((a_ul.T, col_ul, col_rd))
+                self._a_col_dl.append((a_ur.T, col_ur, col_dl))
         else:
             self._colors_A = [(default_color,) * 6] * self._Nneq
             self._colors_C1_r = [default_color] * self._Nneq
@@ -444,6 +474,11 @@ class CTM_Environment(object):
                     col = (col[0], np.zeros(1, dtype=np.int8), *col[1:])
                 if tuple(len(c) for c in col) != A.shape:
                     raise ValueError("Colors do not match tensors")
+                a_ul, a_ur, col_ul, col_ur, col_rd, col_dl = _block_AAconj(A, col)
+                self._a_col_ur[i] = (a_ur, col_dl, col_ur)
+                self._a_col_ul[i] = (a_ul, col_rd, col_ul)
+                self._a_col_rd[i] = (a_ul.T, col_ul, col_rd)
+                self._a_col_dl[i] = (a_ur.T, col_ur, col_dl)
             else:
                 col = (default_color,) * 6
             if (
@@ -658,6 +693,18 @@ class CTM_Environment(object):
 
     def get_color_Pt(self, x, y):
         return self._colors_Pt[self._indices[x % self._Lx, y % self._Ly]]
+
+    def get_a_col_ul(self, x, y):
+        return self._a_col_ul[self._indices[x % self._Lx, y % self._Ly]]
+
+    def get_a_col_ur(self, x, y):
+        return self._a_col_ur[self._indices[x % self._Lx, y % self._Ly]]
+
+    def get_a_col_rd(self, x, y):
+        return self._a_col_rd[self._indices[x % self._Lx, y % self._Ly]]
+
+    def get_a_col_dl(self, x, y):
+        return self._a_col_dl[self._indices[x % self._Lx, y % self._Ly]]
 
     def get_corner_ul(self, x, y):
         return self._corners_ul[self._indices[x % self._Lx, y % self._Ly]]

@@ -3,6 +3,8 @@ Corner and halves contraction for CTMRG algorithm
 Library agnostic module, only calls __matmul__, reshape and transpose methods.
 """
 
+from toolsU1 import combine_colors, BlockMatrixU1
+
 ###############################################################################
 #  construct 2x2 corners
 #  memory: peak at 2*a*d*chi**2*D**4
@@ -329,3 +331,81 @@ def contract_r_half(T1, C2, Au, T2u, Ad, T2d, T3, C3):
     #         |
     #      0-DR
     return dr @ ur
+
+
+###############################################################################
+#  construct 2x2 corners using U(1) symmetry
+#  memory: peak at 2*chi**2*D**4
+###############################################################################
+
+
+def contract_corner_U1(
+    C1, T1, T4, a_block, colors_T1_r, colors_T4_d, colors_a_ul, col_a_r, col_a_d
+):
+    """
+    Generic function to contract a corner using U(1) symmetry.
+    """
+    ul = C1 @ T4.reshape(T4.shape[0], T4.shape[1] ** 2 * T4.shape[3])
+    ul = ul.reshape(C1.shape[0], T4.shape[1], T4.shape[2], T4.shape[3])
+    ul = add_a_blockU1(T1, ul, a_block, colors_a_ul, colors_T1_r, colors_T4_d)
+
+    # reshape through dense casting. This is inefficient.
+    ul = ul.toarray().reshape(col_a_r.size, col_a_d.size, T1.shape[0], T4.shape[3])
+    #  C1-T1-2 -> 1
+    #  |  ||
+    #  T4=AA*=0
+    #  |  ||
+    #  3  1 -> 2
+    ul = ul.swapaxes(1, 2).reshape(
+        col_a_r.size * T1.shape[0], col_a_d.size * T4.shape[3]
+    )
+    rc = combine_colors(col_a_r, colors_T1_r)
+    cc = combine_colors(col_a_d, colors_T4_d)
+    ul = BlockMatrixU1.from_dense(ul, rc, -cc)
+    return ul
+
+
+def add_a_blockU1(T1, C1T4, a_block, colors_a_ul, colors_T1_r, colors_T4_d):
+    """
+    Use this function in both contract_corner_U1 and renormalize_T_U1.
+    """
+    ul = T1.transpose(1, 2, 0, 3).reshape(T1.shape[1] ** 2 * T1.shape[0], T1.shape[3])
+
+    #  -----T1-2
+    #  |    ||
+    #  3    01
+    #  0
+    #  |
+    #  T4=1,2 -> 3,4
+    #  |
+    #  3 -> 5
+    ul = (ul @ C1T4.reshape(C1T4.shape[0], C1T4.shape[1] ** 2 * C1T4.shape[3])).reshape(
+        T1.shape[1],
+        T1.shape[2],
+        T1.shape[0],
+        C1T4.shape[1],
+        C1T4.shape[2],
+        C1T4.shape[3],
+    )
+    ul = (
+        ul.transpose(0, 1, 3, 4, 2, 5)
+        .copy()
+        .reshape(T1.shape[1] ** 2 * C1T4.shape[1] ** 2, T1.shape[0] * C1T4.shape[3])
+    )
+    #  -----T1-4
+    #  |    01
+    #  |
+    #  T4=2,3
+    #  |
+    #  5
+    col_col = combine_colors(colors_T1_r, colors_T4_d)
+    ul = BlockMatrixU1.from_dense(ul, colors_a_ul, col_col)
+    ul = a_block @ ul
+    #  C1-T1-4
+    #  |  ||
+    #  T4=AA*=0,1
+    #  |  ||
+    #  5  23
+    # cannot reshape (neither transpose) here since left and down dimensions are unknown
+    # let contract_corner_U1 and renormalize_T_U1 decide what to do next
+    return ul

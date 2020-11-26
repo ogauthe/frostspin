@@ -2,7 +2,7 @@ import rdm
 import observables
 from ctm_environment import CTM_Environment
 from ctm_contract import (
-    contract_ul_corner,
+    contract_corner_U1,
     contract_ur_corner,
     contract_dl_corner,
     contract_dr_corner,
@@ -855,22 +855,19 @@ class CTMRG_U1(CTMRG):
         ul = self._env.get_corner_ul(x, y)
         if ul is not None:
             return ul
-        col_Aul_r = self._env.get_colors_A(x + 1, y + 1)[3]
-        col_Adl_u = self._env.get_colors_A(x + 1, y + 2)[2]
-        colors_u = combine_colors(
-            col_Aul_r, -col_Aul_r, self._env.get_color_T1_r(x + 1, y)
-        )
-        colors_l = combine_colors(
-            col_Adl_u, -col_Adl_u, self._env.get_color_T4_u(x, y + 2)
-        )
-
-        ul = contract_ul_corner(
+        col_Aul = self._env.get_colors_A(x + 1, y + 1)
+        a_ul, _, col_col_ul = self._env.get_a_col_ul(x + 1, y + 1)
+        ul = contract_corner_U1(
             self._env.get_C1(x, y),
             self._env.get_T1(x + 1, y),
             self._env.get_T4(x, y + 1),
-            self._env.get_A(x + 1, y + 1),
-        ).reshape(colors_u.size, colors_l.size)
-        ul = BlockMatrixU1.from_dense(ul, colors_u, colors_l)
+            a_ul,
+            self._env.get_color_T1_r(x + 1, y),
+            self._env.get_color_T4_d(x, y + 1),
+            col_col_ul,
+            combine_colors(col_Aul[3], -col_Aul[3]),
+            combine_colors(col_Aul[4], -col_Aul[4]),
+        )
         self._env.set_corner_ul(x, y, ul)
         return ul
 
