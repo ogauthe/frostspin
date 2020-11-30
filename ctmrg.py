@@ -87,7 +87,8 @@ class CTMRG(object):
         if self.verbosity > 0:
             print("CTMRG constructed")
             print("unit cell =", self._env.cell, sep="\n")
-            self.print_tensor_shapes()
+            if self.verbosity > 2:
+                self.print_tensor_shapes()
 
     @classmethod
     def from_elementary_tensors(cls, tensors, tiling, chi, verbosity=0):
