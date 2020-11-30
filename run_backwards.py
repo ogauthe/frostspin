@@ -289,7 +289,7 @@ for suf in reversed(su_files):
             obs += f"   {energy:.5f}"
 
             # always compute capacity, even if some values will be wrong.
-            x = ((su.beta + last_beta) / 2) ** 2 / dbeta
+            x = ((su.beta + last_beta) / 2) ** 2 / (last_beta - su.beta)
             c = x * (energy - last_energy[chi_index])
             capacity_chi.append(c)
             obs += f"   {c:.5f}"
