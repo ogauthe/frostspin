@@ -362,7 +362,6 @@ def contract_ul_corner_U1(
     )
     rc = combine_colors(col_a_r, colors_T1_r)
     cc = -combine_colors(col_a_d, colors_T4_d)
-    print("contract_ul_corner_U1", checkU1(ul, (rc, -cc)))
     ul = BlockMatrixU1.from_dense(ul, rc, cc)
     return ul
 
@@ -395,7 +394,6 @@ def contract_ur_corner_U1(
     )
     rc = combine_colors(col_a_d, colors_T2_d)
     cc = -combine_colors(col_a_l, colors_T1_l)
-    print("contract_ur_corner_U1", checkU1(ur, (rc, -cc)))
     ur = BlockMatrixU1.from_dense(ur, rc, cc)
     return ur
 
@@ -429,7 +427,6 @@ def contract_dr_corner_U1(
     )
     rc = combine_colors(col_a_u, colors_T2_u)
     cc = -combine_colors(col_a_l, colors_T3_l)
-    print("contract_dr_corner_U1", checkU1(dr, (rc, -cc)))
     dr = BlockMatrixU1.from_dense(dr, rc, cc)
     return dr.T
 
@@ -468,7 +465,6 @@ def contract_dl_corner_U1(
     )
     rc = combine_colors(col_a_r, colors_T3_r)
     cc = -combine_colors(col_a_u, colors_T4_u)
-    print("contract_dl_corner_U1", checkU1(dl, (rc, -cc)))
     dl = BlockMatrixU1.from_dense(dl, rc, cc)
     return dl.T
 
