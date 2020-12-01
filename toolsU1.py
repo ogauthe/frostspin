@@ -163,6 +163,12 @@ class BlockMatrixU1(object):
         i = self._block_colors.index(color)
         return self._blocks[i], self._row_indices[i], self._col_indices[i]
 
+    def norm(self):
+        norm2 = 0.0
+        for b in self._blocks:
+            norm2 += np.linalg.norm(b) ** 2
+        return np.sqrt(norm2)
+
     def __matmul__(self, other):
         """
         Blockwise matrix product for U(1) symmetric matrices. For a given color, a block
