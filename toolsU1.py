@@ -142,15 +142,29 @@ class BlockMatrixU1(object):
 
     @property
     def T(self):
+        # colors are defined with matrix convention: enters on the row index,
+        # c_row[i] - c_col[j] = 0 (while sum(col[axis][coeff]) = 0 for tensors)
+        # so need to take opposite of colors.
+        # Colors need to stay sorted for __matmul__, so reverse all block-related lists.
         sh = (self._shape[1], self._shape[0])
-        blocks = [m.T for m in self._blocks]
+        block_colors = [-c for c in reversed(self._block_colors)]  # keep sorted colors
+        blocks = [b.T for b in reversed(self._blocks)]
         return BlockMatrixU1(
             sh,
             self._dtype,
             blocks,
-            self._block_colors,
-            self._col_indices,
-            self._row_indices,
+            block_colors,
+            self._col_indices[::-1],
+            self._row_indices[::-1],
+        )
+
+    def copy(self):
+        blocks = [b.copy() for b in self._blocks]
+        block_colors = self._block_colors.copy()
+        row_indices = [ri.copy() for ri in self._row_indices]
+        col_indices = [ci.copy() for ci in self._col_indices]
+        return BlockMatrixU1(
+            self._shape, self._dtype, blocks, block_colors, row_indices, col_indices
         )
 
     def toarray(self):
@@ -162,6 +176,12 @@ class BlockMatrixU1(object):
     def get_block_row_col_with_color(self, color):
         i = self._block_colors.index(color)
         return self._blocks[i], self._row_indices[i], self._col_indices[i]
+
+    def norm(self):
+        norm2 = 0.0
+        for b in self._blocks:
+            norm2 += np.linalg.norm(b) ** 2
+        return np.sqrt(norm2)
 
     def __matmul__(self, other):
         """

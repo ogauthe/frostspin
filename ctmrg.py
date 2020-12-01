@@ -2,10 +2,10 @@ import rdm
 import observables
 from ctm_environment import CTM_Environment
 from ctm_contract import (
-    contract_ul_corner,
-    contract_ur_corner,
-    contract_dl_corner,
-    contract_dr_corner,
+    contract_ul_corner_U1,
+    contract_ur_corner_U1,
+    contract_dl_corner_U1,
+    contract_dr_corner_U1,
     contract_u_half,
     contract_l_half,
     contract_d_half,
@@ -27,7 +27,7 @@ from ctm_renormalize import (
     renormalize_T4,
     renormalize_C1_left,
 )
-from toolsU1 import combine_colors, checkU1, BlockMatrixU1
+from toolsU1 import combine_colors, checkU1
 
 
 class CTMRG(object):
@@ -154,6 +154,15 @@ class CTMRG(object):
     @property
     def cell_number_neq_sites(self):
         return self._env.Nneq
+
+    def restart_environment(self):
+        """
+        Restart environment tensors from elementary ones. ERASE current environment,
+        use with caution.
+        """
+        if self.verbosity > 0:
+            print("Restart brand new environment from elementary tensors.")
+        self._env.restart()
 
     def set_tensors(self, tensors, keep_env=True):
         if keep_env:
@@ -797,25 +806,19 @@ class CTMRG_U1(CTMRG):
         dr = self._env.get_corner_dr(x, y)
         if dr is not None:
             return dr
-        col_Aur_d = self._env.get_colors_A(x + 2, y + 1)[4]
-        col_Adr_l = self._env.get_colors_A(x + 2, y + 2)[5]
-        colors_r = combine_colors(
-            col_Aur_d, -col_Aur_d, self._env.get_color_T2_d(x + 3, y + 1)
+        col_Adr = self._env.get_colors_A(x + 2, y + 2)
+        a_dr, _, col_col_rd = self._env.get_a_col_rd(x + 2, y + 2)
+        dr = contract_dr_corner_U1(
+            a_dr,
+            self._env.get_T2(x + 3, y + 2),
+            self._env.get_T3(x + 2, y + 3),
+            self._env.get_C3(x + 3, y + 3),
+            col_col_rd,
+            combine_colors(col_Adr[2], -col_Adr[2]),
+            combine_colors(col_Adr[5], -col_Adr[5]),
+            self._env.get_color_T2_u(x + 3, y + 2),
+            self._env.get_color_T3_l(x + 2, y + 3),
         )
-        colors_d = combine_colors(
-            col_Adr_l, -col_Adr_l, self._env.get_color_T3_l(x + 2, y + 3)
-        )
-        dr = (
-            contract_dr_corner(
-                self._env.get_A(x + 2, y + 2),
-                self._env.get_T2(x + 3, y + 2),
-                self._env.get_T3(x + 2, y + 3),
-                self._env.get_C3(x + 3, y + 3),
-            )
-            .transpose(3, 4, 5, 0, 1, 2)
-            .reshape(colors_d.size, colors_r.size)
-        )
-        dr = BlockMatrixU1.from_dense(dr, colors_d, colors_r)
         self._env.set_corner_dr(x, y, dr)
         return dr
 
@@ -828,22 +831,19 @@ class CTMRG_U1(CTMRG):
         dl = self._env.get_corner_dl(x, y)
         if dl is not None:
             return dl
-        col_Adr_l = self._env.get_colors_A(x + 2, y + 2)[5]
-        col_Adl_u = self._env.get_colors_A(x + 1, y + 2)[2]
-        colors_d = combine_colors(
-            col_Adr_l, -col_Adr_l, self._env.get_color_T3_l(x + 2, y + 3)
-        )
-        colors_l = combine_colors(
-            col_Adl_u, -col_Adl_u, self._env.get_color_T4_u(x, y + 2)
-        )
-
-        dl = contract_dl_corner(
+        col_Adl = self._env.get_colors_A(x + 1, y + 2)
+        a_dl, _, col_col_dl = self._env.get_a_col_dl(x + 1, y + 2)
+        dl = contract_dl_corner_U1(
             self._env.get_T4(x, y + 2),
-            self._env.get_A(x + 1, y + 2),
+            a_dl,
             self._env.get_C4(x, y + 3),
             self._env.get_T3(x + 1, y + 3),
-        ).reshape(colors_l.size, colors_d.size)
-        dl = BlockMatrixU1.from_dense(dl, colors_l, colors_d)
+            self._env.get_color_T4_u(x, y + 2),
+            col_col_dl,
+            combine_colors(col_Adl[2], -col_Adl[2]),
+            combine_colors(col_Adl[3], -col_Adl[3]),
+            self._env.get_color_T3_r(x + 1, y + 3),
+        )
         self._env.set_corner_dl(x, y, dl)
         return dl
 
@@ -856,22 +856,19 @@ class CTMRG_U1(CTMRG):
         ul = self._env.get_corner_ul(x, y)
         if ul is not None:
             return ul
-        col_Aul_r = self._env.get_colors_A(x + 1, y + 1)[3]
-        col_Adl_u = self._env.get_colors_A(x + 1, y + 2)[2]
-        colors_u = combine_colors(
-            col_Aul_r, -col_Aul_r, self._env.get_color_T1_r(x + 1, y)
-        )
-        colors_l = combine_colors(
-            col_Adl_u, -col_Adl_u, self._env.get_color_T4_u(x, y + 2)
-        )
-
-        ul = contract_ul_corner(
+        col_Aul = self._env.get_colors_A(x + 1, y + 1)
+        a_ul, _, col_col_ul = self._env.get_a_col_ul(x + 1, y + 1)
+        ul = contract_ul_corner_U1(
             self._env.get_C1(x, y),
             self._env.get_T1(x + 1, y),
             self._env.get_T4(x, y + 1),
-            self._env.get_A(x + 1, y + 1),
-        ).reshape(colors_u.size, colors_l.size)
-        ul = BlockMatrixU1.from_dense(ul, colors_u, colors_l)
+            a_ul,
+            self._env.get_color_T1_r(x + 1, y),
+            self._env.get_color_T4_d(x, y + 1),
+            col_col_ul,
+            combine_colors(col_Aul[3], -col_Aul[3]),
+            combine_colors(col_Aul[4], -col_Aul[4]),
+        )
         self._env.set_corner_ul(x, y, ul)
         return ul
 
@@ -884,21 +881,19 @@ class CTMRG_U1(CTMRG):
         ur = self._env.get_corner_ur(x, y)
         if ur is not None:
             return ur
-        col_Aul_r = self._env.get_colors_A(x + 1, y + 1)[3]
-        col_Aur_d = self._env.get_colors_A(x + 2, y + 1)[4]
-        colors_u = combine_colors(
-            col_Aul_r, -col_Aul_r, self._env.get_color_T1_r(x + 1, y)
-        )
-        colors_r = combine_colors(
-            col_Aur_d, -col_Aur_d, self._env.get_color_T2_d(x + 3, y + 1)
-        )
-        ur = contract_ur_corner(
-            self._env.get_T1(x + 2, y),
-            self._env.get_C2(x + 3, y),
-            self._env.get_A(x + 2, y + 1),
+        col_Aur = self._env.get_colors_A(x + 2, y + 1)
+        a_ur, _, col_col_ur = self._env.get_a_col_ur(x + 2, y + 1)
+        ur = contract_ur_corner_U1(
             self._env.get_T2(x + 3, y + 1),
-        ).reshape(colors_r.size, colors_u.size)
-        ur = BlockMatrixU1.from_dense(ur, colors_r, colors_u)
+            self._env.get_C2(x + 3, y),
+            a_ur,
+            self._env.get_T1(x + 2, y),
+            self._env.get_color_T2_d(x + 3, y + 1),
+            col_col_ur,
+            combine_colors(col_Aur[4], -col_Aur[4]),
+            combine_colors(col_Aur[5], -col_Aur[5]),
+            self._env.get_color_T1_l(x + 2, y),
+        )
         self._env.set_corner_ur(x, y, ur)
         return ur
 
