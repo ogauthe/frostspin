@@ -153,6 +153,15 @@ class BlockMatrixU1(object):
             self._row_indices,
         )
 
+    def copy(self):
+        blocks = [b.copy() for b in self._blocks]
+        block_colors = self._block_colors.copy()
+        row_indices = [ri.copy() for ri in self._row_indices]
+        col_indices = [ci.copy() for ci in self._col_indices]
+        return BlockMatrixU1(
+            self._shape, self._dtype, blocks, block_colors, row_indices, col_indices
+        )
+
     def toarray(self):
         ar = np.zeros(self._shape)
         for b, ri, ci in zip(self._blocks, self._row_indices, self._col_indices):
