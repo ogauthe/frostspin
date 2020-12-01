@@ -142,15 +142,20 @@ class BlockMatrixU1(object):
 
     @property
     def T(self):
+        # colors are defined with matrix convention: enters on the row index,
+        # c_row[i] - c_col[j] = 0 (while sum(col[axis][coeff]) = 0 for tensors)
+        # so need to take opposite of colors.
+        # Colors need to stay sorted for __matmul__, so reverse all block-related lists.
         sh = (self._shape[1], self._shape[0])
-        blocks = [m.T for m in self._blocks]
+        block_colors = [-c for c in reversed(self._block_colors)]  # keep sorted colors
+        blocks = [b.T for b in reversed(self._blocks)]
         return BlockMatrixU1(
             sh,
             self._dtype,
             blocks,
-            self._block_colors,
-            self._col_indices,
-            self._row_indices,
+            block_colors,
+            self._col_indices[::-1],
+            self._row_indices[::-1],
         )
 
     def copy(self):

@@ -412,9 +412,9 @@ def contract_dr_corner_U1(
         dr.transpose(1, 2, 3, 0),  # MIRROR
         T3.transpose(2, 0, 1, 3),
         a_dr,
-        -colors_a_rd,
-        -colors_T2_u,
-        -colors_T3_l,
+        colors_a_rd,
+        colors_T2_u,
+        colors_T3_l,
     )
 
     # reshape through dense casting. This is inefficient.
@@ -451,9 +451,9 @@ def contract_dl_corner_U1(
         T3.transpose(2, 0, 1, 3),
         dl.transpose(3, 1, 2, 0),
         a_dl,
-        -colors_a_dl,
-        -colors_T3_r,
-        -colors_T4_u,
+        colors_a_dl,
+        colors_T3_r,
+        colors_T4_u,
     )
 
     # reshape through dense casting. This is inefficient.
