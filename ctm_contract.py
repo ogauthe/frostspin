@@ -4,6 +4,7 @@ Library agnostic module, only calls __matmul__, reshape and transpose methods.
 """
 
 from toolsU1 import combine_colors, BlockMatrixU1
+from toolsU1 import checkU1
 
 ###############################################################################
 #  construct 2x2 corners
@@ -339,15 +340,15 @@ def contract_r_half(T1, C2, Au, T2u, Ad, T2d, T3, C3):
 ###############################################################################
 
 
-def contract_corner_U1(
-    C1, T1, T4, a_block, colors_T1_r, colors_T4_d, colors_a_ul, col_a_r, col_a_d
+def contract_ul_corner_U1(
+    C1, T1, T4, a_ul, colors_T1_r, colors_T4_d, colors_a_ul, col_a_r, col_a_d
 ):
     """
-    Generic function to contract a corner using U(1) symmetry.
+    Contract upper left corner using U(1) symmetry.
     """
     ul = C1 @ T4.reshape(T4.shape[0], T4.shape[1] ** 2 * T4.shape[3])
     ul = ul.reshape(C1.shape[0], T4.shape[1], T4.shape[2], T4.shape[3])
-    ul = add_a_blockU1(T1, ul, a_block, colors_a_ul, colors_T1_r, colors_T4_d)
+    ul = add_a_blockU1(T1, ul, a_ul, colors_a_ul, colors_T1_r, colors_T4_d)
 
     # reshape through dense casting. This is inefficient.
     ul = ul.toarray().reshape(col_a_r.size, col_a_d.size, T1.shape[0], T4.shape[3])
@@ -360,9 +361,116 @@ def contract_corner_U1(
         col_a_r.size * T1.shape[0], col_a_d.size * T4.shape[3]
     )
     rc = combine_colors(col_a_r, colors_T1_r)
-    cc = combine_colors(col_a_d, colors_T4_d)
-    ul = BlockMatrixU1.from_dense(ul, rc, -cc)
+    cc = -combine_colors(col_a_d, colors_T4_d)
+    print("contract_ul_corner_U1", checkU1(ul, (rc, -cc)))
+    ul = BlockMatrixU1.from_dense(ul, rc, cc)
     return ul
+
+
+def contract_ur_corner_U1(
+    T2, C2, a_ur, T1, colors_T2_d, colors_a_ur, col_a_d, col_a_l, colors_T1_l
+):
+    """
+    Contract upper right corner using U(1) symmetry.
+    """
+    ur = C2 @ T1.reshape(T1.shape[0], T1.shape[1] ** 2 * T1.shape[3])
+    ur = ur.reshape(C2.shape[0], T1.shape[1], T1.shape[2], T1.shape[3])
+    # a_ur has swapped up and right legs:
+    #  3
+    # 1 2
+    #  0
+    ur = add_a_blockU1(
+        T2.transpose(1, 2, 3, 0), ur, a_ur, colors_a_ur, colors_T2_d, colors_T1_l
+    )
+
+    # reshape through dense casting. This is inefficient.
+    ur = ur.toarray().reshape(col_a_d.size, col_a_l.size, T2.shape[1], T1.shape[3])
+    #  3-T1---
+    #    ||  |
+    #  1=AA*=|
+    #    ||  |
+    #     0  2
+    ur = ur.swapaxes(1, 2).reshape(
+        col_a_d.size * T2.shape[1], col_a_l.size * T1.shape[3]
+    )
+    rc = combine_colors(col_a_d, colors_T2_d)
+    cc = -combine_colors(col_a_l, colors_T1_l)
+    print("contract_ur_corner_U1", checkU1(ur, (rc, -cc)))
+    ur = BlockMatrixU1.from_dense(ur, rc, cc)
+    return ur
+
+
+def contract_dr_corner_U1(
+    a_dr, T2, T3, C3, colors_a_rd, col_a_u, col_a_l, colors_T2_u, colors_T3_l
+):
+    """
+    Contract down right corner using U(1) symmetry.
+    """
+    dr = C3.T @ T2.swapaxes(0, 1).reshape(T2.shape[1], -1)
+    dr = dr.reshape(C3.shape[1], T2.shape[0], T2.shape[2], T2.shape[3])
+    dr = add_a_blockU1(
+        dr.transpose(1, 2, 3, 0),  # MIRROR
+        T3.transpose(2, 0, 1, 3),
+        a_dr,
+        -colors_a_rd,
+        -colors_T2_u,
+        -colors_T3_l,
+    )
+
+    # reshape through dense casting. This is inefficient.
+    dr = dr.toarray().reshape(col_a_u.size, col_a_l.size, T2.shape[0], T3.shape[3])
+    #     0  2
+    #    ||  |
+    #  1=AA*=|
+    #    ||  |
+    #  3------
+    dr = dr.swapaxes(1, 2).reshape(
+        col_a_u.size * T2.shape[0], col_a_l.size * T3.shape[3]
+    )
+    rc = combine_colors(col_a_u, colors_T2_u)
+    cc = -combine_colors(col_a_l, colors_T3_l)
+    print("contract_dr_corner_U1", checkU1(dr, (rc, -cc)))
+    dr = BlockMatrixU1.from_dense(dr, rc, cc)
+    return dr.T
+
+
+def contract_dl_corner_U1(
+    T4, a_dl, C4, T3, colors_T4_u, colors_a_dl, col_a_u, col_a_r, colors_T3_r
+):
+    """
+    Contract down left corner using U(1) symmetry.
+    """
+    dl = T4.reshape(-1, T4.shape[3]) @ C4
+    dl = dl.reshape(T4.shape[0], T4.shape[1], T4.shape[2], C4.shape[1])
+    # a_dl has swapped up and right legs:
+    #  1
+    # 3 0
+    #  2
+    # MIRROR in add_a_block
+    dl = add_a_blockU1(
+        T3.transpose(2, 0, 1, 3),
+        dl.transpose(3, 1, 2, 0),
+        a_dl,
+        -colors_a_dl,
+        -colors_T3_r,
+        -colors_T4_u,
+    )
+
+    # reshape through dense casting. This is inefficient.
+    dl = dl.toarray().reshape(col_a_r.size, col_a_u.size, T3.shape[2], T4.shape[0])
+    #  3  1
+    #  | ||
+    #  |=AA*=0
+    #  | ||
+    #  ------2
+    dl = dl.swapaxes(1, 2).reshape(
+        col_a_r.size * T3.shape[2], col_a_u.size * T4.shape[0]
+    )
+    rc = combine_colors(col_a_r, colors_T3_r)
+    cc = -combine_colors(col_a_u, colors_T4_u)
+    print("contract_dl_corner_U1", checkU1(dl, (rc, -cc)))
+    dl = BlockMatrixU1.from_dense(dl, rc, cc)
+    return dl.T
 
 
 def add_a_blockU1(T1, C1T4, a_block, colors_a_ul, colors_T1_r, colors_T4_d):
@@ -399,8 +507,13 @@ def add_a_blockU1(T1, C1T4, a_block, colors_a_ul, colors_T1_r, colors_T4_d):
     #  |
     #  5
     col_col = combine_colors(colors_T1_r, colors_T4_d)
-    ul = BlockMatrixU1.from_dense(ul, colors_a_ul, col_col)
-    ul = a_block @ ul
+    print("add_a_block", checkU1(ul, (colors_a_ul, -col_col)))
+    ul1 = BlockMatrixU1.from_dense(ul, colors_a_ul, col_col)
+    ul2 = a_block @ ul1
+    print(
+        "add_a_block",
+        ((ul2.toarray() - a_block.toarray() @ ul) ** 2).sum() ** 0.5 / ul2.norm(),
+    )
     #  C1-T1-4
     #  |  ||
     #  T4=AA*=0,1
@@ -408,4 +521,4 @@ def add_a_blockU1(T1, C1T4, a_block, colors_a_ul, colors_T1_r, colors_T4_d):
     #  5  23
     # cannot reshape (neither transpose) here since left and down dimensions are unknown
     # let contract_corner_U1 and renormalize_T_U1 decide what to do next
-    return ul
+    return ul2

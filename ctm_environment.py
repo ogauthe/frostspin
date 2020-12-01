@@ -50,13 +50,13 @@ def _block_AAconj(A, col_A):
     col_d = combine_colors(col_A[4], -col_A[4])
     col_l = combine_colors(col_A[5], -col_A[5])
     c_ul = combine_colors(col_u, col_l)
-    c_ur = combine_colors(col_u, col_r)
+    c_ur = combine_colors(col_r, col_u)  # swap u and r to use ul function
     c_rd = combine_colors(col_r, col_d)
     c_dl = combine_colors(col_d, col_l)
     # a_ul used to contract corner_ul: u and l legs are *last* for a_ul @ TT
     a_ul = a.transpose(1, 5, 2, 6, 0, 4, 3, 7).reshape(c_rd.size, c_ul.size)
     a_ul = BlockMatrixU1.from_dense(a_ul, -c_rd, c_ul)
-    a_ur = a.transpose(2, 6, 3, 7, 0, 4, 1, 5).reshape(c_dl.size, c_ur.size)
+    a_ur = a.transpose(2, 6, 3, 7, 1, 5, 0, 4).reshape(c_dl.size, c_ur.size)
     a_ur = BlockMatrixU1.from_dense(a_ur, -c_dl, c_ur)
     return a_ul, a_ur, c_ul, c_ur, c_rd, c_dl
 

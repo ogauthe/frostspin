@@ -2,7 +2,10 @@ import rdm
 import observables
 from ctm_environment import CTM_Environment
 from ctm_contract import (
-    contract_corner_U1,
+    contract_ul_corner_U1,
+    contract_ur_corner_U1,
+    contract_dl_corner_U1,
+    contract_dr_corner_U1,
     contract_ur_corner,
     contract_dl_corner,
     contract_dr_corner,
@@ -815,6 +818,21 @@ class CTMRG_U1(CTMRG):
             .reshape(colors_d.size, colors_r.size)
         )
         dr = BlockMatrixU1.from_dense(dr, colors_d, colors_r)
+
+        col_Adr = self._env.get_colors_A(x + 2, y + 2)
+        a_dr, _, col_col_rd = self._env.get_a_col_rd(x + 2, y + 2)
+        dr2 = contract_dr_corner_U1(
+            a_dr,
+            self._env.get_T2(x + 3, y + 2),
+            self._env.get_T3(x + 2, y + 3),
+            self._env.get_C3(x + 3, y + 3),
+            col_col_rd,
+            combine_colors(col_Adr[2], -col_Adr[2]),
+            combine_colors(col_Adr[5], -col_Adr[5]),
+            self._env.get_color_T2_u(x + 3, y + 2),
+            self._env.get_color_T3_l(x + 2, y + 3),
+        )
+        print(f"dr {((dr2.toarray() - dr.toarray())**2).sum() ** 0.5 / dr2.norm():.0e}")
         self._env.set_corner_dr(x, y, dr)
         return dr
 
@@ -843,6 +861,21 @@ class CTMRG_U1(CTMRG):
             self._env.get_T3(x + 1, y + 3),
         ).reshape(colors_l.size, colors_d.size)
         dl = BlockMatrixU1.from_dense(dl, colors_l, colors_d)
+
+        col_Adl = self._env.get_colors_A(x + 1, y + 2)
+        a_dl, _, col_col_dl = self._env.get_a_col_dl(x + 1, y + 2)
+        dl2 = contract_dl_corner_U1(
+            self._env.get_T4(x, y + 2),
+            a_dl,
+            self._env.get_C4(x, y + 3),
+            self._env.get_T3(x + 1, y + 3),
+            self._env.get_color_T4_u(x, y + 2),
+            col_col_dl,
+            combine_colors(col_Adl[2], -col_Adl[2]),
+            combine_colors(col_Adl[3], -col_Adl[3]),
+            self._env.get_color_T3_r(x + 1, y + 3),
+        )
+        print("dl", ((dl2.toarray() - dl.toarray()) ** 2).sum() ** 0.5 / dl.norm())
         self._env.set_corner_dl(x, y, dl)
         return dl
 
@@ -857,7 +890,7 @@ class CTMRG_U1(CTMRG):
             return ul
         col_Aul = self._env.get_colors_A(x + 1, y + 1)
         a_ul, _, col_col_ul = self._env.get_a_col_ul(x + 1, y + 1)
-        ul = contract_corner_U1(
+        ul = contract_ul_corner_U1(
             self._env.get_C1(x, y),
             self._env.get_T1(x + 1, y),
             self._env.get_T4(x, y + 1),
@@ -895,6 +928,21 @@ class CTMRG_U1(CTMRG):
             self._env.get_T2(x + 3, y + 1),
         ).reshape(colors_r.size, colors_u.size)
         ur = BlockMatrixU1.from_dense(ur, colors_r, colors_u)
+
+        col_Aur = self._env.get_colors_A(x + 2, y + 1)
+        a_ur, _, col_col_ur = self._env.get_a_col_ur(x + 2, y + 1)
+        ur2 = contract_ur_corner_U1(
+            self._env.get_T2(x + 3, y + 1),
+            self._env.get_C2(x + 3, y),
+            a_ur,
+            self._env.get_T1(x + 2, y),
+            self._env.get_color_T2_d(x + 3, y + 1),
+            col_col_ur,
+            combine_colors(col_Aur[4], -col_Aur[4]),
+            combine_colors(col_Aur[5], -col_Aur[5]),
+            self._env.get_color_T1_l(x + 2, y),
+        )
+        print("ur", ((ur2.toarray() - ur.toarray()) ** 2).sum() ** 0.5 / ur.norm())
         self._env.set_corner_ur(x, y, ur)
         return ur
 
