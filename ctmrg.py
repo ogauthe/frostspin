@@ -157,6 +157,15 @@ class CTMRG(object):
     def cell_number_neq_sites(self):
         return self._env.Nneq
 
+    def restart_environment(self):
+        """
+        Restart environment tensors from elementary ones. ERASE current environment,
+        use with caution.
+        """
+        if self.verbosity > 0:
+            print("Restart brand new environment from elementary tensors.")
+        self._env.restart()
+
     def set_tensors(self, tensors, keep_env=True):
         if keep_env:
             if self.verbosity > 0:

@@ -215,6 +215,43 @@ class CTM_Environment(object):
             self._colors_C4_u = [default_color] * self._Nneq
             self._colors_C4_r = [default_color] * self._Nneq
 
+    def restart(self):
+        """
+        Erase current environment tensors C and T and restart them from elementary
+        tensors.
+        """
+        for i, A in enumerate(self._neq_As):
+            C1, T1, C2, T4, T2, C4, T3, C3 = _initialize_env(A)
+            self._neq_C1s[i] = C1
+            self._neq_T1s[i] = T1
+            self._neq_C2s[i] = C2
+            self._neq_T2s[i] = T2
+            self._neq_C3s[i] = C3
+            self._neq_T3s[i] = T3
+            self._neq_C4s[i] = C4
+            self._neq_T4s[i] = T4
+
+        if self._colors_A[0][0].size:
+            for i, colA in enumerate(self._colors_A):
+                c2 = combine_colors(colA[2], -colA[2])
+                c3 = combine_colors(colA[3], -colA[3])
+                c4 = combine_colors(colA[4], -colA[4])
+                c5 = combine_colors(colA[5], -colA[5])
+                self._colors_C1_r[i] = c3
+                self._colors_C1_d[i] = c4
+                self._colors_C2_d[i] = c4
+                self._colors_C2_l[i] = c5
+                self._colors_C3_u[i] = c2
+                self._colors_C3_l[i] = c5
+                self._colors_C4_u[i] = c2
+                self._colors_C4_r[i] = c3
+
+        self._corners_ul = [None] * self._Nneq
+        self._corners_ur = [None] * self._Nneq
+        self._corners_dl = [None] * self._Nneq
+        self._corners_dr = [None] * self._Nneq
+        self._reset_temp_lists()
+
     @classmethod
     def from_elementary_tensors(cls, tensors, tiling, colors=None):
         """
