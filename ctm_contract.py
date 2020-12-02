@@ -469,52 +469,68 @@ def contract_dl_corner_U1(
     return dl.T
 
 
-def add_a_blockU1(T1, C1T4, a_block, colors_a_ul, colors_T1_r, colors_T4_d):
+def add_a_blockU1(up, left, a_block, col_col_a, colors_up_r, colors_left_d):
     """
+    Contract up and left then add blockwise a = AA* using U(1) symmetry.
     Use this function in both contract_corner_U1 and renormalize_T_U1.
-    """
-    ul = T1.transpose(1, 2, 0, 3).reshape(T1.shape[1] ** 2 * T1.shape[0], T1.shape[3])
 
-    #  -----T1-2
-    #  |    ||
-    #  3    01
+    Parameters
+    ----------
+    up: (d1, d2, d2, d3) ndarray
+      Tensor on the upper side of AA*.
+    left: (d3, d4, d4, d5) ndarray
+      Tensor on the right side of AA*.
+    a_block: (d2**2 * d4**2, d6 * d7) BlockMatrixU1
+      Contracted A-A* as a BlockMatrixU1, with right and down merged as rows up and
+      left merged as columns.
+    col_col_a: (d6 * d7,) integer ndarray
+      a_block column colors.
+    colors_up_r: (d1,) integer ndarray
+      up tensor right colors.
+    colors_left_d: (d5,) integer ndarray
+      left tensor down colors.
+    """
+    ul = up.transpose(1, 2, 0, 3).reshape(up.shape[1] ** 2 * up.shape[0], up.shape[3])
+    #  --------up-2
+    #  |       ||
+    #  3       01
     #  0
     #  |
-    #  T4=1,2 -> 3,4
+    #  left=1,2 -> 3,4
     #  |
     #  3 -> 5
-    ul = (ul @ C1T4.reshape(C1T4.shape[0], C1T4.shape[1] ** 2 * C1T4.shape[3])).reshape(
-        T1.shape[1],
-        T1.shape[2],
-        T1.shape[0],
-        C1T4.shape[1],
-        C1T4.shape[2],
-        C1T4.shape[3],
+    ul = (ul @ left.reshape(left.shape[0], left.shape[1] ** 2 * left.shape[3])).reshape(
+        up.shape[1],
+        up.shape[2],
+        up.shape[0],
+        left.shape[1],
+        left.shape[2],
+        left.shape[3],
     )
     ul = (
         ul.transpose(0, 1, 3, 4, 2, 5)
         .copy()
-        .reshape(T1.shape[1] ** 2 * C1T4.shape[1] ** 2, T1.shape[0] * C1T4.shape[3])
+        .reshape(up.shape[1] ** 2 * left.shape[1] ** 2, up.shape[0] * left.shape[3])
     )
-    #  -----T1-4
-    #  |    01
-    #  |
-    #  T4=2,3
+    #  --------up-4
+    #  |       ||
+    #  |       01
+    #  left=2,3
     #  |
     #  5
-    col_col = combine_colors(colors_T1_r, colors_T4_d)
-    print("add_a_block", checkU1(ul, (colors_a_ul, -col_col)))
-    ul1 = BlockMatrixU1.from_dense(ul, colors_a_ul, col_col)
+    col_col = combine_colors(colors_up_r, colors_left_d)
+    print("add_a_block", checkU1(ul, (col_col_a, -col_col)))
+    ul1 = BlockMatrixU1.from_dense(ul, col_col_a, col_col)
     ul2 = a_block @ ul1
     print(
         "add_a_block",
         ((ul2.toarray() - a_block.toarray() @ ul) ** 2).sum() ** 0.5 / ul2.norm(),
     )
-    #  C1-T1-4
-    #  |  ||
-    #  T4=AA*=0,1
-    #  |  ||
-    #  5  23
+    #  -----up-4
+    #  |    ||
+    #  left=AA*=0,1
+    #  |    ||
+    #  5    23
     # cannot reshape (neither transpose) here since left and down dimensions are unknown
     # let contract_corner_U1 and renormalize_T_U1 decide what to do next
     return ul2
