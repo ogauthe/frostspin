@@ -16,6 +16,7 @@ from ctm_renormalize import (
     construct_projectors_U1,
     renormalize_C1_up,
     renormalize_T1,
+    renormalize_T1_U1,
     renormalize_C2_up,
     renormalize_C2_right,
     renormalize_T2,
@@ -928,8 +929,18 @@ class CTMRG_U1(CTMRG):
                 self._env.get_C1(x, y), self._env.get_T4(x, y + 1), P
             )
 
-            nT1 = renormalize_T1(
-                Pt, self._env.get_T1(x, y), self._env.get_A(x, y + 1), P
+            col_Aul = self._env.get_colors_A(x, y + 1)
+            a_ul, _, col_a_ul = self._env.get_a_col_ul(x, y + 1)
+            nT1 = renormalize_T1_U1(
+                Pt,
+                self._env.get_T1(x, y),
+                a_ul,
+                P,
+                self._env.get_color_T1_r(x, y),
+                color_Pt,
+                col_a_ul,
+                combine_colors(col_Aul[3], -col_Aul[3]),
+                combine_colors(col_Aul[4], -col_Aul[4]),
             )
 
             nC2 = renormalize_C2_up(

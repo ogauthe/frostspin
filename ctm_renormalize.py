@@ -2,6 +2,7 @@ import numpy as np
 import scipy.linalg as lg
 
 from svd_tools import svd_truncate, sparse_svd
+from ctm_contract import add_a_blockU1
 
 
 def construct_projectors(R, Rt, chi):
@@ -254,3 +255,27 @@ def renormalize_C1_left(C1, T1, Pt):
     CPU: 2*chi**3*D**2
     """
     return renormalize_corner_Pt(C1, T1, Pt)
+
+
+###############################################################################
+# U(1) symmetric renormalize_T
+###############################################################################
+
+
+def renormalize_T1_U1(Pt, T1, a_ul, P, col_T1_r, col_Pt, col_a_ul, col_a_r, col_a_d):
+    """
+    Renormalize edge T1 using projectors P and Pt with U(1) symmetry
+    CPU: highly depends on symmetry, worst case chi**2*D**8
+    """
+    Pt_T = Pt.reshape(-1, T1.shape[3], Pt.shape[1]).swapaxes(0, 1).copy()
+    T1_T = T1.transpose(1, 2, 0, 3).reshape(T1.shape[1] ** 2, T1.shape[0], T1.shape[3])
+    nT1 = add_a_blockU1(T1_T, Pt_T, a_ul, col_T1_r, col_Pt, col_a_ul, col_a_r, col_a_d)
+    #             -T1-0'
+    #            / ||
+    #       1'-Pt==AA=0
+    #            \ ||
+    #               1'
+    nT1 = P.T @ nT1
+    dim_d = round(float(np.sqrt(nT1.shape[1] // Pt.shape[1])))
+    nT1 = nT1.reshape(P.shape[1], dim_d, dim_d, Pt.shape[1]) / nT1.max()
+    return nT1
