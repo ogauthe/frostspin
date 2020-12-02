@@ -347,8 +347,14 @@ def contract_ul_corner_U1(
     Contract upper left corner using U(1) symmetry.
     """
     ul = C1 @ T4.reshape(T4.shape[0], T4.shape[1] ** 2 * T4.shape[3])
-    ul = ul.reshape(C1.shape[0], T4.shape[1], T4.shape[2], T4.shape[3])
-    ul = add_a_blockU1(T1, ul, a_ul, colors_a_ul, colors_T1_r, colors_T4_d)
+    ul = add_a_blockU1(
+        T1.transpose(1, 2, 0, 3).reshape(T1.shape[1] ** 2, T1.shape[0], T1.shape[3]),
+        ul.reshape(C1.shape[0], T4.shape[1] ** 2, T4.shape[3]),
+        a_ul,
+        colors_a_ul,
+        colors_T1_r,
+        colors_T4_d,
+    )
 
     # reshape through dense casting. This is inefficient.
     ul = ul.toarray().reshape(col_a_r.size, col_a_d.size, T1.shape[0], T4.shape[3])
@@ -373,13 +379,18 @@ def contract_ur_corner_U1(
     Contract upper right corner using U(1) symmetry.
     """
     ur = C2 @ T1.reshape(T1.shape[0], T1.shape[1] ** 2 * T1.shape[3])
-    ur = ur.reshape(C2.shape[0], T1.shape[1], T1.shape[2], T1.shape[3])
     # a_ur has swapped up and right legs:
     #  3
     # 1 2
     #  0
+    # + need to swap T2 legs according to add_a_blockU1 conventions
     ur = add_a_blockU1(
-        T2.transpose(1, 2, 3, 0), ur, a_ur, colors_a_ur, colors_T2_d, colors_T1_l
+        T2.transpose(2, 3, 1, 0).reshape(T2.shape[2] ** 2, T2.shape[1], T2.shape[0]),
+        ur.reshape(C2.shape[0], T1.shape[1] ** 2, T1.shape[3]),
+        a_ur,
+        colors_a_ur,
+        colors_T2_d,
+        colors_T1_l,
     )
 
     # reshape through dense casting. This is inefficient.
@@ -404,11 +415,14 @@ def contract_dr_corner_U1(
     """
     Contract down right corner using U(1) symmetry.
     """
-    dr = C3.T @ T2.swapaxes(0, 1).reshape(T2.shape[1], -1)
-    dr = dr.reshape(C3.shape[1], T2.shape[0], T2.shape[2], T2.shape[3])
+    # a_dr is actually a_ul.T
+    # to get a corner with convient leg ordering, a swap is made between T2 and T3, ie
+    # add_a_blockU1 is used from the other side of the mirror (instead of a simple
+    # rotation from dr to ul). T2 becomes up and T3 becomes left.
+    dr = C3 @ T3.transpose(2, 0, 1, 3).reshape(C3.shape[1], -1)
     dr = add_a_blockU1(
-        dr.transpose(1, 2, 3, 0),  # MIRROR
-        T3.transpose(2, 0, 1, 3),
+        T2.transpose(2, 3, 0, 1).reshape(T2.shape[2] ** 2, T2.shape[0], T2.shape[1]),
+        dr.reshape(C3.shape[0], T3.shape[0] ** 2, T3.shape[3]),
         a_dr,
         colors_a_rd,
         colors_T2_u,
@@ -437,16 +451,17 @@ def contract_dl_corner_U1(
     """
     Contract down left corner using U(1) symmetry.
     """
-    dl = T4.reshape(-1, T4.shape[3]) @ C4
-    dl = dl.reshape(T4.shape[0], T4.shape[1], T4.shape[2], C4.shape[1])
-    # a_dl has swapped up and right legs:
+    dl = T3.reshape(-1, C4.shape[1]) @ C4.T
+    # a_dl = a_ur.T has swapped up and right legs:
     #  1
     # 3 0
     #  2
-    # MIRROR in add_a_block
+    # to get a corner with convient leg ordering, a swap is made between T3 and T4, ie
+    # add_a_blockU1 is used from the other side of the mirror (instead of a simple
+    # rotation from dl to ul). T4 stays left and T3 becomes up.
     dl = add_a_blockU1(
-        T3.transpose(2, 0, 1, 3),
-        dl.transpose(3, 1, 2, 0),
+        dl.reshape(T3.shape[0] ** 2, T3.shape[2], C4.shape[0]),
+        T4.swapaxes(0, 3).reshape(T4.shape[3], T4.shape[1] ** 2, T4.shape[0]),
         a_dl,
         colors_a_dl,
         colors_T3_r,
@@ -476,48 +491,62 @@ def add_a_blockU1(up, left, a_block, col_col_a, colors_up_r, colors_left_d):
 
     Parameters
     ----------
-    up: (d1, d2, d2, d3) ndarray
-      Tensor on the upper side of AA*.
-    left: (d3, d4, d4, d5) ndarray
-      Tensor on the right side of AA*.
-    a_block: (d2**2 * d4**2, d6 * d7) BlockMatrixU1
-      Contracted A-A* as a BlockMatrixU1, with right and down merged as rows up and
-      left merged as columns.
+    up: (d2, d1, d3) ndarray
+      Tensor on the upper side of AA*. Bra and ket legs are merged and leg conventions
+      differ from standard clockwise order, see notes.
+    left: (d3, d4, d5) ndarray
+      Tensor on the right side of AA*. Common leg ordering, merged bra and ket legs.
+    a_block: (d2 * d4, d6 * d7) BlockMatrixU1
+      Contracted A-A* as a BlockMatrixU1, with right and down legs merged as rows and up
+      and left merged as columns.
     col_col_a: (d6 * d7,) integer ndarray
       a_block column colors.
     colors_up_r: (d1,) integer ndarray
       up tensor right colors.
     colors_left_d: (d5,) integer ndarray
       left tensor down colors.
+
+    Returns
+    -------
+    ul: BlockMatrixU1
+      Contracted network.
+
+    Notes
+    -----
+    Bra and ket legs are necesseraly merged in AA*, so for simplicity they must be
+    merged in all other input tensors. Therefore a reshape has been called before this
+    function, which may require a copy. To avoid an additional copy here, legs are
+    assumed to be in convenient order for contraction. This makes no change for left
+   tensor but requires a swap of 0 (right) and 1 (down) axes for up tensor.
+     0        2-up-1              2
+     |          ||                ||
+     left=1     0               3=AA*=0
+     |                            ||
+     2                             1
     """
-    ul = up.transpose(1, 2, 0, 3).reshape(up.shape[1] ** 2 * up.shape[0], up.shape[3])
-    #  --------up-2
+    #  --------up-1
     #  |       ||
-    #  3       01
+    #  2       0
     #  0
     #  |
-    #  left=1,2 -> 3,4
+    #  left=1 -> 2
     #  |
-    #  3 -> 5
-    ul = (ul @ left.reshape(left.shape[0], left.shape[1] ** 2 * left.shape[3])).reshape(
-        up.shape[1],
-        up.shape[2],
-        up.shape[0],
-        left.shape[1],
-        left.shape[2],
-        left.shape[3],
-    )
+    #  2 -> 3
     ul = (
-        ul.transpose(0, 1, 3, 4, 2, 5)
+        up.reshape(up.shape[0] * up.shape[1], up.shape[2])
+        @ left.reshape(left.shape[0], left.shape[1] * left.shape[2])
+    ).reshape(up.shape[0], up.shape[1], left.shape[1], left.shape[2])
+    ul = (
+        ul.swapaxes(1, 2)
         .copy()
-        .reshape(up.shape[1] ** 2 * left.shape[1] ** 2, up.shape[0] * left.shape[3])
+        .reshape(up.shape[0] * left.shape[1], up.shape[1] * left.shape[2])
     )
-    #  --------up-4
+    #  --------up-2
     #  |       ||
-    #  |       01
-    #  left=2,3
+    #  |       0
+    #  left=1
     #  |
-    #  5
+    #  3
     col_col = combine_colors(colors_up_r, colors_left_d)
     print("add_a_block", checkU1(ul, (col_col_a, -col_col)))
     ul1 = BlockMatrixU1.from_dense(ul, col_col_a, col_col)
