@@ -728,9 +728,6 @@ class CTM_Environment(object):
     def get_Pt(self, x, y):
         return self._neq_Pt[self._indices[x % self._Lx, y % self._Ly]]
 
-    def get_color_Pt(self, x, y):
-        return self._colors_Pt[self._indices[x % self._Lx, y % self._Ly]]
-
     def get_a_col_ul(self, x, y):
         return self._a_col_ul[self._indices[x % self._Lx, y % self._Ly]]
 

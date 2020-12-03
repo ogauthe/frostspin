@@ -16,15 +16,19 @@ from ctm_renormalize import (
     construct_projectors_U1,
     renormalize_C1_up,
     renormalize_T1,
+    renormalize_T1_U1,
     renormalize_C2_up,
     renormalize_C2_right,
     renormalize_T2,
+    renormalize_T2_U1,
     renormalize_C3_right,
     renormalize_C3_down,
     renormalize_T3,
+    renormalize_T3_U1,
     renormalize_C4_down,
     renormalize_C4_left,
     renormalize_T4,
+    renormalize_T4_U1,
     renormalize_C1_left,
 )
 from toolsU1 import combine_colors, checkU1
@@ -929,8 +933,18 @@ class CTMRG_U1(CTMRG):
                 self._env.get_C1(x, y), self._env.get_T4(x, y + 1), P
             )
 
-            nT1 = renormalize_T1(
-                Pt, self._env.get_T1(x, y), self._env.get_A(x, y + 1), P
+            col_Aul = self._env.get_colors_A(x, y + 1)
+            a_ul, _, col_a_ul = self._env.get_a_col_ul(x, y + 1)
+            nT1 = renormalize_T1_U1(
+                Pt,
+                self._env.get_T1(x, y),
+                a_ul,
+                P,
+                self._env.get_color_T1_r(x, y),
+                color_Pt,
+                col_a_ul,
+                combine_colors(col_Aul[3], -col_Aul[3]),
+                combine_colors(col_Aul[4], -col_Aul[4]),
             )
 
             nC2 = renormalize_C2_up(
@@ -978,8 +992,18 @@ class CTMRG_U1(CTMRG):
                 self._env.get_C2(x, y), self._env.get_T1(x - 1, y), P
             )
 
-            nT2 = renormalize_T2(
-                Pt, self._env.get_A(x - 1, y), self._env.get_T2(x, y), P
+            col_Aur = self._env.get_colors_A(x - 1, y)
+            a_ur, _, col_a_ur = self._env.get_a_col_ur(x - 1, y)
+            nT2 = renormalize_T2_U1(
+                Pt,
+                self._env.get_T2(x, y),
+                a_ur,
+                P,
+                self._env.get_color_T2_d(x, y),
+                color_Pt,
+                col_a_ur,
+                combine_colors(col_Aur[4], -col_Aur[4]),
+                combine_colors(col_Aur[5], -col_Aur[5]),
             )
 
             nC3 = renormalize_C3_right(
@@ -1025,8 +1049,18 @@ class CTMRG_U1(CTMRG):
                 self._env.get_C3(x, y), self._env.get_T2(x, y - 1), P
             )
 
-            nT3 = renormalize_T3(
-                Pt, self._env.get_T3(x, y), self._env.get_A(x, y - 1), P
+            col_Adl = self._env.get_colors_A(x, y - 1)
+            a_dl, _, col_a_dl = self._env.get_a_col_dl(x, y - 1)
+            nT3 = renormalize_T3_U1(
+                Pt,
+                self._env.get_T3(x, y),
+                a_dl,
+                P,
+                self._env.get_color_T3_r(x, y),
+                color_P,
+                col_a_dl,
+                combine_colors(col_Adl[2], -col_Adl[2]),
+                combine_colors(col_Adl[3], -col_Adl[3]),
             )
 
             nC4 = renormalize_C4_down(
@@ -1073,8 +1107,18 @@ class CTMRG_U1(CTMRG):
                 self._env.get_C4(x, y), self._env.get_T3(x + 1, y), P
             )
 
-            nT4 = renormalize_T4(
-                Pt, self._env.get_T4(x, y), self._env.get_A(x + 1, y), P
+            col_Aul = self._env.get_colors_A(x + 1, y)
+            a_ul, _, col_a_ul = self._env.get_a_col_ul(x + 1, y)
+            nT4 = renormalize_T4_U1(
+                Pt,
+                self._env.get_T4(x, y),
+                a_ul,
+                P,
+                self._env.get_color_T4_d(x, y),
+                color_P,
+                col_a_ul,
+                combine_colors(col_Aul[3], -col_Aul[3]),
+                combine_colors(col_Aul[4], -col_Aul[4]),
             )
 
             nC1 = renormalize_C1_left(
