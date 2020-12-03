@@ -4,7 +4,6 @@ Library agnostic module, only calls __matmul__, reshape and transpose methods.
 """
 
 from toolsU1 import combine_colors, BlockMatrixU1
-from toolsU1 import checkU1
 
 ###############################################################################
 #  construct 2x2 corners
@@ -520,21 +519,15 @@ def add_a_blockU1(
     #  |
     #  3
     cc = combine_colors(col_up_r, col_left_d)
-    print("add_a_block", checkU1(ul, (col_a_ul, -cc)))
-    ul1 = BlockMatrixU1.from_dense(ul, col_a_ul, cc)
-    ul2 = a_block @ ul1
-    print(
-        "add_a_block",
-        ((ul2.toarray() - a_block.toarray() @ ul) ** 2).sum() ** 0.5 / ul2.norm(),
-    )
-
+    ul = BlockMatrixU1.from_dense(ul, col_a_ul, cc)
+    ul = a_block @ ul
     # reshape through dense casting. This is inefficient.
     #  -----up-2 -> 1
     #  |    ||
     #  left=AA*=0
     #  |    ||
     #  3    1 -> 2
-    ul = ul2.toarray().reshape(col_a_r.size, col_a_d.size, up.shape[1], left.shape[2])
+    ul = ul.toarray().reshape(col_a_r.size, col_a_d.size, up.shape[1], left.shape[2])
     ul = ul.swapaxes(1, 2).reshape(
         col_a_r.size * up.shape[1], col_a_d.size * left.shape[2]
     )
