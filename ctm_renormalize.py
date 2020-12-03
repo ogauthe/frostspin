@@ -269,9 +269,9 @@ def renormalize_T1_U1(Pt, T1, a_ul, P, col_T1_r, col_Pt, col_a_ul, col_a_r, col_
     """
     # Pt -> left, need swapaxes
     # T1 -> up, transpose due to add_a_blockU1 conventions
-    Pt_T = Pt.reshape(-1, T1.shape[3], Pt.shape[1]).swapaxes(0, 1).copy()
+    left = Pt.reshape(-1, T1.shape[3], Pt.shape[1]).swapaxes(0, 1).copy()
     nT1 = T1.transpose(1, 2, 0, 3).reshape(T1.shape[1] ** 2, T1.shape[0], T1.shape[3])
-    nT1 = add_a_blockU1(nT1, Pt_T, a_ul, col_T1_r, col_Pt, col_a_ul, col_a_r, col_a_d)
+    nT1 = add_a_blockU1(nT1, left, a_ul, col_T1_r, col_Pt, col_a_ul, col_a_r, col_a_d)
     #             -T1-0'
     #            / ||
     #       1'-Pt==AA=0
@@ -282,3 +282,84 @@ def renormalize_T1_U1(Pt, T1, a_ul, P, col_T1_r, col_Pt, col_a_ul, col_a_r, col_
     dim_d = round(float(np.sqrt(nT1.shape[1] // Pt.shape[1])))
     nT1 = nT1.reshape(P.shape[1], dim_d, dim_d, Pt.shape[1])
     return nT1
+
+
+def renormalize_T2_U1(Pt, T2, a_ur, P, col_T2_d, col_Pt, col_a_ur, col_a_d, col_a_l):
+    """
+    Renormalize edge T2 using projectors P and Pt with U(1) symmetry
+    CPU: highly depends on symmetry, worst case chi**2*D**8
+    """
+    # Pt -> left, need swapaxes
+    # T2 -> up
+    left = Pt.reshape(-1, T2.shape[0], Pt.shape[1]).swapaxes(0, 1).copy()
+    nT2 = T2.transpose(2, 3, 1, 0).reshape(T2.shape[2] ** 2, T2.shape[1], T2.shape[0])
+    nT2 = add_a_blockU1(nT2, left, a_ur, col_T2_d, col_Pt, col_a_ur, col_a_d, col_a_l)
+    #                 3
+    #                 |
+    #                Pt
+    #              //  |
+    #           2==AA=T2
+    #              \\  |
+    #               0  1
+    nT2 = P.T @ nT2
+    nT2 /= nT2.max()
+    dim_d = round(float(np.sqrt(nT2.shape[1] // Pt.shape[1])))
+    nT2 = nT2.reshape(P.shape[1], dim_d, dim_d, Pt.shape[1]).transpose(3, 0, 1, 2)
+    return nT2
+
+
+def renormalize_T3_U1(Pt, T3, a_dl, P, col_T3_r, col_P, col_a_dl, col_a_u, col_a_r):
+    """
+    Renormalize edge T3 using projectors P and Pt with U(1) symmetry
+    CPU: highly depends on symmetry, worst case chi**2*D**8
+    """
+    #             1
+    #             ||
+    #         0 3-AA-0 0
+    #        /    ||   \
+    #     1-P      2   Pt-1
+    #       \     01    /
+    #        \    ||   /
+    #         0'3-T3-20'
+    # A mirror is needed to use a_dl, swap Pt and P
+    # P -> left (contract with leg 3 of a_dl)
+    # T3 -> up
+    left = P.reshape(-1, T3.shape[3], P.shape[1]).swapaxes(0, 1).copy()
+    nT3 = T3.reshape(T3.shape[0] ** 2, T3.shape[2], T3.shape[3])
+    nT3 = add_a_blockU1(nT3, left, a_dl, col_T3_r, col_P, col_a_dl, col_a_r, col_a_u)
+    #               2
+    #              ||
+    #            //AA=0
+    #         3-P  ||
+    #            \-T3-1
+    nT3 = Pt.T @ nT3
+    nT3 /= nT3.max()
+    dim_d = round(float(np.sqrt(nT3.shape[1] // P.shape[1])))
+    nT3 = nT3.reshape(Pt.shape[1], dim_d, dim_d, P.shape[1]).transpose(1, 2, 0, 3)
+    return nT3
+
+
+def renormalize_T4_U1(Pt, T4, a_ul, P, col_T4_d, col_P, col_a_ul, col_a_r, col_a_d):
+    """
+    Renormalize edge T4 using projectors P and Pt with U(1) symmetry
+    CPU: highly depends on symmetry, worst case chi**2*D**8
+    """
+    # we can use either a_ul or a_dl. In both cases, the second projector must be added
+    # with nT4 = nT4 @ P / Pt due to a leg ordering. Use a_ul to have down leg in 3.
+    # P -> up
+    # T4 -> left
+    nT4 = P.reshape(-1, T4.shape[0], P.shape[1]).swapaxes(1, 2).copy()
+    left = T4.reshape(T4.shape[0], T4.shape[1] ** 2, T4.shape[3])
+    nT4 = add_a_blockU1(nT4, left, a_ul, col_P, col_T4_d, col_a_ul, col_a_r, col_a_d)
+    #              1
+    #              |
+    #              P
+    #            / ||
+    #          T4==AA=0
+    #            \ ||
+    #            3  2
+    nT4 = nT4 @ Pt
+    nT4 /= nT4.max()
+    dim_d = round(float(np.sqrt(nT4.shape[0] // P.shape[1])))
+    nT4 = nT4.reshape(dim_d, dim_d, P.shape[1], Pt.shape[1]).transpose(2, 0, 1, 3)
+    return nT4
