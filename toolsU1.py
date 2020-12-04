@@ -34,6 +34,30 @@ def random_U1_tensor(*colors, rng=None):
 
 @jit(nopython=True)
 def reduce_matrix_to_blocks(M, row_colors, col_colors):
+    """
+    Reduce a dense U(1) symmetric matrix into U(1) blocks.
+
+    Parameters
+    ----------
+    M : (m, n) ndarray
+        Matrix to decompose.
+    row_colors : (m,) integer ndarray
+        U(1) quantum numbers of the rows.
+    col_colors : (n,) integer ndarray
+        U(1) quantum numbers of the columns.
+
+    Returns
+    -------
+    block_colors : (k,) list of int
+        List of U(1) quantum numbers for every blocks.
+    blocks : (k,) list of ndarray
+        List of dense blocks with fixed quantum number.
+    row_indices : (k,) list of interger 1D arrays
+        List of row indices for every blocks.
+    col_indices : (k,) list of interger 1D arrays
+        List of column indices for every blocks.
+    -------
+    """
     # quicksort implementation may not be deterministic if a random pivot is used. This
     # is a problem since two matrices with compatible columns and rows may end being
     # incompatible due to different axes permutations in two different calls. A stable
@@ -78,8 +102,7 @@ def reduce_matrix_to_blocks(M, row_colors, col_colors):
             rbi += 1
         else:
             cbi += 1
-
-    return blocks, block_colors, row_indices, col_indices
+    return block_colors, blocks, row_indices, col_indices
 
 
 class BlockMatrixU1(object):
@@ -87,30 +110,66 @@ class BlockMatrixU1(object):
     Efficient storage for U(1) symmetric matrices.
     """
 
-    def __init__(self, shape, dtype, blocks, block_colors, row_indices, col_indices):
+    def __init__(self, shape, block_colors, blocks, row_indices, col_indices):
+        """
+        Initialize block matrix. Empty matrices are not allowed.
+
+        Parameters
+        ----------
+        shape : tuple of two int
+            Dense matrix shape.
+        block_colors : (k,) list of int
+            List of U(1) quantum numbers for every blocks.
+        blocks : (k,) list of ndarray
+            List of dense blocks with fixed quantum number.
+        row_indices : (k,) list of interger 1D arrays
+            List of row indices for every blocks.
+        col_indices : (k,) list of interger 1D arrays
+            List of column indices for every blocks.
+        """
+        # cast lists to tuple to use them as arguments for numba.
+        # do it here to ensure tuple everywhere + numba cannot create tuples.
         assert len(blocks) == len(block_colors) == len(row_indices) == len(col_indices)
-        self._shape = shape
-        self._dtype = dtype
-        self._blocks = blocks
-        self._block_colors = block_colors
-        self._row_indices = row_indices
-        self._col_indices = col_indices
         self._nblocks = len(blocks)
+        if self._nblocks == 0:
+            raise ValueError("At least one nonzero block is required.")
+        self._dtype = blocks[0].dtype
+        self._shape = shape
+        self._block_colors = tuple(block_colors)
+        self._blocks = tuple(blocks)
+        self._row_indices = tuple(row_indices)
+        self._col_indices = tuple(col_indices)
 
     @classmethod
     def from_dense(cls, M, row_colors, col_colors):
         """
-        Constructor from dense matrix M and U(1) quantum numbers for rows and columns.
+        Create a block matrix from dense matrix M and U(1) quantum numbers for rows
+        and columns. row_colors and col_colors have matrix convention, a coefficient at
+        position (i, j) is nonzero only if row_colors[i] == col_colors[j], with same
+        sign.
+
+        Parameters
+        ----------
+        M : (m, n) ndarray
+            Matrix to decompose.
+        row_colors : (m,) integer ndarray
+            U(1) quantum numbers of the rows.
+        col_colors : (n,) integer ndarray
+            U(1) quantum numbers of the columns.
+
+        Returns
+        -------
+        out : BlockMatrixU1
         """
         assert M.shape == (
             row_colors.size,
             col_colors.size,
         ), "Colors do not match array"
         # put everything inside jitted reduce_matrix_to_blocks function
-        (blocks, block_colors, row_indices, col_indices) = reduce_matrix_to_blocks(
+        (block_colors, blocks, row_indices, col_indices) = reduce_matrix_to_blocks(
             M, row_colors, col_colors
         )
-        return cls(M.shape, M.dtype, blocks, block_colors, row_indices, col_indices)
+        return cls(M.shape, block_colors, blocks, row_indices, col_indices)
 
     @property
     def shape(self):
@@ -146,25 +205,21 @@ class BlockMatrixU1(object):
         # c_row[i] - c_col[j] = 0 (while sum(col[axis][coeff]) = 0 for tensors)
         # so need to take opposite of colors.
         # Colors need to stay sorted for __matmul__, so reverse all block-related lists.
-        sh = (self._shape[1], self._shape[0])
-        block_colors = [-c for c in reversed(self._block_colors)]  # keep sorted colors
-        blocks = [b.T for b in reversed(self._blocks)]
         return BlockMatrixU1(
-            sh,
-            self._dtype,
-            blocks,
-            block_colors,
+            (self._shape[1], self._shape[0]),
+            tuple(-c for c in reversed(self._block_colors)),  # keep sorted colors
+            tuple(b.T for b in reversed(self._blocks)),
             self._col_indices[::-1],
             self._row_indices[::-1],
         )
 
     def copy(self):
-        blocks = [b.copy() for b in self._blocks]
-        block_colors = self._block_colors.copy()
-        row_indices = [ri.copy() for ri in self._row_indices]
-        col_indices = [ci.copy() for ci in self._col_indices]
         return BlockMatrixU1(
-            self._shape, self._dtype, blocks, block_colors, row_indices, col_indices
+            self._shape,  # tuple of int, no deepcopy needed
+            self._block_colors,  # tuple of int
+            tuple(b.copy() for b in self._blocks),  # faster than deepcopy
+            tuple(ri.copy() for ri in self._row_indices),
+            tuple(ci.copy() for ci in self._col_indices),
         )
 
     def toarray(self):
@@ -208,8 +263,7 @@ class BlockMatrixU1(object):
             else:
                 i2 += 1
         sh = (self._shape[0], other._shape[1])
-        dtype = max(self._dtype, other._dtype)
-        return BlockMatrixU1(sh, dtype, blocks, block_colors, row_indices, col_indices)
+        return BlockMatrixU1(sh, block_colors, blocks, row_indices, col_indices)
 
 
 def checkU1(T, colorsT, tol=1e-14):
