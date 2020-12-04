@@ -53,8 +53,12 @@ print(f"Physical model: d = {d}, a = {a}, J1 = 1, J2 = {J2}")
 # simple update parameters
 Dmax = int(config["Dmax"])
 tau = float(config["tau"])
-beta_list = np.array(config["beta_list"], dtype=float)
+beta_setpoint = np.array(config["beta_list"], dtype=float)
+dbeta = 4 * tau  # one SU iteration
+beta_list = np.round(beta_setpoint / dbeta) * dbeta
 print(f"\nSimple update parameters: tau = {tau}, Dmax = {Dmax}")
+print("Beta is set to reach", list(beta_setpoint))
+print("With given tau, reached beta will be:", beta_list)
 print(
     "Evolve in imaginary time and save simple update tensors for beta in",
     list(beta_list),
@@ -62,10 +66,9 @@ print(
 
 chi_list = np.array(config["chi_list"], dtype=int)
 run_CTMRG = chi_list.size != 0
-dbeta = 4 * tau  # one SU iteration
 measure_capacity = bool(config["measure_capacity"])
 if run_CTMRG and measure_capacity:
-    print("Compute thermal capacity: for each beta, add beta + dbeta to beta_list,")
+    print("Compute thermal capacity: for each beta, add beta + dbeta to beta list,")
     print(f"with dbeta = {dbeta}")
     beta_list = np.round(np.sort(list(beta_list + dbeta) + list(beta_list)), 10)
     print("Actual beta list is now", list(beta_list))
