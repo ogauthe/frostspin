@@ -1,5 +1,5 @@
 import numpy as np
-from numba import jit
+from numba import jit, literal_unroll
 
 # cannot use None as default color since -default_color or default_color[:l]
 # need not to crash.
@@ -103,6 +103,23 @@ def reduce_matrix_to_blocks(M, row_colors, col_colors):
         else:
             cbi += 1
     return block_colors, blocks, row_indices, col_indices
+
+
+@jit(nopython=True)
+def blocks_to_array(shape, blocks, row_indices, col_indices):
+    ar = np.zeros(shape)
+    # blocks may be a numba heterogeneous tuple because a size 1 matrix stays
+    # C-contiguous after tranpose and will be cast to numba array(float64, 2d, C), while
+    # any larger matrix will be cast to array(float64, 2d, F).
+    # cannot enumerate on literal_unroll
+    # cannot getitem or zip heterogeneous tuple
+    k = 0
+    for b in literal_unroll(blocks):
+        for i, ri in enumerate(row_indices[k]):
+            for j, cj in enumerate(col_indices[k]):
+                ar[ri, cj] = b[i, j]
+        k += 1
+    return ar
 
 
 class BlockMatrixU1(object):
@@ -222,11 +239,10 @@ class BlockMatrixU1(object):
             tuple(ci.copy() for ci in self._col_indices),
         )
 
-    def toarray(self):
-        ar = np.zeros(self._shape)
-        for b, ri, ci in zip(self._blocks, self._row_indices, self._col_indices):
-            ar[ri[:, None], ci] = b
-        return ar
+    def toarray(self):  # numba wrapper
+        return blocks_to_array(
+            self._shape, self._blocks, self._row_indices, self._col_indices
+        )
 
     def get_block_row_col_with_color(self, color):
         i = self._block_colors.index(color)
@@ -244,6 +260,7 @@ class BlockMatrixU1(object):
         may exist in one matrix and not in the other, but if both blocks exist they have
         to match.
         """
+        # cannot use numba since block may be heterogeneous tuple witout getitem
         i1 = 0
         i2 = 0
         blocks = []
