@@ -181,7 +181,7 @@ for beta in beta_list:
     print(f"done with imaginary time evolution, t = {time.time()-t:.0f}")
     print("lambdas =", *su.lambdas[1:], sep="\n")
     print("colors =", *su.colors[1:], sep="\n")
-    save_su = save_su_root + f"{su.beta}.npz"  # beta != su.beta due to finite tau
+    save_su = save_su_root + f"{su.beta:.4f}.npz"  # beta != su.beta due to finite tau
     data_su = su.save_to_file()
     np.savez_compressed(save_su, beta=su.beta, **su_params, **data_su)
     su_files.append(save_su)
@@ -210,7 +210,7 @@ for suf in reversed(su_files):
     su = su = SimpleUpdate2x2(d, a, file=suf)
     ctm.set_tensors(su.get_ABCD(), su.get_colors_ABCD())
     ctm_params["beta"] = su.beta
-    ctm_restart = save_ctm_root + f"{su.beta}_chi{chi_list[0]}.npz"  # for next beta
+    ctm_restart = save_ctm_root + f"{su.beta:.4f}_chi{chi_list[0]}.npz"  # for next beta
 
     # prepare observable for several chis
     energy_chi, ising_chi, xi_h_chi, xi_v_chi, capacity_chi = [], [], [], [], []
@@ -236,7 +236,7 @@ for suf in reversed(su_files):
                 f"\n*** RuntimeError after {j} iterations, t = {time.time()-t:.0f} ***"
             )
             print(f"Error: '{msg}'. Save CTM and move on.\n")
-        save_ctm = save_ctm_root + f"{su.beta}_chi{ctm.chi}.npz"
+        save_ctm = save_ctm_root + f"{su.beta:.4f}_chi{ctm.chi}.npz"
         ctm_params["chi"] = ctm.chi
         ctm.save_to_file(save_ctm, ctm_params)
 
@@ -268,7 +268,7 @@ for suf in reversed(su_files):
 
         if compute_rdm_2nd_nei:
             print("Compute reduced density matrix for all second neighbor bonds...")
-            save_rdm = save_rdm_root + f"{su.beta}_chi{ctm.chi}.npz"
+            save_rdm = save_rdm_root + f"{su.beta:.4f}_chi{ctm.chi}.npz"
             t = time.time()
             rdm_dr_cell, rdm_ur_cell = ctm.compute_rdm_2nd_neighbor_cell()
             rdm_dr_cell = np.array(rdm_dr_cell)
@@ -311,7 +311,7 @@ for suf in reversed(su_files):
         obs_dic["capacity"] = np.array(capacity_chi)
         last_energy = energy_chi
     print("", "#" * 75, sep="\n")
-    save_obs = save_obs_root + f"{su.beta}.npz"
+    save_obs = save_obs_root + f"{su.beta:.4f}.npz"
     del ctm_params["chi"]
     np.savez_compressed(save_obs, **obs_dic, **ctm_params)
     print("observables saved in file", save_obs)
