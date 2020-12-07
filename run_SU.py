@@ -196,7 +196,7 @@ for beta in beta_list:
             ctm = CTMRG_U1.from_file(ctm_restart, verbosity=1)
             ctm.set_tensors(su.get_ABCD(), su.get_colors_ABCD())
         ctm_params["beta"] = su.beta
-        ctm_restart = save_ctm_root + f"{su.beta}_chi{chi_list[0]}.npz"  # for next beta
+        ctm_restart = save_ctm_root + f"{su.beta:.4f}_chi{chi_list[0]}.npz"  # next iter
 
         # prepare observable for several chis
         energy_chi, ising_chi, xi_h_chi, xi_v_chi, capacity_chi = [], [], [], [], []
