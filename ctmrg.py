@@ -806,6 +806,15 @@ class CTMRG_U1(CTMRG):
         Return down right corner reduced to U(1) blocks as a BlockMatrixU1. Check _env
         to find an already computed corner, if it does not exist construct it and store
         it in _env.
+
+        Unusual leg ordering: reduced corners are constructed to be contracted as
+        ul-01-ur
+        |      |
+        1      0
+        0      1
+        |      |
+        dl-10-dr
+        meaning reduced_dr is transposed when compared to standard clockwise order.
         """
         dr = self._env.get_corner_dr(x, y)
         if dr is not None:
@@ -1184,5 +1193,5 @@ class CTMRG_U1(CTMRG):
             self._env.get_T3(x + 2, y + 3),
             self._env.get_C3(x + 3, y + 3),
             ul=self.construct_reduced_ul(x, y),
-            dr=self.construct_reduced_dr(x, y).T,
+            dr_T=self.construct_reduced_dr(x, y),
         )

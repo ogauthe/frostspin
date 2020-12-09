@@ -209,7 +209,7 @@ def rdm_diag_ur(
     T3r,
     C3,
     ul=None,
-    dr=None,
+    dr_T=None,
 ):
     """
     -------
@@ -218,6 +218,8 @@ def rdm_diag_ur(
     |13|  |
     -------
     memory: 3*d**2*chi**2*D**4
+
+    Note that optional argument dr is transposed compared to standard clockwise order.
     """
     rdm = rdm_diag_dr(
         C4,
@@ -237,7 +239,7 @@ def rdm_diag_ur(
         T2u.transpose(2, 3, 0, 1),
         C2.T,
         ur=ul,
-        dl=dr.T,
+        dl=dr_T,  # transposed dr in input avoids to transpose it here
     )
     rdm = (
         rdm.reshape(Adl.shape[0], Aur.shape[0], Adl.shape[0], Aur.shape[0])
