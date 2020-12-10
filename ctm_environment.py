@@ -44,6 +44,27 @@ def _initialize_env(A):
 
 
 def _block_AAconj(A, col_A):
+    """
+    Construct BlockMatrixU1 versions of double layer tensor a = A-A* that can be used in
+    add_a_blockU1. a is a matrix with merged bra and ket legs *and* legs merged in two
+    directions as rows and as columns. One version for each corner is needed, so we have
+    a_ul, a_ur, a_dl and a_dr. However to save memory, a_dl and a_dr can be defined as
+    a_ur.T and a_dl. and use same memory storage.
+    To be able to use a_ur and a_ul in the same function, unconventional leg order is
+    required in a_ur. Here, we use 4-legs tensor to specify leg ordering, but as
+    BlockMatrixU1 matrices legs 0 and 1 are merged, so are legs 2 and 3.
+       2                       3
+       ||                      ||
+    3=a_ul=0                1=a_ur=2
+       ||                      ||
+        1                       0
+
+       1                       0
+       ||                      ||
+    3=a_dl=0 = a_ur.T       1=a_dr=2 = a_ul.T
+       ||                      ||
+        2                       3
+    """
     a = np.tensordot(A, A.conj(), ((0, 1), (0, 1)))
     col_u = combine_colors(col_A[2], -col_A[2])
     col_r = combine_colors(col_A[3], -col_A[3])

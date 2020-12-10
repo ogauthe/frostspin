@@ -333,12 +333,22 @@ def contract_r_half(T1, C2, Au, T2u, Ad, T2d, T3, C3):
     return dr @ ur
 
 
-###############################################################################
+########################################################################################
 #  construct 2x2 corners using U(1) symmetry
 #  memory: peak at 2*chi**2*D**4
-###############################################################################
+#
+#  Nearly all the contraction has been put inside add_a_blockU1, only the corner C is
+#  contracted outside since it does not exist in renormalize_T. To be able to use the
+#  same add_a_blockU1, some leg swapping is necessary.
+#
+########################################################################################
 
 
+# Function add_a_conj takes double layer tensor a = A-A* as input in the form of a
+# BlockMatrixU1, with merged bra and ket legs *and* legs merged in two directions as
+# rows and as columns. To save memory, only 2 versions of a exsit, a_ul and a_ur. To
+# contract dr and dl corenrs, the transpose of a_ul and a_ur are used (same storage,
+# see ctm_environment).
 def contract_ul_corner_U1(
     C1, T1, T4, a_ul, col_T1_r, col_T4_d, col_a_ul, col_a_r, col_a_d
 ):
@@ -488,7 +498,7 @@ def add_a_blockU1(
     merged in all other input tensors. Therefore a reshape has been called before this
     function, which may require a copy. To avoid an additional copy here, legs are
     assumed to be in convenient order for contraction. This makes no change for left
-   tensor but requires a swap of 0 (right) and 1 (down) axes for up tensor.
+    tensor but requires a swap of 0 (right) and 1 (down) axes for up tensor.
      0        2-up-1              2
      |          ||                ||
      left=1     0               3=AA*=0
