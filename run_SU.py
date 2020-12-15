@@ -67,12 +67,12 @@ print(
 chi_list = np.array(config["chi_list"], dtype=int)
 run_CTMRG = chi_list.size != 0
 measure_capacity = bool(config["measure_capacity"])
+last_energy = np.full(chi_list.size, np.nan)
 if run_CTMRG and measure_capacity:
     print("Compute thermal capacity: for each beta, add beta + dbeta to beta list,")
     print(f"with dbeta = {dbeta}")
     beta_list = np.round(np.sort(list(beta_list + dbeta) + list(beta_list)), 10)
     print("Actual beta list is now", list(beta_list))
-    last_energy = np.full(chi_list.size, np.nan)
 
 # initilialize SU
 if config["su_restart_file"] is not None:
