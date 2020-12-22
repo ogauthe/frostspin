@@ -60,7 +60,9 @@ class Converger(object):
 
     def converge(self, tol=1e-8, warmup=0, shift=5, stuck=0.99, maxiter=2147483647):
         """
-        Converge process.
+        Converge process. Convergence is reached if delta = distance(value, last_value)
+        gets smaller than tol. Convergence fails if maxiter is reached or if the ratio
+        delta / delta(shift iterations before) > stuck.
 
         Parameters
         ----------
@@ -68,6 +70,10 @@ class Converger(object):
             Tolerance to estimate convergence occurred.
         warmup : int
             Number of warmup iteration before any convergence check.
+        shift : int
+            Number of iterations between current delta and delta used to test if stuck.
+        stuck : float
+            Value to consider process is stuck.
         maxiter : int
             Maximal number of iteration. Default is 2**31 - 1.
         """
