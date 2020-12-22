@@ -243,7 +243,7 @@ for beta in beta_list:
         rdm1x2_cell = np.array(rdm1x2_cell)
         ising_op = ((rdm1x2_cell - rdm2x1_cell) * h1).sum()
         ising_chi.append(ising_op)
-        print(f"Ising order parameter = {ising_op:.3e}")
+        print(f"\nIsing order parameter = {ising_op:.3e}")
         obs = f"{ising_op:.3f}"
 
         if measure_xi:
