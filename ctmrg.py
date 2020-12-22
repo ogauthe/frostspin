@@ -213,41 +213,6 @@ class CTMRG(object):
         if self.verbosity > 1:
             print("Finished CTM iteration")
 
-    def converge(self, tol, warmup=0, maxiter=100):
-        """
-        Converge CTMRG with criterion Frobenius norm(rho) < tol, where rho is the
-        average of all first neighbor density matrices in the unit cell. Avoid expensive
-        computation of larger density matrices as well as selecting one observable.
-        """
-        if self.verbosity > 0:
-            print(
-                f"Converge CTMRG with tol = {tol}, warmup = {warmup},",
-                f"maxiter = {maxiter}",
-            )
-        for i in range(warmup):
-            self.iterate()
-        if self.verbosity > 0:
-            print(f"{warmup} warmup iterations done")
-        (rdm2x1_cell, rdm1x2_cell) = self.compute_rdm_1st_neighbor_cell()
-        last_rho = (sum(rdm2x1_cell) + sum(rdm1x2_cell)) / self._env.Nneq
-
-        last_last_rho = last_rho
-        for i in range(warmup + 1, maxiter + 1):
-            self.iterate()
-            (rdm2x1_cell, rdm1x2_cell) = self.compute_rdm_1st_neighbor_cell()
-            rho = (sum(rdm2x1_cell) + sum(rdm1x2_cell)) / self._env.Nneq
-            r = ((last_rho - rho) ** 2).sum() ** 0.5  # shape never changes: 2 <=> inf
-            ret = (i, rdm2x1_cell, rdm1x2_cell)
-            if self.verbosity > 0:
-                print(f"i = {i}, ||rho - last_rho|| = {r}")
-            if r < tol:
-                return ret  # avoid computing rdm 1st neighbor twice
-            if ((last_last_rho - rho) ** 2).sum() ** 0.5 < tol / 100:
-                raise RuntimeError("CTMRG oscillates between two converged states", ret)
-            last_last_rho = last_rho
-            last_rho = rho
-        raise RuntimeError("CTMRG did not converge in maxiter", ret)
-
     def up_move(self):
         if self.verbosity > 1:
             print("\nstart up move")
