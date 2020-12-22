@@ -24,7 +24,7 @@ class Converger(object):
             Level of log verbosity. Default is no log.
         """
         self.verbosity = verbosity
-        if self.verbosity > 2:
+        if self.verbosity > 1:
             print("Initialize Converger")
         self._iterate = iterate
         self.get_value = get_value
@@ -77,11 +77,11 @@ class Converger(object):
         t0 = time.time()
         for i in range(warmup):
             self.iterate()
-            if self.verbosity > 1:
+            if self.verbosity > 0:
                 print(f"niter = {self._niter}, t = {time.time()-t0:.1f}")
 
         if self.verbosity > 0:
-            print(f"{warmup} warmup iterations done, t = {time.time()-t0:.1f}")
+            print(f"{warmup} warmup iterations finished.")
 
         shift_warm = shift + warmup
         self._value = self.get_value()
@@ -91,7 +91,7 @@ class Converger(object):
             self._value = self.get_value()
             delta = self._distance(self._last_value, self.value)
             self._delta_list.append(delta)
-            if self.verbosity > 1:
+            if self.verbosity > 0:
                 print(
                     f"niter = {self._niter}, delta = {delta:.2e},",
                     f"t = {time.time()-t0:.1f}",
