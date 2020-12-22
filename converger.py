@@ -78,7 +78,7 @@ class Converger(object):
         for i in range(warmup):
             self.iterate()
             if self.verbosity > 0:
-                print(f"niter = {self._niter}, t = {time.time()-t0:.1f}")
+                print(f"i = {self._niter}, t = {time.time()-t0:.1f}")
 
         if self.verbosity > 0:
             print(f"{warmup} warmup iterations finished.")
@@ -93,8 +93,7 @@ class Converger(object):
             self._delta_list.append(delta)
             if self.verbosity > 0:
                 print(
-                    f"niter = {self._niter}, delta = {delta:.2e},",
-                    f"t = {time.time()-t0:.1f}",
+                    f"i = {self._niter}, t = {time.time()-t0:.1f}, delta = {delta:.3e}"
                 )
 
             if delta < tol:
