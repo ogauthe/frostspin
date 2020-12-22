@@ -106,10 +106,12 @@ else:
     ctm_warmup = int(config["ctm_warmup"])
     ctm_maxiter = int(config["ctm_maxiter"])
 
-    def ctm_distance(rdm_first_nei1, rdm_first_nei2):
-        rho1 = (sum(rdm_first_nei1[0]) + sum(rdm_first_nei1[1])) / 4
-        rho2 = (sum(rdm_first_nei2[0]) + sum(rdm_first_nei2[1])) / 4
-        return np.linalg.norm(rho1 - rho2)
+    def ctm_value(ctm):  # estimate convergence from 1 horizontal bond + 1 vertical bond
+        (x, y) = ctm.neq_coords[0]
+        value = np.empty((2, 4, 4))
+        value[0] = ctm.compute_rdm1x2(x, y)
+        value[1] = ctm.compute_rdm2x1(x, y)
+        return value
 
     print(f"\nCompute CTMRG environment for chi in {list(chi_list)}")
     if config["ctm_restart_file"] is not None:
@@ -203,12 +205,7 @@ for beta in beta_list:
             ctm = CTMRG_U1.from_file(ctm_restart, verbosity=1)
             ctm.set_tensors(su.get_ABCD(), su.get_colors_ABCD())
 
-        conv = Converger(
-            ctm.iterate,
-            ctm.compute_rdm_1st_neighbor_cell,
-            distance=ctm_distance,
-            verbosity=1,
-        )
+        conv = Converger(ctm.iterate, lambda: ctm_value(ctm), verbosity=1)
         ctm_params["beta"] = su.beta
         ctm_restart = save_ctm_root + f"{su.beta:.4f}_chi{chi_list[0]}.npz"  # next iter
 
@@ -238,9 +235,17 @@ for beta in beta_list:
         ################################################################################
         # Observables
         ################################################################################
-        rdm2x1_cell, rdm1x2_cell = conv.value
-        rdm2x1_cell = np.array(rdm2x1_cell)
-        rdm1x2_cell = np.array(rdm1x2_cell)
+        rdm1x2_cell = np.empty((4, 4, 4))
+        rdm2x1_cell = np.empty((4, 4, 4))
+        rdm1x2_cell[0] = conv.value[0]
+        rdm2x1_cell[0] = conv.value[1]
+        print("Compute reduced density matrix for all first neighbor bonds...")
+        t = time.time()
+        for i, (x, y) in enumerate(ctm.neq_coords[1:]):
+            rdm1x2_cell[i + 1] = ctm.compute_rdm1x2(x, y)
+            rdm2x1_cell[i + 1] = ctm.compute_rdm2x1(x, y)
+        print(f"done with rdm computation, t = {time.time()-t:.0f}")
+
         ising_op = ((rdm1x2_cell - rdm2x1_cell) * h1).sum()
         ising_chi.append(ising_op)
         print(f"\nIsing order parameter = {ising_op:.3e}")
