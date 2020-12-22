@@ -8,6 +8,7 @@ import numpy as np
 
 from simple_update import SimpleUpdate2x2
 from ctmrg import CTMRG_U1
+from converger import Converger
 
 
 ########################################################################################
@@ -73,6 +74,12 @@ if run_CTMRG and measure_capacity:
     print(f"with dbeta = {dbeta}")
     beta_list = np.round(np.sort(list(beta_list + dbeta) + list(beta_list)), 10)
     print("Actual beta list is now", list(beta_list))
+
+    def distance(rdm_first_nei1, rdm_first_nei2):
+        rho1 = (sum(rdm_first_nei1[0]) + sum(rdm_first_nei1[1])) / 4
+        rho2 = (sum(rdm_first_nei2[0]) + sum(rdm_first_nei2[1])) / 4
+        return np.linalg.norm(rho1 - rho2)
+
 
 # initilialize SU
 if config["su_restart_file"] is not None:
@@ -195,6 +202,13 @@ for beta in beta_list:
         else:
             ctm = CTMRG_U1.from_file(ctm_restart, verbosity=1)
             ctm.set_tensors(su.get_ABCD(), su.get_colors_ABCD())
+
+        conv = Converger(
+            ctm.iterate,
+            ctm.compute_rdm_1st_neighbor_cell,
+            distance=distance,
+            verbosity=1,
+        )
         ctm_params["beta"] = su.beta
         ctm_restart = save_ctm_root + f"{su.beta:.4f}_chi{chi_list[0]}.npz"  # next iter
 
@@ -206,22 +220,17 @@ for beta in beta_list:
     for chi_index, chi in enumerate(chi_list):
         print("\n" + "#" * 75)
         ctm.chi = chi
+        conv.reset()
         print(
             f"Compute environment at beta = {su.beta} for D = {Dmax} and chi =",
             f"{ctm.chi}...",
         )
         t = time.time()
-        try:
-            j, rdm2x1_cell, rdm1x2_cell = ctm.converge(
-                ctm_tol, warmup=ctm_warmup, maxiter=ctm_maxiter
-            )
-            print(f"done, converged after {j} iterations, t = {time.time()-t:.0f}")
-        except RuntimeError as err:
-            msg, (j, rdm2x1_cell, rdm1x2_cell) = err.args
-            print(
-                f"\n*** RuntimeError after {j} iterations, t = {time.time()-t:.0f} ***"
-            )
-            print(f"Error: '{msg}'. Save CTM and move on.\n")
+        is_converged, msg = conv.converge(ctm_tol, ctm_warmup, maxiter=ctm_maxiter)
+        if is_converged:
+            print(f"converged after {conv.niter} iterations, t = {time.time()-t:.0f}")
+        else:
+            print("Convergence failed after {conv.niter} iterations:", msg)
         save_ctm = save_ctm_root + f"{su.beta:.4f}_chi{ctm.chi}.npz"
         ctm_params["chi"] = ctm.chi
         ctm.save_to_file(save_ctm, ctm_params)
@@ -229,6 +238,7 @@ for beta in beta_list:
         ################################################################################
         # Observables
         ################################################################################
+        rdm2x1_cell, rdm1x2_cell = conv.value
         rdm2x1_cell = np.array(rdm2x1_cell)
         rdm1x2_cell = np.array(rdm1x2_cell)
         ising_op = ((rdm1x2_cell - rdm2x1_cell) * h1).sum()
