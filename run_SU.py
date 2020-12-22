@@ -230,7 +230,7 @@ for beta in beta_list:
         if is_converged:
             print(f"converged after {conv.niter} iterations, t = {time.time()-t:.0f}")
         else:
-            print("Convergence failed after {conv.niter} iterations:", msg)
+            print(f"Convergence failed after {conv.niter} iterations:", msg)
         save_ctm = save_ctm_root + f"{su.beta:.4f}_chi{ctm.chi}.npz"
         ctm_params["chi"] = ctm.chi
         ctm.save_to_file(save_ctm, ctm_params)
