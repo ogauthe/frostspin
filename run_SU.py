@@ -75,12 +75,6 @@ if run_CTMRG and measure_capacity:
     beta_list = np.round(np.sort(list(beta_list + dbeta) + list(beta_list)), 10)
     print("Actual beta list is now", list(beta_list))
 
-    def distance(rdm_first_nei1, rdm_first_nei2):
-        rho1 = (sum(rdm_first_nei1[0]) + sum(rdm_first_nei1[1])) / 4
-        rho2 = (sum(rdm_first_nei2[0]) + sum(rdm_first_nei2[1])) / 4
-        return np.linalg.norm(rho1 - rho2)
-
-
 # initilialize SU
 if config["su_restart_file"] is not None:
     su_restart = str(config["su_restart_file"])
@@ -111,6 +105,12 @@ else:
     ctm_tol = float(config["ctm_tol"])
     ctm_warmup = int(config["ctm_warmup"])
     ctm_maxiter = int(config["ctm_maxiter"])
+
+    def ctm_distance(rdm_first_nei1, rdm_first_nei2):
+        rho1 = (sum(rdm_first_nei1[0]) + sum(rdm_first_nei1[1])) / 4
+        rho2 = (sum(rdm_first_nei2[0]) + sum(rdm_first_nei2[1])) / 4
+        return np.linalg.norm(rho1 - rho2)
+
     print(f"\nCompute CTMRG environment for chi in {list(chi_list)}")
     if config["ctm_restart_file"] is not None:
         ctm_restart = str(config["ctm_restart_file"])
@@ -206,7 +206,7 @@ for beta in beta_list:
         conv = Converger(
             ctm.iterate,
             ctm.compute_rdm_1st_neighbor_cell,
-            distance=distance,
+            distance=ctm_distance,
             verbosity=1,
         )
         ctm_params["beta"] = su.beta
