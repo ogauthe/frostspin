@@ -289,8 +289,10 @@ class CTM_Environment(object):
           check for compatibility with tensors, but color compatibility between legs to
           contract is not checked.
         """
-        cell = np.genfromtxt(
-            [" ".join(w) for w in tiling.strip().splitlines()], dtype="U1"
+        cell = np.atleast_2d(  # cast one-row cells to 2d array
+            np.genfromtxt(
+                [" ".join(w) for w in tiling.strip().splitlines()], dtype="U1"
+            )
         )
         Nneq = len(set(cell.flat))
         if len(tensors) != Nneq:
