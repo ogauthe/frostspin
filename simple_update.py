@@ -186,6 +186,546 @@ def update_second_neighbor(
     return new_L, new_mid, new_R, new_lambda_L, new_lambda_R, -col_nbL, col_nbR
 
 
+class SimpleUpdate1x2(object):
+    def __init__(
+        self,
+        d,
+        a,
+        Dmax=None,
+        tau=None,
+        h=None,
+        tensors=None,
+        colors=None,
+        file=None,
+        verbosity=0,
+    ):
+        """
+        Simple update algorithm on plaquette AB.
+
+        Parameters
+        ----------
+        d : integer
+            Dimension of physical leg.
+        a : integer
+            Dimension of ancilla leg. a=1 for a pure wavefunction and a=d for a thermal
+            ensemble.
+        Dmax : int
+            Maximal bond dimension. If provided, tensors may have different D at
+            initialization. Not read if file is given, retrieved from save.
+        tau : float
+            Imaginary time step. Not read if file is given.
+        h : (d**2, d**2) float or complex ndarray
+            Hamltionian. Must be real symmetric or hermitian. Not read if file is given.
+        tensors : optional, enumerable of 4 ndarrays with shapes (d,a,D,D,D,D)
+            Initial tensors. If not provided, random tensors are taken. Not read if file
+            is given.
+        colors : optional, if provided either integer array of dimension d or enumerable
+            of 6 integer arrays for physical, ancilla + 4 virtual legs matching tensors.
+            Quantum numbers for physical leg / physical, ancilla and virtual legs. Not
+            read if file is given. If not provided at first construction, no symmetry is
+            assumed.
+        file : str, optional
+            Save file containing data to restart computation from. File must follow
+            save_to_file / load_from_file syntax. If file is provided, d and a are read
+            to check consistency between save and input, the other parameter (except
+            verbosity) are not read and directly set from file.
+        verbosity : int
+          Level of log verbosity. Default is no log.
+
+
+        Conventions for leg ordering
+        ----------------------------
+              1     3
+              |     |
+           4--A--2--B--4
+              |     |
+              3     1
+        """
+
+        self._d = d
+        self._a = a
+        self.verbosity = verbosity
+        if self.verbosity > 0:
+            print(f"construct SimpleUpdate1x2 with d = {d}, a = {a} and Dmax = {Dmax}")
+
+        if file is not None:  # do not read optional input values, restart from file
+            self.load_from_file(file)
+            return
+
+        self.Dmax = Dmax
+        if h.shape != (d ** 2, d ** 2):
+            raise ValueError("invalid shape for Hamiltonian")
+
+        if colors is None:  # default color whatever tensor shapes
+            self._colors_p = default_color
+            self._colors_a = default_color
+            self._colors1 = default_color
+            self._colors2 = default_color
+            self._colors3 = default_color
+            self._colors4 = default_color
+
+        # consider 3 cases:
+        # 1) tensors are provided: check dimension match and nothing else
+        # 2) tensors are not provided and a == 1: pure state, start from random tensors
+        # 3) tensors are not provided and a == d: thermal equilibrium, start from beta=0
+
+        # 1) provided tensors
+        if tensors is not None:
+            if self.verbosity > 0:
+                print("Initialize SimpleUpdate2x2 from given tensors")
+
+            A0, B0 = tensors
+            self._D1, self._D2, self._D3, self._D4 = A0.shape[2:]
+            if A0.shape != (d, a, self._D1, self._D2, self._D3, self._D4):
+                raise ValueError("invalid shape for A0")
+            if B0.shape != (d, a, self._D3, self._D4, self._D1, self._D2):
+                raise ValueError("invalid shape for B0")
+
+            if colors is not None:
+                if len(colors) != 6:
+                    raise ValueError(
+                        "With given initial tensors, colors must be",
+                        "[colors_p, colors_a, colors_1...6]",
+                    )
+                if len(colors[0]) != d:
+                    raise ValueError("physical leg colors length is not d")
+                self._colors_p = np.asarray(colors[0], dtype=np.int8)
+                if len(colors[1]) != a:
+                    raise ValueError("ancilla leg colors length is not a")
+                self._colors_a = np.asarray(colors[1], dtype=np.int8)
+                if len(colors[2]) != self._D1:
+                    raise ValueError("virtual leg 1 colors length is not D1")
+                self._colors1 = np.asarray(colors[2], dtype=np.int8)
+                if len(colors[3]) != self._D2:
+                    raise ValueError("virtual leg 2 colors length is not D2")
+                self._colors2 = np.asarray(colors[3], dtype=np.int8)
+                if len(colors[4]) != self._D3:
+                    raise ValueError("virtual leg 3 colors length is not D3")
+                self._colors3 = np.asarray(colors[4], dtype=np.int8)
+                if len(colors[5]) != self._D4:
+                    raise ValueError("virtual leg 4 colors length is not D4")
+
+        # 2) pure state
+        elif a == 1:
+            if self.verbosity > 0:
+                print("Initialize SimpleUpdate2x2 from random pure state")
+            if colors is not None:  # can fix, easy to generate random U(1) tensors
+                raise ValueError(
+                    "Initial tensors must be provided to use colors in pure state"
+                )
+            self._D1 = Dmax
+            self._D2 = Dmax
+            self._D3 = Dmax
+            self._D4 = Dmax
+            A0 = np.random.random((d, 1, self._D1, self._D2, self._D3, self._D4)) - 0.5
+            B0 = np.random.random((d, 1, self._D3, self._D4, self._D1, self._D2)) - 0.5
+            self._gammaA = A0 / np.amax(A0)
+            self._gammaB = B0 / np.amax(B0)
+
+        # 3) thermal equilibrium, start from product state at beta=0
+        elif a == d:
+            if self.verbosity > 0:
+                print("Initialize SimpleUpdate2x2 from beta=0 thermal product state")
+            self._D1 = 1
+            self._D2 = 1
+            self._D3 = 1
+            self._D4 = 1
+            self._gammaA = np.eye(d).reshape(d, a, 1, 1, 1, 1)
+            self._gammaB = np.eye(d).reshape(d, a, 1, 1, 1, 1)
+            if colors is not None:
+                if len(colors) != d:
+                    raise ValueError(
+                        "For beta=0 thermal equilibrium, colors must be colors_p"
+                    )
+                self._colors_p = np.ascontiguousarray(colors, dtype=np.int8)
+                self._colors_a = -self._colors_p
+                self._colors1 = np.zeros(1, dtype=np.int8)
+                self._colors2 = np.zeros(1, dtype=np.int8)
+                self._colors3 = np.zeros(1, dtype=np.int8)
+                self._colors4 = np.zeros(1, dtype=np.int8)
+
+        else:
+            raise ValueError("If tensors are not provided, a must be 1 or d")
+
+        # wait for colors_p to be set to use U(1) in h1 and h2 diagonalization.
+        colors_h = combine_colors(self._colors_p, -self._colors_p)
+        self._eigvals_h, self._eigvecs_h, _ = diagU1(h, colors_h)
+        self.tau = tau  # need eigvals and eigvecs to set tau
+        self._beta = 0.0
+
+        # now that dimensions are known, initialize weights to 1.
+        self._lambda1 = np.ones(self._D1)
+        self._lambda2 = np.ones(self._D2)
+        self._lambda3 = np.ones(self._D3)
+        self._lambda4 = np.ones(self._D4)
+
+    @property
+    def beta(self):
+        return self._beta
+
+    @property
+    def tau(self):
+        return self._tau
+
+    @tau.setter
+    def tau(self, tau):
+        if self.verbosity > 0:
+            print(f"set tau to {tau}")
+        self._tau = tau
+        # symmetric / hermitian diagonalization is faster than expm and ensures U(1)
+        self._gate = (
+            self._eigvecs_h * np.exp(-tau * self._eigvals_h) @ self._eigvecs_h.T.conj()
+        )
+        self._gate_squared = (
+            self._eigvecs_h
+            * np.exp(-2 * tau * self._eigvals_h)
+            @ self._eigvecs_h.T.conj()
+        )
+
+    @property
+    def d(self):
+        return self._d
+
+    @property
+    def a(self):
+        return self._a
+
+    @property
+    def Ds(self):
+        return (self._D1, self._D2, self._D3, self._D4)
+
+    @property
+    def h(self):
+        return self._eigvecs_h * self._eigvals_h @ self._eigvecs_h.T.conj()
+
+    @property
+    def colors(self):
+        """
+        Tuple
+        U(1) quantum numbers for non-equivalent legs.
+        Convention: sort as ((physical,ancilla),leg_i) to have colors[i] = color_i.
+        """
+        return (
+            (self._colors_p, self._colors_a),
+            self._colors1,
+            self._colors2,
+            self._colors3,
+            self._colors4,
+        )
+
+    @property
+    def lambdas(self):
+        """
+        Tuple
+        Simple update weights.
+        Convention: return ((None,None),leg_i) to be consistent with colors.
+        """
+        return (
+            (None, None),
+            self._lambda1,
+            self._lambda2,
+            self._lambda3,
+            self._lambda4,
+        )
+
+    def load_from_file(self, file):
+        if self.verbosity > 0:
+            print("Restart simple update from file", file)
+        # do not read tau tand Dmax, set them from __init__ input
+        with np.load(file) as data:
+            self._lambda1 = data["_SU1x2_lambda1"]
+            self._lambda2 = data["_SU1x2_lambda2"]
+            self._lambda3 = data["_SU1x2_lambda3"]
+            self._lambda4 = data["_SU1x2_lambda4"]
+            self._colors_p = data["_SU1x2_colors_p"]
+            self._colors_a = data["_SU1x2_colors_a"]
+            self._colors1 = data["_SU1x2_colors1"]
+            self._colors2 = data["_SU1x2_colors2"]
+            self._colors3 = data["_SU1x2_colors3"]
+            self._colors4 = data["_SU1x2_colors4"]
+            self._gammaA = data["_SU1x2_gammaA"]
+            self._gammaB = data["_SU1x2_gammaB"]
+            self._eigvals_h = data["_SU1x2_eigvals_h"]
+            self._eigvecs_h = data["_SU1x2_eigvecs_h"]
+            self.tau = data["_SU1x2_tau"][()]
+            self._beta = data["_SU1x2_beta"][()]
+            self.Dmax = data["_SU1x2_Dmax"][()]
+        self._D1 = self._lambda1.size
+        self._D2 = self._lambda2.size
+        self._D3 = self._lambda3.size
+        self._D4 = self._lambda4.size
+
+        if self._d != self._gammaA.shape[0]:
+            raise ValueError("Physical dimension differs from save")
+        if self._a != self._gammaA.shape[1]:
+            raise ValueError("Ancila dimension differs from save")
+
+    def save_to_file(self, file=None):
+        data = {}
+        data["_SU1x2_lambda1"] = self._lambda1
+        data["_SU1x2_lambda2"] = self._lambda2
+        data["_SU1x2_lambda3"] = self._lambda3
+        data["_SU1x2_lambda4"] = self._lambda4
+        data["_SU1x2_colors_p"] = self._colors_p
+        data["_SU1x2_colors_a"] = self._colors_a
+        data["_SU1x2_colors1"] = self._colors1
+        data["_SU1x2_colors2"] = self._colors2
+        data["_SU1x2_colors3"] = self._colors3
+        data["_SU1x2_colors4"] = self._colors4
+        data["_SU1x2_gammaA"] = self._gammaA
+        data["_SU1x2_gammaB"] = self._gammaB
+        data["_SU1x2_eigvals_h"] = self._eigvals_h
+        data["_SU1x2_eigvecs_h"] = self._eigvecs_h
+        data["_SU1x2_tau"] = self._tau
+        data["_SU1x2_beta"] = self._beta
+        data["_SU1x2_Dmax"] = self.Dmax
+        if file is None:
+            return data
+        np.savez_compressed(file, **data)
+        if self.verbosity > 0:
+            print("Simple update data stored in file", file)
+
+    def get_AB(self):
+        """
+        Return optimized tensors A and B.
+        Tensors are obtained by adding relevant sqrt(lambda) to every leg of gammaX
+        """
+        # actually weights are on by default, so *remove* sqrt(lambda)
+        sl1 = 1 / np.sqrt(self._lambda1)
+        sl2 = 1 / np.sqrt(self._lambda2)
+        sl3 = 1 / np.sqrt(self._lambda3)
+        sl4 = 1 / np.sqrt(self._lambda4)
+        A = np.einsum("paurdl,u,r,d,l->paurdl", self._gammaA, sl1, sl2, sl3, sl4)
+        B = np.einsum("paurdl,u,r,d,l->paurdl", self._gammaB, sl3, sl4, sl1, sl2)
+        A /= np.amax(A)
+        B /= np.amax(B)
+        return A, B
+
+    def get_colors_AB(self):
+        """
+        Return colors of optimized tensors A and B.
+        """
+        colorsA = (
+            self._colors_p,
+            self._colors_a,
+            self._colors1,
+            self._colors2,
+            self._colors3,
+            self._colors4,
+        )
+        colorsB = (
+            -self._colors_p,
+            -self._colors_a,
+            -self._colors3,
+            -self._colors4,
+            -self._colors1,
+            -self._colors2,
+        )
+        return colorsA, colorsB
+
+    def evolve(self, beta=None):
+        """
+        Evolve in imaginary time using second order Trotter-Suzuki up to beta.
+        Convention: temperature value is the bilayer tensor one, twice the monolayer
+        one.
+        """
+        if beta is None:
+            beta = 4 * self._tau
+        if self.verbosity > 0:
+            print(f"Launch time evolution for time {beta}")
+        if beta < -1e-16:
+            raise ValueError("Cannot evolve for negative imaginary time")
+        if beta < 3.9 * self._tau:  # care for float round in case beta = 4*tau
+            return  # else evolve for 1 step out of niter loop
+        niter = round(float(beta / self._tau / 4))  # 2nd order: evolve 2*tau by step
+
+        self.update_bond1(self._gate)
+        for i in range(niter - 1):  # there is 1 step out of the loop
+            self.update_bond2(self._gate)
+            self.update_bond3(self._gate)
+            self.update_bond4(self._gate_squared)
+            self.update_bond3(self._gate)
+            self.update_bond2(self._gate)
+            self.update_bond1(self._gate_squared)
+        self.update_bond2(self._gate)
+        self.update_bond3(self._gate)
+        self.update_bond4(self._gate_squared)
+        self.update_bond3(self._gate)
+        self.update_bond2(self._gate)
+        self.update_bond1(self._gate)
+        self._beta = round(self._beta + 4 * niter * self._tau, 10)
+
+    def bond_entanglement_entropy(self):
+        """
+        Compute the entanglement entropy on every bonds as S = -sum_i p_i log_pi
+        """
+        s = np.empty(8)
+        s[0] = -(self._lambda1 * np.log(self._lambda1)).sum()
+        s[1] = -(self._lambda2 * np.log(self._lambda2)).sum()
+        s[2] = -(self._lambda3 * np.log(self._lambda3)).sum()
+        s[3] = -(self._lambda4 * np.log(self._lambda4)).sum()
+        return s
+
+    def update_bond1(self, gate):
+        # add diagonal weights to gammaA and gammaC
+        w = self._lambda1 ** -1
+        M_A = (self._gammaA.transpose(1, 3, 4, 5, 0, 2) * w).reshape(
+            self._a * self._D2 * self._D3 * self._D4, self._d * self._D1
+        )
+        M_B = (w.reshape(_sh) * self._gammaB.transpose(4, 0, 1, 2, 3, 5)).reshape(
+            self._D1 * self._d, self._a * self._D3 * self._D4 * self._D2
+        )
+
+        col_L = combine_colors(
+            self._colors_a, self._colors2, self._colors3, self._colors4
+        )
+        col_R = combine_colors(
+            self._colors_a, self._colors3, self._colors4, self._colors2
+        )
+        # construct matrix theta, renormalize bond dimension and get back tensors
+        M_A, self._lambda1, M_B, self._colors1 = update_first_neighbor(
+            M_A,
+            M_B,
+            self._lambda1,
+            gate,
+            self._d,
+            self.Dmax,
+            col_L=col_L,
+            col_R=col_R,
+            col_bond=self._colors1,
+            col_d=self._colors_p,
+        )
+
+        self._D1 = self._lambda1.size
+        # define new gammaA and gammaC from renormalized M_A and M_C
+        self._gammaA = M_A.reshape(
+            self._a, self._D2, self._D3, self._D4, self._d, self._D1
+        ).transpose(4, 0, 5, 1, 2, 3)
+        self._gammaB = M_B.reshape(
+            self._D1, self._d, self._a, self._D3, self._D4, self._D2
+        ).transpose(1, 2, 3, 4, 0, 5)
+
+        if self.verbosity > 1:
+            print("updated bond 1: new lambda1 =", self._lambda1)
+
+    def update_bond2(self, gate):
+        w = self._lambda2 ** -1
+        M_A = (self._gammaA.transpose(1, 2, 4, 5, 0, 3) * w).reshape(
+            self._a * self._D1 * self._D3 * self._D4, self._d * self._D2
+        )
+        M_B = (w.reshape(_sh) * self._gammaB.transpose(5, 0, 1, 2, 3, 4)).reshape(
+            self._D2 * self._d, self._a * self._D3 * self._D4 * self._D1
+        )
+
+        col_L = combine_colors(
+            self._colors_a, self._colors1, self._colors3, self._colors4
+        )
+        col_R = combine_colors(
+            self._colors_a, self._colors3, self._colors4, self._colors1
+        )
+        M_A, self._lambda2, M_B, self._colors2 = update_first_neighbor(
+            M_A,
+            M_B,
+            self._lambda2,
+            gate,
+            self._d,
+            self.Dmax,
+            col_L=col_L,
+            col_R=col_R,
+            col_bond=self._colors2,
+            col_d=self._colors_p,
+        )
+
+        self._D2 = self._lambda2.size
+        self._gammaA = M_A.reshape(
+            self._a, self._D1, self._D3, self._D4, self._d, self._D2
+        ).transpose(4, 0, 1, 5, 2, 3)
+        self._gammaB = M_B.reshape(
+            self._D2, self._d, self._a, self._D3, self._D4, self._D1
+        ).transpose(1, 2, 3, 4, 5, 0)
+
+        if self.verbosity > 1:
+            print("updated bond 2: new lambda2 =", self._lambda2)
+
+    def update_bond3(self, gate):
+        w = self._lambda3 ** -1
+        M_A = (self._gammaA.transpose(1, 2, 3, 5, 0, 4) * w).reshape(
+            self._a * self._D1 * self._D2 * self._D4, self._d * self._D3
+        )
+        M_B = (w.reshape(_sh) * self._gammaB.transpose(2, 0, 1, 3, 4, 5)).reshape(
+            self._D3 * self._d, self._a * self._D4 * self._D1 * self._D2
+        )
+
+        col_L = combine_colors(
+            self._colors_a, self._colors1, self._colors2, self._colors4
+        )
+        col_R = combine_colors(
+            self._colors_a, self._colors4, self._colors1, self._colors2
+        )
+        M_A, self._lambda3, M_B, self._colors3 = update_first_neighbor(
+            M_A,
+            M_B,
+            self._lambda3,
+            gate,
+            self._d,
+            self.Dmax,
+            col_L=col_L,
+            col_R=col_R,
+            col_bond=self._colors3,
+            col_d=self._colors_p,
+        )
+
+        self._D3 = self._lambda3.size
+        self._gammaA = M_A.reshape(
+            self._a, self._D1, self._D2, self._D4, self._d, self._D3
+        ).transpose(4, 0, 1, 2, 5, 3)
+        self._gammaB = M_B.reshape(
+            self._D3, self._d, self._a, self._D4, self._D1, self._D2
+        ).transpose(1, 2, 0, 3, 4, 5)
+
+        if self.verbosity > 1:
+            print("updated bond 3: new lambda3 =", self._lambda3)
+
+    def update_bond4(self, gate):
+        w = self._lambda4 ** -1
+        M_A = (self._gammaA.transpose(1, 2, 3, 4, 0, 5) * w).reshape(
+            self._a * self._D1 * self._D2 * self._D3, self._d * self._D4
+        )
+        M_B = (w.reshape(_sh) * self._gammaB.transpose(3, 0, 1, 2, 4, 5)).reshape(
+            self._D4 * self._d, self._a * self._D3 * self._D1 * self._D2
+        )
+
+        col_L = combine_colors(
+            self._colors_a, self._colors1, self._colors2, self._colors3
+        )
+        col_R = combine_colors(
+            self._colors_a, self._colors3, self._colors1, self._colors2
+        )
+        M_A, self._lambda4, M_B, self._colors4 = update_first_neighbor(
+            M_A,
+            M_B,
+            self._lambda4,
+            gate,
+            self._d,
+            self.Dmax,
+            col_L=col_L,
+            col_R=col_R,
+            col_bond=self._colors4,
+            col_d=self._colors_p,
+        )
+
+        self._D4 = self._lambda4.size
+        self._gammaA = M_A.reshape(
+            self._a, self._D1, self._D2, self._D3, self._d, self._D4
+        ).transpose(4, 0, 1, 2, 3, 5)
+        self._gammaB = M_B.reshape(
+            self._D4, self._d, self._a, self._D3, self._D1, self._D2
+        ).transpose(1, 2, 3, 0, 4, 5)
+
+        if self.verbosity > 1:
+            print("updated bond 4: new lambda4 =", self._lambda4)
+
+
 class SimpleUpdate2x2(object):
     def __init__(
         self,
