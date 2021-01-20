@@ -354,7 +354,7 @@ class SimpleUpdate2x2(object):
             self._D6 = Dmax
             self._D7 = Dmax
             self._D8 = Dmax
-            A0 = np.random.random((d, 1, self._D5, self._D4, self._D6, self._D2)) - 0.5
+            A0 = np.random.random((d, 1, self._D1, self._D2, self._D3, self._D4)) - 0.5
             B0 = np.random.random((d, 1, self._D5, self._D4, self._D6, self._D2)) - 0.5
             C0 = np.random.random((d, 1, self._D3, self._D7, self._D1, self._D8)) - 0.5
             D0 = np.random.random((d, 1, self._D6, self._D8, self._D5, self._D7)) - 0.5
