@@ -80,7 +80,7 @@ else:
     su = SimpleUpdate1x2(d, a, Dmax, tau, h, colors=pcol, verbosity=0)
 
 # save parameters (do not mix internal CTM/SU stuff and simulation parameters)
-su_params = {"tau": tau, "Dmax": Dmax}
+su_params = {"tau": tau, "Dmax": Dmax, "J2": 0.0}
 save_su_root = str(config["save_su_root"])
 print("Save simple update data in files " + save_su_root + "{beta}.npz")
 
@@ -122,7 +122,7 @@ else:
     print("Save CTMRG data in files " + save_ctm_root + "{beta}_chi{chi}.npz\n")
 
     # observables
-    obs_str = "chi   energy    capacity"
+    obs_str = "chi   ising    energy    capacity"
     save_obs_root = str(config["save_obs_root"])
     print("For all beta, save observables in files " + save_obs_root + "{beta}.npz\n")
 
@@ -180,7 +180,7 @@ for beta in beta_list:
         ctm_restart = save_ctm_root + f"{su.beta:.4f}_chi{chi_list[0]}.npz"  # next iter
 
         # prepare observable for several chis
-        energy_chi, xi_h_chi, xi_v_chi, capacity_chi = [], [], [], []
+        energy_chi, ising_chi, xi_h_chi, xi_v_chi, capacity_chi = [], [], [], [], []
         obs_chi = []
 
     # run CTMRG at fixed chi
@@ -215,13 +215,24 @@ for beta in beta_list:
             rdm1x2_cell[i + 1] = ctm.compute_rdm1x2(x, y)
             rdm2x1_cell[i + 1] = ctm.compute_rdm2x1(x, y)
         print(f"done with rdm computation, t = {time.time()-t:.0f}")
-        energy = (
-            np.tensordot(rdm1x2_cell, h, ((1, 2), (0, 1))).sum()
-            + np.tensordot(rdm2x1_cell, h, ((1, 2), (0, 1))).sum()
-        ) / 2
+        save_rdm = save_rdm_root + f"{su.beta:.4f}_chi{ctm.chi}.npz"
+        np.savez_compressed(
+            save_rdm,
+            rdm1x2_cell=rdm1x2_cell,
+            rdm2x1_cell=rdm2x1_cell,
+            cell_coords=ctm.neq_coords,
+            **ctm_params,
+        )
+        print("rdm saved to file", save_rdm)
+
+        eh = np.tensordot(rdm1x2_cell, h, ((1, 2), (0, 1))).sum()
+        ev = np.tensordot(rdm2x1_cell, h, ((1, 2), (0, 1))).sum()
+        energy = (eh + ev) / 2
         energy_chi.append(energy)
-        print(f"energy = {energy}")
-        obs = f"{energy:.5f}"
+        ising = (eh - ev) * 2  # same convetions as 2nd neighbor
+        ising_chi.append(ising)
+        print(f"ising = {ising}, energy = {energy}")
+        obs = f"{ising:.3f}   {energy:.5f}"
 
         x = -((su.beta - dbeta / 2) ** 2) / dbeta
         c = x * (energy - last_energy[chi_index])
@@ -251,6 +262,7 @@ for beta in beta_list:
         obs_dic["xi_h"] = np.array(xi_h_chi)
         obs_dic["xi_v"] = np.array(xi_v_chi)
         obs_dic["energy"] = np.array(energy_chi)
+        obs_dic["ising"] = np.array(ising_chi)
         last_energy = energy_chi
         obs_dic["capacity"] = np.array(capacity_chi)
         print("", "#" * 75, sep="\n")
