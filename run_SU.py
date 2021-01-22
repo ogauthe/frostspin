@@ -185,11 +185,10 @@ for beta in beta_list:
     print("lambdas =", *su.lambdas[1:], sep="\n")
     print("colors =", *su.colors[1:], sep="\n")
     dbeta_step = bool(beta_evolve < 1.1 * dbeta)
-    if not dbeta_step:  # do not save again SU after just 1 update
-        save_su = save_su_root + f"{su.beta:.4f}.npz"
-        data_su = su.save_to_file()
-        np.savez_compressed(save_su, beta=su.beta, **su_params, **data_su)
-        print("Simple update data saved in file", save_su)
+    save_su = save_su_root + f"{su.beta:.4f}.npz"
+    data_su = su.save_to_file()
+    np.savez_compressed(save_su, beta=su.beta, **su_params, **data_su)
+    print("Simple update data saved in file", save_su)
 
     ####################################################################################
     # CTMRG
