@@ -54,26 +54,23 @@ print(f"Physical model: d = {d}, a = {a}, J1 = 1, J2 = {J2}")
 # simple update parameters
 Dmax = int(config["Dmax"])
 tau = float(config["tau"])
-beta_setpoint = np.array(config["beta_list"], dtype=float)
 dbeta = 4 * tau  # one SU iteration
-beta_list = np.round(beta_setpoint / dbeta) * dbeta
+beta_goal = np.array(config["beta_goal"], dtype=float)
 print(f"\nSimple update parameters: tau = {tau}, Dmax = {Dmax}")
-print("Beta is set to reach", list(beta_setpoint))
-print("With given tau, reached beta will be:", beta_list)
-print(
-    "Evolve in imaginary time and save simple update tensors for beta in",
-    list(beta_list),
-)
+print("Goal for imaginary time evolution steps are:", repr(beta_goal)[6:-1])
 
 chi_list = np.array(config["chi_list"], dtype=int)
 run_CTMRG = chi_list.size != 0
 measure_capacity = bool(config["measure_capacity"])
 last_energy = np.full(chi_list.size, np.nan)
 if run_CTMRG and measure_capacity:
-    print("Compute thermal capacity: for each beta, add beta + dbeta to beta list,")
+    print("Compute thermal capacity: for each beta, add beta + dbeta to beta goal")
     print(f"with dbeta = {dbeta}")
-    beta_list = np.round(np.sort(list(beta_list + dbeta) + list(beta_list)), 10)
-    print("Actual beta list is now", list(beta_list))
+    beta_goal = np.hstack((beta_goal + dbeta, beta_goal))
+
+beta_reach = np.array(sorted(set(np.rint(beta_goal / dbeta).astype(int)))) * dbeta
+print("Take into accout finite tau and remove doubles: reached beta will be:")
+print(repr(beta_reach)[6:-1])
 
 # initilialize SU
 if config["su_restart_file"] is not None:
@@ -172,7 +169,7 @@ else:
 # Computation starts
 ########################################################################################
 
-for beta in beta_list:
+for beta in beta_reach:
     ####################################################################################
     # Simple update
     ####################################################################################

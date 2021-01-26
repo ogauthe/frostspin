@@ -4,7 +4,7 @@
   "su_restart_file": null,
   "ctm_restart_file": null,
   "tau": 1e-3,
-  "beta_list": [0.5, 1.0],
+  "beta_goal": [0.5, 1.0],
   "measure_xi": true,
   "compute_rdm_2nd_nei": true,
   "measure_capacity": true,
