@@ -198,6 +198,7 @@ class SimpleUpdate1x2(object):
         h=None,
         tensors=None,
         colors=None,
+        cutoff=1e-13,
         file=None,
         verbosity=0,
     ):
@@ -226,6 +227,8 @@ class SimpleUpdate1x2(object):
             Quantum numbers for physical leg / physical, ancilla and virtual legs. Not
             read if file is given. If not provided at first construction, no symmetry is
             assumed.
+        cutoff : float, optional.
+            Singular values smaller than cutoff are set to zero to improve stability.
         file : str, optional
             Save file containing data to restart computation from. File must follow
             save_to_file / load_from_file syntax. If file is provided, d and a are read
@@ -254,6 +257,7 @@ class SimpleUpdate1x2(object):
             self.load_from_file(file)
             return
 
+        self.cutoff = cutoff
         self.Dmax = Dmax
         if h.shape != (d ** 2, d ** 2):
             raise ValueError("invalid shape for Hamiltonian")
@@ -452,6 +456,10 @@ class SimpleUpdate1x2(object):
             self.tau = data["_SU1x2_tau"][()]
             self._beta = data["_SU1x2_beta"][()]
             self.Dmax = data["_SU1x2_Dmax"][()]
+            if "_SU1x2_cutoff" in data.files:
+                self.cutoff = data["_SU1x2_cutoff"][()]
+            else:
+                self.cutoff = 1e-13  # default value for backward compatibility
         self._D1 = self._lambda1.size
         self._D2 = self._lambda2.size
         self._D3 = self._lambda3.size
@@ -481,6 +489,7 @@ class SimpleUpdate1x2(object):
         data["_SU1x2_tau"] = self._tau
         data["_SU1x2_beta"] = self._beta
         data["_SU1x2_Dmax"] = self.Dmax
+        data["_SU1x2_cutoff"] = self.cutoff
         if file is None:
             return data
         np.savez_compressed(file, **data)
@@ -596,6 +605,7 @@ class SimpleUpdate1x2(object):
             col_R=col_R,
             col_bond=self._colors1,
             col_d=self._colors_p,
+            cutoff=self.cutoff,
         )
 
         self._D1 = self._lambda1.size
@@ -636,6 +646,7 @@ class SimpleUpdate1x2(object):
             col_R=col_R,
             col_bond=self._colors2,
             col_d=self._colors_p,
+            cutoff=self.cutoff,
         )
 
         self._D2 = self._lambda2.size
@@ -675,6 +686,7 @@ class SimpleUpdate1x2(object):
             col_R=col_R,
             col_bond=self._colors3,
             col_d=self._colors_p,
+            cutoff=self.cutoff,
         )
 
         self._D3 = self._lambda3.size
@@ -714,6 +726,7 @@ class SimpleUpdate1x2(object):
             col_R=col_R,
             col_bond=self._colors4,
             col_d=self._colors_p,
+            cutoff=self.cutoff,
         )
 
         self._D4 = self._lambda4.size
@@ -739,6 +752,7 @@ class SimpleUpdate2x2(object):
         h2=None,
         tensors=None,
         colors=None,
+        cutoff=1e-13,
         file=None,
         verbosity=0,
     ):
@@ -771,6 +785,8 @@ class SimpleUpdate2x2(object):
           Quantum numbers for physical leg / physical, ancilla and virtual legs. Not
           read if file is given. If not provided at first construction, no symmetry is
           assumed.
+        cutoff : float, optional.
+            Singular values smaller than cutoff are set to zero to improve stability.
         file : str, optional
           Save file containing data to restart computation from. File must follow
           save_to_file / load_from_file syntax. If file is provided, d and a are read to
@@ -803,6 +819,7 @@ class SimpleUpdate2x2(object):
             self.load_from_file(file)
             return
 
+        self.cutoff = cutoff
         self.Dmax = Dmax
         if h1.shape != (d ** 2, d ** 2):
             raise ValueError("invalid shape for Hamiltonian h1")
@@ -1094,6 +1111,10 @@ class SimpleUpdate2x2(object):
             self.tau = data["_SU2x2_tau"][()]
             self._beta = data["_SU2x2_beta"][()]
             self.Dmax = data["_SU2x2_Dmax"][()]
+            if "_SU2x2_cutoff" in data.files:
+                self.cutoff = data["_SU2x2_cutoff"][()]
+            else:
+                self.cutoff = 1e-13  # default value for backward compatibility
         self._D1 = self._lambda1.size
         self._D2 = self._lambda2.size
         self._D3 = self._lambda3.size
@@ -1139,6 +1160,7 @@ class SimpleUpdate2x2(object):
         data["_SU2x2_tau"] = self._tau
         data["_SU2x2_beta"] = self._beta
         data["_SU2x2_Dmax"] = self.Dmax
+        data["_SU2x2_cutoff"] = self.cutoff
         if file is None:
             return data
         np.savez_compressed(file, **data)
@@ -1394,6 +1416,7 @@ class SimpleUpdate2x2(object):
             col_R=col_R,
             col_bond=self._colors1,
             col_d=self._colors_p,
+            cutoff=self.cutoff,
         )
 
         self._D1 = self._lambda1.size
@@ -1437,6 +1460,7 @@ class SimpleUpdate2x2(object):
             col_R=col_R,
             col_bond=self._colors2,
             col_d=self._colors_p,
+            cutoff=self.cutoff,
         )
 
         self._D2 = self._lambda2.size
@@ -1479,6 +1503,7 @@ class SimpleUpdate2x2(object):
             col_R=col_R,
             col_bond=self._colors3,
             col_d=self._colors_p,
+            cutoff=self.cutoff,
         )
 
         self._D3 = self._lambda3.size
@@ -1521,6 +1546,7 @@ class SimpleUpdate2x2(object):
             col_R=col_R,
             col_bond=self._colors4,
             col_d=self._colors_p,
+            cutoff=self.cutoff,
         )
 
         self._D4 = self._lambda4.size
@@ -1563,6 +1589,7 @@ class SimpleUpdate2x2(object):
             col_R=col_R,
             col_bond=-self._colors5,
             col_d=-self._colors_p,
+            cutoff=self.cutoff,
         )
 
         self._D5 = self._lambda5.size
@@ -1606,6 +1633,7 @@ class SimpleUpdate2x2(object):
             col_R=col_R,
             col_bond=-self._colors6,
             col_d=-self._colors_p,
+            cutoff=self.cutoff,
         )
 
         self._D6 = self._lambda6.size
@@ -1649,6 +1677,7 @@ class SimpleUpdate2x2(object):
             col_R=col_R,
             col_bond=-self._colors7,
             col_d=-self._colors_p,
+            cutoff=self.cutoff,
         )
 
         self._D7 = self._lambda7.size
@@ -1692,6 +1721,7 @@ class SimpleUpdate2x2(object):
             col_R=col_R,
             col_bond=-self._colors8,
             col_d=-self._colors_p,
+            cutoff=self.cutoff,
         )
 
         self._D8 = self._lambda8.size
@@ -1759,6 +1789,7 @@ class SimpleUpdate2x2(object):
             col_bL=self._colors2,
             col_bR=self._colors5,
             col_d=self._colors_p,
+            cutoff=self.cutoff,
         )
 
         self._D2 = self._lambda2.size
@@ -1826,6 +1857,7 @@ class SimpleUpdate2x2(object):
             col_bL=self._colors1,
             col_bR=self._colors7,
             col_d=self._colors_p,
+            cutoff=self.cutoff,
         )
 
         self._D1 = self._lambda1.size
@@ -1893,6 +1925,7 @@ class SimpleUpdate2x2(object):
             col_bL=self._colors2,
             col_bR=self._colors6,
             col_d=self._colors_p,
+            cutoff=self.cutoff,
         )
 
         self._D2 = self._lambda2.size
@@ -1960,6 +1993,7 @@ class SimpleUpdate2x2(object):
             col_bL=self._colors3,
             col_bR=self._colors7,
             col_d=self._colors_p,
+            cutoff=self.cutoff,
         )
 
         self._D3 = self._lambda3.size
@@ -2027,6 +2061,7 @@ class SimpleUpdate2x2(object):
             col_bL=self._colors4,
             col_bR=self._colors6,
             col_d=self._colors_p,
+            cutoff=self.cutoff,
         )
 
         self._D4 = self._lambda4.size
@@ -2094,6 +2129,7 @@ class SimpleUpdate2x2(object):
             col_bL=self._colors3,
             col_bR=self._colors8,
             col_d=self._colors_p,
+            cutoff=self.cutoff,
         )
 
         self._D3 = self._lambda3.size
@@ -2161,6 +2197,7 @@ class SimpleUpdate2x2(object):
             col_bL=self._colors4,
             col_bR=self._colors5,
             col_d=self._colors_p,
+            cutoff=self.cutoff,
         )
 
         self._D4 = self._lambda4.size
@@ -2228,6 +2265,7 @@ class SimpleUpdate2x2(object):
             col_bL=self._colors1,
             col_bR=self._colors8,
             col_d=self._colors_p,
+            cutoff=self.cutoff,
         )
 
         self._D1 = self._lambda1.size
@@ -2291,6 +2329,7 @@ class SimpleUpdate2x2(object):
             col_bL=-self._colors4,
             col_bR=-self._colors1,
             col_d=-self._colors_p,
+            cutoff=self.cutoff,
         )
 
         self._D4 = self._lambda4.size
@@ -2352,6 +2391,7 @@ class SimpleUpdate2x2(object):
             col_bL=-self._colors5,
             col_bR=-self._colors8,
             col_d=-self._colors_p,
+            cutoff=self.cutoff,
         )
 
         self._D5 = self._lambda5.size
@@ -2414,6 +2454,7 @@ class SimpleUpdate2x2(object):
             col_bL=-self._colors4,
             col_bR=-self._colors3,
             col_d=-self._colors_p,
+            cutoff=self.cutoff,
         )
 
         self._D4 = self._lambda4.size
@@ -2475,6 +2516,7 @@ class SimpleUpdate2x2(object):
             col_bL=-self._colors6,
             col_bR=-self._colors8,
             col_d=-self._colors_p,
+            cutoff=self.cutoff,
         )
         self._D6 = self._lambda6.size
         self._D8 = self._lambda8.size
@@ -2536,6 +2578,7 @@ class SimpleUpdate2x2(object):
             col_bL=-self._colors2,
             col_bR=-self._colors3,
             col_d=-self._colors_p,
+            cutoff=self.cutoff,
         )
         self._D2 = self._lambda2.size
         self._D3 = self._lambda3.size
@@ -2597,6 +2640,7 @@ class SimpleUpdate2x2(object):
             col_bL=-self._colors6,
             col_bR=-self._colors7,
             col_d=-self._colors_p,
+            cutoff=self.cutoff,
         )
         self._D6 = self._lambda6.size
         self._D7 = self._lambda7.size
@@ -2658,6 +2702,7 @@ class SimpleUpdate2x2(object):
             col_bL=-self._colors2,
             col_bR=-self._colors1,
             col_d=-self._colors_p,
+            cutoff=self.cutoff,
         )
         self._D2 = self._lambda2.size
         self._D1 = self._lambda1.size
@@ -2719,6 +2764,7 @@ class SimpleUpdate2x2(object):
             col_bL=-self._colors5,
             col_bR=-self._colors7,
             col_d=-self._colors_p,
+            cutoff=self.cutoff,
         )
         self._D5 = self._lambda5.size
         self._D7 = self._lambda7.size
