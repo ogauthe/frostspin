@@ -18,6 +18,7 @@ def update_first_neighbor(
     col_R=default_color,
     col_bond=default_color,
     col_d=default_color,
+    cutoff=1e-13,
 ):
     """
     First neighbor simple update algorithm.
@@ -64,7 +65,7 @@ def update_first_neighbor(
         row_colors=combine_colors(col_sL, col_d),
         col_colors=combine_colors(col_sR, col_d),
         full=True,
-        cutoff=1e-13,
+        cutoff=cutoff,
     )
 
     # 4) renormalize link dimension
@@ -99,6 +100,7 @@ def update_second_neighbor(
     col_bL=default_color,
     col_bR=default_color,
     col_d=default_color,
+    cutoff=1e-13,
 ):
     """
     Second and third neighbor simple update algorithm.
@@ -155,7 +157,7 @@ def update_second_neighbor(
         row_colors=combine_colors(col_sL, col_d),
         col_colors=-combine_colors(-col_sm, col_sR, col_d),
         full=True,
-        cutoff=1e-13,
+        cutoff=cutoff,
     )
     D_L = new_lambda_L.size
     new_lambda_L /= new_lambda_L.sum()
@@ -169,7 +171,7 @@ def update_second_neighbor(
         row_colors=combine_colors(col_nbL, -col_sm),
         col_colors=-combine_colors(col_sR, col_d),
         full=True,
-        cutoff=1e-13,
+        cutoff=cutoff,
     )
     D_R = new_lambda_R.size
     new_lambda_R /= new_lambda_R.sum()
