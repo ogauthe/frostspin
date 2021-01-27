@@ -560,10 +560,10 @@ class SimpleUpdate1x2(object):
         Compute the entanglement entropy on every bonds as S = -sum_i p_i log_pi
         """
         s = np.empty(8)
-        s[0] = -(self._lambda1 * np.log(self._lambda1)).sum()
-        s[1] = -(self._lambda2 * np.log(self._lambda2)).sum()
-        s[2] = -(self._lambda3 * np.log(self._lambda3)).sum()
-        s[3] = -(self._lambda4 * np.log(self._lambda4)).sum()
+        s[0] = -self._lambda1 @ np.log(self._lambda1)
+        s[1] = -self._lambda2 @ np.log(self._lambda2)
+        s[2] = -self._lambda3 @ np.log(self._lambda3)
+        s[3] = -self._lambda4 @ np.log(self._lambda4)
         return s
 
     def update_bond1(self, gate):
@@ -1344,14 +1344,14 @@ class SimpleUpdate2x2(object):
         Compute the entanglement entropy on every bonds as S = -sum_i p_i log_pi
         """
         s = np.empty(8)
-        s[0] = -(self._lambda1 * np.log(self._lambda1)).sum()
-        s[1] = -(self._lambda2 * np.log(self._lambda2)).sum()
-        s[2] = -(self._lambda3 * np.log(self._lambda3)).sum()
-        s[3] = -(self._lambda4 * np.log(self._lambda4)).sum()
-        s[4] = -(self._lambda5 * np.log(self._lambda5)).sum()
-        s[5] = -(self._lambda6 * np.log(self._lambda6)).sum()
-        s[6] = -(self._lambda7 * np.log(self._lambda7)).sum()
-        s[7] = -(self._lambda8 * np.log(self._lambda8)).sum()
+        s[0] = -self._lambda1 @ np.log(self._lambda1)
+        s[1] = -self._lambda2 @ np.log(self._lambda2)
+        s[2] = -self._lambda3 @ np.log(self._lambda3)
+        s[3] = -self._lambda4 @ np.log(self._lambda4)
+        s[4] = -self._lambda5 @ np.log(self._lambda5)
+        s[5] = -self._lambda6 @ np.log(self._lambda6)
+        s[6] = -self._lambda7 @ np.log(self._lambda7)
+        s[7] = -self._lambda8 @ np.log(self._lambda8)
         return s
 
     ###############################################################################
