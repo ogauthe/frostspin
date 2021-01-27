@@ -191,7 +191,7 @@ class CTM_Environment(object):
         self._reset_temp_lists()
 
         # 4) if colors are provided, store them, else define them as default_colors
-        if colors_A is not None:
+        if not (colors_A is None or sum(sum(c.size for c in t) for t in colors_A) == 0):
             assert (
                 self._Nneq
                 == len(colors_A)
