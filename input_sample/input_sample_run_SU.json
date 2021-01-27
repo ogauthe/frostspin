@@ -5,6 +5,7 @@
   "ctm_restart_file": null,
   "tau": 1e-3,
   "beta_goal": [0.5, 1.0],
+  "su_cutoff": 1e-13,
   "measure_xi": true,
   "compute_rdm_2nd_nei": true,
   "measure_capacity": true,
