@@ -60,7 +60,7 @@ if run_CTMRG and measure_capacity:
     beta_goal = np.hstack((beta_goal + dbeta, beta_goal))
 
 beta_reach = np.array(sorted(set(np.rint(beta_goal / dbeta).astype(int)))) * dbeta
-print("Take into accout finite tau and remove doubles: reached beta will be:")
+print("Take into account finite tau and remove doubles: reached beta will be:")
 print(repr(beta_reach)[6:-1])
 
 # initilialize SU
