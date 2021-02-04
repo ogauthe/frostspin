@@ -1,6 +1,6 @@
 import numpy as np
 
-from toolsU1 import default_color, combine_colors, diagU1, svdU1
+from toolsU1 import default_color, combine_colors, eighU1, svdU1
 from svd_tools import svd_truncate
 
 # more convenient than [:,None,None,None,None,None] everywhere?
@@ -355,7 +355,7 @@ class SimpleUpdate1x2(object):
 
         # wait for colors_p to be set to use U(1) in h1 and h2 diagonalization.
         colors_h = combine_colors(self._colors_p, -self._colors_p)
-        self._eigvals_h, self._eigvecs_h, _ = diagU1(h, colors_h)
+        self._eigvals_h, self._eigvecs_h, _ = eighU1(h, colors_h)
         self.tau = tau  # need eigvals and eigvecs to set tau
         self._beta = 0.0
 
@@ -959,9 +959,9 @@ class SimpleUpdate2x2(object):
 
         # wait for colors_p to be set to use U(1) in h1 and h2 diagonalization.
         colors_h1 = combine_colors(self._colors_p, -self._colors_p)
-        self._eigvals_h1, self._eigvecs_h1, _ = diagU1(h1, colors_h1)
+        self._eigvals_h1, self._eigvecs_h1, _ = eighU1(h1, colors_h1)
         colors_h2 = combine_colors(self._colors_p, self._colors_p)
-        self._eigvals_h2, self._eigvecs_h2, _ = diagU1(h2, colors_h2)
+        self._eigvals_h2, self._eigvecs_h2, _ = eighU1(h2, colors_h2)
         self.tau = tau  # need eigvals and eigvecs to set tau
         self._beta = 0.0
 

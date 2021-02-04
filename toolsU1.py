@@ -308,7 +308,7 @@ def combine_colors(*colors):
     return combined
 
 
-def diagU1(H, colors):
+def eighU1(H, colors):
     """
     Diagonalize a real symmetric or complex Hermitian U(1) symmetric operator.
 
