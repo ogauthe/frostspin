@@ -177,6 +177,7 @@ def sparse_svdU1(M, k_block, row_colors, col_colors, maxiter=1000):
     color : (cut,) ndarray with int8 data type
       U(1) quantum numbers of s.
     """
+    raise NotImplementedError
     # FIXME: dealing with cut, blockwise or global?
     # computing k_block values by block without cutting is clumsy.
     # matrix element sorting at the end is inefficient if cut is made later
