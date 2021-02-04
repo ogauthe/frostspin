@@ -89,7 +89,7 @@ def reduce_matrix_to_blocks(M, row_colors, col_colors):
             ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]].copy()
             row_indices.append(ri)  # copy ri to own data and delete row_sort at exit
             col_indices.append(ci)  # same for ci
-            m = np.empty((ri.size, ci.size))
+            m = np.empty((ri.size, ci.size), dtype=M.dtype)
             for i, r in enumerate(ri):
                 for j, c in enumerate(ci):
                     m[i, j] = M[r, c]
@@ -403,9 +403,9 @@ def svdU1(M, row_colors, col_colors):
         + [M.shape[1]]
     )
     dmin = min(M.shape)
-    U = np.zeros((M.shape[0], dmin))
+    U = np.zeros((M.shape[0], dmin), dtype=M.dtype)
     s = np.empty(dmin)
-    V = np.zeros((dmin, M.shape[1]))
+    V = np.zeros((dmin, M.shape[1]), dtype=M.dtype)
     colors = np.empty(dmin, dtype=np.int8)
 
     # match blocks with same color and compute SVD inside those blocks only
