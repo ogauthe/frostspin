@@ -260,7 +260,7 @@ class BlockMatrixU1(object):
         may exist in one matrix and not in the other, but if both blocks exist they have
         to match.
         """
-        # cannot use numba since block may be heterogeneous tuple witout getitem
+        # cannot use numba since block may be heterogeneous tuple without getitem
         i1 = 0
         i2 = 0
         blocks = []
