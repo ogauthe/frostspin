@@ -54,6 +54,10 @@ class SU2_Representation(object):
     def irrep(self):
         return self._irrep
 
+    @property
+    def max_spin(self):
+        return self._irrep[-1]
+
     def __eq__(self, other):
         return (self._degen == other._degen).all() and (
             self._irrep == other._irrep
