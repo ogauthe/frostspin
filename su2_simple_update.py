@@ -2,7 +2,12 @@ import numpy as np
 
 from simple_update import SimpleUpdate1x2
 from toolsU1 import eighU1
-from su2_representation import SU2_Representation, elementary_conj, get_projector
+from su2_representation import (
+    SU2_Representation,
+    elementary_conj,
+    get_projector,
+    detect_rep,
+)
 
 
 class SU2_SimpleUpdate1x2(SimpleUpdate1x2):
@@ -199,3 +204,65 @@ class SU2_SimpleUpdate1x2(SimpleUpdate1x2):
         self.update_bond2(self._gate)
         self.update_bond1(self._gate)
         self._beta = round(self._beta + 4 * niter * self._tau, 10)
+
+    def resymmetrize(self):
+        """
+        Enforce SU(2) symmetry on weights, gammaA and gammaB.
+        """
+        rep1, perm1, self._lambda1 = detect_rep(self._lambda1, self._colors1)
+        rep2, perm2, self._lambda2 = detect_rep(self._lambda2, self._colors2)
+        rep3, perm3, self._lambda3 = detect_rep(self._lambda3, self._colors3)
+        rep4, perm4, self._lambda4 = detect_rep(self._lambda4, self._colors4)
+        rep_pa1 = self._da_rep * rep1
+        rep_pa12 = rep_pa1 * rep2
+        rep_pa123 = rep_pa12 * rep3
+        rep_pa1234 = rep_pa123 * rep4
+
+        # truncate irrep that wont give singlets
+        rep_pa1234.truncate_max_spin(1)
+        s_max123 = max(rep4.max_spin, rep_pa123.max_spin)
+        rep_pa123.truncate_max_spin(s_max123)
+        s_max12 = max(rep_pa12.max_spin, (rep3 * rep4).max_spin)
+        rep_pa12.truncate_max_spin(s_max12)
+
+        proj1 = get_projector(self._da_rep, rep1)
+        proj12 = get_projector(rep_pa1, rep2, max_spin=s_max12)
+        proj123 = get_projector(rep_pa12, rep3, max_spin=s_max123)
+        proj1234 = get_projector(rep_pa123, rep4, max_spin=1)
+
+        proj = np.tensordot(
+            np.tensordot(
+                np.tensordot(
+                    np.tensordot(self._da_proj, proj1, ((2,), (0,))),
+                    proj12,
+                    ((3,), (0,)),
+                ),
+                proj123,
+                (4, 0),
+            ),
+            proj1234,
+            (5, 0),
+        )
+        m = proj.reshape((-1, proj.shape[-1]))
+
+        swapA = self._gammaA[
+            :,
+            :,
+            perm1.reshape(-1, 1, 1, 1),
+            perm2.reshape(-1, 1, 1),
+            perm3.reshape(-1, 1),
+            perm4,
+        ]
+        symA = (m @ (m.T @ swapA.ravel())).reshape(swapA.shape)
+
+        swapB = self._gammaB[
+            :,
+            :,
+            perm3.reshape(-1, 1, 1, 1),
+            perm4.reshape(-1, 1, 1),
+            perm1.reshape(-1, 1),
+            perm2,
+        ]
+        symB = (m @ (m.T @ swapB.ravel())).reshape(swapA.shape)
+        self._gammaA = symA
+        self._gammaB = symB
