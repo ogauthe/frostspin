@@ -2,7 +2,7 @@ import numpy as np
 
 from simple_update import SimpleUpdate1x2
 from toolsU1 import eighU1
-from su2_representation import SU2_Representation
+from su2_representation import SU2_Representation, elementary_conj, get_projector
 
 
 class SU2_SimpleUpdate1x2(SimpleUpdate1x2):
@@ -28,9 +28,8 @@ class SU2_SimpleUpdate1x2(SimpleUpdate1x2):
             Singular values smaller than cutoff are set to zero to improve stability.
         file : str, optional
             Save file containing data to restart computation from. File must follow
-            save_to_file / load_from_file syntax. If file is provided, local_irrep is
-            read to check consistency between save and input, the other parameters
-            (verbosity excepted) are not read and directly set from file.
+            save_to_file / load_from_file syntax. If file is provided, Dmax, tau, h and
+            cutoff are not read.
         verbosity : int
           Level of log verbosity. Default is no log.
 
@@ -48,6 +47,19 @@ class SU2_SimpleUpdate1x2(SimpleUpdate1x2):
         if self.verbosity > 0:
             print(f"Construct SU2_SimpleUpdate1x2 with local irrep = {d}")
 
+        # SU(2) stuff
+        self._d = d
+        self._a = d  # inheritance, a = bar{d}
+        local_irrep = SU2_Representation([1], [d])
+        self._colors_p = local_irrep.get_cartan()
+        self._colors_a = -self._colors_p  # inheritance compatibility
+
+        # pre-compute projector from d x a to sum irrep, with a = bar{d}
+        self._da_rep = local_irrep * local_irrep
+        da_proj = get_projector(local_irrep, local_irrep)
+        da_proj = np.tensordot(elementary_conj[d], da_proj, ((1,), (1,)))
+        self._da_proj = da_proj.swapaxes(0, 1).copy()
+
         if file is not None:  # do not read optional input values, restart from file
             self.load_from_file(file)
             return
@@ -59,8 +71,6 @@ class SU2_SimpleUpdate1x2(SimpleUpdate1x2):
             print(f"tau = {tau}, Dmax = {Dmax}")
             print("Initialize SU2_SimpleUpdate2x2 from beta = 0 thermal product state")
 
-        self._d = d
-        self._a = d  # inheritance
         self.cutoff = cutoff
         self.Dmax = Dmax
 
@@ -75,8 +85,6 @@ class SU2_SimpleUpdate1x2(SimpleUpdate1x2):
         self._lambda4 = np.ones(1)
         self._gammaA = np.eye(d).reshape(d, d, 1, 1, 1, 1)
         self._gammaB = np.eye(d).reshape(d, d, 1, 1, 1, 1)
-        self._colors_p = SU2_Representation([1], [d]).get_cartan()
-        self._colors_a = -self._colors_p  # inheritance compatibility
         self._colors1 = np.zeros(1, dtype=np.int8)
         self._colors2 = np.zeros(1, dtype=np.int8)
         self._colors3 = np.zeros(1, dtype=np.int8)
@@ -113,10 +121,6 @@ class SU2_SimpleUpdate1x2(SimpleUpdate1x2):
         self._D2 = self._lambda2.size
         self._D3 = self._lambda3.size
         self._D4 = self._lambda4.size
-        self._d = self._gammaA.shape[0]
-
-        self._colors_p = SU2_Representation([1], [self._d]).get_cartan()
-        self._colors_a = -self._colors_p  # inheritance compatibility
 
     def save_to_file(self, file):
         data = {}
@@ -146,6 +150,7 @@ class SU2_SimpleUpdate1x2(SimpleUpdate1x2):
         Tensors are obtained by adding relevant sqrt(lambda) to every leg of gammaX
         For each virtual axis, sort by decreasing weights (instead of SU(2) order)
         """
+        self.resymmetrize()
         # actually weights are on by default, so *remove* sqrt(lambda)
         sl1 = 1 / np.sqrt(self._lambda1)
         sl2 = 1 / np.sqrt(self._lambda2)
@@ -153,10 +158,11 @@ class SU2_SimpleUpdate1x2(SimpleUpdate1x2):
         sl4 = 1 / np.sqrt(self._lambda4)
         A = np.einsum("paurdl,u,r,d,l->paurdl", self._gammaA, sl1, sl2, sl3, sl4)
         B = np.einsum("paurdl,u,r,d,l->paurdl", self._gammaB, sl3, sl4, sl1, sl2)
-        p1 = np.argsort(self._lambda1)[:, None, None, None]
-        p2 = np.argsort(self._lambda2)[:, None, None]
-        p3 = np.argsort(self._lambda3)[:, None]
-        p4 = np.argsort(self._lambda4)
+        # restore weight order
+        p1 = np.argsort(-self._lambda1)[:, None, None, None]
+        p2 = np.argsort(-self._lambda2)[:, None, None]
+        p3 = np.argsort(-self._lambda3)[:, None]
+        p4 = np.argsort(-self._lambda4)
         A = A[:, :, p1, p2, p3, p4] / np.amax(A)
         B = B[:, :, p3, p4, p1, p2] / np.amax(B)
         return A, B
