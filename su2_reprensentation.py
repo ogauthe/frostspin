@@ -4,7 +4,26 @@ import numpy as np
 import sympy as sp
 from sympy.physics.quantum.cg import CG
 
-from gen_SUN import construct_genSU2_s
+
+def su2_irrep_generators(s):
+    """
+    Construct generator for spin-s irrep of SU(2)
+    """
+    if s < 0 or int(2 * s) != 2 * s:
+        raise ValueError("s must be a positive half integer")
+
+    d = int(2 * s) + 1
+    basis = np.arange(s, -s - 1, -1)
+    Sm = np.zeros((d, d))
+    Sm[np.arange(1, d), np.arange(d - 1)] = np.sqrt(
+        s * (s + 1) - basis[:-1] * (basis[:-1] - 1)
+    )
+    Sp = Sm.T
+    gen = np.empty((3, d, d), dtype=complex)
+    gen[0] = (Sp + Sm) / 2  # Sx
+    gen[1] = (Sp - Sm) / 2j  # Sy
+    gen[2] = np.diag(basis)  # Sz
+    return gen
 
 
 class SU2_Representation(object):
@@ -100,7 +119,7 @@ class SU2_Representation(object):
         gen = np.zeros((3, self._dim, self._dim), dtype=complex)
         k = 0
         for (d, irr) in zip(self._degen, self._irrep):
-            irrep_gen = construct_genSU2_s((irr - 1) / 2)
+            irrep_gen = su2_irrep_generators((irr - 1) / 2)
             for i in range(d):
                 gen[:, k : k + irr, k : k + irr] = irrep_gen
                 k += irr
