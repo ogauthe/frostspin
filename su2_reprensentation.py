@@ -98,6 +98,9 @@ class SU2_Representation(object):
             s += f" + {d1}*{irr1}"
         return s[3:]
 
+    def __hash__(self):
+        return hash(repr(self))  # quick and dirty
+
     def get_irrep_degen(self, irr):
         ind = np.searchsorted(self._irrep, irr)
         if ind < self._irrep.size and self._irrep[ind] == irr:
