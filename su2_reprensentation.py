@@ -7,7 +7,7 @@ from sympy.physics.quantum.cg import CG
 from gen_SUN import construct_genSU2_s
 
 
-class SU2_Rep(object):
+class SU2_Representation(object):
     def __init__(self, degen, irrep):
         """
         irrep must be sorted
@@ -45,7 +45,7 @@ class SU2_Rep(object):
         for (d1, irr1) in zip(self._degen, self._irrep):
             for (d2, irr2) in zip(other._degen, other._irrep):
                 prod_irreps[np.arange(abs(irr1 - irr2) + 1, irr1 + irr2, 2)] += d1 * d2
-        return SU2_Rep(prod_irreps, np.arange(prod_irreps.size))
+        return SU2_Representation(prod_irreps, np.arange(prod_irreps.size))
 
     def __add__(self, other):
         i1, i2 = 0, 0
@@ -71,7 +71,7 @@ class SU2_Rep(object):
         if i2 < self._irrep.size:
             irrep.extend(self._irrep[i2:])
             degen.extend(self._degen[i2:])
-        return SU2_Rep(degen, irrep)
+        return SU2_Representation(degen, irrep)
 
     def __repr__(self):
         s = ""
@@ -220,4 +220,4 @@ def detect_rep(values, colors, ratio=1.001):
         symetrized_values[i:j] = values[i:j].sum() / irr
         perm[shift[irr] : shift[irr] + irr] = i + sort_colors
         shift[irr] += irr
-    return SU2_Rep(degen, irrep), perm, symetrized_values[perm]
+    return SU2_Representation(degen, irrep), perm, symetrized_values[perm]
