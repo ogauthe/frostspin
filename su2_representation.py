@@ -206,6 +206,17 @@ def get_projector(in1, in2, max_spin=np.inf):
     return p
 
 
+def get_conjugator(rep):
+    conjugator = np.zeros((rep.dim, rep.dim))
+    k = 0
+    for (d, irr) in zip(rep.degen, rep.irrep):
+        irrep_conj = elementary_conj[irr]
+        for i in range(d):
+            conjugator[k : k + irr, k : k + irr] = irrep_conj
+            k += irr
+    return conjugator
+
+
 def detect_rep(values, colors, ratio=1.001):
     """
     Detect SU(2) representation of a sorted array.
