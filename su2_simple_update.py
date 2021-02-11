@@ -56,7 +56,7 @@ class SU2_SimpleUpdate1x2(SimpleUpdate1x2):
         self._d = d
         self._a = d  # inheritance, a = bar{d}
         local_irrep = SU2_Representation([1], [d])
-        self._colors_p = local_irrep.get_cartan()
+        self._colors_p = -local_irrep.get_cartan()
         self._colors_a = -self._colors_p  # inheritance compatibility
 
         # pre-compute projector from d x a to sum irrep, with a = bar{d}
@@ -88,8 +88,10 @@ class SU2_SimpleUpdate1x2(SimpleUpdate1x2):
         self._lambda2 = np.ones(1)
         self._lambda3 = np.ones(1)
         self._lambda4 = np.ones(1)
-        self._gammaA = np.eye(d).reshape(d, d, 1, 1, 1, 1)
-        self._gammaB = np.eye(d).reshape(d, d, 1, 1, 1, 1)
+        # m = np.array([[0., 1.], [-1., 0.]]).reshape(2,2,1,1,1,1)
+        m = np.eye(2).reshape(2, 2, 1, 1, 1, 1)
+        self._gammaA = m
+        self._gammaB = m
         self._colors1 = np.zeros(1, dtype=np.int8)
         self._colors2 = np.zeros(1, dtype=np.int8)
         self._colors3 = np.zeros(1, dtype=np.int8)
@@ -196,6 +198,7 @@ class SU2_SimpleUpdate1x2(SimpleUpdate1x2):
             self.update_bond3(self._gate)
             self.update_bond2(self._gate)
             self.update_bond1(self._gate_squared)
+            self._beta += 4 * self._tau
             self.resymmetrize()
         self.update_bond2(self._gate)
         self.update_bond3(self._gate)
@@ -203,16 +206,24 @@ class SU2_SimpleUpdate1x2(SimpleUpdate1x2):
         self.update_bond3(self._gate)
         self.update_bond2(self._gate)
         self.update_bond1(self._gate)
-        self._beta = round(self._beta + 4 * niter * self._tau, 10)
+        self._beta = round(self._beta + 4 * self._tau, 10)
 
     def resymmetrize(self):
         """
         Enforce SU(2) symmetry on weights, gammaA and gammaB.
         """
+        if self.verbosity > 0:
+            print(f"re-symmetrize weights and tensors, beta = {self._beta}")
+
         rep1, perm1, self._lambda1 = detect_rep(self._lambda1, self._colors1)
         rep2, perm2, self._lambda2 = detect_rep(self._lambda2, self._colors2)
         rep3, perm3, self._lambda3 = detect_rep(self._lambda3, self._colors3)
         rep4, perm4, self._lambda4 = detect_rep(self._lambda4, self._colors4)
+        self._colors1 = self._colors1[perm1]
+        self._colors2 = self._colors2[perm2]
+        self._colors3 = self._colors3[perm3]
+        self._colors4 = self._colors4[perm4]
+
         rep_pa1 = self._da_rep * rep1
         rep_pa12 = rep_pa1 * rep2
         rep_pa123 = rep_pa12 * rep3
@@ -263,6 +274,8 @@ class SU2_SimpleUpdate1x2(SimpleUpdate1x2):
             perm1.reshape(-1, 1),
             perm2,
         ]
-        symB = (m @ (m.T @ swapB.ravel())).reshape(swapA.shape)
+        symB = (m @ (m.T @ swapB.ravel())).reshape(swapB.shape)
+        print(np.linalg.norm(swapA - symA), np.linalg.norm(swapB - symB))
         self._gammaA = symA
         self._gammaB = symB
+        print(self.lambdas)
