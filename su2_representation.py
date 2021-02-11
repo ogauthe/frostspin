@@ -59,6 +59,8 @@ class SU2_Representation(object):
         return self._irrep[-1]
 
     def __eq__(self, other):
+        if self._degen.size != other._degen.size:
+            return False
         return (self._degen == other._degen).all() and (
             self._irrep == other._irrep
         ).all()
@@ -104,6 +106,9 @@ class SU2_Representation(object):
 
     def __hash__(self):
         return hash(repr(self))  # quick and dirty
+
+    def copy(self):
+        return SU2_Representation(self._degen.copy(), self._irrep.copy())
 
     def get_irrep_degen(self, irr):
         ind = np.searchsorted(self._irrep, irr)
