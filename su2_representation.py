@@ -211,6 +211,33 @@ def get_projector(in1, in2, max_spin=np.inf):
     return p
 
 
+def get_singlet_projector_chained(*rep_in):
+    # fuse only on singlet
+    n_rep = len(rep_in)
+    if n_rep < 2:
+        raise ValueError("Must fuse at least 2 representations")
+    forwards, backwards = [[rep_in[0]], [rep_in[-1]]]
+    for i in range(1, n_rep):
+        forwards.append(forwards[i - 1] * rep_in[i])
+        backwards.append(backwards[i - 1] * rep_in[-i - 1])
+    if forwards[-1].irrep[0] != 1:
+        raise ValueError("No singlet in product")
+
+    # projection is made only on singlet. Remove irreps that wont fuse to 1.
+    truncations = [1]
+    forwards[-1].truncate_max_spin(1)
+    for (f, b) in zip(reversed(forwards[:-1]), backwards[:-1]):
+        trunc = b.max_spin
+        f.truncate_max_spin(trunc)
+        truncations.append(trunc)
+
+    proj = np.eye(rep_in[0].dim)
+    for (f, rep, trunc) in zip(forwards, rep_in[1:], reversed(truncations[:-1])):
+        p = get_projector(f, rep, max_spin=trunc)
+        proj = np.tensordot(proj, p, ((-1,), (0,)))
+    return proj
+
+
 def get_conjugator(rep):
     conjugator = np.zeros((rep.dim, rep.dim))
     k = 0
