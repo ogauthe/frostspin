@@ -19,7 +19,7 @@ def update_first_neighbor(
     col_bond=default_color,
     col_d=default_color,
     cutoff=1e-13,
-    keep_multiplets=False,
+    degen_ratio=None,
 ):
     """
     First neighbor simple update algorithm.
@@ -67,7 +67,7 @@ def update_first_neighbor(
         col_colors=combine_colors(col_sR, col_d),
         full=True,
         cutoff=cutoff,
-        keep_multiplets=keep_multiplets,
+        degen_ratio=degen_ratio,
     )
 
     # 4) renormalize link dimension
@@ -103,7 +103,7 @@ def update_second_neighbor(
     col_bR=default_color,
     col_d=default_color,
     cutoff=1e-13,
-    keep_multiplets=False,
+    degen_ratio=None,
 ):
     """
     Second and third neighbor simple update algorithm.
@@ -161,7 +161,7 @@ def update_second_neighbor(
         col_colors=-combine_colors(-col_sm, col_sR, col_d),
         full=True,
         cutoff=cutoff,
-        keep_multiplets=keep_multiplets,
+        degen_ratio=degen_ratio,
     )
     D_L = new_lambda_L.size
     new_lambda_L /= new_lambda_L.sum()
@@ -176,7 +176,7 @@ def update_second_neighbor(
         col_colors=-combine_colors(col_sR, col_d),
         full=True,
         cutoff=cutoff,
-        keep_multiplets=keep_multiplets,
+        degen_ratio=degen_ratio,
     )
     D_R = new_lambda_R.size
     new_lambda_R /= new_lambda_R.sum()
@@ -204,6 +204,7 @@ class SimpleUpdate1x2(object):
         tensors=None,
         colors=None,
         cutoff=1e-13,
+        degen_ratio=None,
         file=None,
         verbosity=0,
     ):
@@ -234,6 +235,9 @@ class SimpleUpdate1x2(object):
             assumed.
         cutoff : float, optional.
             Singular values smaller than cutoff are set to zero to improve stability.
+        degen_ratio : None or float, optional.
+            If set, keep singular value multiplet structure by cutting between two
+            values such that s[i+1]/s[i] > degen_ratio
         file : str, optional
             Save file containing data to restart computation from. File must follow
             save_to_file / load_from_file syntax. If file is provided, d and a are read
@@ -255,7 +259,6 @@ class SimpleUpdate1x2(object):
         self._d = d
         self._a = a
         self.verbosity = verbosity
-        self._keep_multiplets = False  # used in SU(2) version
         if self.verbosity > 0:
             print(f"construct SimpleUpdate1x2 with d = {d}, a = {a} and Dmax = {Dmax}")
 
@@ -264,6 +267,7 @@ class SimpleUpdate1x2(object):
             return
 
         self.cutoff = cutoff
+        self.degen_ratio = degen_ratio
         self.Dmax = Dmax
         if h.shape != (d ** 2, d ** 2):
             raise ValueError("invalid shape for Hamiltonian")
@@ -466,6 +470,10 @@ class SimpleUpdate1x2(object):
                 self.cutoff = data["_SU1x2_cutoff"][()]
             else:
                 self.cutoff = 1e-13  # default value for backward compatibility
+            if "_SU1x2_degen_ratio" in data.files:
+                self.degen_ratio = data["_SU1x2_degen_ratio"][()]
+            else:
+                self.degen_ratio = None
         self._D1 = self._lambda1.size
         self._D2 = self._lambda2.size
         self._D3 = self._lambda3.size
@@ -496,6 +504,8 @@ class SimpleUpdate1x2(object):
         data["_SU1x2_beta"] = self._beta
         data["_SU1x2_Dmax"] = self.Dmax
         data["_SU1x2_cutoff"] = self.cutoff
+        if self.degen_ratio is not None:  # do not save if None (avoid dtype=object)
+            data["_SU1x2_degen_ratio"] = self.degen_ratio
         if file is None:
             return data
         np.savez_compressed(file, **data)
@@ -612,7 +622,7 @@ class SimpleUpdate1x2(object):
             col_bond=self._colors1,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D1 = self._lambda1.size
@@ -654,7 +664,7 @@ class SimpleUpdate1x2(object):
             col_bond=self._colors2,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D2 = self._lambda2.size
@@ -695,7 +705,7 @@ class SimpleUpdate1x2(object):
             col_bond=self._colors3,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D3 = self._lambda3.size
@@ -736,7 +746,7 @@ class SimpleUpdate1x2(object):
             col_bond=self._colors4,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D4 = self._lambda4.size
@@ -763,6 +773,7 @@ class SimpleUpdate2x2(object):
         tensors=None,
         colors=None,
         cutoff=1e-13,
+        degen_ratio=None,
         file=None,
         verbosity=0,
     ):
@@ -797,6 +808,9 @@ class SimpleUpdate2x2(object):
           assumed.
         cutoff : float, optional.
             Singular values smaller than cutoff are set to zero to improve stability.
+        degen_ratio : None or float, optional.
+            If set, keep singular value multiplet structure by cutting between two
+            values such that s[i+1]/s[i] > degen_ratio
         file : str, optional
           Save file containing data to restart computation from. File must follow
           save_to_file / load_from_file syntax. If file is provided, d and a are read to
@@ -822,7 +836,6 @@ class SimpleUpdate2x2(object):
         self._d = d
         self._a = a
         self.verbosity = verbosity
-        self._keep_multiplets = False  # used in SU(2) version
         if self.verbosity > 0:
             print(f"construct SimpleUpdate2x2 with d = {d}, a = {a} and Dmax = {Dmax}")
 
@@ -831,6 +844,7 @@ class SimpleUpdate2x2(object):
             return
 
         self.cutoff = cutoff
+        self.degen_ratio = degen_ratio
         self.Dmax = Dmax
         if h1.shape != (d ** 2, d ** 2):
             raise ValueError("invalid shape for Hamiltonian h1")
@@ -1126,6 +1140,10 @@ class SimpleUpdate2x2(object):
                 self.cutoff = data["_SU2x2_cutoff"][()]
             else:
                 self.cutoff = 1e-13  # default value for backward compatibility
+            if "_SU2x2_degen_ratio" in data.files:
+                self.degen_ratio = data["_SU2x2_degen_ratio"][()]
+            else:
+                self.degen_ratio = None
         self._D1 = self._lambda1.size
         self._D2 = self._lambda2.size
         self._D3 = self._lambda3.size
@@ -1172,6 +1190,8 @@ class SimpleUpdate2x2(object):
         data["_SU2x2_beta"] = self._beta
         data["_SU2x2_Dmax"] = self.Dmax
         data["_SU2x2_cutoff"] = self.cutoff
+        if self.degen_ratio is not None:
+            data["_SU2x2_degen_ratio"] = self.degen_ratio
         if file is None:
             return data
         np.savez_compressed(file, **data)
@@ -1428,7 +1448,7 @@ class SimpleUpdate2x2(object):
             col_bond=self._colors1,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D1 = self._lambda1.size
@@ -1473,7 +1493,7 @@ class SimpleUpdate2x2(object):
             col_bond=self._colors2,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D2 = self._lambda2.size
@@ -1517,7 +1537,7 @@ class SimpleUpdate2x2(object):
             col_bond=self._colors3,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D3 = self._lambda3.size
@@ -1561,7 +1581,7 @@ class SimpleUpdate2x2(object):
             col_bond=self._colors4,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D4 = self._lambda4.size
@@ -1605,7 +1625,7 @@ class SimpleUpdate2x2(object):
             col_bond=-self._colors5,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D5 = self._lambda5.size
@@ -1650,7 +1670,7 @@ class SimpleUpdate2x2(object):
             col_bond=-self._colors6,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D6 = self._lambda6.size
@@ -1695,7 +1715,7 @@ class SimpleUpdate2x2(object):
             col_bond=-self._colors7,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D7 = self._lambda7.size
@@ -1740,7 +1760,7 @@ class SimpleUpdate2x2(object):
             col_bond=-self._colors8,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D8 = self._lambda8.size
@@ -1809,7 +1829,7 @@ class SimpleUpdate2x2(object):
             col_bR=self._colors5,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D2 = self._lambda2.size
@@ -1878,7 +1898,7 @@ class SimpleUpdate2x2(object):
             col_bR=self._colors7,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D1 = self._lambda1.size
@@ -1947,7 +1967,7 @@ class SimpleUpdate2x2(object):
             col_bR=self._colors6,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D2 = self._lambda2.size
@@ -2016,7 +2036,7 @@ class SimpleUpdate2x2(object):
             col_bR=self._colors7,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D3 = self._lambda3.size
@@ -2085,7 +2105,7 @@ class SimpleUpdate2x2(object):
             col_bR=self._colors6,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D4 = self._lambda4.size
@@ -2154,7 +2174,7 @@ class SimpleUpdate2x2(object):
             col_bR=self._colors8,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D3 = self._lambda3.size
@@ -2223,7 +2243,7 @@ class SimpleUpdate2x2(object):
             col_bR=self._colors5,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D4 = self._lambda4.size
@@ -2292,7 +2312,7 @@ class SimpleUpdate2x2(object):
             col_bR=self._colors8,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D1 = self._lambda1.size
@@ -2357,7 +2377,7 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors1,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D4 = self._lambda4.size
@@ -2420,7 +2440,7 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors8,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D5 = self._lambda5.size
@@ -2484,7 +2504,7 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors3,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D4 = self._lambda4.size
@@ -2547,7 +2567,7 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors8,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
         self._D6 = self._lambda6.size
         self._D8 = self._lambda8.size
@@ -2610,7 +2630,7 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors3,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
         self._D2 = self._lambda2.size
         self._D3 = self._lambda3.size
@@ -2673,7 +2693,7 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors7,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
         self._D6 = self._lambda6.size
         self._D7 = self._lambda7.size
@@ -2736,7 +2756,7 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors1,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
         self._D2 = self._lambda2.size
         self._D1 = self._lambda1.size
@@ -2799,7 +2819,7 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors7,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
         self._D5 = self._lambda5.size
         self._D7 = self._lambda7.size
