@@ -57,7 +57,12 @@ tau = float(config["tau"])
 dbeta = 4 * tau  # one SU iteration
 beta_goal = np.array(config["beta_goal"], dtype=float)
 su_cutoff = float(config["su_cutoff"])
-print(f"\nSimple update parameters: tau = {tau}, Dmax = {Dmax}, cutoff = {su_cutoff}")
+if config["su_degen_ratio"] is None:
+    su_degen_ratio = None
+else:
+    su_degen_ratio = float(config["su_degen_ratio"])
+print(f"\nSimple update parameters: tau = {tau}, Dmax = {Dmax}")
+print(f"cutoff = {su_cutoff}, degen_ratio = {su_degen_ratio}")
 print("Goal for imaginary time evolution steps are:", repr(beta_goal)[6:-1])
 
 chi_list = np.array(config["chi_list"], dtype=int)
@@ -90,7 +95,16 @@ else:
     print("Start simple update from scratch at beta = 0")
     pcol = np.array([1, -1], dtype=np.int8)  # U(1) colors for physical spin 1/2
     su = SimpleUpdate2x2(
-        d, a, Dmax, tau, h1, h2, colors=pcol, cutoff=su_cutoff, verbosity=0
+        d,
+        a,
+        Dmax,
+        tau,
+        h1,
+        h2,
+        colors=pcol,
+        cutoff=su_cutoff,
+        degen_ratio=su_degen_ratio,
+        verbosity=0,
     )
 
 # save parameters (do not mix internal CTM/SU stuff and simulation parameters)
