@@ -211,8 +211,19 @@ def get_projector(in1, in2, max_spin=np.inf):
     return p
 
 
-def get_singlet_projector_chained(*rep_in):
-    # fuse only on singlet
+def get_projector_chained(*rep_in, singlet_only=True):
+    r"""
+    Tree structure: only first leg has depth
+                singlets
+                  /
+                ...
+                /
+               /\
+              /  \
+             /\   \
+            /  \   \
+           1    2   3 ...
+    """
     n_rep = len(rep_in)
     if n_rep < 2:
         raise ValueError("Must fuse at least 2 representations")
@@ -223,13 +234,16 @@ def get_singlet_projector_chained(*rep_in):
     if forwards[-1].irrep[0] != 1:
         raise ValueError("No singlet in product")
 
-    # projection is made only on singlet. Remove irreps that wont fuse to 1.
-    truncations = [1]
-    forwards[-1].truncate_max_spin(1)
-    for (f, b) in zip(reversed(forwards[:-1]), backwards[:-1]):
-        trunc = b.max_spin
-        f.truncate_max_spin(trunc)
-        truncations.append(trunc)
+    if singlet_only:
+        # projection is made only on singlet. Remove irreps that wont fuse to 1.
+        truncations = [1]
+        forwards[-1].truncate_max_spin(1)
+        for (f, b) in zip(reversed(forwards[:-1]), backwards[:-1]):
+            trunc = b.max_spin
+            f.truncate_max_spin(trunc)
+            truncations.append(trunc)
+    else:
+        truncations = [np.inf] * n_rep
 
     proj = np.eye(rep_in[0].dim)
     for (f, rep, trunc) in zip(forwards, rep_in[1:], reversed(truncations[:-1])):
