@@ -225,11 +225,8 @@ def get_projector_chained(*rep_in, singlet_only=False):
             /  \   \
            1    2   3 ...
     """
-    n_rep = len(rep_in)
-    if n_rep < 2:
-        raise ValueError("Must fuse at least 2 representations")
     forwards, backwards = [[rep_in[0]], [rep_in[-1]]]
-    for i in range(1, n_rep):
+    for i in range(1, len(rep_in)):
         forwards.append(forwards[i - 1] * rep_in[i])
         backwards.append(backwards[i - 1] * rep_in[-i - 1])
 
@@ -244,7 +241,7 @@ def get_projector_chained(*rep_in, singlet_only=False):
             f.truncate_max_spin(trunc)
             truncations.append(trunc)
     else:
-        truncations = [np.inf] * n_rep
+        truncations = [np.inf] * len(rep_in)
 
     proj = np.eye(rep_in[0].dim)
     for (f, rep, trunc) in zip(forwards, rep_in[1:], reversed(truncations[:-1])):
