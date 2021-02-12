@@ -212,10 +212,10 @@ def get_projector(in1, in2, max_spin=np.inf):
     return p
 
 
-def get_projector_chained(*rep_in, singlet_only=True):
+def get_projector_chained(*rep_in, singlet_only=False):
     r"""
     Tree structure: only first leg has depth
-                singlets
+                product
                   /
                 ...
                 /
@@ -232,11 +232,11 @@ def get_projector_chained(*rep_in, singlet_only=True):
     for i in range(1, n_rep):
         forwards.append(forwards[i - 1] * rep_in[i])
         backwards.append(backwards[i - 1] * rep_in[-i - 1])
-    if forwards[-1].irrep[0] != 1:
-        raise ValueError("No singlet in product")
 
     if singlet_only:
         # projection is made only on singlet. Remove irreps that wont fuse to 1.
+        if forwards[-1].irrep[0] != 1:
+            raise ValueError("No singlet in product")
         truncations = [1]
         forwards[-1].truncate_max_spin(1)
         for (f, b) in zip(reversed(forwards[:-1]), backwards[:-1]):
