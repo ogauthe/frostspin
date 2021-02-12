@@ -253,6 +253,63 @@ def get_projector_chained(*rep_in, singlet_only=False):
     return proj
 
 
+def construct_matrix_projectors(rep_left, rep_right):
+    r"""
+                list of matrices
+                /          \
+               /            \
+            prod_l        prod_r
+             /               /
+            /\              /\
+           /\ \            /\ \
+         rep_left        rep_right
+    """
+    prod_r = rep_right[0]
+    for rep in rep_right[1:]:
+        prod_r = prod_r * rep
+    prod_l = rep_left[0]
+    for rep in rep_left[1:]:
+        prod_l = prod_l * rep
+    # save left and right dimensions before truncation
+    ldim = prod_l.dim
+    rdim = prod_r.dim
+    target = sorted(set(prod_l.irrep).intersection(prod_r.irrep))
+    # optimal would be to fuse only on target. Currently only truncate to max_spin
+    prod_r.truncate_max_spin(target[-1])
+    prod_l.truncate_max_spin(target[-1])
+    proj_l = get_projector_chained(*rep_left)[..., : prod_l.dim]
+    proj_r = get_projector_chained(*rep_right)[..., : prod_r.dim]
+    proj = get_projector(prod_l, prod_r, max_spin=1)
+    singlet_dim = proj.shape[2]
+
+    # contract projectors following optimal contraction path
+    mat_l = proj_l.reshape(ldim, prod_l.dim)
+    mat_r = proj_r.reshape(rdim, prod_r.dim)
+    cost_lr = prod_r.dim * ldim * (prod_l.dim + rdim)
+    cost_rl = prod_l.dim * rdim * (prod_r.dim + ldim)
+    if cost_lr < cost_rl:
+        proj = mat_l @ proj.reshape(prod_l.dim, prod_r.dim * singlet_dim)
+        proj = proj.reshape(ldim, prod_r.dim, singlet_dim).swapaxes(0, 1).copy()
+        proj = mat_r @ proj.reshape(prod_r.dim, ldim * singlet_dim)
+        proj = proj.reshape(rdim, ldim, singlet_dim).swapaxes(0, 1).copy()
+    else:
+        proj = proj.swapaxes(0, 1).reshape(prod_r.dim, prod_l.dim * singlet_dim)
+        proj = (mat_r @ proj).reshape(rdim, prod_l.dim, singlet_dim)
+        proj = proj.swapaxes(0, 1).reshape(prod_l.dim, rdim * singlet_dim)
+        proj = mat_l @ proj
+    proj = proj.reshape(ldim, rdim, singlet_dim)
+    matrix_projectors = [None] * (target[-1] + 1)  # index with irrep
+    k = 0
+    for irr in target:
+        n_row = prod_l.get_irrep_degen(irr)
+        n_col = prod_r.get_irrep_degen(irr)
+        sl = slice(k, k + n_row * n_col)
+        k += n_row * n_col
+        matrix_projectors[irr] = proj[:, :, sl].reshape(ldim, rdim, n_row, n_col)
+    assert k == singlet_dim
+    return matrix_projectors
+
+
 def get_conjugator(rep):
     conjugator = np.zeros((rep.dim, rep.dim))
     k = 0
