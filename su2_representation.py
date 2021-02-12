@@ -150,7 +150,8 @@ class SU2_Representation(object):
 
 elementary_projectors = {(1, 1, 1): np.ones((1, 1, 1))}
 elementary_conj = {1: np.ones((1, 1))}
-for irr1 in range(2, 9):
+ms = 10
+for irr1 in range(2, ms):
     s1 = sp.Rational(irr1 - 1, 2)
     # singlet x irrep
     elementary_projectors[1, irr1, irr1] = np.eye(irr1)[None]
@@ -164,7 +165,7 @@ for irr1 in range(2, 9):
     elementary_conj[irr1] = np.array(sp.sqrt(irr1) * singlet_proj, dtype=float)
 
     # irr1 x irr2 = sum irr3
-    for irr2 in range(irr1, 9):
+    for irr2 in range(irr1, ms):
         s2 = sp.Rational(irr2 - 1, 2)
         for irr3 in range(irr2 - irr1 + 1, irr1 + irr2, 2):
             s3 = sp.Rational(irr3 - 1, 2)
