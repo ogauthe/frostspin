@@ -283,21 +283,23 @@ def construct_matrix_projectors(rep_left, rep_right):
     singlet_dim = proj.shape[2]
 
     # contract projectors following optimal contraction path
-    mat_l = proj_l.reshape(ldim, prod_l.dim)
-    mat_r = proj_r.reshape(rdim, prod_r.dim)
+    in_sh = proj_l.shape[:-1] + proj_r.shape[:-1]
+    proj_l = proj_l.reshape(ldim, prod_l.dim)
+    proj_r = proj_r.reshape(rdim, prod_r.dim)
     cost_lr = prod_r.dim * ldim * (prod_l.dim + rdim)
     cost_rl = prod_l.dim * rdim * (prod_r.dim + ldim)
     if cost_lr < cost_rl:
-        proj = mat_l @ proj.reshape(prod_l.dim, prod_r.dim * singlet_dim)
+        proj = proj_l @ proj.reshape(prod_l.dim, prod_r.dim * singlet_dim)
         proj = proj.reshape(ldim, prod_r.dim, singlet_dim).swapaxes(0, 1).copy()
-        proj = mat_r @ proj.reshape(prod_r.dim, ldim * singlet_dim)
+        proj = proj_r @ proj.reshape(prod_r.dim, ldim * singlet_dim)
         proj = proj.reshape(rdim, ldim, singlet_dim).swapaxes(0, 1).copy()
     else:
         proj = proj.swapaxes(0, 1).reshape(prod_r.dim, prod_l.dim * singlet_dim)
-        proj = (mat_r @ proj).reshape(rdim, prod_l.dim, singlet_dim)
+        proj = (proj_r @ proj).reshape(rdim, prod_l.dim, singlet_dim)
         proj = proj.swapaxes(0, 1).reshape(prod_l.dim, rdim * singlet_dim)
-        proj = mat_l @ proj
+        proj = proj_l @ proj
     proj = proj.reshape(ldim, rdim, singlet_dim)
+
     matrix_projectors = [None] * (target[-1] + 1)  # index with irrep
     k = 0
     for irr in target:
@@ -305,7 +307,7 @@ def construct_matrix_projectors(rep_left, rep_right):
         n_col = prod_r.get_irrep_degen(irr)
         sl = slice(k, k + n_row * n_col)
         k += n_row * n_col
-        matrix_projectors[irr] = proj[:, :, sl].reshape(ldim, rdim, n_row, n_col)
+        matrix_projectors[irr] = proj[:, :, sl].reshape(*in_sh, n_row, n_col)
     assert k == singlet_dim
     return matrix_projectors
 
