@@ -137,7 +137,17 @@ class SU2_Representation(object):
                 k += irr
         return gen
 
-    def get_cartan(self):
+    def get_conjugator(self):
+        conj = np.zeros((self._dim, self._dim))
+        k = 0
+        for (d, irr) in zip(self._degen, self._irrep):
+            irrep_conj = elementary_conj[irr]
+            for i in range(d):
+                conj[k : k + irr, k : k + irr] = irrep_conj
+                k += irr
+        return conj
+
+    def get_Sz(self):
         cartan = np.empty(self._dim, dtype=np.int8)
         k = 0
         for (d, irr) in zip(self._degen, self._irrep):
