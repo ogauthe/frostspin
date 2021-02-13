@@ -172,7 +172,7 @@ for irr1 in range(2, ms):
     for i1 in range(irr1):
         m1 = s1 - i1
         singlet_proj[i1, irr1 - i1 - 1] = CG(s1, m1, s1, -m1, 0, 0).doit()
-    elementary_conj[irr1] = np.array(sp.sqrt(irr1) * singlet_proj, dtype=float)
+    elementary_conj[irr1] = np.array(singlet_proj, dtype=float)
 
     # irr1 x irr2 = sum irr3
     for irr2 in range(irr1, ms):
@@ -286,6 +286,7 @@ def construct_matrix_projectors(rep_left, rep_right):
     prod_l.truncate_max_spin(target[-1])
     proj_l = get_projector_chained(*rep_left)[..., : prod_l.dim]
     proj_r = get_projector_chained(*rep_right)[..., : prod_r.dim]
+    proj_r = np.tensordot(proj_r, prod_r.get_conjugator(), ((-1,), (0,)))
     proj = get_projector(prod_l, prod_r, max_spin=1)
     singlet_dim = proj.shape[2]
 
