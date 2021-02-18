@@ -51,7 +51,7 @@ class SU2_SimpleUpdate1x2(SimpleUpdate1x2):
         self._d = d
         self._a = d  # inheritance, a = bar{d}
         local_irrep = SU2_Representation([1], [d])
-        self._colors_p = -local_irrep.get_cartan()
+        self._colors_p = -local_irrep.get_Sz()
         self._colors_a = -self._colors_p  # inheritance compatibility
 
         # pre-compute projector from d x a to sum irrep, with a = bar{d}
