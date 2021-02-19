@@ -308,7 +308,8 @@ def construct_matrix_projectors(rep_left, rep_right):
         proj = proj_l @ proj
     proj = proj.reshape(ldim, rdim, singlet_dim)
 
-    matrix_projectors = [None] * (target[-1] + 1)  # index with irrep
+    # index with irrep, keep shape
+    matrix_projectors = [np.zeros((*in_sh, 0, 0))] * (target[-1] + 1)
     k = 0
     for irr in target:
         n_row = prod_l.get_irrep_degen(irr)
