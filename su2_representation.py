@@ -286,7 +286,6 @@ def construct_matrix_projectors(rep_left, rep_right):
     prod_l.truncate_max_spin(target[-1])
     proj_l = get_projector_chained(*rep_left)[..., : prod_l.dim]
     proj_r = get_projector_chained(*rep_right)[..., : prod_r.dim]
-    proj_r = np.tensordot(proj_r, prod_r.get_conjugator(), ((-1,), (0,)))
     proj = get_projector(prod_l, prod_r, max_spin=1)
     singlet_dim = proj.shape[2]
 
