@@ -310,16 +310,5 @@ def construct_matrix_projectors(rep_left, rep_right):
         proj = (proj_r @ proj).reshape(rdim, prod_l.dim, singlet_dim)
         proj = proj.swapaxes(0, 1).reshape(prod_l.dim, rdim * singlet_dim)
         proj = proj_l @ proj
-    proj = proj.reshape(ldim, rdim, singlet_dim)
-
-    # index with irrep, keep shape
-    matrix_projectors = [np.zeros((*in_sh, 0, 0))] * (target[-1] + 1)
-    k = 0
-    for irr in target:
-        n_row = prod_l.get_irrep_degen(irr)
-        n_col = prod_r.get_irrep_degen(irr)
-        sl = slice(k, k + n_row * n_col)
-        k += n_row * n_col
-        matrix_projectors[irr] = proj[:, :, sl].reshape(*in_sh, n_row, n_col)
-    assert k == singlet_dim
-    return matrix_projectors
+    proj = proj.reshape(*in_sh, singlet_dim)
+    return proj
