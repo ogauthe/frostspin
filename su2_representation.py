@@ -312,3 +312,60 @@ def construct_matrix_projectors(rep_left, rep_right):
         proj = proj_l @ proj
     proj = proj.reshape(*in_sh, singlet_dim)
     return proj
+
+
+class SU2_Matrix(object):
+    def __init__(self, blocks, block_irreps):
+        assert len(blocks) == len(block_irreps)
+        self._blocks = blocks
+        self._block_irreps = block_irreps
+        self._nblocks = len(blocks)
+
+    @classmethod
+    def from_raw_data(cls, data, rep_in, rep_out):
+        i1 = 0
+        i2 = 0
+        blocks = []
+        block_irreps = []
+        k = 0
+        while i1 < rep_in.n_irr and i2 < rep_out.n_irr:
+            if rep_in.irreps[i1] == rep_out.irreps[i2]:
+                sh = (rep_in.degen[i1], rep_out.degen[i2])
+                m = data[k : k + sh[0] * sh[1]].reshape(sh) / np.sqrt(rep_in.irreps[i1])
+                blocks.append(m)
+                k += m.size
+                block_irreps.append(rep_in.irreps[i1])
+                i1 += 1
+                i2 += 1
+            elif rep_in.irreps[i1] < rep_out.irreps[i2]:
+                i1 += 1
+            else:
+                i2 += 1
+        assert k == data.size
+        return cls(blocks, block_irreps)
+
+    def to_raw_data(self):
+        data = np.empty(sum(b.size for b in self._blocks))
+        k = 0
+        for b in self._blocks:
+            data[k : k + b.size] = b.flat
+            k += b.size
+        assert k == data.size
+        return data
+
+    def __matmul__(self, other):
+        i1 = 0
+        i2 = 0
+        blocks = []
+        block_irreps = []
+        while i1 < self._nblocks and i2 < other._nblocks:
+            if self._irreps[i1] == other._irreps[i2]:
+                blocks.append(self._blocks[i1] @ other._blocks[i2])
+                block_irreps.append(self._irreps[i1])
+                i1 += 1
+                i2 += 1
+            elif self._irreps[i1] < other._irreps[i2]:
+                i1 += 1
+            else:
+                i2 += 1
+        return SU2_Matrix(blocks, block_irreps)
