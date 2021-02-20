@@ -347,8 +347,8 @@ class SU2_Matrix(object):
     def to_raw_data(self):
         data = np.empty(sum(b.size for b in self._blocks))
         k = 0
-        for b in self._blocks:
-            data[k : k + b.size] = b.flat
+        for irr, b in zip(self._block_irreps, self._blocks):
+            data[k : k + b.size] = b.ravel() * np.sqrt(irr)
             k += b.size
         assert k == data.size
         return data
