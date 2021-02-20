@@ -27,80 +27,85 @@ def su2_irrep_generators(s):
 
 
 class SU2_Representation(object):
-    def __init__(self, degen, irrep):
+    def __init__(self, degen, irreps):
         """
         irrep must be sorted
         """
         degen2 = np.asanyarray(degen)
-        irrep2 = np.asanyarray(irrep)
-        if degen2.ndim != 1 or irrep2.ndim != 1:
-            raise ValueError("degen and irrep must be 1D")
-        if degen2.size != irrep2.size:
-            raise ValueError("degen and irrep must have same size")
+        irreps2 = np.asanyarray(irreps)
+        if degen2.ndim != 1 or irreps2.ndim != 1:
+            raise ValueError("degen and irreps must be 1D")
+        if degen2.size != irreps2.size:
+            raise ValueError("degen and irreps must have same size")
         ma = degen2.nonzero()[0]
         self._degen = np.ascontiguousarray(degen2[ma])
-        self._irrep = np.ascontiguousarray(irrep2[ma])
-        self._dim = self._degen @ self._irrep
+        self._irreps = np.ascontiguousarray(irreps2[ma])
+        self._dim = self._degen @ self._irreps
+        self._n_irr = self._irreps.size
 
     @property
     def dim(self):
         return self._dim
 
     @property
+    def n_irr(self):
+        return self._n_irr
+
+    @property
     def degen(self):
         return self._degen
 
     @property
-    def irrep(self):
-        return self._irrep
+    def irreps(self):
+        return self._irreps
 
     @property
     def max_spin(self):
-        return self._irrep[-1]
+        return self._irreps[-1]
 
     def __eq__(self, other):
-        if self._degen.size != other._degen.size:
+        if self._n_irr != other._n_irr:
             return False
         return (self._degen == other._degen).all() and (
-            self._irrep == other._irrep
+            self._irreps == other._irreps
         ).all()
 
     def __mul__(self, other):
-        prod_irreps = np.zeros(self._irrep[-1] + other._irrep[-1], dtype=int)
-        for (d1, irr1) in zip(self._degen, self._irrep):
-            for (d2, irr2) in zip(other._degen, other._irrep):
+        prod_irreps = np.zeros(self._irreps[-1] + other._irreps[-1], dtype=int)
+        for (d1, irr1) in zip(self._degen, self._irreps):
+            for (d2, irr2) in zip(other._degen, other._irreps):
                 prod_irreps[np.arange(abs(irr1 - irr2) + 1, irr1 + irr2, 2)] += d1 * d2
         return SU2_Representation(prod_irreps, np.arange(prod_irreps.size))
 
     def __add__(self, other):
         i1, i2 = 0, 0
-        irrep = []
+        irreps = []
         degen = []
-        while i1 < self._irrep.size and i2 < other._irrep.size:
-            if self._irrep[i1] == self._irrep[i2]:
-                irrep.append(self._irrep[i1])
-                degen.append(self._degen[i1] + self._degen[i2])
+        while i1 < self._n_irr and i2 < other._n_irr:
+            if self._irreps[i1] == self._irreps[i2]:
+                irreps.append(self._irreps[i1])
+                degen.append(self._degen[i1] + other._degen[i2])
                 i1 += 1
                 i2 += 1
-            elif self._irrep[i1] < self._irrep[i2]:
-                irrep.append(self._irrep[i1])
+            elif self._irrep[i1] < self._irreps[i2]:
+                irreps.append(self._irreps[i1])
                 degen.append(self._degen[i1])
                 i1 += 1
             else:
-                irrep.append(self._irrep[i2])
+                irreps.append(self._irreps[i2])
                 degen.append(self._degen[i2])
                 i2 += 1
-        if i1 < self._irrep.size:
-            irrep.extend(self._irrep[i1:])
+        if i1 < self._n_irr:
+            irreps.extend(self._irreps[i1:])
             degen.extend(self._degen[i1:])
-        if i2 < self._irrep.size:
-            irrep.extend(self._irrep[i2:])
+        if i2 < self._n_irr:
+            irreps.extend(self._irreps[i2:])
             degen.extend(self._degen[i2:])
-        return SU2_Representation(degen, irrep)
+        return SU2_Representation(degen, irreps)
 
     def __repr__(self):
         s = ""
-        for (d1, irr1) in zip(self._degen, self._irrep):
+        for (d1, irr1) in zip(self._degen, self._irreps):
             s += f" + {d1}*{irr1}"
         return s[3:]
 
@@ -108,11 +113,11 @@ class SU2_Representation(object):
         return hash(repr(self))  # quick and dirty
 
     def copy(self):
-        return SU2_Representation(self._degen.copy(), self._irrep.copy())
+        return SU2_Representation(self._degen.copy(), self._irreps.copy())
 
     def get_irrep_degen(self, irr):
-        ind = np.searchsorted(self._irrep, irr)
-        if ind < self._irrep.size and self._irrep[ind] == irr:
+        ind = np.searchsorted(self._irreps, irr)
+        if ind < self._n_irr and self._irreps[ind] == irr:
             return self._degen[ind]
         return 0
 
@@ -120,17 +125,17 @@ class SU2_Representation(object):
         """
         Truncate any spin strictly greater than max_spin. Returns updated dimension.
         """
-        ind = np.searchsorted(self._irrep, max_spin + 1)
-        if ind < len(self._irrep):
+        ind = np.searchsorted(self._irreps, max_spin + 1)
+        if ind < len(self._irreps):
             self._degen = self._degen[:ind]
-            self._irrep = self._irrep[:ind]
-            self._dim = self._degen @ self._irrep
+            self._irreps = self._irreps[:ind]
+            self._dim = self._degen @ self._irreps
         return self._dim
 
     def get_generators(self):
         gen = np.zeros((3, self._dim, self._dim), dtype=complex)
         k = 0
-        for (d, irr) in zip(self._degen, self._irrep):
+        for (d, irr) in zip(self._degen, self._irreps):
             irrep_gen = su2_irrep_generators((irr - 1) / 2)
             for i in range(d):
                 gen[:, k : k + irr, k : k + irr] = irrep_gen
@@ -140,7 +145,7 @@ class SU2_Representation(object):
     def get_conjugator(self):
         conj = np.zeros((self._dim, self._dim))
         k = 0
-        for (d, irr) in zip(self._degen, self._irrep):
+        for (d, irr) in zip(self._degen, self._irreps):
             irrep_conj = elementary_conj[irr]
             for i in range(d):
                 conj[k : k + irr, k : k + irr] = irrep_conj
@@ -150,7 +155,7 @@ class SU2_Representation(object):
     def get_Sz(self):
         cartan = np.empty(self._dim, dtype=np.int8)
         k = 0
-        for (d, irr) in zip(self._degen, self._irrep):
+        for (d, irr) in zip(self._degen, self._irreps):
             irrep_cartan = -np.arange(-irr + 1, irr, 2, dtype=np.int8)
             for i in range(d):
                 cartan[k : k + irr] = irrep_cartan
