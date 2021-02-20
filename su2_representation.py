@@ -126,7 +126,7 @@ class SU2_Representation(object):
         Truncate any spin strictly greater than max_spin. Returns updated dimension.
         """
         ind = np.searchsorted(self._irreps, max_spin + 1)
-        if ind < len(self._irreps):
+        if ind < self._n_irr:
             self._degen = self._degen[:ind]
             self._irreps = self._irreps[:ind]
             self._dim = self._degen @ self._irreps
@@ -201,15 +201,15 @@ def get_projector(in1, in2, max_spin=np.inf):
     out = in1 * in2
     out.truncate_max_spin(max_spin)
     p = np.zeros((in1.dim, in2.dim, out.dim))
-    shift3 = np.zeros(out.irrep[-1] + 1, dtype=int)
+    shift3 = np.zeros(out.irreps[-1] + 1, dtype=int)
     n = 0
-    for i, irr3 in enumerate(out.irrep):
+    for i, irr3 in enumerate(out.irreps):
         shift3[irr3] = n  # indexed with IRREP, not index
         n += out.degen[i] * irr3
-    cs1 = [0, *(in1.degen * in1.irrep).cumsum()]  # remember where to restart in in1
-    cs2 = [0, *(in2.degen * in2.irrep).cumsum()]  # remember where to restart in in2
-    for i1, irr1 in enumerate(in1.irrep):
-        for i2, irr2 in enumerate(in2.irrep):
+    cs1 = [0, *(in1.degen * in1.irreps).cumsum()]  # remember where to restart in in1
+    cs2 = [0, *(in2.degen * in2.irreps).cumsum()]  # remember where to restart in in2
+    for i1, irr1 in enumerate(in1.irreps):
+        for i2, irr2 in enumerate(in2.irreps):
             for irr3 in range(abs(irr1 - irr2) + 1, min(irr1 + irr2, max_spin + 1), 2):
                 p123 = elementary_projectors[irr1, irr2, irr3]
                 shift1 = cs1[i1]
@@ -247,7 +247,7 @@ def get_projector_chained(*rep_in, singlet_only=False):
 
     if singlet_only:
         # projection is made only on singlet. Remove irreps that wont fuse to 1.
-        if forwards[-1].irrep[0] != 1:
+        if forwards[-1].irreps[0] != 1:
             raise ValueError("No singlet in product")
         truncations = [1]
         forwards[-1].truncate_max_spin(1)
@@ -285,7 +285,7 @@ def construct_matrix_projectors(rep_left, rep_right):
     # save left and right dimensions before truncation
     ldim = prod_l.dim
     rdim = prod_r.dim
-    target = sorted(set(prod_l.irrep).intersection(prod_r.irrep))
+    target = sorted(set(prod_l.irreps).intersection(prod_r.irreps))
     # optimal would be to fuse only on target. Currently only truncate to max_spin
     prod_r.truncate_max_spin(target[-1])
     prod_l.truncate_max_spin(target[-1])
