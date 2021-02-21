@@ -265,7 +265,7 @@ def get_projector_chained(*rep_in, singlet_only=False):
     return proj
 
 
-def construct_matrix_projectors(rep_left, rep_right):
+def construct_matrix_projectors(rep_left, rep_right, conj_right=False):
     r"""
                 list of matrices
                 /          \
@@ -298,6 +298,8 @@ def construct_matrix_projectors(rep_left, rep_right):
     in_sh = proj_l.shape[:-1] + proj_r.shape[:-1]
     proj_l = proj_l.reshape(ldim, prod_l.dim)
     proj_r = proj_r.reshape(rdim, prod_r.dim)
+    if conj_right:  # same as conjugating input irrep, with smaller dimensions
+        proj_r = proj_r @ prod_r.get_conjugator()
     cost_lr = prod_r.dim * ldim * (prod_l.dim + rdim)
     cost_rl = prod_l.dim * rdim * (prod_r.dim + ldim)
     if cost_lr < cost_rl:
