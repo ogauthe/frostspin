@@ -317,6 +317,8 @@ def construct_matrix_projectors(rep_left, rep_right, conj_right=False):
 
 
 class SU2_Matrix(object):
+    __array_priority__ = 15.0  # bypass ndarray.__mul__
+
     def __init__(self, blocks, block_irreps):
         assert len(blocks) == len(block_irreps)
         self._blocks = blocks
@@ -354,6 +356,39 @@ class SU2_Matrix(object):
             k += b.size
         assert k == data.size
         return data
+
+    def __mul__(self, x):
+        y = np.atleast_2d(x)
+        if y.size == 1:  # scalar multiplication
+            blocks = [b * x for b in self._blocks]
+        elif y.shape[0] == 1:  # diagonal weights applied on the right
+            blocks = []
+            k = 0
+            for b in self._blocks:
+                blocks.append(b * y[:, k : k + b.shape[1]])
+                k += b.shape[1]
+            if k != y.size:
+                raise ValueError("Operand has non-compatible shape")
+        elif y.shape[1] == 1:  # diagonal weights applied on the left
+            blocks = []
+            k = 0
+            for b in self._blocks:
+                blocks.append(b * y[k : k + b.shape[0]])
+                k += b.shape[0]
+            if k != y.size:
+                raise ValueError("Operand has non-compatible shape")
+        else:
+            raise ValueError("Operand must be scalar or 1D vector")
+        return SU2_Matrix(blocks, self._block_irreps)
+
+    def __rmul__(self, x):
+        return self * x
+
+    def __div__(self, x):
+        return self * (1.0 / x)
+
+    def __rdiv__(self, x):
+        return self * (1.0 / x)
 
     def __matmul__(self, other):
         i1 = 0
