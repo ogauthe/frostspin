@@ -383,6 +383,12 @@ class SU2_Matrix(object):
         assert k == data.size
         return data
 
+    def __repr__(self):
+        s = "SU2_Matrix with irreps and shapes:\n"
+        for irr, b in zip(self._block_irreps, self._blocks):
+            s += f"{irr}: {b.shape}\n"
+        return s
+
     def __mul__(self, x):
         y = np.atleast_2d(x)
         if y.size == 1:  # scalar multiplication
