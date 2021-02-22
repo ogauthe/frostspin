@@ -2,6 +2,7 @@
 
 import numpy as np
 import sympy as sp
+import scipy.linalg as lg
 from sympy.physics.quantum.cg import CG
 
 
@@ -431,3 +432,27 @@ class SU2_Matrix(object):
             else:
                 i2 += 1
         return SU2_Matrix(blocks, block_irreps)
+
+    def expm(self):
+        """
+        Compute expm(self)
+        """
+        blocks = [lg.expm(b) for b in self._blocks]
+        return SU2_Matrix(blocks, self._block_irreps)
+
+    def svd(self, Dstar=None):
+        """
+        Compute block-wise SVD of self and keep only D* largest singular values. Do not
+        truncate if D* is not provided.
+        """
+        ul = [None] * self._nblocks
+        sl = [None] * self._nblocks
+        vl = [None] * self._nblocks
+        degen = []
+        for i, b in enumerate(self._blocks):
+            ul[i], sl[i], vl[i] = lg.svd(b, full_matrices=False)
+            degen.append(sl[i].size)
+        U = SU2_Matrix(ul, self._block_irreps)
+        mid_rep = SU2_Representation(degen, self._block_irreps)
+        V = SU2_Matrix(ul, self._block_irreps)
+        return U, sl, V, mid_rep
