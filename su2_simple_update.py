@@ -1,11 +1,11 @@
 import numpy as np
 
-from su2_representation import SU2_Representation, get_projector
+from su2_representation import SU2_Representation, SU2_Matrix
 
 
 class SU2_SimpleUpdate1x2(object):
     def __init__(
-        self, d, Dmax=None, tau=None, h=None, cutoff=1e-12, file=None, verbosity=0
+        self, d, Dstar=None, tau=None, h=None, cutoff=1e-12, file=None, verbosity=0
     ):
         """
         SU(2) symmetric simple update algorithm on plaquette AB. Only deals with finite
@@ -15,9 +15,9 @@ class SU2_SimpleUpdate1x2(object):
         ----------
         d : int
             dimension of physical SU(2) irreducible reprsentation on each site.
-        Dmax : int
-            Maximal bond dimension. If provided, tensors may have different D at
-            initialization. Not read if file is given, retrieved from save.
+        Dstar : int
+            Maximal bond dimension, considering only independent multiplets. Not read if
+            file is given, retrieved from save.
         tau : float
             Imaginary time step. Not read if file is given.
         h : (d**2, d**2) float or complex ndarray
@@ -26,7 +26,7 @@ class SU2_SimpleUpdate1x2(object):
             Singular values smaller than cutoff are set to zero to improve stability.
         file : str, optional
             Save file containing data to restart computation from. File must follow
-            save_to_file / load_from_file syntax. If file is provided, Dmax, tau, h and
+            save_to_file / load_from_file syntax. If file is provided, Dstar, tau, h and
             cutoff are not read.
         verbosity : int
           Level of log verbosity. Default is no log.
@@ -44,16 +44,6 @@ class SU2_SimpleUpdate1x2(object):
         if self.verbosity > 0:
             print(f"Construct SU2_SimpleUpdate1x2 with local irrep = {d}")
 
-        # SU(2) stuff
-        self._d = d
-        self._a = d
-        local_irrep = SU2_Representation([1], [d])
-
-        # pre-compute projector from d x a to sum irrep, with a = bar{d}
-        self._da_rep = local_irrep * local_irrep
-        da_proj = get_projector(local_irrep, local_irrep)
-        self._da_proj = da_proj.swapaxes(0, 1).copy()
-
         if file is not None:  # do not read optional input values, restart from file
             self.load_from_file(file)
             return
@@ -62,43 +52,59 @@ class SU2_SimpleUpdate1x2(object):
             raise ValueError("invalid shape for Hamiltonian")
 
         if self.verbosity > 0:
-            print(f"tau = {tau}, Dmax = {Dmax}")
+            print(f"tau = {tau}, D* = {Dstar}")
             print("Initialize SU2_SimpleUpdate2x2 from beta = 0 thermal product state")
 
+        self._d = d
+        self._a = d
         self.cutoff = cutoff
-        self.Dmax = Dmax
+        self.Dstar = Dstar
+
+        phys = SU2_Representation([1], [d])
+        self._h = SU2_Matrix.from_dense(h, (phys, phys), (phys, phys))
+        self.tau = tau
 
         # only consider thermal equilibrium, start from product state at beta=0
-        self._D1 = 1
-        self._D2 = 1
-        self._D3 = 1
-        self._D4 = 1
-        self._lambda1 = np.ones(1)
-        self._lambda2 = np.ones(1)
-        self._lambda3 = np.ones(1)
-        self._lambda4 = np.ones(1)
-        # m = np.array([[0., 1.], [-1., 0.]]).reshape(2,2,1,1,1,1)
-        m = np.eye(2).reshape(2, 2, 1, 1, 1, 1)
-        self._gammaA = m
-        self._gammaB = m
-        self._colors1 = np.zeros(1, dtype=np.int8)
-        self._colors2 = np.zeros(1, dtype=np.int8)
-        self._colors3 = np.zeros(1, dtype=np.int8)
-        self._colors4 = np.zeros(1, dtype=np.int8)
-
-        # wait for colors_p to be set to use U(1) in h1 and h2 diagonalization.
-        self.tau = tau  # need eigvals and eigvecs to set tau
         self._beta = 0.0
+        self._rep1 = SU2_Representation([1], [1])
+        self._rep2 = SU2_Representation([1], [1])
+        self._rep3 = SU2_Representation([1], [1])
+        self._rep4 = SU2_Representation([1], [1])
+        self._weights1 = np.ones(1)
+        self._weights2 = np.ones(1)
+        self._weights3 = np.ones(1)
+        self._weights4 = np.ones(1)
+        self._dataA = np.ones(1)
+        self._dataB = np.ones(1)
+
+    @property
+    def tau(self):
+        return self._tau
+
+    @tau.setter
+    def tau(self, tau):
+        if self.verbosity > 0:
+            print(f"set tau to {tau}")
+        self._tau = tau
+        self._gate = (-tau * self._h).expm()
+        self._gate_squared = (-2 * tau * self._h).expm()
+
+    @property
+    def d(self):
+        return self._d
+
+    @property
+    def a(self):
+        return self._a
 
     def load_from_file(self, file):
         if self.verbosity > 0:
             print("Restart SU2_SimpleUpdate1x2 from file", file)
-        # do not read tau tand Dmax, set them from __init__ input
         with np.load(file) as data:
-            self._lambda1 = data["_SU2_SU1x2_lambda1"]
-            self._lambda2 = data["_SU2_SU1x2_lambda2"]
-            self._lambda3 = data["_SU2_SU1x2_lambda3"]
-            self._lambda4 = data["_SU2_SU1x2_lambda4"]
+            self._weights1 = data["_SU2_SU1x2_lambda1"]
+            self._weights2 = data["_SU2_SU1x2_lambda2"]
+            self._weights3 = data["_SU2_SU1x2_lambda3"]
+            self._weights4 = data["_SU2_SU1x2_lambda4"]
             self._colors1 = data["_SU2_SU1x2_colors1"]
             self._colors2 = data["_SU2_SU1x2_colors2"]
             self._colors3 = data["_SU2_SU1x2_colors3"]
@@ -109,7 +115,7 @@ class SU2_SimpleUpdate1x2(object):
             self._eigvecs_h = data["_SU2_SU1x2_eigvecs_h"]
             self.tau = data["_SU2_SU1x2_tau"][()]
             self._beta = data["_SU2_SU1x2_beta"][()]
-            self.Dmax = data["_SU2_SU1x2_Dmax"][()]
+            self.Dstar = data["_SU2_SU1x2_Dstar"][()]
             self.cutoff = data["_SU2_SU1x2_cutoff"][()]
         self._D1 = self._lambda1.size
         self._D2 = self._lambda2.size
@@ -132,7 +138,7 @@ class SU2_SimpleUpdate1x2(object):
         data["_SU2_SU1x2_eigvecs_h"] = self._eigvecs_h
         data["_SU2_SU1x2_tau"] = self._tau
         data["_SU2_SU1x2_beta"] = self._beta
-        data["_SU2_SU1x2_Dmax"] = self.Dmax
+        data["_SU2_SU1x2_Dstar"] = self.Dstar
         data["_SU2_SU1x2_cutoff"] = self.cutoff
         np.savez_compressed(file, **data)
         if self.verbosity > 0:
@@ -144,21 +150,14 @@ class SU2_SimpleUpdate1x2(object):
         Tensors are obtained by adding relevant sqrt(lambda) to every leg of gammaX
         For each virtual axis, sort by decreasing weights (instead of SU(2) order)
         """
-        self.resymmetrize()
         # actually weights are on by default, so *remove* sqrt(lambda)
-        sl1 = 1 / np.sqrt(self._lambda1)
-        sl2 = 1 / np.sqrt(self._lambda2)
-        sl3 = 1 / np.sqrt(self._lambda3)
-        sl4 = 1 / np.sqrt(self._lambda4)
+        sl1 = 1 / np.sqrt(self._weights1)
+        sl2 = 1 / np.sqrt(self._weights2)
+        sl3 = 1 / np.sqrt(self._weights3)
+        sl4 = 1 / np.sqrt(self._weights4)
+        # TODO add multiplicities
         A = np.einsum("paurdl,u,r,d,l->paurdl", self._gammaA, sl1, sl2, sl3, sl4)
         B = np.einsum("paurdl,u,r,d,l->paurdl", self._gammaB, sl3, sl4, sl1, sl2)
-        # restore weight order
-        p1 = np.argsort(-self._lambda1)[:, None, None, None]
-        p2 = np.argsort(-self._lambda2)[:, None, None]
-        p3 = np.argsort(-self._lambda3)[:, None]
-        p4 = np.argsort(-self._lambda4)
-        A = A[:, :, p1, p2, p3, p4] / np.amax(A)
-        B = B[:, :, p3, p4, p1, p2] / np.amax(B)
         return A, B
 
     def evolve(self, beta=None):
