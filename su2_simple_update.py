@@ -1,13 +1,11 @@
 import numpy as np
 
-from simple_update import SimpleUpdate1x2
-from toolsU1 import eighU1
-from su2_representation import SU2_Representation, elementary_conj, get_projector
+from su2_representation import SU2_Representation, get_projector
 
 
-class SU2_SimpleUpdate1x2(SimpleUpdate1x2):
+class SU2_SimpleUpdate1x2(object):
     def __init__(
-        self, d, Dmax=None, tau=None, h=None, cutoff=1e-13, file=None, verbosity=0
+        self, d, Dmax=None, tau=None, h=None, cutoff=1e-12, file=None, verbosity=0
     ):
         """
         SU(2) symmetric simple update algorithm on plaquette AB. Only deals with finite
@@ -43,21 +41,17 @@ class SU2_SimpleUpdate1x2(SimpleUpdate1x2):
               3     1
         """
         self.verbosity = verbosity
-        self._keep_multiplets = True
         if self.verbosity > 0:
             print(f"Construct SU2_SimpleUpdate1x2 with local irrep = {d}")
 
         # SU(2) stuff
         self._d = d
-        self._a = d  # inheritance, a = bar{d}
+        self._a = d
         local_irrep = SU2_Representation([1], [d])
-        self._colors_p = -local_irrep.get_Sz()
-        self._colors_a = -self._colors_p  # inheritance compatibility
 
         # pre-compute projector from d x a to sum irrep, with a = bar{d}
         self._da_rep = local_irrep * local_irrep
         da_proj = get_projector(local_irrep, local_irrep)
-        da_proj = np.tensordot(elementary_conj[d], da_proj, ((1,), (1,)))
         self._da_proj = da_proj.swapaxes(0, 1).copy()
 
         if file is not None:  # do not read optional input values, restart from file
@@ -93,8 +87,6 @@ class SU2_SimpleUpdate1x2(SimpleUpdate1x2):
         self._colors4 = np.zeros(1, dtype=np.int8)
 
         # wait for colors_p to be set to use U(1) in h1 and h2 diagonalization.
-        colors_h = (self._colors_p[:, None] - self._colors_p).ravel()
-        self._eigvals_h, self._eigvecs_h, _ = eighU1(h, colors_h)
         self.tau = tau  # need eigvals and eigvecs to set tau
         self._beta = 0.0
 
