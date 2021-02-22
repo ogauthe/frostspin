@@ -274,7 +274,7 @@ def get_projector_chained(*rep_in, singlet_only=False):
     return proj
 
 
-def construct_matrix_projectors(rep_left, rep_right, conj_right=False):
+def construct_matrix_projector(rep_left, rep_right, conj_right=False):
     r"""
                 list of matrices
                 /          \
@@ -369,7 +369,7 @@ class SU2_Matrix(object):
         for rep in rep_right_enum[1:]:
             prod_r = prod_r * rep
             d_right.append(rep.dim)
-        p = construct_matrix_projectors(rep_left_enum, rep_right_enum, conj_right=True)
+        p = construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=True)
         sh = d_left + d_right
         data = np.tensordot(p, mat.reshape(sh), (range(len(sh)), range(len(sh))))
         return cls.from_raw_data(data, prod_l, prod_r)
