@@ -356,6 +356,23 @@ class SU2_Matrix(object):
         assert k == data.size
         return cls(blocks, block_irreps)
 
+    @classmethod
+    def from_dense(cls, mat, rep_left_enum, rep_right_enum):
+        prod_l = rep_left_enum[0]
+        d_left = [prod_l.dim]
+        for rep in rep_left_enum[1:]:
+            prod_l = prod_l * rep
+            d_left.append(rep.dim)
+        prod_r = rep_right_enum[0]
+        d_right = [prod_r.dim]
+        for rep in rep_right_enum[1:]:
+            prod_r = prod_r * rep
+            d_right.append(rep.dim)
+        p = construct_matrix_projectors(rep_left_enum, rep_right_enum, conj_right=True)
+        sh = d_left + d_right
+        data = np.tensordot(p, mat.reshape(sh), (range(len(sh)), range(len(sh))))
+        return cls.from_raw_data(data, prod_l, prod_r)
+
     def to_raw_data(self):
         data = np.empty(sum(b.size for b in self._blocks))
         k = 0
