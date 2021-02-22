@@ -428,12 +428,12 @@ class SU2_Matrix(object):
         blocks = []
         block_irreps = []
         while i1 < self._nblocks and i2 < other._nblocks:
-            if self._irreps[i1] == other._irreps[i2]:
+            if self._block_irreps[i1] == other._block_irreps[i2]:
                 blocks.append(self._blocks[i1] @ other._blocks[i2])
-                block_irreps.append(self._irreps[i1])
+                block_irreps.append(self._block_irreps[i1])
                 i1 += 1
                 i2 += 1
-            elif self._irreps[i1] < other._irreps[i2]:
+            elif self._block_irreps[i1] < other._block_irreps[i2]:
                 i1 += 1
             else:
                 i2 += 1
