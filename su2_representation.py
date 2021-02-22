@@ -416,10 +416,10 @@ class SU2_Matrix(object):
     def __rmul__(self, x):
         return self * x
 
-    def __div__(self, x):
+    def __truediv__(self, x):
         return self * (1.0 / x)
 
-    def __rdiv__(self, x):
+    def __rtruediv__(self, x):
         return self * (1.0 / x)
 
     def __matmul__(self, other):
