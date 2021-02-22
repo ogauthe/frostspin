@@ -162,6 +162,14 @@ class SU2_Representation(object):
                 k += irr
         return cartan
 
+    def get_multiplets_structure(self):
+        mult = np.empty(self._degen.sum(), dtype=int)
+        k = 0
+        for (d, irr) in zip(self._degen, self._irreps):
+            mult[k : k + d] = irr
+            k += d
+        return mult
+
 
 elementary_projectors = {(1, 1, 1): np.ones((1, 1, 1))}
 elementary_conj = {1: np.ones((1, 1))}
