@@ -452,13 +452,15 @@ class SU2_Matrix(object):
         truncate if D* is not provided.
         """
         ul = [None] * self._nblocks
-        sl = [None] * self._nblocks
+        sl = []
         vl = [None] * self._nblocks
         degen = []
         for i, b in enumerate(self._blocks):
-            ul[i], sl[i], vl[i] = lg.svd(b, full_matrices=False)
-            degen.append(sl[i].size)
-        U = SU2_Matrix(ul, self._block_irreps)
+            ul[i], s, vl[i] = lg.svd(b, full_matrices=False)
+            sl.extend(s)
+            degen.append(s.size)
         mid_rep = SU2_Representation(degen, self._block_irreps)
-        V = SU2_Matrix(ul, self._block_irreps)
+        U = SU2_Matrix(ul, self._block_irreps)
+        V = SU2_Matrix(vl, self._block_irreps)
+        sl = np.array(sl)
         return U, sl, V, mid_rep
