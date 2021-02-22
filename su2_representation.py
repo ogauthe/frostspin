@@ -274,7 +274,7 @@ def get_projector_chained(*rep_in, singlet_only=False):
     return proj
 
 
-def construct_matrix_projector(rep_left, rep_right, conj_right=False):
+def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     r"""
                 list of matrices
                 /          \
@@ -285,21 +285,21 @@ def construct_matrix_projector(rep_left, rep_right, conj_right=False):
            /\ \            /\ \
          rep_left        rep_right
     """
-    prod_r = rep_right[0]
-    for rep in rep_right[1:]:
-        prod_r = prod_r * rep
-    prod_l = rep_left[0]
-    for rep in rep_left[1:]:
+    prod_l = rep_left_enum[0]
+    for rep in rep_left_enum[1:]:
         prod_l = prod_l * rep
+    prod_r = rep_right_enum[0]
+    for rep in rep_right_enum[1:]:
+        prod_r = prod_r * rep
     # save left and right dimensions before truncation
     ldim = prod_l.dim
     rdim = prod_r.dim
     target = sorted(set(prod_l.irreps).intersection(prod_r.irreps))
     # optimal would be to fuse only on target. Currently only truncate to max_spin
-    prod_r.truncate_max_spin(target[-1])
     prod_l.truncate_max_spin(target[-1])
-    proj_l = get_projector_chained(*rep_left)[..., : prod_l.dim]
-    proj_r = get_projector_chained(*rep_right)[..., : prod_r.dim]
+    prod_r.truncate_max_spin(target[-1])
+    proj_l = get_projector_chained(*rep_left_enum)[..., : prod_l.dim]
+    proj_r = get_projector_chained(*rep_right_enum)[..., : prod_r.dim]
     proj = get_projector(prod_l, prod_r, max_spin=1)
     singlet_dim = proj.shape[2]
 
