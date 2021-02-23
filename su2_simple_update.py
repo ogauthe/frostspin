@@ -292,19 +292,11 @@ class SU2_SimpleUpdate1x2(object):
         transposedA = mA @ self._dataA
         matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
 
-        pB0 = get_projector_chained(
-            self._phys,
-            self._anc,
-            self._rep3,
-            self._rep4,
-            self._rep1,
-            self._rep2,
-            singlet_only=True,
-        )
+        pB0 = pA0  # impose same strucure p-a-1-2-3-4
         pB1 = construct_matrix_projector(
-            (self._rep1, self._phys), (self._anc, self._rep3, self._rep4, self._rep2)
+            (self._rep1, self._phys), (self._anc, self._rep2, self._rep3, self._rep4)
         )
-        mB = np.tensordot(pB1, pB0, ((1, 2, 3, 4, 0, 5), (0, 1, 2, 3, 4, 5)))
+        mB = np.tensordot(pB1, pB0, ((1, 2, 0, 3, 4, 5), (0, 1, 2, 3, 4, 5)))
         transposedB = mB @ self._dataB
         matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
 
@@ -327,19 +319,11 @@ class SU2_SimpleUpdate1x2(object):
                 (self._phys, self._rep1),
             )
             mA = np.tensordot(pA1, pA0, ((4, 0, 5, 1, 2, 3), (0, 1, 2, 3, 4, 5)))
-            pB0 = get_projector_chained(
-                self._phys,
-                self._anc,
-                self._rep3,
-                self._rep4,
-                self._rep1,
-                self._rep2,
-                singlet_only=True,
-            )
+            pB0 = pA0
             pB1 = construct_matrix_projector(
                 (self._rep1, self._phys),
                 (self._anc, self._rep3, self._rep4, self._rep2),
             )
-            mB = np.tensordot(pB1, pB0, ((1, 2, 3, 4, 0, 5), (0, 1, 2, 3, 4, 5)))
+            mB = np.tensordot(pB1, pB0, ((1, 2, 0, 3, 4, 5), (0, 1, 2, 3, 4, 5)))
         self._dataA = mA.T @ newA.to_raw_data()
         self._dataB = mB.T @ newB.to_raw_data()
