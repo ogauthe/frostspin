@@ -1,6 +1,73 @@
 import numpy as np
 
-from su2_representation import SU2_Representation, SU2_Matrix
+from su2_representation import (
+    SU2_Representation,
+    SU2_Matrix,
+    get_projector_chained,
+    construct_matrix_projector,
+)
+
+
+def update_first_neighbor(
+    matL0, matR0, weights0, phys, virt_left, virt_mid, virt_right, gate, su2_cut
+):
+    r"""
+        matL0              matR0
+        /  \                /  \
+       /    \              /    \
+      /     /\            /\     \
+    left   p mid        mid p    right
+    """
+    # change tensor structure to contract mid
+    pL0 = construct_matrix_projector((virt_left,), (phys, virt_mid))
+    pL1 = construct_matrix_projector((virt_left, phys), (virt_mid,))
+    isoL1 = np.tensordot(pL1, pL0, ((0, 1, 2), (0, 1, 2)))
+    vL1 = isoL1 @ matL0.to_raw_data()
+    matL1 = SU2_Matrix.from_raw_data(vL1, virt_left * phys, virt_mid) / weights0
+
+    pR0 = construct_matrix_projector((virt_mid, phys), (virt_right,))
+    pR1 = construct_matrix_projector((virt_mid,), (phys, virt_right))
+    isoR1 = np.tensordot(pR1, pR0, ((0, 1, 2), (0, 1, 2)))
+    vR1 = isoR1 @ matR0.to_raw_data()
+    matR1 = SU2_Matrix.from_raw_data(vR1, virt_mid, phys * virt_right)
+
+    # construct matrix theta and apply gate
+    theta_mat = matL1 @ matR1
+    theta = theta_mat.to_raw_data()
+    pLR2 = get_projector_chained(virt_left, phys, phys, virt_right, singlet_only=True)
+    pLR3 = construct_matrix_projector((virt_left, virt_right), (phys, phys))
+    iso_theta = np.tensordot(pLR3, pLR2, ((0, 2, 3, 1), (0, 1, 2, 3)))
+    theta2 = iso_theta @ theta
+    theta_mat2 = SU2_Matrix.from_raw_data(theta2, virt_left * virt_right, phys * phys)
+    theta_mat3 = theta_mat2 @ gate
+
+    # transpose back LxR, compute SVD and truncate
+    theta3 = iso_theta.T @ theta_mat3.to_raw_data()
+    theta_mat3 = SU2_Matrix.from_raw_data(theta3, virt_left * phys, phys * virt_right)
+    U, new_weights, V, new_virt_mid = theta_mat3.svd()
+
+    # normalize weights and apply them to new left and new right
+    new_weights /= new_weights @ new_virt_mid.get_multiplet_structure()
+    U1 = U * new_weights
+    V1 = new_weights[:, None] * V
+
+    # recompute reshape matrices only if needed
+    if new_virt_mid != virt_mid:
+        pL0 = construct_matrix_projector((virt_left,), (phys, new_virt_mid))
+        pL1 = construct_matrix_projector((virt_left, phys), (new_virt_mid,))
+        isoL1 = np.tensordot(pL1, pL0, ((0, 1, 2), (0, 1, 2)))
+
+        pR0 = construct_matrix_projector((new_virt_mid, phys), (virt_right,))
+        pR1 = construct_matrix_projector((new_virt_mid,), (phys, virt_right))
+        isoR1 = np.tensordot(pR1, pR0, ((0, 1, 2), (0, 1, 2)))
+
+    # reshape to initial tree structure
+    new_vL = isoL1.T @ U1.to_raw_data()
+    newL = SU2_Matrix.from_raw_data(new_vL, virt_left, phys * new_virt_mid)
+    new_vR = isoR1.T @ V1.to_raw_data()
+    newR = SU2_Matrix.from_raw_data(new_vR, new_virt_mid * phys, virt_right)
+
+    return newL, new_weights, newR, new_virt_mid
 
 
 class SU2_SimpleUpdate1x2(object):
@@ -56,12 +123,15 @@ class SU2_SimpleUpdate1x2(object):
             print("Initialize SU2_SimpleUpdate2x2 from beta = 0 thermal product state")
 
         self._d = d
+        self._phys = SU2_Representation([1], [d])
         self._a = d
+        self._anc = self._phys
         self.cutoff = cutoff
         self.Dstar = Dstar
 
-        phys = SU2_Representation([1], [d])
-        self._h = SU2_Matrix.from_dense(h, (phys, phys), (phys, phys))
+        self._h = SU2_Matrix.from_dense(
+            h, (self._phys, self._phys), (self._phys, self._phys)
+        )
         self.tau = tau
 
         # only consider thermal equilibrium, start from product state at beta=0
@@ -193,3 +263,94 @@ class SU2_SimpleUpdate1x2(object):
         self.update_bond2(self._gate)
         self.update_bond1(self._gate)
         self._beta = round(self._beta + 4 * self._tau, 10)
+
+    def update_bond1(self, gate):
+        pA0 = get_projector_chained(
+            self._phys,
+            self._anc,
+            self._rep1,
+            self._rep2,
+            self._rep3,
+            self._rep4,
+            singlet_only=True,
+        )
+        pA1 = construct_matrix_projector(
+            (self._anc, self._rep2, self._rep3, self._rep4), (self._phys, self._rep1)
+        )
+        mA = np.tensordot(pA1, pA0, ((4, 0, 5, 1, 2, 3), (0, 1, 2, 3, 4, 5)))
+        transposedA = mA @ self._dataA
+        matA = SU2_Matrix.from_raw_data(
+            transposedA,
+            self._anc * self._rep2 * self._rep3 * self._rep4,
+            self._phys * self._rep1,
+        )
+        cstA, svA, effA, eff_repA = matA.svd()
+        effA = svA[:, None] * effA
+
+        pB0 = get_projector_chained(
+            self._phys,
+            self._anc,
+            self._rep3,
+            self._rep4,
+            self._rep1,
+            self._rep2,
+            singlet_only=True,
+        )
+        pB1 = construct_matrix_projector(
+            (self._rep1, self._phys), (self._anc, self._rep3, self._rep4, self._rep2)
+        )
+        mB = np.tensordot(pB1, pB0, ((1, 2, 3, 4, 0, 5), (0, 1, 2, 3, 4, 5)))
+        transposedB = mB @ self._dataB
+        matB = SU2_Matrix.from_raw_data(
+            transposedB,
+            self._rep1 * self._phys,
+            self._anc * self._rep4 * self._rep4 * self._rep2,
+        )
+        effB, svB, cstB, eff_repB = matB.svd()
+        effB = effB * svB
+
+        new_effA, self._weights1, new_effB, new_rep1 = update_first_neighbor(
+            effA,
+            effB,
+            self._weights1,
+            self._phys,
+            eff_repA,
+            self._rep1,
+            eff_repB,
+            self._gate,
+            self.Dstar,
+        )
+        newA = cstA @ new_effA
+        newB = new_effB @ cstB
+        if new_rep1 != self._rep1:
+            self._rep1 = new_rep1
+            pA0 = get_projector_chained(
+                self._phys,
+                self._anc,
+                self._rep1,
+                self._rep2,
+                self._rep3,
+                self._rep4,
+                singlet_only=True,
+            )
+            pA1 = construct_matrix_projector(
+                (self._anc, self._rep2, self._rep3, self._rep4),
+                (self._phys, self._rep1),
+            )
+            mA = np.tensordot(pA1, pA0, ((4, 0, 5, 1, 2, 3), (0, 1, 2, 3, 4, 5)))
+            pB0 = get_projector_chained(
+                self._phys,
+                self._anc,
+                self._rep3,
+                self._rep4,
+                self._rep1,
+                self._rep2,
+                singlet_only=True,
+            )
+            pB1 = construct_matrix_projector(
+                (self._rep1, self._phys),
+                (self._anc, self._rep3, self._rep4, self._rep2),
+            )
+            mB = np.tensordot(pB1, pB0, ((1, 2, 3, 4, 0, 5), (0, 1, 2, 3, 4, 5)))
+        self._dataA = mA.T @ newA.to_raw_data()
+        self._dataB = mB.T @ newB.to_raw_data()
