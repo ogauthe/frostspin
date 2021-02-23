@@ -1,8 +1,8 @@
-#!/usr/bin/env python3
+import bisect
 
 import numpy as np
-import sympy as sp
 import scipy.linalg as lg
+import sympy as sp
 from sympy.physics.quantum.cg import CG
 
 
@@ -328,11 +328,14 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
 class SU2_Matrix(object):
     __array_priority__ = 15.0  # bypass ndarray.__mul__
 
-    def __init__(self, blocks, block_irreps):
+    def __init__(self, blocks, block_irreps, rep_left, rep_right):
+        # need block_irreps since some blocks may be zero
         assert len(blocks) == len(block_irreps)
         self._blocks = blocks
         self._block_irreps = block_irreps
         self._nblocks = len(blocks)
+        self._rep_left = rep_left
+        self._rep_right = rep_right
 
     @classmethod
     def from_raw_data(cls, data, rep_in, rep_out):
@@ -355,7 +358,7 @@ class SU2_Matrix(object):
             else:
                 i2 += 1
         assert k == data.size
-        return cls(blocks, block_irreps)
+        return cls(blocks, block_irreps, rep_in, rep_out)
 
     @classmethod
     def from_dense(cls, mat, rep_left_enum, rep_right_enum):
@@ -375,13 +378,31 @@ class SU2_Matrix(object):
         return cls.from_raw_data(data, prod_l, prod_r)
 
     def to_raw_data(self):
-        data = np.empty(sum(b.size for b in self._blocks))
-        k = 0
-        for irr, b in zip(self._block_irreps, self._blocks):
-            data[k : k + b.size] = b.ravel() * np.sqrt(irr)
-            k += b.size
-        assert k == data.size
-        return data
+        # some blocks may be allowed by SU(2) in current matrix form but be zero and
+        # missing in block_irreps (matrix created by matrix product). Still, data has to
+        # include the corresponding zeros at the accurate position.
+        data = []
+        i1, i2 = 0, 0
+        while i1 < self._rep_left.n_irr and i2 < self._rep_right.n_irr:
+            if self._rep_left.irreps[i1] == self._rep_right.irreps[i2]:
+                j = bisect.bisect_left(self._block_irreps, self._rep_left.irreps[i1])
+                if (
+                    j < self._nblocks
+                    and self._block_irreps[j] == self._rep_left.irreps[i1]
+                ):
+                    b = self._blocks[j]
+                    data.extend(b.ravel() * np.sqrt(self._block_irreps[j]))
+                else:  # missing block
+                    data.extend(
+                        [0.0] * (self._rep_left.degen[i1] * self._rep_right.degen[i2])
+                    )
+                i1 += 1
+                i2 += 1
+            elif self._rep_left.irreps[i1] < self._rep_right.irreps[i2]:
+                i1 += 1
+            else:
+                i2 += 1
+        return np.array(data)
 
     def __repr__(self):
         s = "SU2_Matrix with irreps and shapes:\n"
@@ -411,7 +432,7 @@ class SU2_Matrix(object):
                 raise ValueError("Operand has non-compatible shape")
         else:
             raise ValueError("Operand must be scalar or 1D vector")
-        return SU2_Matrix(blocks, self._block_irreps)
+        return SU2_Matrix(blocks, self._block_irreps, self._rep_left, self._rep_right)
 
     def __rmul__(self, x):
         return self * x
@@ -437,14 +458,14 @@ class SU2_Matrix(object):
                 i1 += 1
             else:
                 i2 += 1
-        return SU2_Matrix(blocks, block_irreps)
+        return SU2_Matrix(blocks, block_irreps, self._rep_left, other._rep_right)
 
     def expm(self):
         """
         Compute expm(self)
         """
         blocks = [lg.expm(b) for b in self._blocks]
-        return SU2_Matrix(blocks, self._block_irreps)
+        return SU2_Matrix(blocks, self._block_irreps, self._rep_left, self._rep_right)
 
     def svd(self, Dstar=None):
         """
@@ -460,7 +481,7 @@ class SU2_Matrix(object):
             sl.extend(s)
             degen.append(s.size)
         mid_rep = SU2_Representation(degen, self._block_irreps)
-        U = SU2_Matrix(ul, self._block_irreps)
-        V = SU2_Matrix(vl, self._block_irreps)
+        U = SU2_Matrix(ul, self._block_irreps, self._rep_left, mid_rep)
+        V = SU2_Matrix(vl, self._block_irreps, mid_rep, self._rep_right)
         sl = np.array(sl)
         return U, sl, V, mid_rep
