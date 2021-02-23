@@ -8,9 +8,7 @@ from su2_representation import (
 )
 
 
-def update_first_neighbor(
-    matL0, matR0, weights0, phys, virt_left, virt_mid, virt_right, gate, su2_cut
-):
+def update_first_neighbor(matL0, matR0, weights0, phys, virt_mid, gate, su2_cut):
     r"""
         matL0              matR0
         /  \                /  \
@@ -18,17 +16,23 @@ def update_first_neighbor(
       /     /\            /\     \
     left   p mid        mid p    right
     """
+    # cut L and R between const and effective parts
+    cstL, svL, effL, virt_left = matL0.svd()
+    effL = svL[:, None] * effL
+    effR, svR, cstR, virt_right = matR0.svd()
+    effR = effR * svR
+
     # change tensor structure to contract mid
     pL0 = construct_matrix_projector((virt_left,), (phys, virt_mid))
     pL1 = construct_matrix_projector((virt_left, phys), (virt_mid,))
     isoL1 = np.tensordot(pL1, pL0, ((0, 1, 2), (0, 1, 2)))
-    vL1 = isoL1 @ matL0.to_raw_data()
+    vL1 = isoL1 @ effL.to_raw_data()
     matL1 = SU2_Matrix.from_raw_data(vL1, virt_left * phys, virt_mid) / weights0
 
     pR0 = construct_matrix_projector((virt_mid, phys), (virt_right,))
     pR1 = construct_matrix_projector((virt_mid,), (phys, virt_right))
     isoR1 = np.tensordot(pR1, pR0, ((0, 1, 2), (0, 1, 2)))
-    vR1 = isoR1 @ matR0.to_raw_data()
+    vR1 = isoR1 @ effR.to_raw_data()
     matR1 = SU2_Matrix.from_raw_data(vR1, virt_mid, phys * virt_right)
 
     # construct matrix theta and apply gate
@@ -63,9 +67,13 @@ def update_first_neighbor(
 
     # reshape to initial tree structure
     new_vL = isoL1.T @ U1.to_raw_data()
-    newL = SU2_Matrix.from_raw_data(new_vL, virt_left, phys * new_virt_mid)
+    new_effL = SU2_Matrix.from_raw_data(new_vL, virt_left, phys * new_virt_mid)
     new_vR = isoR1.T @ V1.to_raw_data()
-    newR = SU2_Matrix.from_raw_data(new_vR, new_virt_mid * phys, virt_right)
+    new_effR = SU2_Matrix.from_raw_data(new_vR, new_virt_mid * phys, virt_right)
+
+    # reconnect with const parts
+    newL = cstL @ new_effL
+    newR = new_effR @ cstR
 
     return newL, new_weights, newR, new_virt_mid
 
@@ -265,6 +273,9 @@ class SU2_SimpleUpdate1x2(object):
         self._beta = round(self._beta + 4 * self._tau, 10)
 
     def update_bond1(self, gate):
+        eff_rep = self._phys * self._rep1
+        aux_rep = self._anc * self._rep2 * self._rep3 * self._rep4
+
         pA0 = get_projector_chained(
             self._phys,
             self._anc,
@@ -279,13 +290,7 @@ class SU2_SimpleUpdate1x2(object):
         )
         mA = np.tensordot(pA1, pA0, ((4, 0, 5, 1, 2, 3), (0, 1, 2, 3, 4, 5)))
         transposedA = mA @ self._dataA
-        matA = SU2_Matrix.from_raw_data(
-            transposedA,
-            self._anc * self._rep2 * self._rep3 * self._rep4,
-            self._phys * self._rep1,
-        )
-        cstA, svA, effA, eff_repA = matA.svd()
-        effA = svA[:, None] * effA
+        matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
 
         pB0 = get_projector_chained(
             self._phys,
@@ -301,27 +306,11 @@ class SU2_SimpleUpdate1x2(object):
         )
         mB = np.tensordot(pB1, pB0, ((1, 2, 3, 4, 0, 5), (0, 1, 2, 3, 4, 5)))
         transposedB = mB @ self._dataB
-        matB = SU2_Matrix.from_raw_data(
-            transposedB,
-            self._rep1 * self._phys,
-            self._anc * self._rep4 * self._rep4 * self._rep2,
-        )
-        effB, svB, cstB, eff_repB = matB.svd()
-        effB = effB * svB
+        matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
 
-        new_effA, self._weights1, new_effB, new_rep1 = update_first_neighbor(
-            effA,
-            effB,
-            self._weights1,
-            self._phys,
-            eff_repA,
-            self._rep1,
-            eff_repB,
-            self._gate,
-            self.Dstar,
+        newA, self._weights1, newB, new_rep1 = update_first_neighbor(
+            matA, matB, self._weights1, self._phys, self._rep1, self._gate, self.Dstar
         )
-        newA = cstA @ new_effA
-        newB = new_effB @ cstB
         if new_rep1 != self._rep1:
             self._rep1 = new_rep1
             pA0 = get_projector_chained(
