@@ -2,8 +2,83 @@ import bisect
 
 import numpy as np
 import scipy.linalg as lg
-import sympy as sp
-from sympy.physics.quantum.cg import CG
+
+
+def compute_CG(max_irr=22):
+    # load sympy only if recomputing Clebsch-Gordon is required.
+    import sympy as sp
+    from sympy.physics.quantum.cg import CG
+
+    elementary_projectors = {(1, 1, 1): np.ones((1, 1, 1))}
+    elementary_conj = {1: np.ones((1, 1))}
+    for irr1 in range(2, max_irr):
+        s1 = sp.Rational(irr1 - 1, 2)
+        # singlet x irrep
+        elementary_projectors[1, irr1, irr1] = np.eye(irr1)[None]
+        elementary_projectors[irr1, 1, irr1] = np.eye(irr1)[:, None]
+
+        # irr1 -> bar(irr1)
+        singlet_proj = sp.zeros(irr1)
+        for i1 in range(irr1):
+            m1 = s1 - i1
+            singlet_proj[i1, irr1 - i1 - 1] = CG(s1, m1, s1, -m1, 0, 0).doit()
+        elementary_conj[irr1] = np.array(sp.sqrt(irr1) * singlet_proj.T, dtype=float)
+
+        # irr1 x irr2 = sum irr3
+        for irr2 in range(irr1, max_irr):
+            s2 = sp.Rational(irr2 - 1, 2)
+            for irr3 in range(irr2 - irr1 + 1, irr1 + irr2, 2):
+                s3 = sp.Rational(irr3 - 1, 2)
+                p = np.zeros((irr1, irr2, irr3))
+                for i1 in range(irr1):
+                    m1 = s1 - i1
+                    for i2 in range(irr2):
+                        m2 = s2 - i2
+                        for i3 in range(irr3):
+                            m3 = s3 - i3
+                            p[i1, i2, i3] = CG(s1, m1, s2, m2, s3, m3).doit()
+                elementary_projectors[irr1, irr2, irr3] = p
+                elementary_projectors[irr2, irr1, irr3] = p.swapaxes(0, 1).copy()
+    return elementary_projectors, elementary_conj
+
+
+def save_CG(savefile, elementary_projectors, elementary_conj):
+    max_irr = np.array(list(elementary_projectors.keys()))[:, 0].max()
+    data = {"_CG_max_irr": max_irr}
+    for k in elementary_projectors:
+        nk = f"_CG_proj_{k[0]}_{k[1]}_{k[2]}"
+        data[nk] = elementary_projectors[k]
+    for k in elementary_conj:
+        nk = f"_CG_conj_{k}"
+        data[nk] = elementary_conj[k]
+    np.savez_compressed(savefile, max_irr=max_irr, **data)
+    print(f"saved elementary_projectors and elementary_conj in file {savefile}")
+
+
+def load_CG(savefile):
+    elementary_projectors, elementary_conj = {}, {}
+    with np.load(savefile) as data:
+        for key in filter(lambda k: k[:9] in ("_CG_proj_", "_CG_conj_"), data.files):
+            indices = tuple(map(int, key[9:].split("_")))
+            if len(indices) == 3:
+                elementary_projectors[indices] = data[key]
+            elif len(indices) == 1:
+                elementary_conj[indices[0]] = data[key]
+            else:
+                raise KeyError
+    return elementary_projectors, elementary_conj
+
+
+def get_CG(max_irr=22, savefile="_data_CG.npz"):
+    try:
+        elementary_projectors, elementary_conj = load_CG(savefile)
+    except FileNotFoundError:
+        print(f"File {savefile} not found.")
+        print(f"Recompute Clebsch-Gordon with max_irr = {max_irr}.")
+        elementary_projectors, elementary_conj = compute_CG(max_irr)
+        print(f"Done. Save them in file {savefile}")
+        save_CG(savefile, elementary_projectors, elementary_conj)
+    return elementary_projectors, elementary_conj
 
 
 def su2_irrep_generators(s):
@@ -28,6 +103,8 @@ def su2_irrep_generators(s):
 
 
 class SU2_Representation(object):
+    elementary_projectors, elementary_conj = get_CG()
+
     def __init__(self, degen, irreps):
         """
         irrep must be sorted
@@ -147,7 +224,7 @@ class SU2_Representation(object):
         conj = np.zeros((self._dim, self._dim))
         k = 0
         for (d, irr) in zip(self._degen, self._irreps):
-            irrep_conj = elementary_conj[irr]
+            irrep_conj = SU2_Representation.elementary_conj[irr]
             for i in range(d):
                 conj[k : k + irr, k : k + irr] = irrep_conj
                 k += irr
@@ -172,39 +249,6 @@ class SU2_Representation(object):
         return mult
 
 
-elementary_projectors = {(1, 1, 1): np.ones((1, 1, 1))}
-elementary_conj = {1: np.ones((1, 1))}
-ms = 10
-for irr1 in range(2, ms):
-    s1 = sp.Rational(irr1 - 1, 2)
-    # singlet x irrep
-    elementary_projectors[1, irr1, irr1] = np.eye(irr1)[None]
-    elementary_projectors[irr1, 1, irr1] = np.eye(irr1)[:, None]
-
-    # irr1 -> bar(irr1)
-    singlet_proj = sp.zeros(irr1)
-    for i1 in range(irr1):
-        m1 = s1 - i1
-        singlet_proj[i1, irr1 - i1 - 1] = CG(s1, m1, s1, -m1, 0, 0).doit()
-    elementary_conj[irr1] = np.array(sp.sqrt(irr1) * singlet_proj.T, dtype=float)
-
-    # irr1 x irr2 = sum irr3
-    for irr2 in range(irr1, ms):
-        s2 = sp.Rational(irr2 - 1, 2)
-        for irr3 in range(irr2 - irr1 + 1, irr1 + irr2, 2):
-            s3 = sp.Rational(irr3 - 1, 2)
-            p = np.zeros((irr1, irr2, irr3))
-            for i1 in range(irr1):
-                m1 = s1 - i1
-                for i2 in range(irr2):
-                    m2 = s2 - i2
-                    for i3 in range(irr3):
-                        m3 = s3 - i3
-                        p[i1, i2, i3] = CG(s1, m1, s2, m2, s3, m3).doit()
-            elementary_projectors[irr1, irr2, irr3] = p
-            elementary_projectors[irr2, irr1, irr3] = p.swapaxes(0, 1).copy()
-
-
 def get_projector(in1, in2, max_spin=np.inf):
     # max_spin cannot be set to None since irr3 loop depends on it
     out = in1 * in2
@@ -220,7 +264,7 @@ def get_projector(in1, in2, max_spin=np.inf):
     for i1, irr1 in enumerate(in1.irreps):
         for i2, irr2 in enumerate(in2.irreps):
             for irr3 in range(abs(irr1 - irr2) + 1, min(irr1 + irr2, max_spin + 1), 2):
-                p123 = elementary_projectors[irr1, irr2, irr3]
+                p123 = SU2_Representation.elementary_projectors[irr1, irr2, irr3]
                 shift1 = cs1[i1]
                 for d1 in range(in1.degen[i1]):
                     shift2 = cs2[i2]
