@@ -163,7 +163,7 @@ class SU2_Representation(object):
                 k += irr
         return cartan
 
-    def get_multiplets_structure(self):
+    def get_multiplet_structure(self):
         mult = np.empty(self._degen.sum(), dtype=int)
         k = 0
         for (d, irr) in zip(self._degen, self._irreps):
