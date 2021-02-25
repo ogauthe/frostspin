@@ -13,10 +13,9 @@ def svd_truncate(
     col_colors=default_color,
     full=False,
     maxiter=1000,
-    keep_multiplets=False,
+    cutoff=0.0,
+    degen_ratio=None,
     window=10,
-    degen_ratio=1.0001,
-    cutoff=0,
 ):
     """
     Unique function to compute singular value decomposition of a matrix and truncate.
@@ -39,17 +38,15 @@ def svd_truncate(
     maxiter : integer
       Maximal number of arpack iterations. Finite by default allows clean crash instead
       of running forever. Not read if full is True.
-    keep_multiplets : bool
-      If True, preserve non-abelian symmetry by cutting between two different
-      multiplets.
-    window : integer
-      If keep_multiplets is True and full is false, compute cut + window vectors in each
-      sector to preserve multiplets.
-    degen_ratio : float
-      Maximal ratio to consider two consecutive values as degenerate.
     cutoff : float
-      Singular values smaller than cutoff * max(singular values) are set to 0 and
+      Singular values smaller than cutoff * max(singular values) are set to zero and
       associated singular vectors are removed.
+    degen_ratio : None or float
+      If set, preserve non-abelian symmetry by cutting between two different multiplets.
+      Consider two consecutive values as degenerate if s[i]/s[i+1] < degen_ratio.
+    window : integer
+      If degen_ratio is not None and full is false, compute cut + window vectors in each
+      sector to preserve multiplets.
 
     Returns
     -------
@@ -71,6 +68,7 @@ def svd_truncate(
     Note that U(1) symmetry forces to compute much more than k vectors, hence a small
     or even 0 window is fine.
     """
+    keep_multiplets = degen_ratio is not None
     if full or min(M.shape) < 3 * cut:  # full allows to use numba while cutting
         U, s, V, colors = svdU1(M, row_colors, col_colors)
     else:

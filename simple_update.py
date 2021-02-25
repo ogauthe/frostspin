@@ -3,9 +3,6 @@ import numpy as np
 from toolsU1 import default_color, combine_colors, eighU1, svdU1
 from svd_tools import svd_truncate
 
-# more convenient than [:,None,None,None,None,None] everywhere?
-_sh = (-1, 1, 1, 1, 1, 1)
-
 
 def update_first_neighbor(
     M0_L,
@@ -19,17 +16,20 @@ def update_first_neighbor(
     col_bond=default_color,
     col_d=default_color,
     cutoff=1e-13,
-    keep_multiplets=False,
+    degen_ratio=None,
 ):
     """
     First neighbor simple update algorithm.
-    Construct matrix theta from matrices M0_L and M0_R, obtained by adding diagonal
-    weights to non-updated bonds and reshaping to matrices initial tensors gammaX and
-    gammaY.
 
     For clarity, a 1D geometry
     =M0_L -- lambda0 -- M_R0=
     is considered in the notations, but the function is direction-agnostic.
+
+    As input, take tensors gamma_X with added weights on all virtual legs as reshaped
+    left (M0_L) and right (M0_R) matrices. Compute SVD of those matrices to reduce
+    algorithm complexity. Then contract the obtained tensors into matrix theta, apply
+    gate. Split and truncate update matrix to obtain new set of diagonalized weights and
+    renormalized tensors.
     """
     # 1) SVD cut between constant tensors and effective tensor to update, hence reduce
     # main SVD to dimension D*d < a*D**3
@@ -53,7 +53,7 @@ def update_first_neighbor(
     #                \  /
     #   theta =       gg
     #                /  \
-    theta = M_L.reshape(D_effL * d, D) * lambda0
+    theta = M_L.reshape(D_effL * d, D) / lambda0  # remove double counting
     theta = (theta @ M_R.reshape(D, d * D_effR)).reshape(D_effL, d, d, D_effR)
     theta = theta.transpose(0, 3, 1, 2).reshape(D_effL * D_effR, d ** 2)
     theta = (theta @ gate).reshape(D_effL, D_effR, d, d)
@@ -67,7 +67,7 @@ def update_first_neighbor(
         col_colors=combine_colors(col_sR, col_d),
         full=True,
         cutoff=cutoff,
-        keep_multiplets=keep_multiplets,
+        degen_ratio=degen_ratio,
     )
 
     # 4) renormalize link dimension
@@ -103,18 +103,18 @@ def update_second_neighbor(
     col_bR=default_color,
     col_d=default_color,
     cutoff=1e-13,
-    keep_multiplets=False,
+    degen_ratio=None,
 ):
     """
     Second and third neighbor simple update algorithm.
     Construct matrix theta from matrices M0_L, M0_mid and M0_R obtained by adding
-    diagonal weights to non-updated bonds and reshaping to matrices initial tensors
+    diagonal weights to all virtual bonds and reshaping to matrices initial tensors
     gammaX, gammaY and gammaZ.
 
     For clarity, a 1D geometry
     M_left -- lambda_left -- M_mid -- lambda_right -- M_right
     is considered in the notations, but the function is direction-agnostic and works for
-    any geometry with two extremity tensors linked by a middle one.
+    any geometry with two edge tensors linked by a proxy one.
     """
 
     D_L, D_R = lambda_L.size, lambda_R.size
@@ -125,7 +125,7 @@ def update_second_neighbor(
     #      |\        |       \
     cst_L, s_L, eff_L, col_sL = svdU1(M0_L, col_L, -combine_colors(col_d, col_bL))
     D_effL = s_L.size
-    eff_L = (s_L[:, None] * eff_L).reshape(D_effL * d, D_L) * lambda_L  # add lambda
+    eff_L = (s_L[:, None] * eff_L).reshape(D_effL * d, D_L) / lambda_L  # remove lambda
     #                       \|/|
     #                       cstM
     #     \|                 ||
@@ -139,7 +139,7 @@ def update_second_neighbor(
     #      |\                              |\
     eff_R, s_R, cst_R, col_sR = svdU1(M0_R, -combine_colors(col_bR, col_d), col_R)
     D_effR = s_R.size
-    eff_R = (eff_R * s_R).reshape(D_R, d * D_effR) * lambda_R[:, None]
+    eff_R = (eff_R * s_R).reshape(D_R, d * D_effR) / lambda_R[:, None]
 
     # contract tensor network
     #                         ||
@@ -161,7 +161,7 @@ def update_second_neighbor(
         col_colors=-combine_colors(-col_sm, col_sR, col_d),
         full=True,
         cutoff=cutoff,
-        keep_multiplets=keep_multiplets,
+        degen_ratio=degen_ratio,
     )
     D_L = new_lambda_L.size
     new_lambda_L /= new_lambda_L.sum()
@@ -176,7 +176,7 @@ def update_second_neighbor(
         col_colors=-combine_colors(col_sR, col_d),
         full=True,
         cutoff=cutoff,
-        keep_multiplets=keep_multiplets,
+        degen_ratio=degen_ratio,
     )
     D_R = new_lambda_R.size
     new_lambda_R /= new_lambda_R.sum()
@@ -194,6 +194,9 @@ def update_second_neighbor(
 
 
 class SimpleUpdate1x2(object):
+    # Instead of adding diagonal weights on all bonds before applying gate, it is more
+    # efficient to consider weights always on by default. Then weights must be removed
+    # only once on single updated link to avoid double counting.
     def __init__(
         self,
         d,
@@ -204,6 +207,7 @@ class SimpleUpdate1x2(object):
         tensors=None,
         colors=None,
         cutoff=1e-13,
+        degen_ratio=None,
         file=None,
         verbosity=0,
     ):
@@ -234,6 +238,9 @@ class SimpleUpdate1x2(object):
             assumed.
         cutoff : float, optional.
             Singular values smaller than cutoff are set to zero to improve stability.
+        degen_ratio : None or float, optional.
+            If set, keep singular value multiplet structure by cutting between two
+            values such that s[i+1]/s[i] > degen_ratio
         file : str, optional
             Save file containing data to restart computation from. File must follow
             save_to_file / load_from_file syntax. If file is provided, d and a are read
@@ -255,7 +262,6 @@ class SimpleUpdate1x2(object):
         self._d = d
         self._a = a
         self.verbosity = verbosity
-        self._keep_multiplets = False  # used in SU(2) version
         if self.verbosity > 0:
             print(f"construct SimpleUpdate1x2 with d = {d}, a = {a} and Dmax = {Dmax}")
 
@@ -264,6 +270,7 @@ class SimpleUpdate1x2(object):
             return
 
         self.cutoff = cutoff
+        self.degen_ratio = degen_ratio
         self.Dmax = Dmax
         if h.shape != (d ** 2, d ** 2):
             raise ValueError("invalid shape for Hamiltonian")
@@ -466,6 +473,10 @@ class SimpleUpdate1x2(object):
                 self.cutoff = data["_SU1x2_cutoff"][()]
             else:
                 self.cutoff = 1e-13  # default value for backward compatibility
+            if "_SU1x2_degen_ratio" in data.files:
+                self.degen_ratio = data["_SU1x2_degen_ratio"][()]
+            else:
+                self.degen_ratio = None
         self._D1 = self._lambda1.size
         self._D2 = self._lambda2.size
         self._D3 = self._lambda3.size
@@ -496,6 +507,8 @@ class SimpleUpdate1x2(object):
         data["_SU1x2_beta"] = self._beta
         data["_SU1x2_Dmax"] = self.Dmax
         data["_SU1x2_cutoff"] = self.cutoff
+        if self.degen_ratio is not None:  # do not save if None (avoid dtype=object)
+            data["_SU1x2_degen_ratio"] = self.degen_ratio
         if file is None:
             return data
         np.savez_compressed(file, **data)
@@ -585,11 +598,10 @@ class SimpleUpdate1x2(object):
 
     def update_bond1(self, gate):
         # add diagonal weights to gammaA and gammaC
-        w = self._lambda1 ** -1
-        M_A = (self._gammaA.transpose(1, 3, 4, 5, 0, 2) * w).reshape(
+        M_A = self._gammaA.transpose(1, 3, 4, 5, 0, 2).reshape(
             self._a * self._D2 * self._D3 * self._D4, self._d * self._D1
         )
-        M_B = (w.reshape(_sh) * self._gammaB.transpose(4, 0, 1, 2, 3, 5)).reshape(
+        M_B = self._gammaB.transpose(4, 0, 1, 2, 3, 5).reshape(
             self._D1 * self._d, self._a * self._D3 * self._D4 * self._D2
         )
 
@@ -612,7 +624,7 @@ class SimpleUpdate1x2(object):
             col_bond=self._colors1,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D1 = self._lambda1.size
@@ -628,11 +640,10 @@ class SimpleUpdate1x2(object):
             print("updated bond 1: new lambda1 =", self._lambda1)
 
     def update_bond2(self, gate):
-        w = self._lambda2 ** -1
-        M_A = (self._gammaA.transpose(1, 2, 4, 5, 0, 3) * w).reshape(
+        M_A = self._gammaA.transpose(1, 2, 4, 5, 0, 3).reshape(
             self._a * self._D1 * self._D3 * self._D4, self._d * self._D2
         )
-        M_B = (w.reshape(_sh) * self._gammaB.transpose(5, 0, 1, 2, 3, 4)).reshape(
+        M_B = self._gammaB.transpose(5, 0, 1, 2, 3, 4).reshape(
             self._D2 * self._d, self._a * self._D3 * self._D4 * self._D1
         )
 
@@ -654,7 +665,7 @@ class SimpleUpdate1x2(object):
             col_bond=self._colors2,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D2 = self._lambda2.size
@@ -669,11 +680,10 @@ class SimpleUpdate1x2(object):
             print("updated bond 2: new lambda2 =", self._lambda2)
 
     def update_bond3(self, gate):
-        w = self._lambda3 ** -1
-        M_A = (self._gammaA.transpose(1, 2, 3, 5, 0, 4) * w).reshape(
+        M_A = self._gammaA.transpose(1, 2, 3, 5, 0, 4).reshape(
             self._a * self._D1 * self._D2 * self._D4, self._d * self._D3
         )
-        M_B = (w.reshape(_sh) * self._gammaB.transpose(2, 0, 1, 3, 4, 5)).reshape(
+        M_B = self._gammaB.transpose(2, 0, 1, 3, 4, 5).reshape(
             self._D3 * self._d, self._a * self._D4 * self._D1 * self._D2
         )
 
@@ -695,7 +705,7 @@ class SimpleUpdate1x2(object):
             col_bond=self._colors3,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D3 = self._lambda3.size
@@ -710,11 +720,10 @@ class SimpleUpdate1x2(object):
             print("updated bond 3: new lambda3 =", self._lambda3)
 
     def update_bond4(self, gate):
-        w = self._lambda4 ** -1
-        M_A = (self._gammaA.transpose(1, 2, 3, 4, 0, 5) * w).reshape(
+        M_A = self._gammaA.transpose(1, 2, 3, 4, 0, 5).reshape(
             self._a * self._D1 * self._D2 * self._D3, self._d * self._D4
         )
-        M_B = (w.reshape(_sh) * self._gammaB.transpose(3, 0, 1, 2, 4, 5)).reshape(
+        M_B = self._gammaB.transpose(3, 0, 1, 2, 4, 5).reshape(
             self._D4 * self._d, self._a * self._D3 * self._D1 * self._D2
         )
 
@@ -736,7 +745,7 @@ class SimpleUpdate1x2(object):
             col_bond=self._colors4,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D4 = self._lambda4.size
@@ -752,6 +761,7 @@ class SimpleUpdate1x2(object):
 
 
 class SimpleUpdate2x2(object):
+    # Same as SimpleUpdate1x2, consider weights on by default.
     def __init__(
         self,
         d,
@@ -763,6 +773,7 @@ class SimpleUpdate2x2(object):
         tensors=None,
         colors=None,
         cutoff=1e-13,
+        degen_ratio=None,
         file=None,
         verbosity=0,
     ):
@@ -797,6 +808,9 @@ class SimpleUpdate2x2(object):
           assumed.
         cutoff : float, optional.
             Singular values smaller than cutoff are set to zero to improve stability.
+        degen_ratio : None or float, optional.
+            If set, keep singular value multiplet structure by cutting between two
+            values such that s[i+1]/s[i] > degen_ratio
         file : str, optional
           Save file containing data to restart computation from. File must follow
           save_to_file / load_from_file syntax. If file is provided, d and a are read to
@@ -822,7 +836,6 @@ class SimpleUpdate2x2(object):
         self._d = d
         self._a = a
         self.verbosity = verbosity
-        self._keep_multiplets = False  # used in SU(2) version
         if self.verbosity > 0:
             print(f"construct SimpleUpdate2x2 with d = {d}, a = {a} and Dmax = {Dmax}")
 
@@ -831,6 +844,7 @@ class SimpleUpdate2x2(object):
             return
 
         self.cutoff = cutoff
+        self.degen_ratio = degen_ratio
         self.Dmax = Dmax
         if h1.shape != (d ** 2, d ** 2):
             raise ValueError("invalid shape for Hamiltonian h1")
@@ -1126,6 +1140,10 @@ class SimpleUpdate2x2(object):
                 self.cutoff = data["_SU2x2_cutoff"][()]
             else:
                 self.cutoff = 1e-13  # default value for backward compatibility
+            if "_SU2x2_degen_ratio" in data.files:
+                self.degen_ratio = data["_SU2x2_degen_ratio"][()]
+            else:
+                self.degen_ratio = None
         self._D1 = self._lambda1.size
         self._D2 = self._lambda2.size
         self._D3 = self._lambda3.size
@@ -1172,6 +1190,8 @@ class SimpleUpdate2x2(object):
         data["_SU2x2_beta"] = self._beta
         data["_SU2x2_Dmax"] = self.Dmax
         data["_SU2x2_cutoff"] = self.cutoff
+        if self.degen_ratio is not None:
+            data["_SU2x2_degen_ratio"] = self.degen_ratio
         if file is None:
             return data
         np.savez_compressed(file, **data)
@@ -1400,12 +1420,10 @@ class SimpleUpdate2x2(object):
         """
         Update lambda1 between A and C by applying gate g1 to A upper bond.
         """
-        # add diagonal weights to gammaA and gammaC
-        w = self._lambda1 ** -1
-        M_A = (self._gammaA.transpose(1, 3, 4, 5, 0, 2) * w).reshape(
+        M_A = self._gammaA.transpose(1, 3, 4, 5, 0, 2).reshape(
             self._a * self._D2 * self._D3 * self._D4, self._d * self._D1
         )
-        M_C = (w.reshape(_sh) * self._gammaC.transpose(4, 0, 1, 2, 3, 5)).reshape(
+        M_C = self._gammaC.transpose(4, 0, 1, 2, 3, 5).reshape(
             self._D1 * self._d, self._a * self._D3 * self._D7 * self._D8
         )
 
@@ -1428,7 +1446,7 @@ class SimpleUpdate2x2(object):
             col_bond=self._colors1,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D1 = self._lambda1.size
@@ -1447,11 +1465,10 @@ class SimpleUpdate2x2(object):
         """
         Update lambda2 between A and B by applying gate to A right bond.
         """
-        w = self._lambda2 ** -1
-        M_A = (self._gammaA.transpose(1, 2, 4, 5, 0, 3) * w).reshape(
+        M_A = self._gammaA.transpose(1, 2, 4, 5, 0, 3).reshape(
             self._a * self._D1 * self._D3 * self._D4, self._d * self._D2
         )
-        M_B = (w.reshape(_sh) * self._gammaB.transpose(5, 0, 1, 2, 3, 4)).reshape(
+        M_B = self._gammaB.transpose(5, 0, 1, 2, 3, 4).reshape(
             self._D2 * self._d, self._a * self._D5 * self._D4 * self._D6
         )
 
@@ -1473,7 +1490,7 @@ class SimpleUpdate2x2(object):
             col_bond=self._colors2,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D2 = self._lambda2.size
@@ -1491,11 +1508,10 @@ class SimpleUpdate2x2(object):
         """
         Update lambda3 between A and C by applying gate to A down bond.
         """
-        w = self._lambda3 ** -1
-        M_A = (self._gammaA.transpose(1, 2, 3, 5, 0, 4) * w).reshape(
+        M_A = self._gammaA.transpose(1, 2, 3, 5, 0, 4).reshape(
             self._a * self._D1 * self._D2 * self._D4, self._d * self._D3
         )
-        M_C = (w.reshape(_sh) * self._gammaC.transpose(2, 0, 1, 3, 4, 5)).reshape(
+        M_C = self._gammaC.transpose(2, 0, 1, 3, 4, 5).reshape(
             self._D3 * self._d, self._a * self._D7 * self._D1 * self._D8
         )
 
@@ -1517,7 +1533,7 @@ class SimpleUpdate2x2(object):
             col_bond=self._colors3,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D3 = self._lambda3.size
@@ -1535,11 +1551,10 @@ class SimpleUpdate2x2(object):
         """
         Update lambda4 between A and B by applying gate to A right bond.
         """
-        w = self._lambda4 ** -1
-        M_A = (self._gammaA.transpose(1, 2, 3, 4, 0, 5) * w).reshape(
+        M_A = self._gammaA.transpose(1, 2, 3, 4, 0, 5).reshape(
             self._a * self._D1 * self._D2 * self._D3, self._d * self._D4
         )
-        M_B = (w.reshape(_sh) * self._gammaB.transpose(3, 0, 1, 2, 4, 5)).reshape(
+        M_B = self._gammaB.transpose(3, 0, 1, 2, 4, 5).reshape(
             self._D4 * self._d, self._a * self._D5 * self._D6 * self._D2
         )
 
@@ -1561,7 +1576,7 @@ class SimpleUpdate2x2(object):
             col_bond=self._colors4,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D4 = self._lambda4.size
@@ -1579,11 +1594,10 @@ class SimpleUpdate2x2(object):
         """
         Update lambda5 between B and D by applying gate to B upper bond.
         """
-        w = self._lambda5 ** -1
-        M_B = (self._gammaB.transpose(1, 3, 4, 5, 0, 2) * w).reshape(
+        M_B = self._gammaB.transpose(1, 3, 4, 5, 0, 2).reshape(
             self._a * self._D4 * self._D6 * self._D2, self._d * self._D5
         )
-        M_D = (w.reshape(_sh) * self._gammaD.transpose(4, 0, 1, 2, 3, 5)).reshape(
+        M_D = self._gammaD.transpose(4, 0, 1, 2, 3, 5).reshape(
             self._D5 * self._d, self._a * self._D6 * self._D8 * self._D7
         )
 
@@ -1605,7 +1619,7 @@ class SimpleUpdate2x2(object):
             col_bond=-self._colors5,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D5 = self._lambda5.size
@@ -1624,11 +1638,10 @@ class SimpleUpdate2x2(object):
         """
         Update lambda6 between B and D by applying gate to B down bond.
         """
-        w = self._lambda6 ** -1
-        M_B = (self._gammaB.transpose(1, 2, 3, 5, 0, 4) * w).reshape(
+        M_B = self._gammaB.transpose(1, 2, 3, 5, 0, 4).reshape(
             self._a * self._D5 * self._D4 * self._D2, self._d * self._D6
         )
-        M_D = (w.reshape(_sh) * self._gammaD.transpose(2, 0, 1, 3, 4, 5)).reshape(
+        M_D = self._gammaD.transpose(2, 0, 1, 3, 4, 5).reshape(
             self._D6 * self._d, self._a * self._D8 * self._D5 * self._D7
         )
 
@@ -1650,7 +1663,7 @@ class SimpleUpdate2x2(object):
             col_bond=-self._colors6,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D6 = self._lambda6.size
@@ -1669,11 +1682,10 @@ class SimpleUpdate2x2(object):
         """
         Update lambda7 between C and D by applying gate to C right bond.
         """
-        w = self._lambda7 ** -1
-        M_C = (self._gammaC.transpose(1, 2, 4, 5, 0, 3) * w).reshape(
+        M_C = self._gammaC.transpose(1, 2, 4, 5, 0, 3).reshape(
             self._a * self._D3 * self._D1 * self._D8, self._d * self._D7
         )
-        M_D = (w.reshape(_sh) * self._gammaD.transpose(5, 0, 1, 2, 3, 4)).reshape(
+        M_D = self._gammaD.transpose(5, 0, 1, 2, 3, 4).reshape(
             self._D7 * self._d, self._a * self._D6 * self._D8 * self._D5
         )
 
@@ -1695,7 +1707,7 @@ class SimpleUpdate2x2(object):
             col_bond=-self._colors7,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D7 = self._lambda7.size
@@ -1714,11 +1726,10 @@ class SimpleUpdate2x2(object):
         """
         Update lambda8 between C and D by applying gate to C left bond.
         """
-        w = self._lambda8 ** -1
-        M_C = (self._gammaC.transpose(1, 2, 3, 4, 0, 5) * w).reshape(
+        M_C = self._gammaC.transpose(1, 2, 3, 4, 0, 5).reshape(
             self._a * self._D3 * self._D7 * self._D1, self._d * self._D8
         )
-        M_D = (w.reshape(_sh) * self._gammaD.transpose(3, 0, 1, 2, 4, 5)).reshape(
+        M_D = self._gammaD.transpose(3, 0, 1, 2, 4, 5).reshape(
             self._D8 * self._d, self._a * self._D6 * self._D5 * self._D7
         )
 
@@ -1740,7 +1751,7 @@ class SimpleUpdate2x2(object):
             col_bond=-self._colors8,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D8 = self._lambda8.size
@@ -1764,15 +1775,13 @@ class SimpleUpdate2x2(object):
         Update lambda2 and lambda6 by applying gate to A upper-right next nearest
         neighbor bond with D through tensor B. Twin of 17.
         """
-        w2 = self._lambda2 ** -1
-        w5 = (self._lambda5 ** -1)[:, None, None, None, None]
-        M_A = (self._gammaA.transpose(1, 2, 4, 5, 0, 3) * w2).reshape(
+        M_A = self._gammaA.transpose(1, 2, 4, 5, 0, 3).reshape(
             self._a * self._D1 * self._D3 * self._D4, self._d * self._D2
         )
-        M_B = (
-            self._gammaB.transpose(5, 2, 0, 1, 3, 4) * (w2.reshape(_sh) * w5[None])
-        ).reshape(self._D2 * self._D5, self._d * self._a * self._D4 * self._D6)
-        M_D = (self._gammaD.transpose(4, 0, 1, 2, 3, 5) * w5[:, None]).reshape(
+        M_B = self._gammaB.transpose(5, 2, 0, 1, 3, 4).reshape(
+            self._D2 * self._D5, self._d * self._a * self._D4 * self._D6
+        )
+        M_D = self._gammaD.transpose(4, 0, 1, 2, 3, 5).reshape(
             self._D5 * self._d, self._a * self._D6 * self._D8 * self._D7
         )
 
@@ -1809,7 +1818,7 @@ class SimpleUpdate2x2(object):
             col_bR=self._colors5,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D2 = self._lambda2.size
@@ -1833,15 +1842,13 @@ class SimpleUpdate2x2(object):
         Update lambda2 and lambda6 by applying gate to A upper-right next nearest
         neighbor bond with D through tensor C. Twin of 25.
         """
-        w1 = self._lambda1 ** -1
-        w7 = (self._lambda7 ** -1)[:, None, None, None, None]
-        M_A = (self._gammaA.transpose(1, 3, 4, 5, 0, 2) * w1).reshape(
+        M_A = self._gammaA.transpose(1, 3, 4, 5, 0, 2).reshape(
             self._a * self._D2 * self._D3 * self._D4, self._d * self._D1
         )
-        M_C = (
-            self._gammaC.transpose(4, 3, 0, 1, 2, 5) * (w1.reshape(_sh) * w7[None])
-        ).reshape(self._D1 * self._D7, self._d * self._a * self._D3 * self._D8)
-        M_D = (self._gammaD.transpose(5, 0, 1, 2, 3, 4) * w7[:, None]).reshape(
+        M_C = self._gammaC.transpose(4, 3, 0, 1, 2, 5).reshape(
+            self._D1 * self._D7, self._d * self._a * self._D3 * self._D8
+        )
+        M_D = self._gammaD.transpose(5, 0, 1, 2, 3, 4).reshape(
             self._D7 * self._d, self._a * self._D6 * self._D8 * self._D5
         )
 
@@ -1878,7 +1885,7 @@ class SimpleUpdate2x2(object):
             col_bR=self._colors7,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D1 = self._lambda1.size
@@ -1902,15 +1909,13 @@ class SimpleUpdate2x2(object):
         Update lambda2 and lambda6 by applying gate to A down-right next nearest
         neighbor bond with D through tensor B. Twin of 37.
         """
-        w2 = self._lambda2 ** -1
-        w6 = (self._lambda6 ** -1)[:, None, None, None, None]
-        M_A = (self._gammaA.transpose(1, 2, 4, 5, 0, 3) * w2).reshape(
+        M_A = self._gammaA.transpose(1, 2, 4, 5, 0, 3).reshape(
             self._a * self._D1 * self._D3 * self._D4, self._d * self._D2
         )
-        M_B = (
-            self._gammaB.transpose(5, 4, 0, 1, 2, 3) * (w2.reshape(_sh) * w6[None])
-        ).reshape(self._D2 * self._D6, self._d * self._a * self._D5 * self._D4)
-        M_D = (self._gammaD.transpose(2, 0, 1, 3, 4, 5) * w6[:, None]).reshape(
+        M_B = self._gammaB.transpose(5, 4, 0, 1, 2, 3).reshape(
+            self._D2 * self._D6, self._d * self._a * self._D5 * self._D4
+        )
+        M_D = self._gammaD.transpose(2, 0, 1, 3, 4, 5).reshape(
             self._D6 * self._d, self._a * self._D8 * self._D5 * self._D7
         )
 
@@ -1947,7 +1952,7 @@ class SimpleUpdate2x2(object):
             col_bR=self._colors6,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D2 = self._lambda2.size
@@ -1971,15 +1976,13 @@ class SimpleUpdate2x2(object):
         Update lambda2 and lambda6 by applying gate to A down-right next nearest
         neighbor bond with D through tensor C. Twin of 26.
         """
-        w3 = self._lambda3 ** -1
-        w7 = (self._lambda7 ** -1)[:, None, None, None, None]
-        M_A = (self._gammaA.transpose(1, 2, 3, 5, 0, 4) * w3).reshape(
+        M_A = self._gammaA.transpose(1, 2, 3, 5, 0, 4).reshape(
             self._a * self._D1 * self._D2 * self._D4, self._d * self._D3
         )
-        M_C = (
-            self._gammaC.transpose(2, 3, 0, 1, 4, 5) * (w3.reshape(_sh) * w7[None])
-        ).reshape(self._D3 * self._D7, self._d * self._a * self._D1 * self._D8)
-        M_D = (self._gammaD.transpose(5, 0, 1, 2, 3, 4) * w7[:, None]).reshape(
+        M_C = self._gammaC.transpose(2, 3, 0, 1, 4, 5).reshape(
+            self._D3 * self._D7, self._d * self._a * self._D1 * self._D8
+        )
+        M_D = self._gammaD.transpose(5, 0, 1, 2, 3, 4).reshape(
             self._D7 * self._d, self._a * self._D6 * self._D8 * self._D5
         )
 
@@ -2016,7 +2019,7 @@ class SimpleUpdate2x2(object):
             col_bR=self._colors7,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D3 = self._lambda3.size
@@ -2040,15 +2043,13 @@ class SimpleUpdate2x2(object):
         Update lambda4 and lambda6 by applying gate to A down-left next nearest
         neighbor bond with D through tensor B. Twin of 38.
         """
-        w4 = self._lambda4 ** -1
-        w6 = (self._lambda6 ** -1)[:, None, None, None, None]
-        M_A = (self._gammaA.transpose(1, 2, 3, 4, 0, 5) * w4).reshape(
+        M_A = self._gammaA.transpose(1, 2, 3, 4, 0, 5).reshape(
             self._a * self._D1 * self._D2 * self._D3, self._d * self._D4
         )
-        M_B = (
-            self._gammaB.transpose(3, 4, 0, 1, 2, 5) * (w4.reshape(_sh) * w6[None])
-        ).reshape(self._D4 * self._D6, self._d * self._a * self._D5 * self._D2)
-        M_D = (self._gammaD.transpose(2, 0, 1, 3, 4, 5) * w6[:, None]).reshape(
+        M_B = self._gammaB.transpose(3, 4, 0, 1, 2, 5).reshape(
+            self._D4 * self._D6, self._d * self._a * self._D5 * self._D2
+        )
+        M_D = self._gammaD.transpose(2, 0, 1, 3, 4, 5).reshape(
             self._D6 * self._d, self._a * self._D8 * self._D5 * self._D7
         )
 
@@ -2085,7 +2086,7 @@ class SimpleUpdate2x2(object):
             col_bR=self._colors6,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D4 = self._lambda4.size
@@ -2109,15 +2110,13 @@ class SimpleUpdate2x2(object):
         Update lambda2 and lambda6 by applying gate to A down-left next nearest
         neighbor bond with D through tensor C. Twin of 46.
         """
-        w3 = self._lambda3 ** -1
-        w8 = (self._lambda8 ** -1)[:, None, None, None, None]
-        M_A = (self._gammaA.transpose(1, 2, 3, 5, 0, 4) * w3).reshape(
+        M_A = self._gammaA.transpose(1, 2, 3, 5, 0, 4).reshape(
             self._a * self._D1 * self._D2 * self._D4, self._d * self._D3
         )
-        M_C = (
-            self._gammaC.transpose(2, 5, 0, 1, 3, 4) * (w3.reshape(_sh) * w8[None])
-        ).reshape(self._D3 * self._D8, self._d * self._a * self._D7 * self._D1)
-        M_D = (self._gammaD.transpose(3, 0, 1, 2, 4, 5) * w8[:, None]).reshape(
+        M_C = self._gammaC.transpose(2, 5, 0, 1, 3, 4).reshape(
+            self._D3 * self._D8, self._d * self._a * self._D7 * self._D1
+        )
+        M_D = self._gammaD.transpose(3, 0, 1, 2, 4, 5).reshape(
             self._D8 * self._d, self._a * self._D6 * self._D5 * self._D7
         )
 
@@ -2154,7 +2153,7 @@ class SimpleUpdate2x2(object):
             col_bR=self._colors8,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D3 = self._lambda3.size
@@ -2178,15 +2177,13 @@ class SimpleUpdate2x2(object):
         Update lambda4 and lambda5 by applying gate to A upper-left next nearest
         neighbor bond with D through tensor B. Twin of 18.
         """
-        w4 = self._lambda4 ** -1
-        w5 = (self._lambda5 ** -1)[:, None, None, None, None]
-        M_A = (self._gammaA.transpose(1, 2, 3, 4, 0, 5) * w4).reshape(
+        M_A = self._gammaA.transpose(1, 2, 3, 4, 0, 5).reshape(
             self._a * self._D1 * self._D2 * self._D3, self._d * self._D4
         )
-        M_B = (
-            self._gammaB.transpose(3, 2, 0, 1, 4, 5) * (w4.reshape(_sh) * w5[None])
-        ).reshape(self._D4 * self._D5, self._d * self._a * self._D6 * self._D2)
-        M_D = (self._gammaD.transpose(4, 0, 1, 2, 3, 5) * w5[:, None]).reshape(
+        M_B = self._gammaB.transpose(3, 2, 0, 1, 4, 5).reshape(
+            self._D4 * self._D5, self._d * self._a * self._D6 * self._D2
+        )
+        M_D = self._gammaD.transpose(4, 0, 1, 2, 3, 5).reshape(
             self._D5 * self._d, self._a * self._D6 * self._D8 * self._D7
         )
 
@@ -2223,7 +2220,7 @@ class SimpleUpdate2x2(object):
             col_bR=self._colors5,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D4 = self._lambda4.size
@@ -2247,15 +2244,13 @@ class SimpleUpdate2x2(object):
         Update lambda1 and lambda8 by applying gate to A upper-left next nearest
         neighbor bond with D through tensor C. Twin of 45.
         """
-        w1 = self._lambda1 ** -1
-        w8 = (self._lambda8 ** -1)[:, None, None, None, None]
-        M_A = (self._gammaA.transpose(1, 3, 4, 5, 0, 2) * w1).reshape(
+        M_A = self._gammaA.transpose(1, 3, 4, 5, 0, 2).reshape(
             self._a * self._D2 * self._D3 * self._D4, self._d * self._D1
         )
-        M_C = (
-            self._gammaC.transpose(4, 5, 0, 1, 2, 3) * (w1.reshape(_sh) * w8[None])
-        ).reshape(self._D1 * self._D8, self._d * self._a * self._D3 * self._D7)
-        M_D = (self._gammaD.transpose(3, 0, 1, 2, 4, 5) * w8[:, None]).reshape(
+        M_C = self._gammaC.transpose(4, 5, 0, 1, 2, 3).reshape(
+            self._D1 * self._D8, self._d * self._a * self._D3 * self._D7
+        )
+        M_D = self._gammaD.transpose(3, 0, 1, 2, 4, 5).reshape(
             self._D8 * self._d, self._a * self._D6 * self._D5 * self._D7
         )
 
@@ -2292,7 +2287,7 @@ class SimpleUpdate2x2(object):
             col_bR=self._colors8,
             col_d=self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D1 = self._lambda1.size
@@ -2320,15 +2315,13 @@ class SimpleUpdate2x2(object):
         Update lambda4 and lambda1 by applying gate to B upper-right next nearest
         neighbor bond with C through tensor A. Twin of 58.
         """
-        w4 = self._lambda4 ** -1
-        w1 = (self._lambda1 ** -1)[:, None, None, None, None]
-        M_B = (self._gammaB.transpose(1, 2, 4, 5, 0, 3) * w4).reshape(
+        M_B = self._gammaB.transpose(1, 2, 4, 5, 0, 3).reshape(
             self._a * self._D5 * self._D6 * self._D2, self._d * self._D4
         )
-        M_A = (
-            self._gammaA.transpose(5, 2, 0, 1, 3, 4) * (w4.reshape(_sh) * w1[None])
-        ).reshape(self._D4 * self._D1, self._d * self._a * self._D2 * self._D3)
-        M_C = (self._gammaC.transpose(4, 0, 1, 2, 3, 5) * w1[:, None]).reshape(
+        M_A = self._gammaA.transpose(5, 2, 0, 1, 3, 4).reshape(
+            self._D4 * self._D1, self._d * self._a * self._D2 * self._D3
+        )
+        M_C = self._gammaC.transpose(4, 0, 1, 2, 3, 5).reshape(
             self._D1 * self._d, self._a * self._D3 * self._D7 * self._D8
         )
 
@@ -2357,7 +2350,7 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors1,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D4 = self._lambda4.size
@@ -2383,15 +2376,13 @@ class SimpleUpdate2x2(object):
         Update lambda2 and lambda6 by applying gate to B upper-right next nearest
         neighbor bond with C through tensor D. Twin of 41.
         """
-        w5 = self._lambda5 ** -1
-        w8 = (self._lambda8 ** -1)[:, None, None, None, None]
-        M_B = (self._gammaB.transpose(1, 3, 4, 5, 0, 2) * w5).reshape(
+        M_B = self._gammaB.transpose(1, 3, 4, 5, 0, 2).reshape(
             self._a * self._D4 * self._D6 * self._D2, self._d * self._D5
         )
-        M_D = (
-            self._gammaD.transpose(4, 3, 0, 1, 2, 5) * (w5.reshape(_sh) * w8[None])
-        ).reshape(self._D5 * self._D8, self._d * self._a * self._D6 * self._D7)
-        M_C = (self._gammaC.transpose(5, 0, 1, 2, 3, 4) * w8[:, None]).reshape(
+        M_D = self._gammaD.transpose(4, 3, 0, 1, 2, 5).reshape(
+            self._D5 * self._D8, self._d * self._a * self._D6 * self._D7
+        )
+        M_C = self._gammaC.transpose(5, 0, 1, 2, 3, 4).reshape(
             self._D8 * self._d, self._a * self._D3 * self._D7 * self._D1
         )
 
@@ -2420,7 +2411,7 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors8,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D5 = self._lambda5.size
@@ -2447,15 +2438,13 @@ class SimpleUpdate2x2(object):
         Update lambda4 and lambda3 by applying gate to B down-right next nearest
         neighbor bond with C through tensor A. Twin of 68.
         """
-        w4 = self._lambda4 ** -1
-        w3 = (self._lambda3 ** -1)[:, None, None, None, None]
-        M_B = (self._gammaB.transpose(1, 2, 4, 5, 0, 3) * w4).reshape(
+        M_B = self._gammaB.transpose(1, 2, 4, 5, 0, 3).reshape(
             self._a * self._D5 * self._D6 * self._D2, self._d * self._D4
         )
-        M_A = (
-            self._gammaA.transpose(5, 4, 0, 1, 2, 3) * (w4.reshape(_sh) * w3[None])
-        ).reshape(self._D4 * self._D3, self._d * self._a * self._D1 * self._D2)
-        M_C = (self._gammaC.transpose(2, 0, 1, 3, 4, 5) * w3[:, None]).reshape(
+        M_A = self._gammaA.transpose(5, 4, 0, 1, 2, 3).reshape(
+            self._D4 * self._D3, self._d * self._a * self._D1 * self._D2
+        )
+        M_C = self._gammaC.transpose(2, 0, 1, 3, 4, 5).reshape(
             self._D3 * self._d, self._a * self._D7 * self._D1 * self._D8
         )
 
@@ -2484,7 +2473,7 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors3,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
 
         self._D4 = self._lambda4.size
@@ -2510,15 +2499,13 @@ class SimpleUpdate2x2(object):
         Update lambda2 and lambda6 by applying gate to B down-right next nearest
         neighbor bond with C through tensor D. Twin of 43.
         """
-        w6 = self._lambda6 ** -1
-        w8 = (self._lambda8 ** -1)[:, None, None, None, None]
-        M_B = (self._gammaB.transpose(1, 2, 3, 5, 0, 4) * w6).reshape(
+        M_B = self._gammaB.transpose(1, 2, 3, 5, 0, 4).reshape(
             self._a * self._D5 * self._D4 * self._D2, self._d * self._D6
         )
-        M_D = (
-            self._gammaD.transpose(2, 3, 0, 1, 4, 5) * (w6.reshape(_sh) * w8[None])
-        ).reshape(self._D6 * self._D8, self._d * self._a * self._D5 * self._D7)
-        M_C = (self._gammaC.transpose(5, 0, 1, 2, 3, 4) * w8[:, None]).reshape(
+        M_D = self._gammaD.transpose(2, 3, 0, 1, 4, 5).reshape(
+            self._D6 * self._D8, self._d * self._a * self._D5 * self._D7
+        )
+        M_C = self._gammaC.transpose(5, 0, 1, 2, 3, 4).reshape(
             self._D8 * self._d, self._a * self._D3 * self._D7 * self._D1
         )
 
@@ -2547,7 +2534,7 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors8,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
         self._D6 = self._lambda6.size
         self._D8 = self._lambda8.size
@@ -2573,15 +2560,13 @@ class SimpleUpdate2x2(object):
         Update lambda2 and lambda3 by applying gate to B down-left next nearest
         neighbor bond with C through tensor A. Twin of 67.
         """
-        w2 = self._lambda2 ** -1
-        w3 = (self._lambda3 ** -1)[:, None, None, None, None]
-        M_B = (self._gammaB.transpose(1, 2, 3, 4, 0, 5) * w2).reshape(
+        M_B = self._gammaB.transpose(1, 2, 3, 4, 0, 5).reshape(
             self._a * self._D5 * self._D4 * self._D6, self._d * self._D2
         )
-        M_A = (
-            self._gammaA.transpose(3, 4, 0, 1, 2, 5) * (w2.reshape(_sh) * w3[None])
-        ).reshape(self._D2 * self._D3, self._d * self._a * self._D1 * self._D4)
-        M_C = (self._gammaC.transpose(2, 0, 1, 3, 4, 5) * w3[:, None]).reshape(
+        M_A = self._gammaA.transpose(3, 4, 0, 1, 2, 5).reshape(
+            self._D2 * self._D3, self._d * self._a * self._D1 * self._D4
+        )
+        M_C = self._gammaC.transpose(2, 0, 1, 3, 4, 5).reshape(
             self._D3 * self._d, self._a * self._D7 * self._D1 * self._D8
         )
 
@@ -2610,7 +2595,7 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors3,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
         self._D2 = self._lambda2.size
         self._D3 = self._lambda3.size
@@ -2636,15 +2621,13 @@ class SimpleUpdate2x2(object):
         Update lambda6 and lambda7 by applying gate to B down-left next nearest
         neighbor bond with C through tensor D. Twin of 23.
         """
-        w6 = self._lambda6 ** -1
-        w7 = (self._lambda7 ** -1)[:, None, None, None, None]
-        M_B = (self._gammaB.transpose(1, 2, 3, 5, 0, 4) * w6).reshape(
+        M_B = self._gammaB.transpose(1, 2, 3, 5, 0, 4).reshape(
             self._a * self._D5 * self._D4 * self._D2, self._d * self._D6
         )
-        M_D = (
-            self._gammaD.transpose(2, 5, 0, 1, 3, 4) * (w6.reshape(_sh) * w7[None])
-        ).reshape(self._D6 * self._D7, self._d * self._a * self._D8 * self._D5)
-        M_C = (self._gammaC.transpose(3, 0, 1, 2, 4, 5) * w7[:, None]).reshape(
+        M_D = self._gammaD.transpose(2, 5, 0, 1, 3, 4).reshape(
+            self._D6 * self._D7, self._d * self._a * self._D8 * self._D5
+        )
+        M_C = self._gammaC.transpose(3, 0, 1, 2, 4, 5).reshape(
             self._D7 * self._d, self._a * self._D3 * self._D1 * self._D8
         )
 
@@ -2673,7 +2656,7 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors7,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
         self._D6 = self._lambda6.size
         self._D7 = self._lambda7.size
@@ -2699,15 +2682,13 @@ class SimpleUpdate2x2(object):
         Update lambda2 and lambda1 by applying gate to B upper-left next nearest
         neighbor bond with C through tensor A. Twin of 57.
         """
-        w2 = self._lambda2 ** -1
-        w1 = (self._lambda1 ** -1)[:, None, None, None, None]
-        M_B = (self._gammaB.transpose(1, 2, 3, 4, 0, 5) * w2).reshape(
+        M_B = self._gammaB.transpose(1, 2, 3, 4, 0, 5).reshape(
             self._a * self._D5 * self._D4 * self._D6, self._d * self._D2
         )
-        M_A = (
-            self._gammaA.transpose(3, 2, 0, 1, 4, 5) * (w2.reshape(_sh) * w1[None])
-        ).reshape(self._D2 * self._D1, self._d * self._a * self._D3 * self._D4)
-        M_C = (self._gammaC.transpose(4, 0, 1, 2, 3, 5) * w1[:, None]).reshape(
+        M_A = self._gammaA.transpose(3, 2, 0, 1, 4, 5).reshape(
+            self._D2 * self._D1, self._d * self._a * self._D3 * self._D4
+        )
+        M_C = self._gammaC.transpose(4, 0, 1, 2, 3, 5).reshape(
             self._D1 * self._d, self._a * self._D3 * self._D7 * self._D8
         )
 
@@ -2736,7 +2717,7 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors1,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
         self._D2 = self._lambda2.size
         self._D1 = self._lambda1.size
@@ -2762,15 +2743,13 @@ class SimpleUpdate2x2(object):
         Update lambda6 and lambda7 by applying gate to B down-left next nearest
         neighbor bond with C through tensor D. Twin of 21.
         """
-        w5 = self._lambda5 ** -1
-        w7 = (self._lambda7 ** -1)[:, None, None, None, None]
-        M_B = (self._gammaB.transpose(1, 3, 4, 5, 0, 2) * w5).reshape(
+        M_B = self._gammaB.transpose(1, 3, 4, 5, 0, 2).reshape(
             self._a * self._D4 * self._D6 * self._D2, self._d * self._D5
         )
-        M_D = (
-            self._gammaD.transpose(4, 5, 0, 1, 2, 3) * (w5.reshape(_sh) * w7[None])
-        ).reshape(self._D5 * self._D7, self._d * self._a * self._D6 * self._D8)
-        M_C = (self._gammaC.transpose(3, 0, 1, 2, 4, 5) * w7[:, None]).reshape(
+        M_D = self._gammaD.transpose(4, 5, 0, 1, 2, 3).reshape(
+            self._D5 * self._D7, self._d * self._a * self._D6 * self._D8
+        )
+        M_C = self._gammaC.transpose(3, 0, 1, 2, 4, 5).reshape(
             self._D7 * self._d, self._a * self._D3 * self._D1 * self._D8
         )
 
@@ -2799,7 +2778,7 @@ class SimpleUpdate2x2(object):
             col_bR=-self._colors7,
             col_d=-self._colors_p,
             cutoff=self.cutoff,
-            keep_multiplets=self._keep_multiplets,
+            degen_ratio=self.degen_ratio,
         )
         self._D5 = self._lambda5.size
         self._D7 = self._lambda7.size
