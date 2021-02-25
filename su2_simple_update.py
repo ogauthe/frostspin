@@ -385,7 +385,7 @@ class SU2_SimpleUpdate1x2(object):
                 (self._anc, self._rep1, self._rep3, self._rep4),
             )
             isoB = np.tensordot(
-                p_transpB, p_data, ((1, 2, 0, 3, 4, 5), (0, 1, 2, 3, 4, 5))
+                p_transpB, p_data, ((1, 2, 3, 0, 4, 5), (0, 1, 2, 3, 4, 5))
             )
         self._dataA = isoA.T @ newA.to_raw_data()
         self._dataB = isoB.T @ newB.to_raw_data()
