@@ -487,6 +487,12 @@ class SU2_Matrix(object):
     def __rtruediv__(self, x):
         return self * (1.0 / x)
 
+    def norm2(self):
+        n2 = 0.0
+        for (irr, b) in zip(self._block_irreps, self._blocks):
+            n2 += irr * lg.norm(b) ** 2
+        return np.sqrt(n2)
+
     def __matmul__(self, other):
         i1 = 0
         i2 = 0
