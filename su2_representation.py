@@ -381,6 +381,10 @@ class SU2_Matrix(object):
         self._rep_left = rep_left
         self._rep_right = rep_right
 
+    @property
+    def shape(self):
+        return (self._rep_left.dim, self._rep_right.dim)
+
     @classmethod
     def from_raw_data(cls, data, rep_in, rep_out):
         i1 = 0
