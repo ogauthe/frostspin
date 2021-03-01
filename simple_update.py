@@ -5,8 +5,8 @@ from svd_tools import svd_truncate
 
 
 def update_first_neighbor(
-    M0_L,
-    M0_R,
+    matL,
+    matR,
     lambda0,
     gate,
     d,
@@ -34,37 +34,37 @@ def update_first_neighbor(
     # 1) SVD cut between constant tensors and effective tensor to update, hence reduce
     # main SVD to dimension D*d < a*D**3
     #     \|        \|
-    #     -L-    -> -W==ML-
-    #      |\        |   \
+    #     -L-    -> -cstL==effL-
+    #      |\        |        \
     D = lambda0.size
-    W_L, sL, M_L, col_sL = svdU1(M0_L, col_L, -combine_colors(col_d, col_bond))
-    D_effL = sL.size
-    M_L *= sL[:, None]
-    #     \|            \|
-    #     -R-    -> -MR==W-
-    #      |\        /   |
-    M_R, sR, W_R, col_sR = svdU1(M0_R, combine_colors(-col_bond, -col_d), col_R)
-    D_effR = sR.size
-    M_R *= sR
+    cstL, svL, effL, col_effL = svdU1(matL, col_L, -combine_colors(col_d, col_bond))
+    D_effL = svL.size
+    effL *= svL[:, None]
+    #     \|                \|
+    #     -R-    -> -effR==cstR-
+    #      |\        /       |
+    effR, svR, cstR, col_effR = svdU1(matR, combine_colors(-col_bond, -col_d), col_R)
+    D_effR = svR.size
+    effR *= svR
 
     # 2) construct matrix theta with gate g
     #
-    #             =ML-l-MR=
-    #                \  /
-    #   theta =       gg
-    #                /  \
-    theta = M_L.reshape(D_effL * d, D) / lambda0  # remove double counting
-    theta = (theta @ M_R.reshape(D, d * D_effR)).reshape(D_effL, d, d, D_effR)
+    #             =effL-l-effR=
+    #                 \  /
+    #   theta =        gg
+    #                 /  \
+    theta = effL.reshape(D_effL * d, D) / lambda0  # remove double counting
+    theta = (theta @ effR.reshape(D, d * D_effR)).reshape(D_effL, d, d, D_effR)
     theta = theta.transpose(0, 3, 1, 2).reshape(D_effL * D_effR, d ** 2)
     theta = (theta @ gate).reshape(D_effL, D_effR, d, d)
 
     # 3) cut theta with SVD
     theta = theta.swapaxes(1, 2).reshape(D_effL * d, D_effR * d)
-    M_L, new_lambda, M_R, new_col_lambda = svd_truncate(
+    U, new_lambda, V, new_col_lambda = svd_truncate(
         theta,
         Dmax,
-        row_colors=combine_colors(col_sL, col_d),
-        col_colors=combine_colors(col_sR, col_d),
+        row_colors=combine_colors(col_effL, col_d),
+        col_colors=combine_colors(col_effR, col_d),
         full=True,
         cutoff=cutoff,
         degen_ratio=degen_ratio,
@@ -75,22 +75,22 @@ def update_first_neighbor(
     new_lambda /= new_lambda.sum()  # singular values are positive
 
     # 5) start reconstruction of new gammaX and gammaY by unifying cst and eff parts
-    M_L = (M_L * new_lambda).reshape(D_effL, d * D)
-    M_L = W_L @ M_L
-    M_R = (
-        (M_R * new_lambda[:, None])
+    new_effL = (U * new_lambda).reshape(D_effL, d * D)
+    newL = cstL @ new_effL
+    new_effR = (
+        (V * new_lambda[:, None])
         .reshape(D, D_effR, d)
         .swapaxes(1, 2)
         .reshape(D * d, D_effR)
     )
-    M_R = M_R @ W_R
-    return M_L, new_lambda, M_R, -new_col_lambda
+    newR = new_effR @ cstR
+    return newL, new_lambda, newR, -new_col_lambda
 
 
 def update_second_neighbor(
-    M0_L,
-    M0_mid,
-    M0_R,
+    matL,
+    mat_mid,
+    matR,
     lambda_L,
     lambda_R,
     gate,
@@ -123,74 +123,76 @@ def update_second_neighbor(
     #     \|        \|
     #     -L-    -> -cstL==effL-lambda_L- (D_L)
     #      |\        |       \
-    cst_L, s_L, eff_L, col_sL = svdU1(M0_L, col_L, -combine_colors(col_d, col_bL))
-    D_effL = s_L.size
-    eff_L = (s_L[:, None] * eff_L).reshape(D_effL * d, D_L) / lambda_L  # remove lambda
+    cstL, svL, effL, col_effL = svdU1(matL, col_L, -combine_colors(col_d, col_bL))
+    D_effL = svL.size
+    effL = (svL[:, None] * effL).reshape(D_effL * d, D_L) / lambda_L  # remove lambda
     #                       \|/|
     #                       cstM
     #     \|                 ||
     #     -M-   ->  (D_L) - effM - (D_R)
     #      |\
-    eff_m, s_m, cst_m, col_sm = svdU1(M0_mid, -combine_colors(col_bL, col_bR), col_mid)
-    D_effm = s_m.size
-    eff_m = (eff_m * s_m).reshape(D_L, D_R * D_effm)
+    eff_m, sv_m, cst_m, col_effm = svdU1(
+        mat_mid, -combine_colors(col_bL, col_bR), col_mid
+    )
+    D_effm = sv_m.size
+    eff_m = (eff_m * sv_m).reshape(D_L, D_R * D_effm)
     #     \|                              \|
     #     -R-   ->  (D_R)  lambda_R-effR==cstR
     #      |\                              |\
-    eff_R, s_R, cst_R, col_sR = svdU1(M0_R, -combine_colors(col_bR, col_d), col_R)
-    D_effR = s_R.size
-    eff_R = (eff_R * s_R).reshape(D_R, d * D_effR) / lambda_R[:, None]
+    effR, svR, cstR, col_effR = svdU1(matR, -combine_colors(col_bR, col_d), col_R)
+    D_effR = svR.size
+    effR = (effR * svR).reshape(D_R, d * D_effR) / lambda_R[:, None]
 
     # contract tensor network
     #                         ||
     #    =effL-lambdaL -- eff_mid -- lambdaR-effR=
     #         \                             /
     #          \----------- gate ----------/
-    theta = (eff_L @ eff_m).reshape(D_effL * d, D_R, D_effm)
+    theta = (effL @ eff_m).reshape(D_effL * d, D_R, D_effm)
     theta = theta.swapaxes(1, 2).reshape(D_effL * d * D_effm, D_R)
-    theta = (theta @ eff_R).reshape(D_effL, d, D_effm, d, D_effR)
+    theta = (theta @ effR).reshape(D_effL, d, D_effm, d, D_effR)
     theta = theta.transpose(0, 2, 4, 1, 3).reshape(D_effL * D_effm * D_effR, d ** 2)
     theta = (theta @ gate).reshape(D_effL, D_effm, D_effR, d, d)
     theta = theta.transpose(0, 3, 1, 2, 4).reshape(D_effL * d, D_effm * D_effR * d)
 
     # first SVD: cut left part
-    new_L, new_lambda_L, theta, col_nbL = svd_truncate(
+    U, new_lambda_L, V, col_nbL = svd_truncate(
         theta,
         Dmax,
-        row_colors=combine_colors(col_sL, col_d),
-        col_colors=-combine_colors(-col_sm, col_sR, col_d),
+        row_colors=combine_colors(col_effL, col_d),
+        col_colors=-combine_colors(-col_effm, col_effR, col_d),
         full=True,
         cutoff=cutoff,
         degen_ratio=degen_ratio,
     )
     D_L = new_lambda_L.size
     new_lambda_L /= new_lambda_L.sum()
-    new_L = (new_L * new_lambda_L).reshape(D_effL, d * D_L)
+    new_effL = (U * new_lambda_L).reshape(D_effL, d * D_L)
 
     # second SVD: split middle and right parts
-    theta = (new_lambda_L[:, None] * theta).reshape(D_L * D_effm, D_effR * d)
-    new_mid, new_lambda_R, new_R, col_nbR = svd_truncate(
+    theta = (new_lambda_L[:, None] * V).reshape(D_L * D_effm, D_effR * d)
+    U, new_lambda_R, V, col_nbR = svd_truncate(
         theta,
         Dmax,
-        row_colors=combine_colors(col_nbL, -col_sm),
-        col_colors=-combine_colors(col_sR, col_d),
+        row_colors=combine_colors(col_nbL, -col_effm),
+        col_colors=-combine_colors(col_effR, col_d),
         full=True,
         cutoff=cutoff,
         degen_ratio=degen_ratio,
     )
     D_R = new_lambda_R.size
     new_lambda_R /= new_lambda_R.sum()
-    new_mid = new_mid.reshape(D_L, D_effm, D_R) * new_lambda_R
-    new_R = new_R.reshape(D_R, D_effR, d) * new_lambda_R[:, None, None]
+    new_effm = U.reshape(D_L, D_effm, D_R) * new_lambda_R
+    new_effR = V.reshape(D_R, D_effR, d) * new_lambda_R[:, None, None]
 
     # bring back constant parts
-    new_L = cst_L @ new_L
-    new_mid = new_mid.swapaxes(1, 2).reshape(D_L * D_R, D_effm)
-    new_mid = new_mid @ cst_m
-    new_R = new_R.swapaxes(1, 2).reshape(D_R * d, D_effR)
-    new_R = new_R @ cst_R
+    newL = cstL @ new_effL
+    new_effm = new_effm.swapaxes(1, 2).reshape(D_L * D_R, D_effm)
+    new_mid = new_effm @ cst_m
+    new_effR = new_effR.swapaxes(1, 2).reshape(D_R * d, D_effR)
+    newR = new_effR @ cstR
 
-    return new_L, new_mid, new_R, new_lambda_L, new_lambda_R, -col_nbL, col_nbR
+    return newL, new_mid, newR, new_lambda_L, new_lambda_R, -col_nbL, col_nbR
 
 
 class SimpleUpdate1x2(object):
