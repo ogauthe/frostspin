@@ -190,7 +190,7 @@ class SU2_Representation(object):
     def __hash__(self):
         return hash(repr(self))  # quick and dirty
 
-    def copy(self):
+    def copy(self):  # to save copy before truncation
         return SU2_Representation(self._degen.copy(), self._irreps.copy())
 
     def get_irrep_degen(self, irr):
@@ -451,6 +451,15 @@ class SU2_Matrix(object):
             else:
                 i2 += 1
         return np.array(data)
+
+    def toarray(self, rep_left_enum=None, rep_right_enum=None):
+        if rep_left_enum is None:
+            rep_left_enum = (self._rep_left,)
+        if rep_right_enum is None:
+            rep_right_enum = (self._rep_right,)
+        p = construct_matrix_projector(rep_left_enum, rep_right_enum, True)
+        t = np.dot(p, self.to_raw_data())
+        return t.reshape(self.shape)
 
     def __repr__(self):
         s = "SU2_Matrix with irreps and shapes:\n"
