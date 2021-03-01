@@ -293,7 +293,7 @@ def get_projector_chained(*rep_in, singlet_only=False):
             /  \   \
            1    2   3 ...
     """
-    forwards, backwards = [[rep_in[0]], [rep_in[-1]]]
+    forwards, backwards = [[rep_in[0].copy()], [rep_in[-1]]]
     for i in range(1, len(rep_in)):
         forwards.append(forwards[i - 1] * rep_in[i])
         backwards.append(backwards[i - 1] * rep_in[-i - 1])
@@ -329,10 +329,10 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
            /\ \            /\ \
          rep_left        rep_right
     """
-    prod_l = rep_left_enum[0]
+    prod_l = rep_left_enum[0].copy()  # need copy to truncate if n_rep_left = 1
     for rep in rep_left_enum[1:]:
         prod_l = prod_l * rep
-    prod_r = rep_right_enum[0]
+    prod_r = rep_right_enum[0].copy()
     for rep in rep_right_enum[1:]:
         prod_r = prod_r * rep
     # save left and right dimensions before truncation
