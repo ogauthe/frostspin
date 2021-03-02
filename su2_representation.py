@@ -121,6 +121,10 @@ class SU2_Representation(object):
         self._dim = self._degen @ self._irreps
         self._n_irr = self._irreps.size
 
+    @classmethod
+    def irrep(cls, irr):
+        return cls([1], [irr])
+
     @property
     def dim(self):
         return self._dim
