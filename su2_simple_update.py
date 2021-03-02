@@ -131,7 +131,7 @@ class SU2_SimpleUpdate1x2(object):
             print("Initialize SU2_SimpleUpdate2x2 from beta = 0 thermal product state")
 
         self._d = d
-        self._phys = SU2_Representation([1], [d])
+        self._phys = SU2_Representation.irrep(d)
         self._a = d
         self._anc = self._phys
         self.cutoff = cutoff
