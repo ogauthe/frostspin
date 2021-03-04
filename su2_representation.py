@@ -164,25 +164,25 @@ class SU2_Representation(object):
         irreps = []
         degen = []
         while i1 < self._n_irr and i2 < other._n_irr:
-            if self._irreps[i1] == self._irreps[i2]:
+            if self._irreps[i1] == other._irreps[i2]:
                 irreps.append(self._irreps[i1])
                 degen.append(self._degen[i1] + other._degen[i2])
                 i1 += 1
                 i2 += 1
-            elif self._irrep[i1] < self._irreps[i2]:
+            elif self._irreps[i1] < other._irreps[i2]:
                 irreps.append(self._irreps[i1])
                 degen.append(self._degen[i1])
                 i1 += 1
             else:
-                irreps.append(self._irreps[i2])
-                degen.append(self._degen[i2])
+                irreps.append(other._irreps[i2])
+                degen.append(other._degen[i2])
                 i2 += 1
         if i1 < self._n_irr:
             irreps.extend(self._irreps[i1:])
             degen.extend(self._degen[i1:])
-        if i2 < self._n_irr:
-            irreps.extend(self._irreps[i2:])
-            degen.extend(self._degen[i2:])
+        if i2 < other._n_irr:
+            irreps.extend(other._irreps[i2:])
+            degen.extend(other._degen[i2:])
         return SU2_Representation(degen, irreps)
 
     def __repr__(self):
