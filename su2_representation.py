@@ -504,6 +504,10 @@ class SU2_Matrix(object):
     def __rtruediv__(self, x):
         return self * (1.0 / x)
 
+    def __neg__(self):
+        blocks = [-b for b in self._blocks]
+        return SU2_Matrix(blocks, self._block_irreps, self._rep_left, self._rep_right)
+
     def norm2(self):
         n2 = 0.0
         for (irr, b) in zip(self._block_irreps, self._blocks):
@@ -526,6 +530,34 @@ class SU2_Matrix(object):
             else:
                 i2 += 1
         return SU2_Matrix(blocks, block_irreps, self._rep_left, other._rep_right)
+
+    def __add__(self, other):
+        # not that rep_left and rep_right are product of input / output of rep. They may
+        # correspond to different decompositions and addition would not be allowed for
+        # dense tensors (different shapes) / meaningless for matrices.
+        if self._rep_left != other._left or self._rep_right != other._right:
+            raise ValueError("Matrices have non-compatible representations")
+        blocks = []
+        block_irreps = []
+        i1, i2 = 0, 0
+        while i1 < self._nblocks and i2 < other._nblocks:
+            if self._block_irreps[i1] == other._block_irreps[i2]:
+                blocks.append(self._blocks[i1] + other._blocks[i2])
+                block_irreps.append(self._block_irreps[i1])
+                i1 += 1
+                i2 += 1
+            elif self._block_irreps[i1] < other._block_irreps[i2]:
+                blocks.append(self._block[i1])
+                block_irreps.append(self._block_irreps[i1])
+                i1 += 1
+            else:
+                blocks.append(other._block[i2])
+                block_irreps.append(other._block_irreps[i2])
+                i2 += 1
+        return SU2_Matrix(blocks, block_irreps, self._rep_left, other._rep_right)
+
+    def __sub__(self, other):
+        return self + (-other)
 
     def expm(self):
         """
