@@ -38,7 +38,7 @@ def update_first_neighbor(matL0, matR0, weights0, phys, virt_mid, gate, su2_cut)
     # construct matrix theta and apply gate
     theta_mat = matL1 @ matR1
     theta = theta_mat.to_raw_data()
-    pLR2 = get_projector_chained(virt_left, phys, phys, virt_right, singlet_only=True)
+    pLR2 = construct_matrix_projector((virt_left, phys), (phys, virt_right))
     pLR3 = construct_matrix_projector((virt_left, virt_right), (phys, phys))
     iso_theta = np.tensordot(pLR3, pLR2, ((0, 2, 3, 1), (0, 1, 2, 3)))
     theta2 = iso_theta @ theta
