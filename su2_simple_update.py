@@ -144,10 +144,10 @@ class SU2_SimpleUpdate1x2(object):
 
         # only consider thermal equilibrium, start from product state at beta=0
         self._beta = 0.0
-        self._rep1 = SU2_Representation([1], [1])
-        self._rep2 = SU2_Representation([1], [1])
-        self._rep3 = SU2_Representation([1], [1])
-        self._rep4 = SU2_Representation([1], [1])
+        self._rep1 = SU2_Representation.irrep(1)
+        self._rep2 = SU2_Representation.irrep(1)
+        self._rep3 = SU2_Representation.irrep(1)
+        self._rep4 = SU2_Representation.irrep(1)
         self._weights1 = np.ones(1)
         self._weights2 = np.ones(1)
         self._weights3 = np.ones(1)
