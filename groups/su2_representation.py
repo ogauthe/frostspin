@@ -1,3 +1,4 @@
+import os
 import bisect
 
 import numpy as np
@@ -69,7 +70,9 @@ def load_CG(savefile):
     return elementary_projectors, elementary_conj
 
 
-def get_CG(max_irr=22, savefile="_data_CG.npz"):
+def get_CG(max_irr=22, savefile=None):
+    if savefile is None:
+        savefile = os.path.join(os.path.dirname(__file__), "_data_CG.npz")
     try:
         elementary_projectors, elementary_conj = load_CG(savefile)
     except FileNotFoundError:
