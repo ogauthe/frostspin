@@ -1,6 +1,6 @@
 import numpy as np
 
-from toolsU1 import default_color, combine_colors, BlockMatrixU1
+from groups.toolsU1 import default_color, combine_colors, BlockMatrixU1
 
 
 def _initialize_env(A):

@@ -3,7 +3,7 @@ Corner and halves contraction for CTMRG algorithm
 Library agnostic module, only calls __matmul__, reshape and transpose methods.
 """
 
-from toolsU1 import combine_colors, BlockMatrixU1
+from groups.toolsU1 import combine_colors, BlockMatrixU1
 
 ###############################################################################
 #  construct 2x2 corners

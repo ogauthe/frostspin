@@ -1,7 +1,7 @@
 import numpy as np
 
-from toolsU1 import default_color, combine_colors, eighU1, svdU1
-from svd_tools import svd_truncate
+from groups.toolsU1 import default_color, combine_colors, eighU1, svdU1
+from misc_tools.svd_tools import svd_truncate
 
 
 def update_first_neighbor(

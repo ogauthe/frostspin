@@ -1,7 +1,6 @@
-import rdm
-import observables
-from ctm_environment import CTM_Environment
-from ctm_contract import (
+from ctmrg import rdm, observables
+from ctmrg.ctm_environment import CTM_Environment
+from ctmrg.ctm_contract import (
     contract_ul_corner_U1,
     contract_ur_corner_U1,
     contract_dl_corner_U1,
@@ -11,7 +10,7 @@ from ctm_contract import (
     contract_d_half,
     contract_r_half,
 )
-from ctm_renormalize import (
+from ctmrg.ctm_renormalize import (
     construct_projectors,
     construct_projectors_U1,
     renormalize_C1_up,
@@ -31,7 +30,7 @@ from ctm_renormalize import (
     renormalize_T4_U1,
     renormalize_C1_left,
 )
-from toolsU1 import combine_colors, checkU1
+from groups.toolsU1 import combine_colors, checkU1
 
 
 class CTMRG(object):

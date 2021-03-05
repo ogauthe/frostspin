@@ -1,6 +1,6 @@
 import numpy as np
 
-from su2_representation import (
+from groups.su2_representation import (
     SU2_Representation,
     SU2_Matrix,
     get_projector_chained,

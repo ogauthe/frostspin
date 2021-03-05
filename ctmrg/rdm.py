@@ -1,10 +1,10 @@
-from ctm_contract import (
+from ctmrg.ctm_contract import (
     contract_ur_corner,
     contract_dl_corner,
     contract_open_corner,
     contract_open_corner_mirror,
 )
-from toolsU1 import BlockMatrixU1
+from groups.toolsU1 import BlockMatrixU1
 
 
 def rdm_1x2(C1, T1l, T1r, C2, T4, Al, Ar, T2, C4, T3l, T3r, C3):

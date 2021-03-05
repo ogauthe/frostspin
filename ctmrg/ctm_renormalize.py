@@ -1,8 +1,8 @@
 import numpy as np
 import scipy.linalg as lg
 
-from svd_tools import svd_truncate, sparse_svd
-from ctm_contract import add_a_blockU1
+from misc_tools.svd_tools import svd_truncate, sparse_svd
+from ctmrg.ctm_contract import add_a_blockU1
 
 
 def construct_projectors(R, Rt, chi):

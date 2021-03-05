@@ -3,7 +3,7 @@ import scipy.linalg as lg
 from scipy.sparse.linalg import eigsh  # use custom svds
 from scipy.sparse.linalg.interface import LinearOperator
 
-from toolsU1 import default_color, svdU1
+from groups.toolsU1 import default_color, svdU1
 
 
 def svd_truncate(
