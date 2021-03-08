@@ -264,7 +264,6 @@ class SU2_SimpleUpdate1x2(object):
             self.update_bond2(self._gate)
             self.update_bond1(self._gate_squared)
             self._beta += 4 * self._tau
-            self.resymmetrize()
         self.update_bond2(self._gate)
         self.update_bond3(self._gate)
         self.update_bond4(self._gate_squared)
