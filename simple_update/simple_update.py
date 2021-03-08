@@ -591,7 +591,7 @@ class SimpleUpdate1x2(object):
         """
         Compute the entanglement entropy on every bonds as S = -sum_i p_i log_pi
         """
-        s = np.empty(8)
+        s = np.empty(4)
         s[0] = -self._lambda1 @ np.log(self._lambda1)
         s[1] = -self._lambda2 @ np.log(self._lambda2)
         s[2] = -self._lambda3 @ np.log(self._lambda3)
