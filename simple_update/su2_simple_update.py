@@ -177,6 +177,10 @@ class SU2_SimpleUpdate1x2(object):
     def a(self):
         return self._a
 
+    @property
+    def beta(self):
+        return self._beta
+
     def load_from_file(self, file):
         if self.verbosity > 0:
             print("Restart SU2_SimpleUpdate1x2 from file", file)
