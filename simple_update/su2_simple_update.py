@@ -275,6 +275,8 @@ class SU2_SimpleUpdate1x2(object):
     def update_bond1(self, gate):
         eff_rep = self._phys * self._rep1
         aux_rep = self._anc * self._rep2 * self._rep3 * self._rep4
+        if self.verbosity > 2:
+            print(f"update bond 1: rep1 = {self._rep1}, aux_rep = {aux_rep}")
 
         p_data = get_projector_chained(
             self._phys,
@@ -341,6 +343,8 @@ class SU2_SimpleUpdate1x2(object):
     def update_bond2(self, gate):
         eff_rep = self._phys * self._rep2
         aux_rep = self._anc * self._rep1 * self._rep3 * self._rep4
+        if self.verbosity > 2:
+            print(f"update bond 2: rep2 = {self._rep2}, aux_rep = {aux_rep}")
 
         p_data = get_projector_chained(
             self._phys,
@@ -407,6 +411,8 @@ class SU2_SimpleUpdate1x2(object):
     def update_bond3(self, gate):
         eff_rep = self._phys * self._rep3
         aux_rep = self._anc * self._rep1 * self._rep2 * self._rep4
+        if self.verbosity > 2:
+            print(f"update bond 3: rep3 = {self._rep3}, aux_rep = {aux_rep}")
 
         p_data = get_projector_chained(
             self._phys,
@@ -473,6 +479,8 @@ class SU2_SimpleUpdate1x2(object):
     def update_bond4(self, gate):
         eff_rep = self._phys * self._rep4
         aux_rep = self._anc * self._rep1 * self._rep2 * self._rep3
+        if self.verbosity > 2:
+            print(f"update bond 4: rep4 = {self._rep4}, aux_rep = {aux_rep}")
 
         p_data = get_projector_chained(
             self._phys,
