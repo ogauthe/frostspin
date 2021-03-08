@@ -287,10 +287,12 @@ class SU2_SimpleUpdate1x2(object):
             self._rep4,
             singlet_only=True,
         )
+        p_data = p_data.reshape(eff_rep.dim * aux_rep.dim, p_data.shape[6])
         p_transpA = construct_matrix_projector(
             (self._anc, self._rep2, self._rep3, self._rep4), (self._phys, self._rep1)
         )
-        isoA = np.tensordot(p_transpA, p_data, ((4, 0, 5, 1, 2, 3), (0, 1, 2, 3, 4, 5)))
+        p_transpA = p_transpA.transpose(4, 0, 5, 1, 2, 3, 6).reshape(p_data.shape)
+        isoA = p_transpA.T @ p_data
         transposedA = isoA @ self._dataA
         matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
 
@@ -298,7 +300,8 @@ class SU2_SimpleUpdate1x2(object):
         p_transpB = construct_matrix_projector(
             (self._rep1, self._phys), (self._anc, self._rep2, self._rep3, self._rep4)
         )
-        isoB = np.tensordot(p_transpB, p_data, ((1, 2, 0, 3, 4, 5), (0, 1, 2, 3, 4, 5)))
+        p_transpB = p_transpB.transpose(1, 2, 0, 3, 4, 5, 6).reshape(p_data.shape)
+        isoB = p_transpB.T @ p_data
         transposedB = isoB @ self._dataB
         matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
 
@@ -323,20 +326,21 @@ class SU2_SimpleUpdate1x2(object):
                 self._rep4,
                 singlet_only=True,
             )
+            p_data = p_data.reshape(
+                self._phys.dim * self._rep1.dim * aux_rep.dim, p_data.shape[6]
+            )
             p_transpA = construct_matrix_projector(
                 (self._anc, self._rep2, self._rep3, self._rep4),
                 (self._phys, self._rep1),
             )
-            isoA = np.tensordot(
-                p_transpA, p_data, ((4, 0, 5, 1, 2, 3), (0, 1, 2, 3, 4, 5))
-            )
+            p_transpA = p_transpA.transpose(4, 0, 5, 1, 2, 3, 6).reshape(p_data.shape)
+            isoA = p_transpA.T @ p_data
             p_transpB = construct_matrix_projector(
                 (self._rep1, self._phys),
                 (self._anc, self._rep2, self._rep3, self._rep4),
             )
-            isoB = np.tensordot(
-                p_transpB, p_data, ((1, 2, 0, 3, 4, 5), (0, 1, 2, 3, 4, 5))
-            )
+            p_transpB = p_transpB.transpose(1, 2, 0, 3, 4, 5, 6).reshape(p_data.shape)
+            isoB = p_transpB.T @ p_data
         self._dataA = isoA.T @ newA.to_raw_data()
         self._dataB = isoB.T @ newB.to_raw_data()
 
@@ -355,10 +359,13 @@ class SU2_SimpleUpdate1x2(object):
             self._rep4,
             singlet_only=True,
         )
+        p_data = p_data.reshape(eff_rep.dim * aux_rep.dim, p_data.shape[6])
+
         p_transpA = construct_matrix_projector(
             (self._anc, self._rep1, self._rep3, self._rep4), (self._phys, self._rep2)
         )
-        isoA = np.tensordot(p_transpA, p_data, ((4, 0, 1, 5, 2, 3), (0, 1, 2, 3, 4, 5)))
+        p_transpA = p_transpA.transpose(4, 0, 1, 5, 2, 3, 6).reshape(p_data.shape)
+        isoA = p_transpA.T @ p_data
         transposedA = isoA @ self._dataA
         matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
 
@@ -366,7 +373,8 @@ class SU2_SimpleUpdate1x2(object):
         p_transpB = construct_matrix_projector(
             (self._rep2, self._phys), (self._anc, self._rep1, self._rep3, self._rep4)
         )
-        isoB = np.tensordot(p_transpB, p_data, ((1, 2, 3, 0, 4, 5), (0, 1, 2, 3, 4, 5)))
+        p_transpB = p_transpB.transpose(1, 2, 3, 0, 4, 5, 6).reshape(p_data.shape)
+        isoB = p_transpB.T @ p_data
         transposedB = isoB @ self._dataB
         matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
 
@@ -391,20 +399,22 @@ class SU2_SimpleUpdate1x2(object):
                 self._rep4,
                 singlet_only=True,
             )
+            p_data = p_data.reshape(
+                self._phys.dim * self._rep2.dim * aux_rep.dim, p_data.shape[6]
+            )
             p_transpA = construct_matrix_projector(
                 (self._anc, self._rep1, self._rep3, self._rep4),
                 (self._phys, self._rep2),
             )
-            isoA = np.tensordot(
-                p_transpA, p_data, ((4, 0, 1, 5, 2, 3), (0, 1, 2, 3, 4, 5))
-            )
+            p_transpA = p_transpA.transpose(4, 0, 1, 5, 2, 3, 6).reshape(p_data.shape)
+            isoA = p_transpA.T @ p_data
             p_transpB = construct_matrix_projector(
                 (self._rep2, self._phys),
                 (self._anc, self._rep1, self._rep3, self._rep4),
             )
-            isoB = np.tensordot(
-                p_transpB, p_data, ((1, 2, 3, 0, 4, 5), (0, 1, 2, 3, 4, 5))
-            )
+            p_transpB = p_transpB.transpose(1, 2, 3, 0, 4, 5, 6).reshape(p_data.shape)
+            isoB = p_transpB.T @ p_data
+
         self._dataA = isoA.T @ newA.to_raw_data()
         self._dataB = isoB.T @ newB.to_raw_data()
 
@@ -423,10 +433,12 @@ class SU2_SimpleUpdate1x2(object):
             self._rep4,
             singlet_only=True,
         )
+        p_data = p_data.reshape(eff_rep.dim * aux_rep.dim, p_data.shape[6])
         p_transpA = construct_matrix_projector(
             (self._anc, self._rep1, self._rep2, self._rep4), (self._phys, self._rep3)
         )
-        isoA = np.tensordot(p_transpA, p_data, ((4, 0, 1, 2, 5, 3), (0, 1, 2, 3, 4, 5)))
+        p_transpA = p_transpA.transpose(4, 0, 1, 2, 5, 3, 6).reshape(p_data.shape)
+        isoA = p_transpA.T @ p_data
         transposedA = isoA @ self._dataA
         matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
 
@@ -434,7 +446,8 @@ class SU2_SimpleUpdate1x2(object):
         p_transpB = construct_matrix_projector(
             (self._rep3, self._phys), (self._anc, self._rep1, self._rep2, self._rep4)
         )
-        isoB = np.tensordot(p_transpB, p_data, ((1, 2, 3, 4, 0, 5), (0, 1, 2, 3, 4, 5)))
+        p_transpB = p_transpB.transpose(1, 2, 3, 4, 0, 5, 6).reshape(p_data.shape)
+        isoB = p_transpB.T @ p_data
         transposedB = isoB @ self._dataB
         matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
 
@@ -459,20 +472,23 @@ class SU2_SimpleUpdate1x2(object):
                 self._rep4,
                 singlet_only=True,
             )
+            p_data = p_data.reshape(
+                self._phys.dim * self._rep3.dim * aux_rep.dim, p_data.shape[6]
+            )
             p_transpA = construct_matrix_projector(
                 (self._anc, self._rep1, self._rep2, self._rep4),
                 (self._phys, self._rep3),
             )
-            isoA = np.tensordot(
-                p_transpA, p_data, ((4, 0, 1, 2, 5, 3), (0, 1, 2, 3, 4, 5))
-            )
+            p_transpA = p_transpA.transpose(4, 0, 1, 2, 5, 3, 6).reshape(p_data.shape)
+            isoA = p_transpA.T @ p_data
+
             p_transpB = construct_matrix_projector(
                 (self._rep3, self._phys),
                 (self._anc, self._rep1, self._rep2, self._rep4),
             )
-            isoB = np.tensordot(
-                p_transpB, p_data, ((1, 2, 3, 4, 0, 5), (0, 1, 2, 3, 4, 5))
-            )
+            p_transpB = p_transpB.transpose(1, 2, 3, 4, 0, 5, 6).reshape(p_data.shape)
+            isoB = p_transpB.T @ p_data
+
         self._dataA = isoA.T @ newA.to_raw_data()
         self._dataB = isoB.T @ newB.to_raw_data()
 
@@ -491,10 +507,13 @@ class SU2_SimpleUpdate1x2(object):
             self._rep4,
             singlet_only=True,
         )
+        p_data = p_data.reshape(eff_rep.dim * aux_rep.dim, p_data.shape[6])
+
         p_transpA = construct_matrix_projector(
             (self._anc, self._rep1, self._rep2, self._rep3), (self._phys, self._rep4)
         )
-        isoA = np.tensordot(p_transpA, p_data, ((4, 0, 1, 2, 3, 5), (0, 1, 2, 3, 4, 5)))
+        p_transpA = p_transpA.transpose(4, 0, 1, 2, 3, 5, 6).reshape(p_data.shape)
+        isoA = p_transpA.T @ p_data
         transposedA = isoA @ self._dataA
         matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
 
@@ -502,7 +521,8 @@ class SU2_SimpleUpdate1x2(object):
         p_transpB = construct_matrix_projector(
             (self._rep4, self._phys), (self._anc, self._rep1, self._rep2, self._rep3)
         )
-        isoB = np.tensordot(p_transpB, p_data, ((1, 2, 3, 4, 5, 0), (0, 1, 2, 3, 4, 5)))
+        p_transpB = p_transpB.transpose(1, 2, 3, 4, 5, 0, 6).reshape(p_data.shape)
+        isoB = p_transpB.T @ p_data
         transposedB = isoB @ self._dataB
         matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
 
@@ -527,19 +547,22 @@ class SU2_SimpleUpdate1x2(object):
                 self._rep4,
                 singlet_only=True,
             )
+            p_data = p_data.reshape(
+                self._phys.dim * self._rep4.dim * aux_rep.dim, p_data.shape[6]
+            )
+
             p_transpA = construct_matrix_projector(
                 (self._anc, self._rep1, self._rep2, self._rep3),
                 (self._phys, self._rep4),
             )
-            isoA = np.tensordot(
-                p_transpA, p_data, ((4, 0, 1, 2, 3, 5), (0, 1, 2, 3, 4, 5))
-            )
+            p_transpA = p_transpA.transpose(4, 0, 1, 2, 3, 5, 6).reshape(p_data.shape)
+            isoA = p_transpA.T @ p_data
             p_transpB = construct_matrix_projector(
                 (self._rep4, self._phys),
                 (self._anc, self._rep1, self._rep2, self._rep3),
             )
-            isoB = np.tensordot(
-                p_transpB, p_data, ((1, 2, 3, 4, 5, 0), (0, 1, 2, 3, 4, 5))
-            )
+            p_transpB = p_transpB.transpose(1, 2, 3, 4, 5, 0, 6).reshape(p_data.shape)
+            isoB = p_transpB.T @ p_data
+
         self._dataA = isoA.T @ newA.to_raw_data()
         self._dataB = isoB.T @ newB.to_raw_data()
