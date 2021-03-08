@@ -155,6 +155,7 @@ class SU2_SimpleUpdate1x2(object):
         self._weights4 = np.ones(1)
         self._dataA = np.ones(1)
         self._dataB = np.ones(1)
+        self.reset_isometries()
 
     @property
     def tau(self):
@@ -272,36 +273,138 @@ class SU2_SimpleUpdate1x2(object):
         self.update_bond1(self._gate)
         self._beta = round(self._beta + 4 * self._tau, 10)
 
+    def reset_isometries(self):
+        self._isoA1 = None
+        self._isoB1 = None
+        self._isoA2 = None
+        self._isoB2 = None
+        self._isoA3 = None
+        self._isoB3 = None
+        self._isoA4 = None
+        self._isoB4 = None
+
+    def get_isoAB1(self):
+        if self._isoA1 is None:
+            p_data = get_projector_chained(
+                self._phys,
+                self._anc,
+                self._rep1,
+                self._rep2,
+                self._rep3,
+                self._rep4,
+                singlet_only=True,
+            )
+            p_data = p_data.reshape(-1, p_data.shape[6])
+            p_transpA = construct_matrix_projector(
+                (self._anc, self._rep2, self._rep3, self._rep4),
+                (self._phys, self._rep1),
+            )
+            p_transpA = p_transpA.transpose(4, 0, 5, 1, 2, 3, 6).reshape(p_data.shape)
+            self._isoA1 = p_transpA.T @ p_data
+
+            # impose same strucure p-a-1-2-3-4 for A and B
+            p_transpB = construct_matrix_projector(
+                (self._rep1, self._phys),
+                (self._anc, self._rep2, self._rep3, self._rep4),
+            )
+            p_transpB = p_transpB.transpose(1, 2, 0, 3, 4, 5, 6).reshape(p_data.shape)
+            self._isoB1 = p_transpB.T @ p_data
+        return self._isoA1, self._isoB1
+
+    def get_isoAB2(self):
+        if self._isoA2 is None:
+            p_data = get_projector_chained(
+                self._phys,
+                self._anc,
+                self._rep1,
+                self._rep2,
+                self._rep3,
+                self._rep4,
+                singlet_only=True,
+            )
+            p_data = p_data.reshape(-1, p_data.shape[6])
+
+            p_transpA = construct_matrix_projector(
+                (self._anc, self._rep1, self._rep3, self._rep4),
+                (self._phys, self._rep2),
+            )
+            p_transpA = p_transpA.transpose(4, 0, 1, 5, 2, 3, 6).reshape(p_data.shape)
+            self._isoA2 = p_transpA.T @ p_data
+
+            # impose same strucure p-a-1-2-3-4 for A and B
+            p_transpB = construct_matrix_projector(
+                (self._rep2, self._phys),
+                (self._anc, self._rep1, self._rep3, self._rep4),
+            )
+            p_transpB = p_transpB.transpose(1, 2, 3, 0, 4, 5, 6).reshape(p_data.shape)
+            self._isoB2 = p_transpB.T @ p_data
+        return self._isoA2, self._isoB2
+
+    def get_isoAB3(self):
+        if self._isoA3 is None:
+            p_data = get_projector_chained(
+                self._phys,
+                self._anc,
+                self._rep1,
+                self._rep2,
+                self._rep3,
+                self._rep4,
+                singlet_only=True,
+            )
+            p_data = p_data.reshape(-1, p_data.shape[6])
+            p_transpA = construct_matrix_projector(
+                (self._anc, self._rep1, self._rep2, self._rep4),
+                (self._phys, self._rep3),
+            )
+            p_transpA = p_transpA.transpose(4, 0, 1, 2, 5, 3, 6).reshape(p_data.shape)
+            self._isoA3 = p_transpA.T @ p_data
+
+            # impose same strucure p-a-1-2-3-4 for A and B
+            p_transpB = construct_matrix_projector(
+                (self._rep3, self._phys),
+                (self._anc, self._rep1, self._rep2, self._rep4),
+            )
+            p_transpB = p_transpB.transpose(1, 2, 3, 4, 0, 5, 6).reshape(p_data.shape)
+            self._isoB3 = p_transpB.T @ p_data
+        return self._isoA3, self._isoB3
+
+    def get_isoAB4(self):
+        if self._isoA4 is None:
+            p_data = get_projector_chained(
+                self._phys,
+                self._anc,
+                self._rep1,
+                self._rep2,
+                self._rep3,
+                self._rep4,
+                singlet_only=True,
+            )
+            p_data = p_data.reshape(-1, p_data.shape[6])
+            p_transpA = construct_matrix_projector(
+                (self._anc, self._rep1, self._rep2, self._rep3),
+                (self._phys, self._rep4),
+            )
+            p_transpA = p_transpA.transpose(4, 0, 1, 2, 3, 5, 6).reshape(p_data.shape)
+            self._isoA4 = p_transpA.T @ p_data
+
+            # impose same strucure p-a-1-2-3-4 for A and B
+            p_transpB = construct_matrix_projector(
+                (self._rep4, self._phys),
+                (self._anc, self._rep1, self._rep2, self._rep3),
+            )
+            p_transpB = p_transpB.transpose(1, 2, 3, 4, 5, 0, 6).reshape(p_data.shape)
+            self._isoB4 = p_transpB.T @ p_data
+        return self._isoA4, self._isoB4
+
     def update_bond1(self, gate):
         eff_rep = self._phys * self._rep1
         aux_rep = self._anc * self._rep2 * self._rep3 * self._rep4
         if self.verbosity > 2:
             print(f"update bond 1: rep1 = {self._rep1}, aux_rep = {aux_rep}")
 
-        p_data = get_projector_chained(
-            self._phys,
-            self._anc,
-            self._rep1,
-            self._rep2,
-            self._rep3,
-            self._rep4,
-            singlet_only=True,
-        )
-        p_data = p_data.reshape(eff_rep.dim * aux_rep.dim, p_data.shape[6])
-        p_transpA = construct_matrix_projector(
-            (self._anc, self._rep2, self._rep3, self._rep4), (self._phys, self._rep1)
-        )
-        p_transpA = p_transpA.transpose(4, 0, 5, 1, 2, 3, 6).reshape(p_data.shape)
-        isoA = p_transpA.T @ p_data
+        isoA, isoB = self.get_isoAB1()
         transposedA = isoA @ self._dataA
         matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
-
-        # impose same strucure p-a-1-2-3-4 for A and B
-        p_transpB = construct_matrix_projector(
-            (self._rep1, self._phys), (self._anc, self._rep2, self._rep3, self._rep4)
-        )
-        p_transpB = p_transpB.transpose(1, 2, 0, 3, 4, 5, 6).reshape(p_data.shape)
-        isoB = p_transpB.T @ p_data
         transposedB = isoB @ self._dataB
         matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
 
@@ -316,31 +419,9 @@ class SU2_SimpleUpdate1x2(object):
             self.rcutoff,
         )
         if new_rep1 != self._rep1:
+            self.reset_isometries()
             self._rep1 = new_rep1
-            p_data = get_projector_chained(
-                self._phys,
-                self._anc,
-                self._rep1,
-                self._rep2,
-                self._rep3,
-                self._rep4,
-                singlet_only=True,
-            )
-            p_data = p_data.reshape(
-                self._phys.dim * self._rep1.dim * aux_rep.dim, p_data.shape[6]
-            )
-            p_transpA = construct_matrix_projector(
-                (self._anc, self._rep2, self._rep3, self._rep4),
-                (self._phys, self._rep1),
-            )
-            p_transpA = p_transpA.transpose(4, 0, 5, 1, 2, 3, 6).reshape(p_data.shape)
-            isoA = p_transpA.T @ p_data
-            p_transpB = construct_matrix_projector(
-                (self._rep1, self._phys),
-                (self._anc, self._rep2, self._rep3, self._rep4),
-            )
-            p_transpB = p_transpB.transpose(1, 2, 0, 3, 4, 5, 6).reshape(p_data.shape)
-            isoB = p_transpB.T @ p_data
+            isoA, isoB = self.get_isoAB1()
         self._dataA = isoA.T @ newA.to_raw_data()
         self._dataB = isoB.T @ newB.to_raw_data()
 
@@ -350,31 +431,9 @@ class SU2_SimpleUpdate1x2(object):
         if self.verbosity > 2:
             print(f"update bond 2: rep2 = {self._rep2}, aux_rep = {aux_rep}")
 
-        p_data = get_projector_chained(
-            self._phys,
-            self._anc,
-            self._rep1,
-            self._rep2,
-            self._rep3,
-            self._rep4,
-            singlet_only=True,
-        )
-        p_data = p_data.reshape(eff_rep.dim * aux_rep.dim, p_data.shape[6])
-
-        p_transpA = construct_matrix_projector(
-            (self._anc, self._rep1, self._rep3, self._rep4), (self._phys, self._rep2)
-        )
-        p_transpA = p_transpA.transpose(4, 0, 1, 5, 2, 3, 6).reshape(p_data.shape)
-        isoA = p_transpA.T @ p_data
+        isoA, isoB = self.get_isoAB2()
         transposedA = isoA @ self._dataA
         matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
-
-        # impose same strucure p-a-1-2-3-4 for A and B
-        p_transpB = construct_matrix_projector(
-            (self._rep2, self._phys), (self._anc, self._rep1, self._rep3, self._rep4)
-        )
-        p_transpB = p_transpB.transpose(1, 2, 3, 0, 4, 5, 6).reshape(p_data.shape)
-        isoB = p_transpB.T @ p_data
         transposedB = isoB @ self._dataB
         matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
 
@@ -389,31 +448,9 @@ class SU2_SimpleUpdate1x2(object):
             self.rcutoff,
         )
         if new_rep2 != self._rep2:
+            self.reset_isometries()
             self._rep2 = new_rep2
-            p_data = get_projector_chained(
-                self._phys,
-                self._anc,
-                self._rep1,
-                self._rep2,
-                self._rep3,
-                self._rep4,
-                singlet_only=True,
-            )
-            p_data = p_data.reshape(
-                self._phys.dim * self._rep2.dim * aux_rep.dim, p_data.shape[6]
-            )
-            p_transpA = construct_matrix_projector(
-                (self._anc, self._rep1, self._rep3, self._rep4),
-                (self._phys, self._rep2),
-            )
-            p_transpA = p_transpA.transpose(4, 0, 1, 5, 2, 3, 6).reshape(p_data.shape)
-            isoA = p_transpA.T @ p_data
-            p_transpB = construct_matrix_projector(
-                (self._rep2, self._phys),
-                (self._anc, self._rep1, self._rep3, self._rep4),
-            )
-            p_transpB = p_transpB.transpose(1, 2, 3, 0, 4, 5, 6).reshape(p_data.shape)
-            isoB = p_transpB.T @ p_data
+            isoA, isoB = self.get_isoAB2()
 
         self._dataA = isoA.T @ newA.to_raw_data()
         self._dataB = isoB.T @ newB.to_raw_data()
@@ -424,30 +461,9 @@ class SU2_SimpleUpdate1x2(object):
         if self.verbosity > 2:
             print(f"update bond 3: rep3 = {self._rep3}, aux_rep = {aux_rep}")
 
-        p_data = get_projector_chained(
-            self._phys,
-            self._anc,
-            self._rep1,
-            self._rep2,
-            self._rep3,
-            self._rep4,
-            singlet_only=True,
-        )
-        p_data = p_data.reshape(eff_rep.dim * aux_rep.dim, p_data.shape[6])
-        p_transpA = construct_matrix_projector(
-            (self._anc, self._rep1, self._rep2, self._rep4), (self._phys, self._rep3)
-        )
-        p_transpA = p_transpA.transpose(4, 0, 1, 2, 5, 3, 6).reshape(p_data.shape)
-        isoA = p_transpA.T @ p_data
+        isoA, isoB = self.get_isoAB3()
         transposedA = isoA @ self._dataA
         matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
-
-        # impose same strucure p-a-1-2-3-4 for A and B
-        p_transpB = construct_matrix_projector(
-            (self._rep3, self._phys), (self._anc, self._rep1, self._rep2, self._rep4)
-        )
-        p_transpB = p_transpB.transpose(1, 2, 3, 4, 0, 5, 6).reshape(p_data.shape)
-        isoB = p_transpB.T @ p_data
         transposedB = isoB @ self._dataB
         matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
 
@@ -462,32 +478,9 @@ class SU2_SimpleUpdate1x2(object):
             self.rcutoff,
         )
         if new_rep3 != self._rep3:
+            self.reset_isometries()
             self._rep3 = new_rep3
-            p_data = get_projector_chained(
-                self._phys,
-                self._anc,
-                self._rep1,
-                self._rep2,
-                self._rep3,
-                self._rep4,
-                singlet_only=True,
-            )
-            p_data = p_data.reshape(
-                self._phys.dim * self._rep3.dim * aux_rep.dim, p_data.shape[6]
-            )
-            p_transpA = construct_matrix_projector(
-                (self._anc, self._rep1, self._rep2, self._rep4),
-                (self._phys, self._rep3),
-            )
-            p_transpA = p_transpA.transpose(4, 0, 1, 2, 5, 3, 6).reshape(p_data.shape)
-            isoA = p_transpA.T @ p_data
-
-            p_transpB = construct_matrix_projector(
-                (self._rep3, self._phys),
-                (self._anc, self._rep1, self._rep2, self._rep4),
-            )
-            p_transpB = p_transpB.transpose(1, 2, 3, 4, 0, 5, 6).reshape(p_data.shape)
-            isoB = p_transpB.T @ p_data
+            isoA, isoB = self.get_isoAB3()
 
         self._dataA = isoA.T @ newA.to_raw_data()
         self._dataB = isoB.T @ newB.to_raw_data()
@@ -498,31 +491,9 @@ class SU2_SimpleUpdate1x2(object):
         if self.verbosity > 2:
             print(f"update bond 4: rep4 = {self._rep4}, aux_rep = {aux_rep}")
 
-        p_data = get_projector_chained(
-            self._phys,
-            self._anc,
-            self._rep1,
-            self._rep2,
-            self._rep3,
-            self._rep4,
-            singlet_only=True,
-        )
-        p_data = p_data.reshape(eff_rep.dim * aux_rep.dim, p_data.shape[6])
-
-        p_transpA = construct_matrix_projector(
-            (self._anc, self._rep1, self._rep2, self._rep3), (self._phys, self._rep4)
-        )
-        p_transpA = p_transpA.transpose(4, 0, 1, 2, 3, 5, 6).reshape(p_data.shape)
-        isoA = p_transpA.T @ p_data
+        isoA, isoB = self.get_isoAB4()
         transposedA = isoA @ self._dataA
         matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
-
-        # impose same strucure p-a-1-2-3-4 for A and B
-        p_transpB = construct_matrix_projector(
-            (self._rep4, self._phys), (self._anc, self._rep1, self._rep2, self._rep3)
-        )
-        p_transpB = p_transpB.transpose(1, 2, 3, 4, 5, 0, 6).reshape(p_data.shape)
-        isoB = p_transpB.T @ p_data
         transposedB = isoB @ self._dataB
         matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
 
@@ -537,32 +508,9 @@ class SU2_SimpleUpdate1x2(object):
             self.rcutoff,
         )
         if new_rep4 != self._rep4:
+            self.reset_isometries()
             self._rep4 = new_rep4
-            p_data = get_projector_chained(
-                self._phys,
-                self._anc,
-                self._rep1,
-                self._rep2,
-                self._rep3,
-                self._rep4,
-                singlet_only=True,
-            )
-            p_data = p_data.reshape(
-                self._phys.dim * self._rep4.dim * aux_rep.dim, p_data.shape[6]
-            )
-
-            p_transpA = construct_matrix_projector(
-                (self._anc, self._rep1, self._rep2, self._rep3),
-                (self._phys, self._rep4),
-            )
-            p_transpA = p_transpA.transpose(4, 0, 1, 2, 3, 5, 6).reshape(p_data.shape)
-            isoA = p_transpA.T @ p_data
-            p_transpB = construct_matrix_projector(
-                (self._rep4, self._phys),
-                (self._anc, self._rep1, self._rep2, self._rep3),
-            )
-            p_transpB = p_transpB.transpose(1, 2, 3, 4, 5, 0, 6).reshape(p_data.shape)
-            isoB = p_transpB.T @ p_data
+            isoA, isoB = self.get_isoAB4()
 
         self._dataA = isoA.T @ newA.to_raw_data()
         self._dataB = isoB.T @ newB.to_raw_data()
