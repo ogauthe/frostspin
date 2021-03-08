@@ -274,6 +274,8 @@ class SU2_SimpleUpdate1x2(object):
         self._beta = round(self._beta + 4 * self._tau, 10)
 
     def reset_isometries(self):
+        if self.verbosity > 0:
+            print(f"reset isometries at beta = {self._beta}")
         self._isoA1 = None
         self._isoB1 = None
         self._isoA2 = None
