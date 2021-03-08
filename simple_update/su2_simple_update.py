@@ -8,76 +8,6 @@ from groups.su2_representation import (
 )
 
 
-def update_first_neighbor(matL0, matR0, weights0, phys, virt_mid, gate, Dstar, rcutoff):
-    r"""
-        matL0              matR0
-        /  \                /  \
-       /    \              /    \
-      /     /\            /\     \
-    left   p mid        mid p    right
-    """
-    # cut L and R between const and effective parts
-    cstL, svL, effL, virt_left = matL0.svd()
-    effL = svL[:, None] * effL
-    effR, svR, cstR, virt_right = matR0.svd()
-    effR = effR * svR
-
-    # change tensor structure to contract mid
-    pL0 = construct_matrix_projector((virt_left,), (phys, virt_mid))
-    pL1 = construct_matrix_projector((virt_left, phys), (virt_mid,))
-    isoL1 = np.tensordot(pL1, pL0, ((0, 1, 2), (0, 1, 2)))
-    vL1 = isoL1 @ effL.to_raw_data()
-    matL1 = SU2_Matrix.from_raw_data(vL1, virt_left * phys, virt_mid) / weights0
-
-    pR0 = construct_matrix_projector((virt_mid, phys), (virt_right,))
-    pR1 = construct_matrix_projector((virt_mid,), (phys, virt_right))
-    isoR1 = np.tensordot(pR1, pR0, ((0, 1, 2), (0, 1, 2)))
-    vR1 = isoR1 @ effR.to_raw_data()
-    matR1 = SU2_Matrix.from_raw_data(vR1, virt_mid, phys * virt_right)
-
-    # construct matrix theta and apply gate
-    theta_mat = matL1 @ matR1
-    theta = theta_mat.to_raw_data()
-    pLR2 = construct_matrix_projector((virt_left, phys), (phys, virt_right))
-    pLR3 = construct_matrix_projector((virt_left, virt_right), (phys, phys))
-    iso_theta = np.tensordot(pLR3, pLR2, ((0, 2, 3, 1), (0, 1, 2, 3)))
-    theta2 = iso_theta @ theta
-    theta_mat2 = SU2_Matrix.from_raw_data(theta2, virt_left * virt_right, phys * phys)
-    theta_mat3 = theta_mat2 @ gate
-
-    # transpose back LxR, compute SVD and truncate
-    theta3 = iso_theta.T @ theta_mat3.to_raw_data()
-    theta_mat4 = SU2_Matrix.from_raw_data(theta3, virt_left * phys, phys * virt_right)
-    U, new_weights, V, new_virt_mid = theta_mat4.svd(cut=Dstar, rcutoff=rcutoff)
-
-    # normalize weights and apply them to new left and new right
-    new_weights /= new_weights @ new_virt_mid.get_multiplet_structure()
-    U1 = U * new_weights
-    V1 = new_weights[:, None] * V
-
-    # recompute reshape matrices only if needed
-    if new_virt_mid != virt_mid:
-        pL0 = construct_matrix_projector((virt_left,), (phys, new_virt_mid))
-        pL1 = construct_matrix_projector((virt_left, phys), (new_virt_mid,))
-        isoL1 = np.tensordot(pL1, pL0, ((0, 1, 2), (0, 1, 2)))
-
-        pR0 = construct_matrix_projector((new_virt_mid, phys), (virt_right,))
-        pR1 = construct_matrix_projector((new_virt_mid,), (phys, virt_right))
-        isoR1 = np.tensordot(pR1, pR0, ((0, 1, 2), (0, 1, 2)))
-
-    # reshape to initial tree structure
-    new_vL = isoL1.T @ U1.to_raw_data()
-    new_effL = SU2_Matrix.from_raw_data(new_vL, virt_left, phys * new_virt_mid)
-    new_vR = isoR1.T @ V1.to_raw_data()
-    new_effR = SU2_Matrix.from_raw_data(new_vR, new_virt_mid * phys, virt_right)
-
-    # reconnect with const parts
-    newL = cstL @ new_effL
-    newR = new_effR @ cstR
-
-    return newL, new_weights, newR, new_virt_mid
-
-
 class SU2_SimpleUpdate1x2(object):
     def __init__(
         self, d, Dstar=None, tau=None, h=None, rcutoff=1e-11, file=None, verbosity=0
@@ -414,15 +344,8 @@ class SU2_SimpleUpdate1x2(object):
         transposedB = isoB @ self._dataB
         matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
 
-        newA, self._weights1, newB, new_rep1 = update_first_neighbor(
-            matA,
-            matB,
-            self._weights1,
-            self._phys,
-            self._rep1,
-            gate,
-            self.Dstar,
-            self.rcutoff,
+        newA, self._weights1, newB, new_rep1 = self.update_first_neighbor(
+            matA, matB, self._weights1, self._rep1, gate
         )
         if new_rep1 != self._rep1:
             self.reset_isometries()
@@ -443,15 +366,8 @@ class SU2_SimpleUpdate1x2(object):
         transposedB = isoB @ self._dataB
         matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
 
-        newA, self._weights2, newB, new_rep2 = update_first_neighbor(
-            matA,
-            matB,
-            self._weights2,
-            self._phys,
-            self._rep2,
-            gate,
-            self.Dstar,
-            self.rcutoff,
+        newA, self._weights2, newB, new_rep2 = self.update_first_neighbor(
+            matA, matB, self._weights2, self._rep2, gate
         )
         if new_rep2 != self._rep2:
             self.reset_isometries()
@@ -473,15 +389,8 @@ class SU2_SimpleUpdate1x2(object):
         transposedB = isoB @ self._dataB
         matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
 
-        newA, self._weights3, newB, new_rep3 = update_first_neighbor(
-            matA,
-            matB,
-            self._weights3,
-            self._phys,
-            self._rep3,
-            gate,
-            self.Dstar,
-            self.rcutoff,
+        newA, self._weights3, newB, new_rep3 = self.update_first_neighbor(
+            matA, matB, self._weights3, self._rep3, gate
         )
         if new_rep3 != self._rep3:
             self.reset_isometries()
@@ -503,15 +412,8 @@ class SU2_SimpleUpdate1x2(object):
         transposedB = isoB @ self._dataB
         matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
 
-        newA, self._weights4, newB, new_rep4 = update_first_neighbor(
-            matA,
-            matB,
-            self._weights4,
-            self._phys,
-            self._rep4,
-            gate,
-            self.Dstar,
-            self.rcutoff,
+        newA, self._weights4, newB, new_rep4 = self.update_first_neighbor(
+            matA, matB, self._weights4, self._rep4, gate
         )
         if new_rep4 != self._rep4:
             self.reset_isometries()
@@ -520,3 +422,88 @@ class SU2_SimpleUpdate1x2(object):
 
         self._dataA = isoA.T @ newA.to_raw_data()
         self._dataB = isoB.T @ newB.to_raw_data()
+
+    def update_first_neighbor(self, matL0, matR0, weights, virt_mid, gate):
+        r"""
+            matL0              matR0
+            /  \                /  \
+           /    \              /    \
+          /     /\            /\     \
+        left   p mid        mid p    right
+        """
+        # cut L and R between const and effective parts
+        cstL, svL, effL, virt_left = matL0.svd()
+        effL = svL[:, None] * effL
+        effR, svR, cstR, virt_right = matR0.svd()
+        effR = effR * svR
+
+        # change tensor structure to contract mid
+        pL0 = construct_matrix_projector((virt_left,), (self._phys, virt_mid))
+        pL1 = construct_matrix_projector((virt_left, self._phys), (virt_mid,))
+        isoL1 = np.tensordot(pL1, pL0, ((0, 1, 2), (0, 1, 2)))
+        vL1 = isoL1 @ effL.to_raw_data()
+        matL1 = (
+            SU2_Matrix.from_raw_data(vL1, virt_left * self._phys, virt_mid) / weights
+        )
+
+        pR0 = construct_matrix_projector((virt_mid, self._phys), (virt_right,))
+        pR1 = construct_matrix_projector((virt_mid,), (self._phys, virt_right))
+        isoR1 = np.tensordot(pR1, pR0, ((0, 1, 2), (0, 1, 2)))
+        vR1 = isoR1 @ effR.to_raw_data()
+        matR1 = SU2_Matrix.from_raw_data(vR1, virt_mid, self._phys * virt_right)
+
+        # construct matrix theta and apply gate
+        theta_mat = matL1 @ matR1
+        theta = theta_mat.to_raw_data()
+        pLR2 = construct_matrix_projector(
+            (virt_left, self._phys), (self._phys, virt_right)
+        )
+        pLR3 = construct_matrix_projector(
+            (virt_left, virt_right), (self._phys, self._phys)
+        )
+        iso_theta = np.tensordot(pLR3, pLR2, ((0, 2, 3, 1), (0, 1, 2, 3)))
+        theta2 = iso_theta @ theta
+        theta_mat2 = SU2_Matrix.from_raw_data(
+            theta2, virt_left * virt_right, self._phys * self._phys
+        )
+        theta_mat3 = theta_mat2 @ gate
+
+        # transpose back LxR, compute SVD and truncate
+        theta3 = iso_theta.T @ theta_mat3.to_raw_data()
+        theta_mat4 = SU2_Matrix.from_raw_data(
+            theta3, virt_left * self._phys, self._phys * virt_right
+        )
+        U, new_weights, V, new_virt_mid = theta_mat4.svd(
+            cut=self.Dstar, rcutoff=self.rcutoff
+        )
+
+        # normalize weights and apply them to new left and new right
+        new_weights /= new_weights @ new_virt_mid.get_multiplet_structure()
+        U1 = U * new_weights
+        V1 = new_weights[:, None] * V
+
+        # recompute reshape matrices only if needed
+        if new_virt_mid != virt_mid:
+            pL0 = construct_matrix_projector((virt_left,), (self._phys, new_virt_mid))
+            pL1 = construct_matrix_projector((virt_left, self._phys), (new_virt_mid,))
+            isoL1 = np.tensordot(pL1, pL0, ((0, 1, 2), (0, 1, 2)))
+
+            pR0 = construct_matrix_projector((new_virt_mid, self._phys), (virt_right,))
+            pR1 = construct_matrix_projector((new_virt_mid,), (self._phys, virt_right))
+            isoR1 = np.tensordot(pR1, pR0, ((0, 1, 2), (0, 1, 2)))
+
+        # reshape to initial tree structure
+        new_vL = isoL1.T @ U1.to_raw_data()
+        new_effL = SU2_Matrix.from_raw_data(
+            new_vL, virt_left, self._phys * new_virt_mid
+        )
+        new_vR = isoR1.T @ V1.to_raw_data()
+        new_effR = SU2_Matrix.from_raw_data(
+            new_vR, new_virt_mid * self._phys, virt_right
+        )
+
+        # reconnect with const parts
+        newL = cstL @ new_effL
+        newR = new_effR @ cstR
+
+        return newL, new_weights, newR, new_virt_mid
