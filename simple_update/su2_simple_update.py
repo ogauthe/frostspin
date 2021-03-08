@@ -8,7 +8,7 @@ from groups.su2_representation import (
 )
 
 
-def update_first_neighbor(matL0, matR0, weights0, phys, virt_mid, gate, su2_cut):
+def update_first_neighbor(matL0, matR0, weights0, phys, virt_mid, gate, Dstar, rcutoff):
     r"""
         matL0              matR0
         /  \                /  \
@@ -48,7 +48,7 @@ def update_first_neighbor(matL0, matR0, weights0, phys, virt_mid, gate, su2_cut)
     # transpose back LxR, compute SVD and truncate
     theta3 = iso_theta.T @ theta_mat3.to_raw_data()
     theta_mat4 = SU2_Matrix.from_raw_data(theta3, virt_left * phys, phys * virt_right)
-    U, new_weights, V, new_virt_mid = theta_mat4.svd()
+    U, new_weights, V, new_virt_mid = theta_mat4.svd(cut=Dstar, rcutoff=rcutoff)
 
     # normalize weights and apply them to new left and new right
     new_weights /= new_weights @ new_virt_mid.get_multiplet_structure()
@@ -80,7 +80,7 @@ def update_first_neighbor(matL0, matR0, weights0, phys, virt_mid, gate, su2_cut)
 
 class SU2_SimpleUpdate1x2(object):
     def __init__(
-        self, d, Dstar=None, tau=None, h=None, cutoff=1e-12, file=None, verbosity=0
+        self, d, Dstar=None, tau=None, h=None, rcutoff=1e-11, file=None, verbosity=0
     ):
         """
         SU(2) symmetric simple update algorithm on plaquette AB. Only deals with finite
@@ -97,8 +97,9 @@ class SU2_SimpleUpdate1x2(object):
             Imaginary time step. Not read if file is given.
         h : (d**2, d**2) float or complex ndarray
             Hamltionian. Must be real symmetric or hermitian. Not read if file is given.
-        cutoff : float, optional.
-            Singular values smaller than cutoff are set to zero to improve stability.
+        rcutoff : float, optional.
+            Singular values smaller than cutoff = rcutoff * sv[0] are set to zero to
+            improve stability.
         file : str, optional
             Save file containing data to restart computation from. File must follow
             save_to_file / load_from_file syntax. If file is provided, Dstar, tau, h and
@@ -134,7 +135,7 @@ class SU2_SimpleUpdate1x2(object):
         self._phys = SU2_Representation.irrep(d)
         self._a = d
         self._anc = self._phys
-        self.cutoff = cutoff
+        self.rcutoff = rcutoff
         self.Dstar = Dstar
 
         self._h = SU2_Matrix.from_dense(
@@ -301,7 +302,14 @@ class SU2_SimpleUpdate1x2(object):
         matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
 
         newA, self._weights1, newB, new_rep1 = update_first_neighbor(
-            matA, matB, self._weights1, self._phys, self._rep1, gate, self.Dstar
+            matA,
+            matB,
+            self._weights1,
+            self._phys,
+            self._rep1,
+            gate,
+            self.Dstar,
+            self.rcutoff,
         )
         if new_rep1 != self._rep1:
             self._rep1 = new_rep1
@@ -360,7 +368,14 @@ class SU2_SimpleUpdate1x2(object):
         matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
 
         newA, self._weights2, newB, new_rep2 = update_first_neighbor(
-            matA, matB, self._weights2, self._phys, self._rep2, gate, self.Dstar
+            matA,
+            matB,
+            self._weights2,
+            self._phys,
+            self._rep2,
+            gate,
+            self.Dstar,
+            self.rcutoff,
         )
         if new_rep2 != self._rep2:
             self._rep2 = new_rep2
@@ -419,7 +434,14 @@ class SU2_SimpleUpdate1x2(object):
         matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
 
         newA, self._weights3, newB, new_rep3 = update_first_neighbor(
-            matA, matB, self._weights3, self._phys, self._rep3, gate, self.Dstar
+            matA,
+            matB,
+            self._weights3,
+            self._phys,
+            self._rep3,
+            gate,
+            self.Dstar,
+            self.rcutoff,
         )
         if new_rep3 != self._rep3:
             self._rep3 = new_rep3
@@ -478,7 +500,14 @@ class SU2_SimpleUpdate1x2(object):
         matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
 
         newA, self._weights4, newB, new_rep4 = update_first_neighbor(
-            matA, matB, self._weights4, self._phys, self._rep4, gate, self.Dstar
+            matA,
+            matB,
+            self._weights4,
+            self._phys,
+            self._rep4,
+            gate,
+            self.Dstar,
+            self.rcutoff,
         )
         if new_rep4 != self._rep4:
             self._rep4 = new_rep4
