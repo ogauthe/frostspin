@@ -248,6 +248,9 @@ class SU2_SimpleUpdate1x2(object):
 
     def get_isoAB1(self):
         if self._isoA1 is None:
+            if self.verbosity > 1:
+                print(f"compute isoA1 and isoB1: eff_rep1 = {self._phys * self._rep1}")
+                print(f"aux_rep1 = {self._anc * self._rep2 * self._rep3 * self._rep4}")
             p_data = get_projector_chained(
                 self._phys,
                 self._anc,
@@ -276,6 +279,9 @@ class SU2_SimpleUpdate1x2(object):
 
     def get_isoAB2(self):
         if self._isoA2 is None:
+            if self.verbosity > 1:
+                print(f"compute isoA2 and isoB2: eff_rep2 = {self._phys * self._rep2}")
+                print(f"aux_rep2 = {self._anc * self._rep1 * self._rep3 * self._rep4}")
             p_data = get_projector_chained(
                 self._phys,
                 self._anc,
@@ -305,6 +311,9 @@ class SU2_SimpleUpdate1x2(object):
 
     def get_isoAB3(self):
         if self._isoA3 is None:
+            if self.verbosity > 1:
+                print(f"compute isoA3 and isoB3: eff_rep3 = {self._phys * self._rep3}")
+                print(f"aux_rep3 = {self._anc * self._rep1 * self._rep2 * self._rep4}")
             p_data = get_projector_chained(
                 self._phys,
                 self._anc,
@@ -333,6 +342,9 @@ class SU2_SimpleUpdate1x2(object):
 
     def get_isoAB4(self):
         if self._isoA4 is None:
+            if self.verbosity > 1:
+                print(f"compute isoA4 and isoB4: eff_rep4 = {self._phys * self._rep4}")
+                print(f"aux_rep4 = {self._anc * self._rep1 * self._rep2 * self._rep3}")
             p_data = get_projector_chained(
                 self._phys,
                 self._anc,
