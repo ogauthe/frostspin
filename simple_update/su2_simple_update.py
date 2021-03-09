@@ -9,83 +9,211 @@ from groups.su2_representation import (
 
 
 class SU2_SimpleUpdate1x2(object):
+    """
+    SU(2) symmetric simple update algorithm on plaquette AB. Only deals with finite
+    temperature. Each site has to be an *irreducible* representation of SU(2).
+
+    Conventions for leg ordering
+    ----------------------------
+          1     3
+          |     |
+       4--A--2--B--4
+          |     |
+          3     1
+    """
+
     def __init__(
-        self, d, Dstar=None, tau=None, h=None, rcutoff=1e-11, file=None, verbosity=0
+        self,
+        Dstar,
+        beta,
+        h_raw_data,
+        tau,
+        rep1,
+        rep2,
+        rep3,
+        rep4,
+        weights1,
+        weights2,
+        weights3,
+        weights4,
+        dataA,
+        dataB,
+        rcutoff,
+        verbosity,
     ):
         """
-        SU(2) symmetric simple update algorithm on plaquette AB. Only deals with finite
-        temperature. Each site has to be an *irreducible* representation of SU(2).
+        Initialize SU2_SimpleUpdate1x2 from values. Not meant for direct use, consider
+        calling from_infinite_temperature or from_file class methods.
+        """
+        self.verbosity = verbosity
+        self._d = h_raw_data.size
+        if self.verbosity > 0:
+            print(
+                f"Construct SU2_SimpleUpdata1x2 with d = {self._d}, D* = {Dstar},",
+                f"beta = {beta}",
+            )
+
+        self.Dstar = Dstar
+        self._beta = beta
+        self._phys = SU2_Representation.irrep(self._d)
+        self._a = self._d
+        self._anc = self._phys
+        d2 = self._phys * self._phys
+        self._h = SU2_Matrix.from_raw_data(h_raw_data, d2, d2)
+        self.tau = tau
+
+        self._rep1 = rep1
+        self._rep2 = rep2
+        self._rep3 = rep3
+        self._rep4 = rep4
+        self._weights1 = weights1
+        self._weights2 = weights2
+        self._weights3 = weights3
+        self._weights4 = weights4
+        self._dataA = dataA
+        self._dataB = dataB
+        self.rcutoff = rcutoff
+        if self.verbosity > 1:
+            print(f"rep1 = {rep1}")
+            print(f"rep2 = {rep2}")
+            print(f"rep3 = {rep3}")
+            print(f"rep4 = {rep4}")
+        self.reset_isometries()
+
+    @classmethod
+    def from_infinite_temperature(cls, d, Dstar, tau, h, rcutoff=1e-11, verbosity=0):
+        """
+        Initialize simple update at beta = 0 product state.
 
         Parameters
         ----------
         d : int
             dimension of physical SU(2) irreducible reprsentation on each site.
         Dstar : int
-            Maximal bond dimension, considering only independent multiplets. Not read if
-            file is given, retrieved from save.
+            Maximal number of independent multiplets kept on each bond.
         tau : float
-            Imaginary time step. Not read if file is given.
-        h : (d**2, d**2) float or complex ndarray
-            Hamltionian. Must be real symmetric or hermitian. Not read if file is given.
+            Imaginary time step.
+        h : (d**2, d**2) ndarray
+            Hamltionian. Must be real symmetric or hermitian.
         rcutoff : float, optional.
             Singular values smaller than cutoff = rcutoff * sv[0] are set to zero to
             improve stability.
-        file : str, optional
-            Save file containing data to restart computation from. File must follow
-            save_to_file / load_from_file syntax. If file is provided, Dstar, tau, h and
-            cutoff are not read.
         verbosity : int
           Level of log verbosity. Default is no log.
-
-
-        Conventions for leg ordering
-        ----------------------------
-              1     3
-              |     |
-           4--A--2--B--4
-              |     |
-              3     1
         """
-        self.verbosity = verbosity
-        if self.verbosity > 0:
-            print(f"Construct SU2_SimpleUpdate1x2 with local irrep = {d}")
-
-        if file is not None:  # do not read optional input values, restart from file
-            self.load_from_file(file)
-            return
+        if verbosity > 0:
+            print("Initialize SU2_SimpleUpdate1x2 at beta = 0 thermal product state")
 
         if h.shape != (d ** 2, d ** 2):
             raise ValueError("invalid shape for Hamiltonian")
 
-        if self.verbosity > 0:
-            print(f"tau = {tau}, D* = {Dstar}")
-            print("Initialize SU2_SimpleUpdate2x2 from beta = 0 thermal product state")
-
-        self._d = d
-        self._phys = SU2_Representation.irrep(d)
-        self._a = d
-        self._anc = self._phys
-        self.rcutoff = rcutoff
-        self.Dstar = Dstar
-
-        self._h = SU2_Matrix.from_dense(
-            h, (self._phys, self._phys), (self._phys, self._phys)
+        phys = SU2_Representation.irrep(d)
+        proj = construct_matrix_projector((phys, phys), (phys, phys), conj_right=True)
+        proj = proj.reshape(d ** 4, d)
+        h_raw_data = proj.T @ h.ravel()
+        return cls(
+            Dstar,
+            0.0,
+            h_raw_data,
+            tau,
+            SU2_Representation.irrep(1),
+            SU2_Representation.irrep(1),
+            SU2_Representation.irrep(1),
+            SU2_Representation.irrep(1),
+            np.ones(1),
+            np.ones(1),
+            np.ones(1),
+            np.ones(1),
+            np.ones(1),
+            np.ones(1),
+            rcutoff,
+            verbosity,
         )
-        self.tau = tau
 
-        # only consider thermal equilibrium, start from product state at beta=0
-        self._beta = 0.0
-        self._rep1 = SU2_Representation.irrep(1)
-        self._rep2 = SU2_Representation.irrep(1)
-        self._rep3 = SU2_Representation.irrep(1)
-        self._rep4 = SU2_Representation.irrep(1)
-        self._weights1 = np.ones(1)
-        self._weights2 = np.ones(1)
-        self._weights3 = np.ones(1)
-        self._weights4 = np.ones(1)
-        self._dataA = np.ones(1)
-        self._dataB = np.ones(1)
-        self.reset_isometries()
+    @classmethod
+    def from_file(cls, file, verbosity=0):
+        """
+        Load simple update from given file.
+
+        Parameters
+        ----------
+        file : str, optional
+            Save file containing data to restart computation from. Must follow
+            save_to_file syntax.
+        verbosity : int
+          Level of log verbosity. Default is no log.
+        """
+        if verbosity > 0:
+            print("Restart SU2_SimpleUpdate1x2 back from file", file)
+        with np.load(file) as data:
+            Dstar = data["_SU2_SU1x2_Dstar"][()]
+            beta = data["_SU2_SU1x2_beta"][()]
+            tau = data["_SU2_SU1x2_tau"][()]
+            h_raw_data = data["_SU2_SU1x2_h_raw_data"]
+            rep1_degen = data["_SU2_SU1x2_rep1_degen"]
+            rep1_irreps = data["_SU2_SU1x2_rep1_irreps"]
+            rep2_degen = data["_SU2_SU1x2_rep2_degen"]
+            rep2_irreps = data["_SU2_SU1x2_rep2_irreps"]
+            rep3_degen = data["_SU2_SU1x2_rep3_degen"]
+            rep3_irreps = data["_SU2_SU1x2_rep3_irreps"]
+            rep4_degen = data["_SU2_SU1x2_rep4_degen"]
+            rep4_irreps = data["_SU2_SU1x2_rep4_irreps"]
+            weights1 = data["_SU2_SU1x2_weights1"]
+            weights2 = data["_SU2_SU1x2_weights2"]
+            weights3 = data["_SU2_SU1x2_weights3"]
+            weights4 = data["_SU2_SU1x2_weights4"]
+            dataA = data["_SU2_SU1x2_dataA"]
+            dataB = data["_SU2_SU1x2_dataB"]
+            rcutoff = data["_SU2_SU1x2_rcutoff"][()]
+
+        rep1 = SU2_Representation(rep1_degen, rep1_irreps)
+        rep2 = SU2_Representation(rep2_degen, rep2_irreps)
+        rep3 = SU2_Representation(rep3_degen, rep3_irreps)
+        rep4 = SU2_Representation(rep4_degen, rep4_irreps)
+
+        return cls(
+            Dstar,
+            beta,
+            h_raw_data,
+            tau,
+            rep1,
+            rep2,
+            rep3,
+            rep4,
+            weights1,
+            weights2,
+            weights3,
+            weights4,
+            dataA,
+            dataB,
+            rcutoff,
+            verbosity,
+        )
+
+    def save_to_file(self, file):
+        data = {}
+        data["_SU2_SU1x2_Dstar"] = self.Dstar
+        data["_SU2_SU1x2_beta"] = self._beta
+        data["_SU2_SU1x2_tau"] = self._tau
+        data["_SU2_SU1x2_h_raw_data"] = self._h.to_raw_data()
+        data["_SU2_SU1x2_rep1_degen"] = self._rep1.degen
+        data["_SU2_SU1x2_rep1_irreps"] = self._rep1.irreps
+        data["_SU2_SU1x2_rep2_degen"] = self._rep2.degen
+        data["_SU2_SU1x2_rep2_irreps"] = self._rep2.irreps
+        data["_SU2_SU1x2_rep3_degen"] = self._rep3.degen
+        data["_SU2_SU1x2_rep3_irreps"] = self._rep3.irreps
+        data["_SU2_SU1x2_rep4_degen"] = self._rep4.degen
+        data["_SU2_SU1x2_rep4_irreps"] = self._rep4.irreps
+        data["_SU2_SU1x2_weights1"] = self._weights1
+        data["_SU2_SU1x2_weights2"] = self._weights2
+        data["_SU2_SU1x2_weights3"] = self._weights3
+        data["_SU2_SU1x2_weights4"] = self._weights4
+        data["_SU2_SU1x2_dataA"] = self._dataA
+        data["_SU2_SU1x2_dataB"] = self._dataA
+        data["_SU2_SU1x2_rcutoff"] = self.rcutoff
+        np.savez_compressed(file, **data)
+        if self.verbosity > 0:
+            print("Simple update data stored in file", file)
 
     @property
     def tau(self):
@@ -137,53 +265,6 @@ class SU2_SimpleUpdate1x2(object):
             @ self._rep4.get_multiplet_structure()
         )
         return s
-
-    def load_from_file(self, file):
-        if self.verbosity > 0:
-            print("Restart SU2_SimpleUpdate1x2 from file", file)
-        with np.load(file) as data:
-            self._weights1 = data["_SU2_SU1x2_lambda1"]
-            self._weights2 = data["_SU2_SU1x2_lambda2"]
-            self._weights3 = data["_SU2_SU1x2_lambda3"]
-            self._weights4 = data["_SU2_SU1x2_lambda4"]
-            self._colors1 = data["_SU2_SU1x2_colors1"]
-            self._colors2 = data["_SU2_SU1x2_colors2"]
-            self._colors3 = data["_SU2_SU1x2_colors3"]
-            self._colors4 = data["_SU2_SU1x2_colors4"]
-            self._gammaA = data["_SU2_SU1x2_gammaA"]
-            self._gammaB = data["_SU2_SU1x2_gammaB"]
-            self._eigvals_h = data["_SU2_SU1x2_eigvals_h"]
-            self._eigvecs_h = data["_SU2_SU1x2_eigvecs_h"]
-            self.tau = data["_SU2_SU1x2_tau"][()]
-            self._beta = data["_SU2_SU1x2_beta"][()]
-            self.Dstar = data["_SU2_SU1x2_Dstar"][()]
-            self.cutoff = data["_SU2_SU1x2_cutoff"][()]
-        self._D1 = self._lambda1.size
-        self._D2 = self._lambda2.size
-        self._D3 = self._lambda3.size
-        self._D4 = self._lambda4.size
-
-    def save_to_file(self, file):
-        data = {}
-        data["_SU2_SU1x2_lambda1"] = self._lambda1
-        data["_SU2_SU1x2_lambda2"] = self._lambda2
-        data["_SU2_SU1x2_lambda3"] = self._lambda3
-        data["_SU2_SU1x2_lambda4"] = self._lambda4
-        data["_SU2_SU1x2_colors1"] = self._colors1
-        data["_SU2_SU1x2_colors2"] = self._colors2
-        data["_SU2_SU1x2_colors3"] = self._colors3
-        data["_SU2_SU1x2_colors4"] = self._colors4
-        data["_SU2_SU1x2_gammaA"] = self._gammaA
-        data["_SU2_SU1x2_gammaB"] = self._gammaB
-        data["_SU2_SU1x2_eigvals_h"] = self._eigvals_h
-        data["_SU2_SU1x2_eigvecs_h"] = self._eigvecs_h
-        data["_SU2_SU1x2_tau"] = self._tau
-        data["_SU2_SU1x2_beta"] = self._beta
-        data["_SU2_SU1x2_Dstar"] = self.Dstar
-        data["_SU2_SU1x2_cutoff"] = self.cutoff
-        np.savez_compressed(file, **data)
-        if self.verbosity > 0:
-            print("Simple update data stored in file", file)
 
     def get_AB(self):
         """
