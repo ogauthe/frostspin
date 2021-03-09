@@ -336,6 +336,8 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
        4--A--2--B--4
           |     |
           3     1
+
+    Notice that leg index starts at 1, a -1 shift is required to get array index.
     """
 
     _unit_cell = "AB"
@@ -644,6 +646,10 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         raise ValueError
 
     def update_bond(self, i, gate):
+        """
+        Update bond i between tensors A and B.
+        """
+        # bond indices start at 1: -1 shit to get corresponding element in array
         eff_rep = self._phys * self._bond_representations[i - 1]
         aux_rep = (
             self._anc
