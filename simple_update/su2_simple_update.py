@@ -32,7 +32,33 @@ class SU2_SimpleUpdate(object):
         """
         Initialize SU2_SimpleUpdate from values. Not meant for direct use, consider
         calling from_infinite_temperature or from_file class methods.
+
+        Parameters
+        ----------
+        Dstar : int
+            Number of independent SU(2) multiplets to keep when truncating bonds.
+        beta : float
+            Inverse temperature.
+        tau : float
+            Imaginary time step.
+        rcutoff : float
+            Singular values smaller than cutoff = rcutoff * sv[0] are set to zero to
+            improve stability.
+        hamilts_raw_data : list of numpy array with shape (d,)
+            Raw data to construct SU2_Matrix for each Hamiltonian defined on the unit
+            cell. Assume (d * d, d * d) SU(2) tree decomposition, where d is the local
+            irrep.
+        bond_representations : list of SU2_Representation
+            SU(2) representation for each bond of the unit cell.
+        weights : list of numpy array
+            Simple update weights for each bond of the unit cell.
+        tensors_data : list of numpy array
+            Raw data for each SU(2) symmetric tensors of the unit cell. Default tree
+            decomposition has to be defined in subclasses.
+        verbosity : int
+            Level of log verbosity.
         """
+
         if len(hamilts_raw_data) != self._n_hamilts:
             raise ValueError("Invalid number of Hamiltonians")
         if len(bond_representations) != self._n_bonds:
@@ -75,11 +101,11 @@ class SU2_SimpleUpdate(object):
 
         Parameters
         ----------
-        file : str, optional
+        file : str
             Save file containing data to restart computation from. Must follow
             save_to_file syntax.
         verbosity : int
-          Level of log verbosity. Default is no log.
+            Level of log verbosity. Default is no log.
         """
         if verbosity > 0:
             print("Restart SU2_SimpleUpdate1x2 back from file", file)
@@ -119,6 +145,14 @@ class SU2_SimpleUpdate(object):
         )
 
     def save_to_file(self, file):
+        """
+        Save simple update in given file.
+
+        Parameters
+        ----------
+        file : str
+            Savefile.
+        """
         data = {
             "_SU2_SU_unit_cell": self._unit_cell,
             "_SU2_SU_Dstar": self.Dstar,
@@ -168,7 +202,7 @@ class SU2_SimpleUpdate(object):
 
     def bond_entanglement_entropy(self):
         """
-        Compute the entanglement entropy on every bonds as S = -sum_i p_i log_pi
+        Compute the entanglement entropy on every bonds as s_ent = -sum_i p_i log_p_i
         """
         s_ent = np.empty(self._n_bonds)
         for i, w in enumerate(self._weights):
@@ -186,6 +220,24 @@ class SU2_SimpleUpdate(object):
 
     def update_first_neighbor(self, matL0, matR0, weights, virt_mid, gate):
         r"""
+        Update given bond by applying gate, computing the SVD and truncate the result.
+        A 1D geometry is considered for clarity, the function being direction-agnostic.
+
+        Parameters
+        ----------
+        matL0 : SU2_Matrix
+            "Left" matrix, tree structure is defined below.
+        matR0 : SU2_Matrix
+            "Right" matrix, tree structure is defined below.
+        weights : numpy array
+            Bond weights before update.
+        virt_mid : SU2_Representation
+            Bond SU(2) representation before update.
+        gate : SU2_Matrix
+            Gate to apply on the bond. Tree structure must be
+            (self._d * self._d, self._d * self._d)
+
+
             matL0              matR0
             /  \                /  \
            /    \              /    \
@@ -272,7 +324,10 @@ class SU2_SimpleUpdate(object):
 
 class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
     """
-    SU(2) symmetric simple update algorithm on plaquette AB.
+    SU(2) symmetric simple update algorithm on plaquette AB, with
+    - 4 bonds
+    - 1 Hamiltonian
+    - 2 tensors
 
     Conventions for leg ordering
     ----------------------------
@@ -323,7 +378,7 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
             Singular values smaller than cutoff = rcutoff * sv[0] are set to zero to
             improve stability.
         verbosity : int
-          Level of log verbosity. Default is no log.
+            Level of log verbosity. Default is no log.
         """
         if verbosity > 0:
             print("Initialize SU2_SimpleUpdate1x2 at beta = 0 thermal product state")
