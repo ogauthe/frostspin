@@ -84,7 +84,7 @@ class SU2_SimpleUpdate(object):
         if verbosity > 0:
             print("Restart SU2_SimpleUpdate1x2 back from file", file)
         with np.load(file) as data:
-            if cls._unit_cell != data["SU2_SU_unit_cell"]:
+            if cls._unit_cell != data["_SU2_SU_unit_cell"]:
                 raise ValueError("Savefile is incompatible unit cell")
             Dstar = data["_SU2_SU_Dstar"][()]
             beta = data["_SU2_SU_beta"][()]
@@ -120,7 +120,7 @@ class SU2_SimpleUpdate(object):
 
     def save_to_file(self, file):
         data = {
-            "SU2_SU_unit_cell": self._unit_cell,
+            "_SU2_SU_unit_cell": self._unit_cell,
             "_SU2_SU_Dstar": self.Dstar,
             "_SU2_SU_beta": self._beta,
             "_SU2_SU_tau": self._tau,
