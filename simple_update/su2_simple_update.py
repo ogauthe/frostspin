@@ -116,23 +116,23 @@ class SU2_SimpleUpdate1x2(object):
         Compute the entanglement entropy on every bonds as S = -sum_i p_i log_pi
         """
         s = np.empty(4)
-        s[0] = (
-            -self._weights1
+        s[0] = -(
+            self._weights1
             * np.log(self._weights1)
             @ self._rep1.get_multiplet_structure()
         )
-        s[1] = (
-            -self._weights2
+        s[1] = -(
+            self._weights2
             * np.log(self._weights2)
             @ self._rep2.get_multiplet_structure()
         )
-        s[2] = (
-            -self._weights3
+        s[2] = -(
+            self._weights3
             * np.log(self._weights3)
             @ self._rep3.get_multiplet_structure()
         )
-        s[3] = (
-            -self._weights3
+        s[3] = -(
+            self._weights3
             * np.log(self._weights4)
             @ self._rep4.get_multiplet_structure()
         )
