@@ -421,21 +421,21 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
             return  # else evolve for 1 step out of niter loop
         niter = round(beta_evolve / self._dbeta)  # 2nd order: evolve 2*tau by step
 
-        self.update_bond1(self._gates[0])
+        self.update_bond(1, self._gates[0])
         for i in range(niter - 1):  # there is 1 step out of the loop
-            self.update_bond2(self._gates[0])
-            self.update_bond3(self._gates[0])
-            self.update_bond4(self._squared_gates[0])
-            self.update_bond3(self._gates[0])
-            self.update_bond2(self._gates[0])
-            self.update_bond1(self._squared_gates[0])
+            self.update_bond(2, self._gates[0])
+            self.update_bond(3, self._gates[0])
+            self.update_bond(4, self._squared_gates[0])
+            self.update_bond(3, self._gates[0])
+            self.update_bond(2, self._gates[0])
+            self.update_bond(1, self._squared_gates[0])
             self._beta += self._dbeta
-        self.update_bond2(self._gates[0])
-        self.update_bond3(self._gates[0])
-        self.update_bond4(self._squared_gates[0])
-        self.update_bond3(self._gates[0])
-        self.update_bond2(self._gates[0])
-        self.update_bond1(self._gates[0])
+        self.update_bond(2, self._gates[0])
+        self.update_bond(3, self._gates[0])
+        self.update_bond(4, self._squared_gates[0])
+        self.update_bond(3, self._gates[0])
+        self.update_bond(2, self._gates[0])
+        self.update_bond(1, self._gates[0])
         self._beta += self._dbeta
         if self.verbosity > 0:
             print(f"Done, beta = {self._beta:.6g}")
@@ -632,125 +632,42 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
             self._isoB4 = p_transpB.T @ p_data
         return self._isoA4, self._isoB4
 
-    def update_bond1(self, gate):
-        eff_rep = self._phys * self._bond_representations[0]
+    def get_isoAB(self, i):
+        if i == 1:
+            return self.get_isoAB1()
+        if i == 2:
+            return self.get_isoAB2()
+        if i == 3:
+            return self.get_isoAB3()
+        if i == 4:
+            return self.get_isoAB4()
+        raise ValueError
+
+    def update_bond(self, i, gate):
+        eff_rep = self._phys * self._bond_representations[i - 1]
         aux_rep = (
             self._anc
-            * self._bond_representations[1]
-            * self._bond_representations[2]
-            * self._bond_representations[3]
+            * self._bond_representations[i % 4]
+            * self._bond_representations[(i + 1) % 4]
+            * self._bond_representations[(i + 2) % 4]
         )
         if self.verbosity > 2:
             print(
-                f"update bond 1: rep1 = {self._bond_representations[0]},",
+                f"update bond {i}: rep {i} = {self._bond_representations[i - 1]},",
                 f"aux_rep = {aux_rep}",
             )
-
-        isoA, isoB = self.get_isoAB1()
+        isoA, isoB = self.get_isoAB(i)
         transposedA = isoA @ self._tensors_data[0]
         matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
         transposedB = isoB @ self._tensors_data[1]
         matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
 
-        newA, self._weights[0], newB, new_rep1 = self.update_first_neighbor(
-            matA, matB, self._weights[0], self._bond_representations[0], gate
+        newA, self._weights[i - 1], newB, new_rep = self.update_first_neighbor(
+            matA, matB, self._weights[i - 1], self._bond_representations[i - 1], gate
         )
-        if new_rep1 != self._bond_representations[0]:
+        if new_rep != self._bond_representations[i - 1]:
             self.reset_isometries()
-            self._bond_representations[0] = new_rep1
-            isoA, isoB = self.get_isoAB1()
-        self._tensors_data[0] = isoA.T @ newA.to_raw_data()
-        self._tensors_data[1] = isoB.T @ newB.to_raw_data()
-
-    def update_bond2(self, gate):
-        eff_rep = self._phys * self._bond_representations[1]
-        aux_rep = (
-            self._anc
-            * self._bond_representations[0]
-            * self._bond_representations[2]
-            * self._bond_representations[3]
-        )
-        if self.verbosity > 2:
-            print(
-                f"update bond 2: rep2 = {self._bond_representations[1]},",
-                f"aux_rep = {aux_rep}",
-            )
-
-        isoA, isoB = self.get_isoAB2()
-        transposedA = isoA @ self._tensors_data[0]
-        matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
-        transposedB = isoB @ self._tensors_data[1]
-        matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
-
-        (newA, self._weights[1], newB, new_rep2) = self.update_first_neighbor(
-            matA, matB, self._weights[1], self._bond_representations[1], gate
-        )
-        if new_rep2 != self._bond_representations[1]:
-            self.reset_isometries()
-            self._bond_representations[1] = new_rep2
-            isoA, isoB = self.get_isoAB2()
-
-        self._tensors_data[0] = isoA.T @ newA.to_raw_data()
-        self._tensors_data[1] = isoB.T @ newB.to_raw_data()
-
-    def update_bond3(self, gate):
-        eff_rep = self._phys * self._bond_representations[2]
-        aux_rep = (
-            self._anc
-            * self._bond_representations[0]
-            * self._bond_representations[1]
-            * self._bond_representations[3]
-        )
-        if self.verbosity > 2:
-            print(
-                f"update bond 3: rep3 = {self._bond_representations[2]},",
-                f" aux_rep = {aux_rep}",
-            )
-
-        isoA, isoB = self.get_isoAB3()
-        transposedA = isoA @ self._tensors_data[0]
-        matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
-        transposedB = isoB @ self._tensors_data[1]
-        matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
-
-        (newA, self._weights[2], newB, new_rep3) = self.update_first_neighbor(
-            matA, matB, self._weights[2], self._bond_representations[2], gate
-        )
-        if new_rep3 != self._bond_representations[2]:
-            self.reset_isometries()
-            self._bond_representations[2] = new_rep3
-            isoA, isoB = self.get_isoAB3()
-
-        self._tensors_data[0] = isoA.T @ newA.to_raw_data()
-        self._tensors_data[1] = isoB.T @ newB.to_raw_data()
-
-    def update_bond4(self, gate):
-        eff_rep = self._phys * self._bond_representations[3]
-        aux_rep = (
-            self._anc
-            * self._bond_representations[0]
-            * self._bond_representations[1]
-            * self._bond_representations[2]
-        )
-        if self.verbosity > 2:
-            print(
-                f"update bond 4: rep4 = {self._bond_representations[3]},",
-                f" aux_rep = {aux_rep}",
-            )
-
-        isoA, isoB = self.get_isoAB4()
-        transposedA = isoA @ self._tensors_data[0]
-        matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
-        transposedB = isoB @ self._tensors_data[1]
-        matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
-
-        (newA, self._weights[3], newB, new_rep4) = self.update_first_neighbor(
-            matA, matB, self._weights[3], self._bond_representations[3], gate
-        )
-        if new_rep4 != self._bond_representations[3]:
-            self.reset_isometries()
-            self._bond_representations[3] = new_rep4
-            isoA, isoB = self.get_isoAB4()
-
+            self._bond_representations[i - 1] = new_rep
+            isoA, isoB = self.get_isoAB(i)
         self._tensors_data[0] = isoA.T @ newA.to_raw_data()
         self._tensors_data[1] = isoB.T @ newB.to_raw_data()
