@@ -49,7 +49,7 @@ class SU2_SimpleUpdate(object):
                 f"Construct SU2_SimpleUpdate with d = {self._d}, D* = {Dstar},",
                 f"beta = {beta}",
             )
-            print("unit cell:\n{self._unit_cell}")
+            print(f"unit cell:\n{self._unit_cell}")
 
         self.Dstar = Dstar
         self._beta = beta
@@ -65,6 +65,8 @@ class SU2_SimpleUpdate(object):
         self._weights = weights
         self._tensors_data = tensors_data
         self.reset_isometries()
+        if self.verbosity > 1:
+            print(self)
 
     @classmethod
     def from_file(cls, file, verbosity=0):
@@ -286,6 +288,22 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
     _n_hamilts = 1
     _n_tensors = 2
 
+    def __repr__(self):
+        return f"SU2_SimpleUpdate1x2 for irrep {self._d}"
+
+    def __str__(self):
+        return (
+            f"SU2_SimpleUpdate1x2 for irrep {self._d}\n"
+            f"D* = {self.Dstar}\n"
+            f"beta = {self._beta:.6g}\n"
+            f"tau = {self._tau}\n"
+            f"rcutoff = {self.rcutoff}\n"
+            f"bond 1 representation: {self._bond_representations[0]}\n"
+            f"bond 2 representation: {self._bond_representations[1]}\n"
+            f"bond 3 representation: {self._bond_representations[2]}\n"
+            f"bond 4 representation: {self._bond_representations[3]}"
+        )
+
     @classmethod
     def from_infinite_temperature(cls, d, Dstar, tau, h, rcutoff=1e-11, verbosity=0):
         """
@@ -338,7 +356,10 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         if beta_evolve is None:
             beta_evolve = self._dbeta
         if self.verbosity > 0:
-            print(f"Launch time evolution for time {beta_evolve}")
+            print(
+                f"Evolve in imaginary time for beta from {self._beta:.6g} to "
+                f"{self._beta + beta_evolve:.6g}..."
+            )
         if beta_evolve < -1e-16:
             raise ValueError("Cannot evolve for negative imaginary time")
         if beta_evolve < 0.9 * self._dbeta:  # care for float rounding
@@ -361,10 +382,12 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         self.update_bond2(self._gates[0])
         self.update_bond1(self._gates[0])
         self._beta += self._dbeta
+        if self.verbosity > 0:
+            print(f"Done, beta = {self._beta:.6g}")
 
     def reset_isometries(self):
         if self.verbosity > 0:
-            print(f"reset isometries at beta = {self._beta}")
+            print(f"reset isometries at beta = {self._beta:.6g}")
         self._isoA1 = None
         self._isoB1 = None
         self._isoA2 = None
