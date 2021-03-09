@@ -345,6 +345,20 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
     _n_hamilts = 1
     _n_tensors = 2
 
+    # transpositions used in get_isoAB
+    _isoA_transpose = [
+        (4, 0, 5, 1, 2, 3, 6),
+        (4, 0, 1, 5, 2, 3, 6),
+        (4, 0, 1, 2, 5, 3, 6),
+        (4, 0, 1, 2, 3, 5, 6),
+    ]
+    _isoB_transpose = [
+        (1, 2, 0, 3, 4, 5, 6),
+        (1, 2, 3, 0, 4, 5, 6),
+        (1, 2, 3, 4, 0, 5, 6),
+        (1, 2, 3, 4, 5, 0, 6),
+    ]
+
     def __repr__(self):
         return f"SU2_SimpleUpdate1x2 for irrep {self._d}"
 
@@ -445,205 +459,56 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
     def reset_isometries(self):
         if self.verbosity > 0:
             print(f"reset isometries at beta = {self._beta:.6g}")
-        self._isoA1 = None
-        self._isoB1 = None
-        self._isoA2 = None
-        self._isoB2 = None
-        self._isoA3 = None
-        self._isoB3 = None
-        self._isoA4 = None
-        self._isoB4 = None
-
-    def get_isoAB1(self):
-        if self._isoA1 is None:
-            if self.verbosity > 1:
-                eff1 = self._phys * self._bond_representations[0]
-                aux1 = (
-                    self._anc
-                    * self._bond_representations[1]
-                    * self._bond_representations[2]
-                    * self._bond_representations[3]
-                )
-                print(f"compute isoA1 and isoB1: eff_rep1 = {eff1}")
-                print(f"aux_rep1 = {aux1}")
-            p_data = get_projector_chained(
-                self._phys, self._anc, *self._bond_representations, singlet_only=True
-            )
-            p_data = p_data.reshape(-1, p_data.shape[6])
-            p_transpA = construct_matrix_projector(
-                (
-                    self._anc,
-                    self._bond_representations[1],
-                    self._bond_representations[2],
-                    self._bond_representations[3],
-                ),
-                (self._phys, self._bond_representations[0]),
-            )
-            p_transpA = p_transpA.transpose(4, 0, 5, 1, 2, 3, 6).reshape(p_data.shape)
-            self._isoA1 = p_transpA.T @ p_data
-
-            # impose same strucure p-a-1-2-3-4 for A and B
-            p_transpB = construct_matrix_projector(
-                (self._bond_representations[0], self._phys),
-                (
-                    self._anc,
-                    self._bond_representations[1],
-                    self._bond_representations[2],
-                    self._bond_representations[3],
-                ),
-            )
-            p_transpB = p_transpB.transpose(1, 2, 0, 3, 4, 5, 6).reshape(p_data.shape)
-            self._isoB1 = p_transpB.T @ p_data
-        return self._isoA1, self._isoB1
-
-    def get_isoAB2(self):
-        if self._isoA2 is None:
-            if self.verbosity > 1:
-                eff2 = self._phys * self._bond_representations[1]
-                aux2 = (
-                    self._anc
-                    * self._bond_representations[0]
-                    * self._bond_representations[2]
-                    * self._bond_representations[3]
-                )
-                print(f"compute isoA2 and isoB2: eff_rep2 = {eff2}")
-                print(f"aux_rep2 = {aux2}")
-            p_data = get_projector_chained(
-                self._phys, self._anc, *self._bond_representations, singlet_only=True
-            )
-            p_data = p_data.reshape(-1, p_data.shape[6])
-            p_transpA = construct_matrix_projector(
-                (
-                    self._anc,
-                    self._bond_representations[0],
-                    self._bond_representations[2],
-                    self._bond_representations[3],
-                ),
-                (self._phys, self._bond_representations[1]),
-            )
-            p_transpA = p_transpA.transpose(4, 0, 1, 5, 2, 3, 6).reshape(p_data.shape)
-            self._isoA2 = p_transpA.T @ p_data
-
-            # impose same strucure p-a-1-2-3-4 for A and B
-            p_transpB = construct_matrix_projector(
-                (self._bond_representations[1], self._phys),
-                (
-                    self._anc,
-                    self._bond_representations[0],
-                    self._bond_representations[2],
-                    self._bond_representations[3],
-                ),
-            )
-            p_transpB = p_transpB.transpose(1, 2, 3, 0, 4, 5, 6).reshape(p_data.shape)
-            self._isoB2 = p_transpB.T @ p_data
-        return self._isoA2, self._isoB2
-
-    def get_isoAB3(self):
-        if self._isoA3 is None:
-            if self.verbosity > 1:
-                eff3 = self._phys * self._bond_representations[2]
-                aux3 = (
-                    self._anc
-                    * self._bond_representations[0]
-                    * self._bond_representations[1]
-                    * self._bond_representations[2]
-                )
-                print(f"compute isoA3 and isoB3: eff_rep3 = {eff3}")
-                print(f"aux_rep3 = {aux3}")
-            p_data = get_projector_chained(
-                self._phys,
-                self._anc,
-                self._bond_representations[0],
-                self._bond_representations[1],
-                self._bond_representations[2],
-                self._bond_representations[3],
-                singlet_only=True,
-            )
-            p_data = p_data.reshape(-1, p_data.shape[6])
-            p_transpA = construct_matrix_projector(
-                (
-                    self._anc,
-                    self._bond_representations[0],
-                    self._bond_representations[1],
-                    self._bond_representations[3],
-                ),
-                (self._phys, self._bond_representations[2]),
-            )
-            p_transpA = p_transpA.transpose(4, 0, 1, 2, 5, 3, 6).reshape(p_data.shape)
-            self._isoA3 = p_transpA.T @ p_data
-
-            # impose same strucure p-a-1-2-3-4 for A and B
-            p_transpB = construct_matrix_projector(
-                (self._bond_representations[2], self._phys),
-                (
-                    self._anc,
-                    self._bond_representations[0],
-                    self._bond_representations[1],
-                    self._bond_representations[3],
-                ),
-            )
-            p_transpB = p_transpB.transpose(1, 2, 3, 4, 0, 5, 6).reshape(p_data.shape)
-            self._isoB3 = p_transpB.T @ p_data
-        return self._isoA3, self._isoB3
-
-    def get_isoAB4(self):
-        if self._isoA4 is None:
-            if self.verbosity > 1:
-                eff4 = self._phys * self._bond_representations[3]
-                aux4 = (
-                    self._anc
-                    * self._bond_representations[0]
-                    * self._bond_representations[1]
-                    * self._bond_representations[2]
-                )
-                print(f"compute isoA4 and isoB4: eff_rep4 = {eff4}")
-                print(f"aux_rep4 = {aux4}")
-            p_data = get_projector_chained(
-                self._phys,
-                self._anc,
-                self._bond_representations[0],
-                self._bond_representations[1],
-                self._bond_representations[2],
-                self._bond_representations[3],
-                singlet_only=True,
-            )
-            p_data = p_data.reshape(-1, p_data.shape[6])
-            p_transpA = construct_matrix_projector(
-                (
-                    self._anc,
-                    self._bond_representations[0],
-                    self._bond_representations[1],
-                    self._bond_representations[2],
-                ),
-                (self._phys, self._bond_representations[3]),
-            )
-            p_transpA = p_transpA.transpose(4, 0, 1, 2, 3, 5, 6).reshape(p_data.shape)
-            self._isoA4 = p_transpA.T @ p_data
-
-            # impose same strucure p-a-1-2-3-4 for A and B
-            p_transpB = construct_matrix_projector(
-                (self._bond_representations[3], self._phys),
-                (
-                    self._anc,
-                    self._bond_representations[0],
-                    self._bond_representations[1],
-                    self._bond_representations[2],
-                ),
-            )
-            p_transpB = p_transpB.transpose(1, 2, 3, 4, 5, 0, 6).reshape(p_data.shape)
-            self._isoB4 = p_transpB.T @ p_data
-        return self._isoA4, self._isoB4
+        self._isoA = [None] * 4
+        self._isoB = [None] * 4
 
     def get_isoAB(self, i):
-        if i == 1:
-            return self.get_isoAB1()
-        if i == 2:
-            return self.get_isoAB2()
-        if i == 3:
-            return self.get_isoAB3()
-        if i == 4:
-            return self.get_isoAB4()
-        raise ValueError
+        if self._isoA[i - 1] is None:
+            if self.verbosity > 1:
+                eff = self._phys * self._bond_representations[i - 1]
+                aux = (
+                    self._anc
+                    * self._bond_representations[i % 4]
+                    * self._bond_representations[(i + 1) % 4]
+                    * self._bond_representations[(i + 2) % 4]
+                )
+                print(f"compute isoA and isoB for bond {i}: eff_rep = {eff}")
+                print(f"aux_rep = {aux}")
+            # impose default strucure p-a-1-2-3-4 for both A and B
+            p_default = get_projector_chained(
+                self._phys, self._anc, *self._bond_representations, singlet_only=True
+            )
+            p_default = p_default.reshape(-1, p_default.shape[6])
+            leg_indices = sorted([i % 4, (i + 1) % 4, (i + 2) % 4])
+            p_transpA = construct_matrix_projector(
+                (
+                    self._anc,
+                    self._bond_representations[leg_indices[0]],
+                    self._bond_representations[leg_indices[1]],
+                    self._bond_representations[leg_indices[2]],
+                ),
+                (self._phys, self._bond_representations[i - 1]),
+            )
+            p_transpA = p_transpA.transpose(self._isoA_transpose[i - 1]).reshape(
+                p_default.shape
+            )
+            self._isoA[i - 1] = p_transpA.T @ p_default
+            del p_transpA
+
+            p_transpB = construct_matrix_projector(
+                (self._bond_representations[i - 1], self._phys),
+                (
+                    self._anc,
+                    self._bond_representations[leg_indices[0]],
+                    self._bond_representations[leg_indices[1]],
+                    self._bond_representations[leg_indices[2]],
+                ),
+            )
+            p_transpB = p_transpB.transpose(self._isoB_transpose[i - 1]).reshape(
+                p_default.shape
+            )
+            self._isoB[i - 1] = p_transpB.T @ p_default
+        return self._isoA[i - 1], self._isoB[i - 1]
 
     def update_bond(self, i, gate):
         """
