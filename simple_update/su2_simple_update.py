@@ -8,50 +8,48 @@ from groups.su2_representation import (
 )
 
 
-class SU2_SimpleUpdate1x2(object):
+class SU2_SimpleUpdate(object):
     """
-    SU(2) symmetric simple update algorithm on plaquette AB. Only deals with finite
-    temperature. Each site has to be an *irreducible* representation of SU(2).
+    SU(2) symmetric simple update algorithm. Only deals with finite temperature. Each
+    site has to be an *irreducible* representation of SU(2).
 
-    Conventions for leg ordering
-    ----------------------------
-          1     3
-          |     |
-       4--A--2--B--4
-          |     |
-          3     1
+    This class is not made for direct use, unit cell is not defined. Static variables
+    _unit_cell, _n_bond, _n_hamilt and_n_tensors must be defined in subclasses.
     """
 
     def __init__(
         self,
         Dstar,
         beta,
-        h_raw_data,
         tau,
-        rep1,
-        rep2,
-        rep3,
-        rep4,
-        weights1,
-        weights2,
-        weights3,
-        weights4,
-        dataA,
-        dataB,
         rcutoff,
+        h_raw_data_list,
+        bond_rep_list,
+        weight_list,
+        tensor_data_list,
         verbosity,
     ):
         """
-        Initialize SU2_SimpleUpdate1x2 from values. Not meant for direct use, consider
+        Initialize SU2_SimpleUpdate from values. Not meant for direct use, consider
         calling from_infinite_temperature or from_file class methods.
         """
+        if len(h_raw_data_list) != self._n_hamilts:
+            raise ValueError("Invalid number of Hamiltonians")
+        if len(bond_rep_list) != self._n_bonds:
+            raise ValueError("Invalid number of bond representations")
+        if len(weight_list) != self._n_bonds:
+            raise ValueError("Invalid number of weights")
+        if len(tensor_data_list) != self._n_tensors:
+            raise ValueError("Invalid number of tensors")
+
         self.verbosity = verbosity
-        self._d = h_raw_data.size
+        self._d = h_raw_data_list[0].size
         if self.verbosity > 0:
             print(
-                f"Construct SU2_SimpleUpdata1x2 with d = {self._d}, D* = {Dstar},",
+                f"Construct SU2_SimpleUpdate with d = {self._d}, D* = {Dstar},",
                 f"beta = {beta}",
             )
+            print("unit cell:\n{self._unit_cell}")
 
         self.Dstar = Dstar
         self._beta = beta
@@ -59,76 +57,17 @@ class SU2_SimpleUpdate1x2(object):
         self._a = self._d
         self._anc = self._phys
         d2 = self._phys * self._phys
-        self._h = SU2_Matrix.from_raw_data(h_raw_data, d2, d2)
+        self._hamilts = [SU2_Matrix.from_raw_data(r, d2, d2) for r in h_raw_data_list]
         self.tau = tau
-
-        self._rep1 = rep1
-        self._rep2 = rep2
-        self._rep3 = rep3
-        self._rep4 = rep4
-        self._weights1 = weights1
-        self._weights2 = weights2
-        self._weights3 = weights3
-        self._weights4 = weights4
-        self._dataA = dataA
-        self._dataB = dataB
         self.rcutoff = rcutoff
+
+        self._bond_rep_list = bond_rep_list
+        self._weight_list = weight_list
+        self._tensor_data_list = tensor_data_list
         if self.verbosity > 1:
-            print(f"rep1 = {rep1}")
-            print(f"rep2 = {rep2}")
-            print(f"rep3 = {rep3}")
-            print(f"rep4 = {rep4}")
+            for i, rep in enumerate(bond_rep_list):
+                print(f"bond {i} representation: {rep}")
         self.reset_isometries()
-
-    @classmethod
-    def from_infinite_temperature(cls, d, Dstar, tau, h, rcutoff=1e-11, verbosity=0):
-        """
-        Initialize simple update at beta = 0 product state.
-
-        Parameters
-        ----------
-        d : int
-            dimension of physical SU(2) irreducible reprsentation on each site.
-        Dstar : int
-            Maximal number of independent multiplets kept on each bond.
-        tau : float
-            Imaginary time step.
-        h : (d**2, d**2) ndarray
-            Hamltionian. Must be real symmetric or hermitian.
-        rcutoff : float, optional.
-            Singular values smaller than cutoff = rcutoff * sv[0] are set to zero to
-            improve stability.
-        verbosity : int
-          Level of log verbosity. Default is no log.
-        """
-        if verbosity > 0:
-            print("Initialize SU2_SimpleUpdate1x2 at beta = 0 thermal product state")
-
-        if h.shape != (d ** 2, d ** 2):
-            raise ValueError("invalid shape for Hamiltonian")
-
-        phys = SU2_Representation.irrep(d)
-        proj = construct_matrix_projector((phys, phys), (phys, phys), conj_right=True)
-        proj = proj.reshape(d ** 4, d)
-        h_raw_data = proj.T @ h.ravel()
-        return cls(
-            Dstar,
-            0.0,
-            h_raw_data,
-            tau,
-            SU2_Representation.irrep(1),
-            SU2_Representation.irrep(1),
-            SU2_Representation.irrep(1),
-            SU2_Representation.irrep(1),
-            np.ones(1),
-            np.ones(1),
-            np.ones(1),
-            np.ones(1),
-            np.ones(1),
-            np.ones(1),
-            rcutoff,
-            verbosity,
-        )
 
     @classmethod
     def from_file(cls, file, verbosity=0):
@@ -146,71 +85,59 @@ class SU2_SimpleUpdate1x2(object):
         if verbosity > 0:
             print("Restart SU2_SimpleUpdate1x2 back from file", file)
         with np.load(file) as data:
-            Dstar = data["_SU2_SU1x2_Dstar"][()]
-            beta = data["_SU2_SU1x2_beta"][()]
-            tau = data["_SU2_SU1x2_tau"][()]
-            h_raw_data = data["_SU2_SU1x2_h_raw_data"]
-            rep1_degen = data["_SU2_SU1x2_rep1_degen"]
-            rep1_irreps = data["_SU2_SU1x2_rep1_irreps"]
-            rep2_degen = data["_SU2_SU1x2_rep2_degen"]
-            rep2_irreps = data["_SU2_SU1x2_rep2_irreps"]
-            rep3_degen = data["_SU2_SU1x2_rep3_degen"]
-            rep3_irreps = data["_SU2_SU1x2_rep3_irreps"]
-            rep4_degen = data["_SU2_SU1x2_rep4_degen"]
-            rep4_irreps = data["_SU2_SU1x2_rep4_irreps"]
-            weights1 = data["_SU2_SU1x2_weights1"]
-            weights2 = data["_SU2_SU1x2_weights2"]
-            weights3 = data["_SU2_SU1x2_weights3"]
-            weights4 = data["_SU2_SU1x2_weights4"]
-            dataA = data["_SU2_SU1x2_dataA"]
-            dataB = data["_SU2_SU1x2_dataB"]
-            rcutoff = data["_SU2_SU1x2_rcutoff"][()]
+            if cls._unit_cell != data["SU2_SU_unit_cell"]:
+                raise ValueError("Savefile is incompatible unit cell")
+            Dstar = data["_SU2_SU_Dstar"][()]
+            beta = data["_SU2_SU_beta"][()]
+            tau = data["_SU2_SU_tau"][()]
+            rcutoff = data["_SU2_SU_rcutoff"][()]
 
-        rep1 = SU2_Representation(rep1_degen, rep1_irreps)
-        rep2 = SU2_Representation(rep2_degen, rep2_irreps)
-        rep3 = SU2_Representation(rep3_degen, rep3_irreps)
-        rep4 = SU2_Representation(rep4_degen, rep4_irreps)
+            h_raw_data_list = [
+                data[f"_SU2_SU_h_raw_data_{i}"] for i in range(cls._n_hamilts)
+            ]
+            tensor_data_list = [
+                data[f"_SU2_SU_tensor_data_{i}"] for i in range(cls._n_tensors)
+            ]
+
+            weight_list = [None] * cls._n_bonds
+            virt_rep_list = [None] * cls._n_bonds
+            for i in range(cls._n_bonds):
+                degen = data[f"_SU2_SU_degen_bond_{i}"]
+                irreps = data[f"_SU2_SU_irreps_bond_{i}"]
+                virt_rep_list[i] = SU2_Representation(degen, irreps)
+                weight_list[i] = data[f"_SU2_SU_weights_bond_{i}"]
 
         return cls(
             Dstar,
             beta,
-            h_raw_data,
             tau,
-            rep1,
-            rep2,
-            rep3,
-            rep4,
-            weights1,
-            weights2,
-            weights3,
-            weights4,
-            dataA,
-            dataB,
             rcutoff,
+            h_raw_data_list,
+            virt_rep_list,
+            weight_list,
+            tensor_data_list,
             verbosity,
         )
 
     def save_to_file(self, file):
-        data = {}
-        data["_SU2_SU1x2_Dstar"] = self.Dstar
-        data["_SU2_SU1x2_beta"] = self._beta
-        data["_SU2_SU1x2_tau"] = self._tau
-        data["_SU2_SU1x2_h_raw_data"] = self._h.to_raw_data()
-        data["_SU2_SU1x2_rep1_degen"] = self._rep1.degen
-        data["_SU2_SU1x2_rep1_irreps"] = self._rep1.irreps
-        data["_SU2_SU1x2_rep2_degen"] = self._rep2.degen
-        data["_SU2_SU1x2_rep2_irreps"] = self._rep2.irreps
-        data["_SU2_SU1x2_rep3_degen"] = self._rep3.degen
-        data["_SU2_SU1x2_rep3_irreps"] = self._rep3.irreps
-        data["_SU2_SU1x2_rep4_degen"] = self._rep4.degen
-        data["_SU2_SU1x2_rep4_irreps"] = self._rep4.irreps
-        data["_SU2_SU1x2_weights1"] = self._weights1
-        data["_SU2_SU1x2_weights2"] = self._weights2
-        data["_SU2_SU1x2_weights3"] = self._weights3
-        data["_SU2_SU1x2_weights4"] = self._weights4
-        data["_SU2_SU1x2_dataA"] = self._dataA
-        data["_SU2_SU1x2_dataB"] = self._dataA
-        data["_SU2_SU1x2_rcutoff"] = self.rcutoff
+        data = {
+            "SU2_SU_unit_cell": self._unit_cell,
+            "_SU2_SU_Dstar": self.Dstar,
+            "_SU2_SU_beta": self._beta,
+            "_SU2_SU_tau": self._tau,
+            "_SU2_SU_rcutoff": self.rcutoff,
+        }
+        for i in range(self._n_hamilts):
+            data[f"_SU2_SU_h_raw_data_{i}"] = self._hamilts[i].to_raw_data()
+
+        for i in range(self._n_tensors):
+            data[f"_SU2_SU_tensor_data_{i}"] = self._tensor_data_list[i]
+
+        for i in range(self._n_bonds):
+            data[f"_SU2_SU_degen_bond_{i}"] = self._bond_rep_list[i].degen
+            data[f"_SU2_SU_irreps_bond_{i}"] = self._bond_rep_list[i].irreps
+            data[f"_SU2_SU_weights_bond_{i}"] = self._weight_list[i]
+
         np.savez_compressed(file, **data)
         if self.verbosity > 0:
             print("Simple update data stored in file", file)
@@ -224,8 +151,9 @@ class SU2_SimpleUpdate1x2(object):
         if self.verbosity > 0:
             print(f"set tau to {tau}")
         self._tau = tau
-        self._gate = (-tau * self._h).expm()
-        self._gate_squared = (-2 * tau * self._h).expm()
+        self._gates = [(-tau * h).expm() for h in self._hamilts]
+        self._squared_gates = [(-2 * tau * h).expm() for h in self._hamilts]
+        self._dbeta = 4 * tau  # 2nd order Trotter Suzuki + rho is quadratic in psi
 
     @property
     def d(self):
@@ -243,305 +171,19 @@ class SU2_SimpleUpdate1x2(object):
         """
         Compute the entanglement entropy on every bonds as S = -sum_i p_i log_pi
         """
-        s = np.empty(4)
-        s[0] = -(
-            self._weights1
-            * np.log(self._weights1)
-            @ self._rep1.get_multiplet_structure()
-        )
-        s[1] = -(
-            self._weights2
-            * np.log(self._weights2)
-            @ self._rep2.get_multiplet_structure()
-        )
-        s[2] = -(
-            self._weights3
-            * np.log(self._weights3)
-            @ self._rep3.get_multiplet_structure()
-        )
-        s[3] = -(
-            self._weights3
-            * np.log(self._weights4)
-            @ self._rep4.get_multiplet_structure()
-        )
-        return s
+        s_ent = np.empty(self._n_bonds)
+        for i, w in enumerate(self._weight_list):
+            s_ent[i] = -w * np.log(w) @ self._virt_rep_list[i].get_multiplet_structure()
+        return s_ent
 
-    def get_AB(self):
+    def get_tensors(self):
         """
-        Return optimized tensors A and B.
+        Return optimized tensors.
         Tensors are obtained by adding relevant sqrt(lambda) to every leg of gammaX
         For each virtual axis, sort by decreasing weights (instead of SU(2) order)
         """
-        # actually weights are on by default, so *remove* sqrt(lambda)
-        sl1 = 1 / np.sqrt(self._weights1)
-        sl2 = 1 / np.sqrt(self._weights2)
-        sl3 = 1 / np.sqrt(self._weights3)
-        sl4 = 1 / np.sqrt(self._weights4)
-        # TODO add multiplicities
-        A = np.einsum("paurdl,u,r,d,l->paurdl", self._gammaA, sl1, sl2, sl3, sl4)
-        B = np.einsum("paurdl,u,r,d,l->paurdl", self._gammaB, sl3, sl4, sl1, sl2)
-        return A, B
-
-    def evolve(self, beta=None):
-        """
-        Evolve in imaginary time using second order Trotter-Suzuki up to beta.
-        Convention: temperature value is the bilayer tensor one, twice the monolayer
-        one.
-        """
-        if beta is None:
-            beta = 4 * self._tau
-        if self.verbosity > 0:
-            print(f"Launch time evolution for time {beta}")
-        if beta < -1e-16:
-            raise ValueError("Cannot evolve for negative imaginary time")
-        if beta < 3.9 * self._tau:  # care for float round in case beta = 4*tau
-            return  # else evolve for 1 step out of niter loop
-        niter = round(float(beta / self._tau / 4))  # 2nd order: evolve 2*tau by step
-
-        self.update_bond1(self._gate)
-        for i in range(niter - 1):  # there is 1 step out of the loop
-            self.update_bond2(self._gate)
-            self.update_bond3(self._gate)
-            self.update_bond4(self._gate_squared)
-            self.update_bond3(self._gate)
-            self.update_bond2(self._gate)
-            self.update_bond1(self._gate_squared)
-            self._beta += 4 * self._tau
-        self.update_bond2(self._gate)
-        self.update_bond3(self._gate)
-        self.update_bond4(self._gate_squared)
-        self.update_bond3(self._gate)
-        self.update_bond2(self._gate)
-        self.update_bond1(self._gate)
-        self._beta = round(self._beta + 4 * self._tau, 10)
-
-    def reset_isometries(self):
-        if self.verbosity > 0:
-            print(f"reset isometries at beta = {self._beta}")
-        self._isoA1 = None
-        self._isoB1 = None
-        self._isoA2 = None
-        self._isoB2 = None
-        self._isoA3 = None
-        self._isoB3 = None
-        self._isoA4 = None
-        self._isoB4 = None
-
-    def get_isoAB1(self):
-        if self._isoA1 is None:
-            if self.verbosity > 1:
-                print(f"compute isoA1 and isoB1: eff_rep1 = {self._phys * self._rep1}")
-                print(f"aux_rep1 = {self._anc * self._rep2 * self._rep3 * self._rep4}")
-            p_data = get_projector_chained(
-                self._phys,
-                self._anc,
-                self._rep1,
-                self._rep2,
-                self._rep3,
-                self._rep4,
-                singlet_only=True,
-            )
-            p_data = p_data.reshape(-1, p_data.shape[6])
-            p_transpA = construct_matrix_projector(
-                (self._anc, self._rep2, self._rep3, self._rep4),
-                (self._phys, self._rep1),
-            )
-            p_transpA = p_transpA.transpose(4, 0, 5, 1, 2, 3, 6).reshape(p_data.shape)
-            self._isoA1 = p_transpA.T @ p_data
-
-            # impose same strucure p-a-1-2-3-4 for A and B
-            p_transpB = construct_matrix_projector(
-                (self._rep1, self._phys),
-                (self._anc, self._rep2, self._rep3, self._rep4),
-            )
-            p_transpB = p_transpB.transpose(1, 2, 0, 3, 4, 5, 6).reshape(p_data.shape)
-            self._isoB1 = p_transpB.T @ p_data
-        return self._isoA1, self._isoB1
-
-    def get_isoAB2(self):
-        if self._isoA2 is None:
-            if self.verbosity > 1:
-                print(f"compute isoA2 and isoB2: eff_rep2 = {self._phys * self._rep2}")
-                print(f"aux_rep2 = {self._anc * self._rep1 * self._rep3 * self._rep4}")
-            p_data = get_projector_chained(
-                self._phys,
-                self._anc,
-                self._rep1,
-                self._rep2,
-                self._rep3,
-                self._rep4,
-                singlet_only=True,
-            )
-            p_data = p_data.reshape(-1, p_data.shape[6])
-
-            p_transpA = construct_matrix_projector(
-                (self._anc, self._rep1, self._rep3, self._rep4),
-                (self._phys, self._rep2),
-            )
-            p_transpA = p_transpA.transpose(4, 0, 1, 5, 2, 3, 6).reshape(p_data.shape)
-            self._isoA2 = p_transpA.T @ p_data
-
-            # impose same strucure p-a-1-2-3-4 for A and B
-            p_transpB = construct_matrix_projector(
-                (self._rep2, self._phys),
-                (self._anc, self._rep1, self._rep3, self._rep4),
-            )
-            p_transpB = p_transpB.transpose(1, 2, 3, 0, 4, 5, 6).reshape(p_data.shape)
-            self._isoB2 = p_transpB.T @ p_data
-        return self._isoA2, self._isoB2
-
-    def get_isoAB3(self):
-        if self._isoA3 is None:
-            if self.verbosity > 1:
-                print(f"compute isoA3 and isoB3: eff_rep3 = {self._phys * self._rep3}")
-                print(f"aux_rep3 = {self._anc * self._rep1 * self._rep2 * self._rep4}")
-            p_data = get_projector_chained(
-                self._phys,
-                self._anc,
-                self._rep1,
-                self._rep2,
-                self._rep3,
-                self._rep4,
-                singlet_only=True,
-            )
-            p_data = p_data.reshape(-1, p_data.shape[6])
-            p_transpA = construct_matrix_projector(
-                (self._anc, self._rep1, self._rep2, self._rep4),
-                (self._phys, self._rep3),
-            )
-            p_transpA = p_transpA.transpose(4, 0, 1, 2, 5, 3, 6).reshape(p_data.shape)
-            self._isoA3 = p_transpA.T @ p_data
-
-            # impose same strucure p-a-1-2-3-4 for A and B
-            p_transpB = construct_matrix_projector(
-                (self._rep3, self._phys),
-                (self._anc, self._rep1, self._rep2, self._rep4),
-            )
-            p_transpB = p_transpB.transpose(1, 2, 3, 4, 0, 5, 6).reshape(p_data.shape)
-            self._isoB3 = p_transpB.T @ p_data
-        return self._isoA3, self._isoB3
-
-    def get_isoAB4(self):
-        if self._isoA4 is None:
-            if self.verbosity > 1:
-                print(f"compute isoA4 and isoB4: eff_rep4 = {self._phys * self._rep4}")
-                print(f"aux_rep4 = {self._anc * self._rep1 * self._rep2 * self._rep3}")
-            p_data = get_projector_chained(
-                self._phys,
-                self._anc,
-                self._rep1,
-                self._rep2,
-                self._rep3,
-                self._rep4,
-                singlet_only=True,
-            )
-            p_data = p_data.reshape(-1, p_data.shape[6])
-            p_transpA = construct_matrix_projector(
-                (self._anc, self._rep1, self._rep2, self._rep3),
-                (self._phys, self._rep4),
-            )
-            p_transpA = p_transpA.transpose(4, 0, 1, 2, 3, 5, 6).reshape(p_data.shape)
-            self._isoA4 = p_transpA.T @ p_data
-
-            # impose same strucure p-a-1-2-3-4 for A and B
-            p_transpB = construct_matrix_projector(
-                (self._rep4, self._phys),
-                (self._anc, self._rep1, self._rep2, self._rep3),
-            )
-            p_transpB = p_transpB.transpose(1, 2, 3, 4, 5, 0, 6).reshape(p_data.shape)
-            self._isoB4 = p_transpB.T @ p_data
-        return self._isoA4, self._isoB4
-
-    def update_bond1(self, gate):
-        eff_rep = self._phys * self._rep1
-        aux_rep = self._anc * self._rep2 * self._rep3 * self._rep4
-        if self.verbosity > 2:
-            print(f"update bond 1: rep1 = {self._rep1}, aux_rep = {aux_rep}")
-
-        isoA, isoB = self.get_isoAB1()
-        transposedA = isoA @ self._dataA
-        matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
-        transposedB = isoB @ self._dataB
-        matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
-
-        newA, self._weights1, newB, new_rep1 = self.update_first_neighbor(
-            matA, matB, self._weights1, self._rep1, gate
-        )
-        if new_rep1 != self._rep1:
-            self.reset_isometries()
-            self._rep1 = new_rep1
-            isoA, isoB = self.get_isoAB1()
-        self._dataA = isoA.T @ newA.to_raw_data()
-        self._dataB = isoB.T @ newB.to_raw_data()
-
-    def update_bond2(self, gate):
-        eff_rep = self._phys * self._rep2
-        aux_rep = self._anc * self._rep1 * self._rep3 * self._rep4
-        if self.verbosity > 2:
-            print(f"update bond 2: rep2 = {self._rep2}, aux_rep = {aux_rep}")
-
-        isoA, isoB = self.get_isoAB2()
-        transposedA = isoA @ self._dataA
-        matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
-        transposedB = isoB @ self._dataB
-        matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
-
-        newA, self._weights2, newB, new_rep2 = self.update_first_neighbor(
-            matA, matB, self._weights2, self._rep2, gate
-        )
-        if new_rep2 != self._rep2:
-            self.reset_isometries()
-            self._rep2 = new_rep2
-            isoA, isoB = self.get_isoAB2()
-
-        self._dataA = isoA.T @ newA.to_raw_data()
-        self._dataB = isoB.T @ newB.to_raw_data()
-
-    def update_bond3(self, gate):
-        eff_rep = self._phys * self._rep3
-        aux_rep = self._anc * self._rep1 * self._rep2 * self._rep4
-        if self.verbosity > 2:
-            print(f"update bond 3: rep3 = {self._rep3}, aux_rep = {aux_rep}")
-
-        isoA, isoB = self.get_isoAB3()
-        transposedA = isoA @ self._dataA
-        matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
-        transposedB = isoB @ self._dataB
-        matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
-
-        newA, self._weights3, newB, new_rep3 = self.update_first_neighbor(
-            matA, matB, self._weights3, self._rep3, gate
-        )
-        if new_rep3 != self._rep3:
-            self.reset_isometries()
-            self._rep3 = new_rep3
-            isoA, isoB = self.get_isoAB3()
-
-        self._dataA = isoA.T @ newA.to_raw_data()
-        self._dataB = isoB.T @ newB.to_raw_data()
-
-    def update_bond4(self, gate):
-        eff_rep = self._phys * self._rep4
-        aux_rep = self._anc * self._rep1 * self._rep2 * self._rep3
-        if self.verbosity > 2:
-            print(f"update bond 4: rep4 = {self._rep4}, aux_rep = {aux_rep}")
-
-        isoA, isoB = self.get_isoAB4()
-        transposedA = isoA @ self._dataA
-        matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
-        transposedB = isoB @ self._dataB
-        matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
-
-        newA, self._weights4, newB, new_rep4 = self.update_first_neighbor(
-            matA, matB, self._weights4, self._rep4, gate
-        )
-        if new_rep4 != self._rep4:
-            self.reset_isometries()
-            self._rep4 = new_rep4
-            isoA, isoB = self.get_isoAB4()
-
-        self._dataA = isoA.T @ newA.to_raw_data()
-        self._dataB = isoB.T @ newB.to_raw_data()
+        # TODO
+        raise NotImplementedError
 
     def update_first_neighbor(self, matL0, matR0, weights, virt_mid, gate):
         r"""
@@ -627,3 +269,409 @@ class SU2_SimpleUpdate1x2(object):
         newR = new_effR @ cstR
 
         return newL, new_weights, newR, new_virt_mid
+
+
+class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
+    """
+    SU(2) symmetric simple update algorithm on plaquette AB.
+
+    Conventions for leg ordering
+    ----------------------------
+          1     3
+          |     |
+       4--A--2--B--4
+          |     |
+          3     1
+    """
+
+    _unit_cell = "AB"
+    _n_bonds = 4
+    _n_hamilts = 1
+    _n_tensors = 2
+
+    @classmethod
+    def from_infinite_temperature(cls, d, Dstar, tau, h, rcutoff=1e-11, verbosity=0):
+        """
+        Initialize simple update at beta = 0 product state.
+
+        Parameters
+        ----------
+        d : int
+            dimension of physical SU(2) irreducible reprsentation on each site.
+        Dstar : int
+            Maximal number of independent multiplets kept on each bond.
+        tau : float
+            Imaginary time step.
+        h : (d**2, d**2) ndarray
+            Hamltionian. Must be real symmetric or hermitian.
+        rcutoff : float, optional.
+            Singular values smaller than cutoff = rcutoff * sv[0] are set to zero to
+            improve stability.
+        verbosity : int
+          Level of log verbosity. Default is no log.
+        """
+        if verbosity > 0:
+            print("Initialize SU2_SimpleUpdate1x2 at beta = 0 thermal product state")
+
+        if h.shape != (d ** 2, d ** 2):
+            raise ValueError("invalid shape for Hamiltonian")
+
+        phys = SU2_Representation.irrep(d)
+        proj = construct_matrix_projector((phys, phys), (phys, phys), conj_right=True)
+        proj = proj.reshape(d ** 4, d)
+        h_raw_data = proj.T @ h.ravel()
+        return cls(
+            Dstar,
+            0.0,
+            tau,
+            rcutoff,
+            [h_raw_data],
+            [SU2_Representation.irrep(1)] * 4,
+            [np.ones(1)] * 4,
+            [np.ones(1)] * 2,
+            verbosity,
+        )
+
+    def evolve(self, beta_evolve=None):
+        """
+        Evolve in imaginary time using second order Trotter-Suzuki up to beta.
+        Convention: temperature value is the bilayer tensor one, twice the monolayer
+        one.
+        """
+        if beta_evolve is None:
+            beta_evolve = self._dbeta
+        if self.verbosity > 0:
+            print(f"Launch time evolution for time {beta_evolve}")
+        if beta_evolve < -1e-16:
+            raise ValueError("Cannot evolve for negative imaginary time")
+        if beta_evolve < 0.9 * self._dbeta:  # care for float rounding
+            return  # else evolve for 1 step out of niter loop
+        niter = round(beta_evolve / self._dbeta)  # 2nd order: evolve 2*tau by step
+
+        self.update_bond1(self._gates[0])
+        for i in range(niter - 1):  # there is 1 step out of the loop
+            self.update_bond2(self._gates[0])
+            self.update_bond3(self._gates[0])
+            self.update_bond4(self._squared_gates[0])
+            self.update_bond3(self._gates[0])
+            self.update_bond2(self._gates[0])
+            self.update_bond1(self._squared_gates[0])
+            self._beta += self._dbeta
+        self.update_bond2(self._gates[0])
+        self.update_bond3(self._gates[0])
+        self.update_bond4(self._squared_gates[0])
+        self.update_bond3(self._gates[0])
+        self.update_bond2(self._gates[0])
+        self.update_bond1(self._gates[0])
+        self._beta += self._dbeta
+
+    def reset_isometries(self):
+        if self.verbosity > 0:
+            print(f"reset isometries at beta = {self._beta}")
+        self._isoA1 = None
+        self._isoB1 = None
+        self._isoA2 = None
+        self._isoB2 = None
+        self._isoA3 = None
+        self._isoB3 = None
+        self._isoA4 = None
+        self._isoB4 = None
+
+    def get_isoAB1(self):
+        if self._isoA1 is None:
+            if self.verbosity > 1:
+                eff1 = self._phys * self._bond_rep_list[0]
+                aux1 = (
+                    self._anc
+                    * self._bond_rep_list[1]
+                    * self._bond_rep_list[2]
+                    * self._bond_rep_list[3]
+                )
+                print(f"compute isoA1 and isoB1: eff_rep1 = {eff1}")
+                print(f"aux_rep1 = {aux1}")
+            p_data = get_projector_chained(
+                self._phys, self._anc, *self._bond_rep_list, singlet_only=True
+            )
+            p_data = p_data.reshape(-1, p_data.shape[6])
+            p_transpA = construct_matrix_projector(
+                (
+                    self._anc,
+                    self._bond_rep_list[1],
+                    self._bond_rep_list[2],
+                    self._bond_rep_list[3],
+                ),
+                (self._phys, self._bond_rep_list[0]),
+            )
+            p_transpA = p_transpA.transpose(4, 0, 5, 1, 2, 3, 6).reshape(p_data.shape)
+            self._isoA1 = p_transpA.T @ p_data
+
+            # impose same strucure p-a-1-2-3-4 for A and B
+            p_transpB = construct_matrix_projector(
+                (self._bond_rep_list[0], self._phys),
+                (
+                    self._anc,
+                    self._bond_rep_list[1],
+                    self._bond_rep_list[2],
+                    self._bond_rep_list[3],
+                ),
+            )
+            p_transpB = p_transpB.transpose(1, 2, 0, 3, 4, 5, 6).reshape(p_data.shape)
+            self._isoB1 = p_transpB.T @ p_data
+        return self._isoA1, self._isoB1
+
+    def get_isoAB2(self):
+        if self._isoA2 is None:
+            if self.verbosity > 1:
+                eff2 = self._phys * self._bond_rep_list[1]
+                aux2 = (
+                    self._anc
+                    * self._bond_rep_list[0]
+                    * self._bond_rep_list[2]
+                    * self._bond_rep_list[3]
+                )
+                print(f"compute isoA2 and isoB2: eff_rep2 = {eff2}")
+                print(f"aux_rep2 = {aux2}")
+            p_data = get_projector_chained(
+                self._phys, self._anc, *self._bond_rep_list, singlet_only=True
+            )
+            p_data = p_data.reshape(-1, p_data.shape[6])
+            p_transpA = construct_matrix_projector(
+                (
+                    self._anc,
+                    self._bond_rep_list[0],
+                    self._bond_rep_list[2],
+                    self._bond_rep_list[3],
+                ),
+                (self._phys, self._bond_rep_list[1]),
+            )
+            p_transpA = p_transpA.transpose(4, 0, 1, 5, 2, 3, 6).reshape(p_data.shape)
+            self._isoA2 = p_transpA.T @ p_data
+
+            # impose same strucure p-a-1-2-3-4 for A and B
+            p_transpB = construct_matrix_projector(
+                (self._bond_rep_list[1], self._phys),
+                (
+                    self._anc,
+                    self._bond_rep_list[0],
+                    self._bond_rep_list[2],
+                    self._bond_rep_list[3],
+                ),
+            )
+            p_transpB = p_transpB.transpose(1, 2, 3, 0, 4, 5, 6).reshape(p_data.shape)
+            self._isoB2 = p_transpB.T @ p_data
+        return self._isoA2, self._isoB2
+
+    def get_isoAB3(self):
+        if self._isoA3 is None:
+            if self.verbosity > 1:
+                eff3 = self._phys * self._bond_rep_list[2]
+                aux3 = (
+                    self._anc
+                    * self._bond_rep_list[0]
+                    * self._bond_rep_list[1]
+                    * self._bond_rep_list[2]
+                )
+                print(f"compute isoA3 and isoB3: eff_rep3 = {eff3}")
+                print(f"aux_rep3 = {aux3}")
+            p_data = get_projector_chained(
+                self._phys,
+                self._anc,
+                self._bond_rep_list[0],
+                self._bond_rep_list[1],
+                self._bond_rep_list[2],
+                self._bond_rep_list[3],
+                singlet_only=True,
+            )
+            p_data = p_data.reshape(-1, p_data.shape[6])
+            p_transpA = construct_matrix_projector(
+                (
+                    self._anc,
+                    self._bond_rep_list[0],
+                    self._bond_rep_list[1],
+                    self._bond_rep_list[3],
+                ),
+                (self._phys, self._bond_rep_list[2]),
+            )
+            p_transpA = p_transpA.transpose(4, 0, 1, 2, 5, 3, 6).reshape(p_data.shape)
+            self._isoA3 = p_transpA.T @ p_data
+
+            # impose same strucure p-a-1-2-3-4 for A and B
+            p_transpB = construct_matrix_projector(
+                (self._bond_rep_list[2], self._phys),
+                (
+                    self._anc,
+                    self._bond_rep_list[0],
+                    self._bond_rep_list[1],
+                    self._bond_rep_list[3],
+                ),
+            )
+            p_transpB = p_transpB.transpose(1, 2, 3, 4, 0, 5, 6).reshape(p_data.shape)
+            self._isoB3 = p_transpB.T @ p_data
+        return self._isoA3, self._isoB3
+
+    def get_isoAB4(self):
+        if self._isoA4 is None:
+            if self.verbosity > 1:
+                eff4 = self._phys * self._bond_rep_list[3]
+                aux4 = (
+                    self._anc
+                    * self._bond_rep_list[0]
+                    * self._bond_rep_list[1]
+                    * self._bond_rep_list[2]
+                )
+                print(f"compute isoA4 and isoB4: eff_rep4 = {eff4}")
+                print(f"aux_rep4 = {aux4}")
+            p_data = get_projector_chained(
+                self._phys,
+                self._anc,
+                self._bond_rep_list[0],
+                self._bond_rep_list[1],
+                self._bond_rep_list[2],
+                self._bond_rep_list[3],
+                singlet_only=True,
+            )
+            p_data = p_data.reshape(-1, p_data.shape[6])
+            p_transpA = construct_matrix_projector(
+                (
+                    self._anc,
+                    self._bond_rep_list[0],
+                    self._bond_rep_list[1],
+                    self._bond_rep_list[2],
+                ),
+                (self._phys, self._bond_rep_list[3]),
+            )
+            p_transpA = p_transpA.transpose(4, 0, 1, 2, 3, 5, 6).reshape(p_data.shape)
+            self._isoA4 = p_transpA.T @ p_data
+
+            # impose same strucure p-a-1-2-3-4 for A and B
+            p_transpB = construct_matrix_projector(
+                (self._bond_rep_list[3], self._phys),
+                (
+                    self._anc,
+                    self._bond_rep_list[0],
+                    self._bond_rep_list[1],
+                    self._bond_rep_list[2],
+                ),
+            )
+            p_transpB = p_transpB.transpose(1, 2, 3, 4, 5, 0, 6).reshape(p_data.shape)
+            self._isoB4 = p_transpB.T @ p_data
+        return self._isoA4, self._isoB4
+
+    def update_bond1(self, gate):
+        eff_rep = self._phys * self._bond_rep_list[0]
+        aux_rep = (
+            self._anc
+            * self._bond_rep_list[1]
+            * self._bond_rep_list[2]
+            * self._bond_rep_list[3]
+        )
+        if self.verbosity > 2:
+            print(
+                f"update bond 1: rep1 = {self._bond_rep_list[0]}, aux_rep = {aux_rep}"
+            )
+
+        isoA, isoB = self.get_isoAB1()
+        transposedA = isoA @ self._tensor_data_list[0]
+        matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
+        transposedB = isoB @ self._tensor_data_list[1]
+        matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
+
+        newA, self._weight_list[0], newB, new_rep1 = self.update_first_neighbor(
+            matA, matB, self._weight_list[0], self._bond_rep_list[0], gate
+        )
+        if new_rep1 != self._bond_rep_list[0]:
+            self.reset_isometries()
+            self._bond_rep_list[0] = new_rep1
+            isoA, isoB = self.get_isoAB1()
+        self._tensor_data_list[0] = isoA.T @ newA.to_raw_data()
+        self._tensor_data_list[1] = isoB.T @ newB.to_raw_data()
+
+    def update_bond2(self, gate):
+        eff_rep = self._phys * self._bond_rep_list[1]
+        aux_rep = (
+            self._anc
+            * self._bond_rep_list[0]
+            * self._bond_rep_list[2]
+            * self._bond_rep_list[3]
+        )
+        if self.verbosity > 2:
+            print(
+                f"update bond 2: rep2 = {self._bond_rep_list[1]}, aux_rep = {aux_rep}"
+            )
+
+        isoA, isoB = self.get_isoAB2()
+        transposedA = isoA @ self._tensor_data_list[0]
+        matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
+        transposedB = isoB @ self._tensor_data_list[1]
+        matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
+
+        (newA, self._weight_list[1], newB, new_rep2) = self.update_first_neighbor(
+            matA, matB, self._weight_list[1], self._bond_rep_list[1], gate
+        )
+        if new_rep2 != self._bond_rep_list[1]:
+            self.reset_isometries()
+            self._bond_rep_list[1] = new_rep2
+            isoA, isoB = self.get_isoAB2()
+
+        self._tensor_data_list[0] = isoA.T @ newA.to_raw_data()
+        self._tensor_data_list[1] = isoB.T @ newB.to_raw_data()
+
+    def update_bond3(self, gate):
+        eff_rep = self._phys * self._bond_rep_list[2]
+        aux_rep = (
+            self._anc
+            * self._bond_rep_list[0]
+            * self._bond_rep_list[1]
+            * self._bond_rep_list[3]
+        )
+        if self.verbosity > 2:
+            print(
+                f"update bond 3: rep3 = {self._bond_rep_list[2]}, aux_rep = {aux_rep}"
+            )
+
+        isoA, isoB = self.get_isoAB3()
+        transposedA = isoA @ self._tensor_data_list[0]
+        matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
+        transposedB = isoB @ self._tensor_data_list[1]
+        matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
+
+        (newA, self._weight_list[2], newB, new_rep3) = self.update_first_neighbor(
+            matA, matB, self._weight_list[2], self._bond_rep_list[2], gate
+        )
+        if new_rep3 != self._bond_rep_list[2]:
+            self.reset_isometries()
+            self._bond_rep_list[2] = new_rep3
+            isoA, isoB = self.get_isoAB3()
+
+        self._tensor_data_list[0] = isoA.T @ newA.to_raw_data()
+        self._tensor_data_list[1] = isoB.T @ newB.to_raw_data()
+
+    def update_bond4(self, gate):
+        eff_rep = self._phys * self._bond_rep_list[3]
+        aux_rep = (
+            self._anc
+            * self._bond_rep_list[0]
+            * self._bond_rep_list[1]
+            * self._bond_rep_list[2]
+        )
+        if self.verbosity > 2:
+            print(
+                f"update bond 4: rep4 = {self._bond_rep_list[3]}, aux_rep = {aux_rep}"
+            )
+
+        isoA, isoB = self.get_isoAB4()
+        transposedA = isoA @ self._tensor_data_list[0]
+        matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
+        transposedB = isoB @ self._tensor_data_list[1]
+        matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
+
+        (newA, self._weight_list[3], newB, new_rep4) = self.update_first_neighbor(
+            matA, matB, self._weight_list[3], self._bond_rep_list[3], gate
+        )
+        if new_rep4 != self._bond_rep_list[3]:
+            self.reset_isometries()
+            self._bond_rep_list[3] = new_rep4
+            isoA, isoB = self.get_isoAB4()
+
+        self._tensor_data_list[0] = isoA.T @ newA.to_raw_data()
+        self._tensor_data_list[1] = isoB.T @ newB.to_raw_data()
