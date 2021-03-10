@@ -1,5 +1,6 @@
 import numpy as np
 
+from groups.toolsU1 import combine_colors
 from groups.su2_representation import (
     SU2_Representation,
     SU2_Matrix,
@@ -487,36 +488,60 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
                     self._anc,
                 ),
             )
+            sh0 = np.array(p_default.shape[:-1])
+            cumprod0 = np.array([1, *sh0[:0:-1]]).cumprod()[::-1]
             p_default = p_default.reshape(-1, p_default.shape[6])
+
+            # reduce p_default to Sz=0 rows only
+            indices0 = (
+                combine_colors(
+                    self._phys.get_Sz(),
+                    self._bond_representations[0].get_Sz(),
+                    self._bond_representations[1].get_Sz(),
+                    self._bond_representations[2].get_Sz(),
+                    self._bond_representations[3].get_Sz(),
+                    self._anc.get_Sz(),
+                )
+                == 0
+            ).nonzero()[0]
+            p_default = p_default[indices0]  # reduce to only non-zero rows
+
+            # function works for any bond, for simplicity assume bond 1 in variables
             leg_indices = sorted([i % 4, (i + 1) % 4, (i + 2) % 4])
+            rep1 = self._bond_representations[i - 1]
+            rep2 = self._bond_representations[leg_indices[0]]
+            rep3 = self._bond_representations[leg_indices[1]]
+            rep4 = self._bond_representations[leg_indices[2]]
+
+            # reduce p_transpA/B to Sz=0 block AND sparse transpose it
+            indices1 = indices0[:, None] // cumprod0 % sh0
+            cumprodA = np.array(
+                [1, rep1.dim, self._d, self._a, rep4.dim, rep3.dim]
+            ).cumprod()[::-1]
+            indicesA = (
+                indices1[:, np.argsort(self._isoA_transpose[i - 1][:-1])] @ cumprodA
+            )
+            cumprodB = np.array(
+                [1, self._a, rep4.dim, rep3.dim, rep2.dim, self._d]
+            ).cumprod()[::-1]
+            indicesB = (
+                indices1[:, np.argsort(self._isoB_transpose[i - 1][:-1])] @ cumprodB
+            )
+            del indices0, indices1
+
             p_transpA = construct_matrix_projector(
-                (
-                    self._bond_representations[leg_indices[0]],
-                    self._bond_representations[leg_indices[1]],
-                    self._bond_representations[leg_indices[2]],
-                    self._anc,
-                ),
-                (self._phys, self._bond_representations[i - 1]),
-            )
-            p_transpA = p_transpA.transpose(self._isoA_transpose[i - 1]).reshape(
-                p_default.shape
-            )
+                (rep2, rep3, rep4, self._anc), (self._phys, rep1)
+            ).reshape(-1, p_default.shape[1])
+            p_transpA = p_transpA[indicesA]
             self._isoA[i - 1] = p_transpA.T @ p_default
-            del p_transpA
+            del indicesA, p_transpA
 
             p_transpB = construct_matrix_projector(
-                (self._bond_representations[i - 1], self._phys),
-                (
-                    self._bond_representations[leg_indices[0]],
-                    self._bond_representations[leg_indices[1]],
-                    self._bond_representations[leg_indices[2]],
-                    self._anc,
-                ),
-            )
-            p_transpB = p_transpB.transpose(self._isoB_transpose[i - 1]).reshape(
-                p_default.shape
-            )
+                (rep1, self._phys), (rep2, rep3, rep4, self._anc)
+            ).reshape(-1, p_default.shape[1])
+            p_transpB = p_transpB[indicesB]
             self._isoB[i - 1] = p_transpB.T @ p_default
+
         return self._isoA[i - 1], self._isoB[i - 1]
 
     def update_bond(self, i, gate):
