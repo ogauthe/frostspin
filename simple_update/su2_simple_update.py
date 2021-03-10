@@ -3,7 +3,6 @@ import numpy as np
 from groups.su2_representation import (
     SU2_Representation,
     SU2_Matrix,
-    get_projector_chained,
     construct_matrix_projector,
 )
 
@@ -347,16 +346,16 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
 
     # transpositions used in get_isoAB
     _isoA_transpose = [
+        (4, 5, 0, 1, 2, 3, 6),
         (4, 0, 5, 1, 2, 3, 6),
         (4, 0, 1, 5, 2, 3, 6),
         (4, 0, 1, 2, 5, 3, 6),
-        (4, 0, 1, 2, 3, 5, 6),
     ]
     _isoB_transpose = [
+        (1, 0, 2, 3, 4, 5, 6),
         (1, 2, 0, 3, 4, 5, 6),
         (1, 2, 3, 0, 4, 5, 6),
         (1, 2, 3, 4, 0, 5, 6),
-        (1, 2, 3, 4, 5, 0, 6),
     ]
 
     def __repr__(self):
@@ -469,18 +468,33 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
                 )
                 print(f"compute isoA and isoB for bond {i}: eff_rep = {eff}")
                 print(f"aux_rep = {aux}")
-            # impose default strucure p-a-1-2-3-4 for both A and B
-            p_default = get_projector_chained(
-                self._phys, self._anc, *self._bond_representations, singlet_only=True
+            # define default tree strucure, same for both A and B (same legs)
+            # take projector with smallest complexity:
+            #     default
+            #     /     \
+            #    p12    34a
+            # order inside 2 main legs has no impact on projector complexity, take
+            # the most efficient one for reshapes of p_transpA and p_transpB
+            p_default = construct_matrix_projector(
+                (
+                    self._phys,
+                    self._bond_representations[0],
+                    self._bond_representations[1],
+                ),
+                (
+                    self._bond_representations[2],
+                    self._bond_representations[3],
+                    self._anc,
+                ),
             )
             p_default = p_default.reshape(-1, p_default.shape[6])
             leg_indices = sorted([i % 4, (i + 1) % 4, (i + 2) % 4])
             p_transpA = construct_matrix_projector(
                 (
-                    self._anc,
                     self._bond_representations[leg_indices[0]],
                     self._bond_representations[leg_indices[1]],
                     self._bond_representations[leg_indices[2]],
+                    self._anc,
                 ),
                 (self._phys, self._bond_representations[i - 1]),
             )
@@ -493,10 +507,10 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
             p_transpB = construct_matrix_projector(
                 (self._bond_representations[i - 1], self._phys),
                 (
-                    self._anc,
                     self._bond_representations[leg_indices[0]],
                     self._bond_representations[leg_indices[1]],
                     self._bond_representations[leg_indices[2]],
+                    self._anc,
                 ),
             )
             p_transpB = p_transpB.transpose(self._isoB_transpose[i - 1]).reshape(
