@@ -364,11 +364,8 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
 
     def __str__(self):
         return (
-            f"SU2_SimpleUpdate1x2 for irrep {self._d}\n"
-            f"D* = {self.Dstar}\n"
-            f"beta = {self._beta:.6g}\n"
-            f"tau = {self._tau}\n"
-            f"rcutoff = {self.rcutoff}\n"
+            f"SU2_SimpleUpdate1x2 for irrep {self._d} at beta =  {self._beta:.6g}\n"
+            f"D* = {self.Dstar}, tau = {self._tau}, rcutoff = {self.rcutoff}\n"
             f"bond 1 representation: {self._bond_representations[0]}\n"
             f"bond 2 representation: {self._bond_representations[1]}\n"
             f"bond 3 representation: {self._bond_representations[2]}\n"
@@ -453,8 +450,6 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         self.update_bond(2, self._gates[0])
         self.update_bond(1, self._gates[0])
         self._beta += self._dbeta
-        if self.verbosity > 0:
-            print(f"Done, beta = {self._beta:.6g}")
 
     def reset_isometries(self):
         if self.verbosity > 1:
