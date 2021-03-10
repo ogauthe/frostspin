@@ -346,17 +346,17 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
     _n_tensors = 2
 
     # transpositions used in get_isoAB
-    _isoA_transpose = [
-        (4, 5, 0, 1, 2, 3, 6),
-        (4, 0, 5, 1, 2, 3, 6),
-        (4, 0, 1, 5, 2, 3, 6),
-        (4, 0, 1, 2, 5, 3, 6),
+    _isoA_swaps = [
+        (2, 3, 4, 5, 0, 1),
+        (1, 3, 4, 5, 0, 2),
+        (1, 2, 4, 5, 0, 3),
+        (1, 2, 3, 5, 0, 4),
     ]
-    _isoB_transpose = [
-        (1, 0, 2, 3, 4, 5, 6),
-        (1, 2, 0, 3, 4, 5, 6),
-        (1, 2, 3, 0, 4, 5, 6),
-        (1, 2, 3, 4, 0, 5, 6),
+    _isoB_swaps = [
+        (1, 0, 2, 3, 4, 5),
+        (2, 0, 1, 3, 4, 5),
+        (3, 0, 1, 2, 4, 5),
+        (4, 0, 1, 2, 3, 5),
     ]
 
     def __repr__(self):
@@ -518,15 +518,11 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
             cumprodA = np.array(
                 [1, rep1.dim, self._d, self._a, rep4.dim, rep3.dim]
             ).cumprod()[::-1]
-            indicesA = (
-                indices1[:, np.argsort(self._isoA_transpose[i - 1][:-1])] @ cumprodA
-            )
+            indicesA = indices1[:, self._isoA_swaps[i - 1]] @ cumprodA
             cumprodB = np.array(
                 [1, self._a, rep4.dim, rep3.dim, rep2.dim, self._d]
             ).cumprod()[::-1]
-            indicesB = (
-                indices1[:, np.argsort(self._isoB_transpose[i - 1][:-1])] @ cumprodB
-            )
+            indicesB = indices1[:, self._isoB_swaps[i - 1]] @ cumprodB
             del indices0, indices1
 
             p_transpA = construct_matrix_projector(
