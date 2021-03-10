@@ -364,7 +364,7 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
 
     def __str__(self):
         return (
-            f"SU2_SimpleUpdate1x2 for irrep {self._d} at beta =  {self._beta:.6g}\n"
+            f"SU2_SimpleUpdate1x2 for irrep {self._d} at beta = {self._beta:.6g}\n"
             f"D* = {self.Dstar}, tau = {self._tau}, rcutoff = {self.rcutoff}\n"
             f"bond 1 representation: {self._bond_representations[0]}\n"
             f"bond 2 representation: {self._bond_representations[1]}\n"
