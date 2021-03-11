@@ -272,19 +272,20 @@ def get_projector(in1, in2, max_spin=np.inf):
     cs2 = [0, *(in2.degen * in2.irreps).cumsum()]  # remember where to restart in in2
     for i1, irr1 in enumerate(in1.irreps):
         for i2, irr2 in enumerate(in2.irreps):
+            d2 = in2.degen[i2]
+            ar = np.arange(d2)
+            sl2 = slice(cs2[i2], cs2[i2] + d2 * irr2)
             for irr3 in range(abs(irr1 - irr2) + 1, min(irr1 + irr2, max_spin + 1), 2):
+                sh = (irr1, d2, irr2, d2, irr3)
                 p123 = SU2_Representation.elementary_projectors[irr1, irr2, irr3]
                 shift1 = cs1[i1]
                 for d1 in range(in1.degen[i1]):
-                    shift2 = cs2[i2]
-                    for d2 in range(in2.degen[i2]):
-                        p[
-                            shift1 : shift1 + irr1,
-                            shift2 : shift2 + irr2,
-                            shift3[irr3] : shift3[irr3] + irr3,
-                        ] = p123
-                        shift3[irr3] += irr3
-                        shift2 += irr2
+                    p[
+                        shift1 : shift1 + irr1,
+                        sl2,
+                        shift3[irr3] : shift3[irr3] + d2 * irr3,
+                    ].reshape(sh)[:, ar, :, ar] = p123
+                    shift3[irr3] += d2 * irr3
                     shift1 += irr1
     return p
 
