@@ -1,10 +1,10 @@
 import numpy as np
 
-from groups.toolsU1 import combine_colors
 from groups.su2_representation import (
     SU2_Representation,
     SU2_Matrix,
     construct_matrix_projector,
+    construct_transpose_matrix,
 )
 
 
@@ -346,18 +346,8 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
     _n_tensors = 2
 
     # transpositions used in get_isoAB
-    _isoA_swaps = [
-        (2, 3, 4, 5, 0, 1),
-        (1, 3, 4, 5, 0, 2),
-        (1, 2, 4, 5, 0, 3),
-        (1, 2, 3, 5, 0, 4),
-    ]
-    _isoB_swaps = [
-        (1, 0, 2, 3, 4, 5),
-        (2, 0, 1, 3, 4, 5),
-        (3, 0, 1, 2, 4, 5),
-        (4, 0, 1, 2, 3, 5),
-    ]
+    _isoA_swaps = ((5, 1, 2, 3, 4, 0), (0, 5, 2, 3, 4, 1), (0, 1, 5, 3, 4, 2))
+    _isoB_swaps = ((2, 1, 0, 3, 4, 5), (3, 1, 2, 0, 4, 5), (4, 1, 2, 3, 0, 5))
 
     def __repr__(self):
         return f"SU2_SimpleUpdate1x2 for irrep {self._d}"
@@ -434,115 +424,84 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
             return  # else evolve for 1 step out of niter loop
         niter = round(beta_evolve / self._dbeta)  # 2nd order: evolve 2*tau by step
 
-        self.update_bond(1, self._gates[0])
+        self._reset_tensor_state()  # allows for two bond 1 updates in a row
+        self._update_bond(1, self._gates[0], backwards=True)
         for i in range(niter - 1):  # there is 1 step out of the loop
-            self.update_bond(2, self._gates[0])
-            self.update_bond(3, self._gates[0])
-            self.update_bond(4, self._squared_gates[0])
-            self.update_bond(3, self._gates[0])
-            self.update_bond(2, self._gates[0])
-            self.update_bond(1, self._squared_gates[0])
+            self._update_bond(2, self._gates[0])
+            self._update_bond(3, self._gates[0])
+            self._update_bond(4, self._squared_gates[0])
+            self._update_bond(3, self._gates[0], backwards=True)
+            self._update_bond(2, self._gates[0], backwards=True)
+            self._update_bond(1, self._squared_gates[0], backwards=True)
             self._beta += self._dbeta
-        self.update_bond(2, self._gates[0])
-        self.update_bond(3, self._gates[0])
-        self.update_bond(4, self._squared_gates[0])
-        self.update_bond(3, self._gates[0])
-        self.update_bond(2, self._gates[0])
-        self.update_bond(1, self._gates[0])
+        self._update_bond(2, self._gates[0])
+        self._update_bond(3, self._gates[0])
+        self._update_bond(4, self._squared_gates[0])
+        self._update_bond(3, self._gates[0], backwards=True)
+        self._update_bond(2, self._gates[0], backwards=True)
+        self._update_bond(1, self._gates[0], backwards=True)
         self._beta += self._dbeta
+
+    def _reset_tensor_state(self):
+        """
+        Apply isoA/B_{1->2} to allow for two bond 1 updates in a row.
+        """
+        isoA, isoB = self.get_isoAB(2)
+        self._tensors_data[0] = isoA @ self._tensors_data[0]
+        self._tensors_data[1] = isoB @ self._tensors_data[1]
 
     def reset_isometries(self):
         if self.verbosity > 1:
             print(f"reset isometries at beta = {self._beta:.6g}")
-        self._isoA = [None] * 4
-        self._isoB = [None] * 4
+        # 3 isometries: 1<->2, 2<->3 and 3<->4
+        self._isoA = [None] * 3
+        self._isoB = [None] * 3
 
-    def get_isoAB(self, i):
-        if self._isoA[i - 1] is None:
+    def get_isoAB(self, i, backwards=False):
+        ind = i + backwards - 2
+        assert -1 < ind < 3
+        assert i != 1 or backwards
+        assert i != 4 or not backwards
+        if self._isoA[ind] is None:
             if self.verbosity > 1:
-                eff = self._phys * self._bond_representations[i - 1]
-                aux = (
-                    self._anc
-                    * self._bond_representations[i % 4]
-                    * self._bond_representations[(i + 1) % 4]
-                    * self._bond_representations[(i + 2) % 4]
-                )
-                print(f"compute isoA and isoB for bond {i}: eff_rep = {eff}")
-                print(f"aux_rep = {aux}")
-            # define default tree strucure, same for both A and B (same legs)
-            # take projector with smallest complexity:
-            #     default
-            #     /     \
-            #    p12    34a
-            # order inside 2 main legs has no impact on projector complexity, take
-            # the most efficient one for reshapes of p_transpA and p_transpB
-            p_default = construct_matrix_projector(
-                (
-                    self._phys,
-                    self._bond_representations[0],
-                    self._bond_representations[1],
-                ),
-                (
-                    self._bond_representations[2],
-                    self._bond_representations[3],
-                    self._anc,
-                ),
-            )
-            sh0 = np.array(p_default.shape[:-1])
-            cumprod0 = np.array([1, *sh0[:0:-1]]).cumprod()[::-1]
-            p_default = p_default.reshape(-1, p_default.shape[6])
-
-            # reduce p_default to Sz=0 rows only
-            indices0 = (
-                combine_colors(
-                    self._phys.get_Sz(),
-                    self._bond_representations[0].get_Sz(),
-                    self._bond_representations[1].get_Sz(),
-                    self._bond_representations[2].get_Sz(),
-                    self._bond_representations[3].get_Sz(),
-                    self._anc.get_Sz(),
-                )
-                == 0
-            ).nonzero()[0]
-            p_default = p_default[indices0]  # reduce to only non-zero rows
+                print(f"compute isoA and isoB for move {i-1+2*backwards} -> {i}")
+                print(*self._bond_representations, sep="\n")
 
             # function works for any bond, for simplicity assume bond 1 in variables
-            leg_indices = sorted([i % 4, (i + 1) % 4, (i + 2) % 4])
-            rep1 = self._bond_representations[i - 1]
+            leg_indices = sorted([(ind + 1) % 4, (ind + 2) % 4, (ind + 3) % 4])
+            rep1 = self._bond_representations[ind]
             rep2 = self._bond_representations[leg_indices[0]]
             rep3 = self._bond_representations[leg_indices[1]]
             rep4 = self._bond_representations[leg_indices[2]]
 
-            # reduce p_transpA/B to Sz=0 block AND sparse transpose it
-            indices1 = indices0[:, None] // cumprod0 % sh0
-            cumprodA = np.array(
-                [1, rep1.dim, self._d, self._a, rep4.dim, rep3.dim]
-            ).cumprod()[::-1]
-            indicesA = indices1[:, self._isoA_swaps[i - 1]] @ cumprodA
-            cumprodB = np.array(
-                [1, self._a, rep4.dim, rep3.dim, rep2.dim, self._d]
-            ).cumprod()[::-1]
-            indicesB = indices1[:, self._isoB_swaps[i - 1]] @ cumprodB
-            del indices0, indices1
+            self._isoA[ind] = construct_transpose_matrix(
+                (rep2, rep3, rep4, self._anc, self._phys, rep1),
+                4,
+                4,
+                self._isoA_swaps[ind],
+            )
+            self._isoB[ind] = construct_transpose_matrix(
+                (rep1, self._phys, rep2, rep3, rep4, self._anc),
+                2,
+                2,
+                self._isoB_swaps[ind],
+            )
 
-            p_transpA = construct_matrix_projector(
-                (rep2, rep3, rep4, self._anc), (self._phys, rep1)
-            ).reshape(-1, p_default.shape[1])
-            p_transpA = p_transpA[indicesA]
-            self._isoA[i - 1] = p_transpA.T @ p_default
-            del indicesA, p_transpA
+        if backwards:
+            return self._isoA[ind].T, self._isoB[ind].T
+        return self._isoA[ind], self._isoB[ind]
 
-            p_transpB = construct_matrix_projector(
-                (rep1, self._phys), (rep2, rep3, rep4, self._anc)
-            ).reshape(-1, p_default.shape[1])
-            p_transpB = p_transpB[indicesB]
-            self._isoB[i - 1] = p_transpB.T @ p_default
-
-        return self._isoA[i - 1], self._isoB[i - 1]
-
-    def update_bond(self, i, gate):
+    def _update_bond(self, i, gate, backwards=False):
         """
         Update bond i between tensors A and B.
+        Tranpose tensors A and B with isoAB matrices. The isometry used depends on
+        current tensor tree structure, which was set by last update. This update is
+        either i - 1 or i + 1 if backwards.
+
+        This method is not exposed to prevent tensors entering an ill-defined state
+        where last update is neither i - 1 or i + 1. It must be called through evolve,
+        which ensures it.
+        Another solution would be to remember current state of tensors, not needed.
         """
         # bond indices start at 1: -1 shit to get corresponding element in array
         eff_rep = self._phys * self._bond_representations[i - 1]
@@ -557,7 +516,7 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
                 f"update bond {i}: rep {i} = {self._bond_representations[i - 1]},",
                 f"aux_rep = {aux_rep}",
             )
-        isoA, isoB = self.get_isoAB(i)
+        isoA, isoB = self.get_isoAB(i, backwards)
         transposedA = isoA @ self._tensors_data[0]
         matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
         transposedB = isoB @ self._tensors_data[1]
@@ -569,6 +528,5 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         if new_rep != self._bond_representations[i - 1]:
             self.reset_isometries()
             self._bond_representations[i - 1] = new_rep
-            isoA, isoB = self.get_isoAB(i)
-        self._tensors_data[0] = isoA.T @ newA.to_raw_data()
-        self._tensors_data[1] = isoB.T @ newB.to_raw_data()
+        self._tensors_data[0] = newA.to_raw_data()
+        self._tensors_data[1] = newB.to_raw_data()
