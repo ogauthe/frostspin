@@ -251,30 +251,26 @@ class SU2_SimpleUpdate(object):
         effR = effR * svR
 
         # change tensor structure to contract mid
-        pL0 = construct_matrix_projector((virt_left,), (self._phys, virt_mid))
-        pL1 = construct_matrix_projector((virt_left, self._phys), (virt_mid,))
-        isoL1 = np.tensordot(pL1, pL0, ((0, 1, 2), (0, 1, 2)))
-        vL1 = isoL1 @ effL.to_raw_data()
+        pL1, pL0 = construct_transpose_matrix(
+            (virt_left, self._phys, virt_mid), 1, 2, (0, 1, 2), contract=False
+        )
+        vL1 = pL1.T @ (pL0 @ effL.to_raw_data())  # faster than contracting pL1 @ pL0
         matL1 = (
             SU2_Matrix.from_raw_data(vL1, virt_left * self._phys, virt_mid) / weights
         )
 
-        pR0 = construct_matrix_projector((virt_mid, self._phys), (virt_right,))
-        pR1 = construct_matrix_projector((virt_mid,), (self._phys, virt_right))
-        isoR1 = np.tensordot(pR1, pR0, ((0, 1, 2), (0, 1, 2)))
-        vR1 = isoR1 @ effR.to_raw_data()
+        pR1, pR0 = construct_transpose_matrix(
+            (virt_mid, self._phys, virt_right), 2, 1, (0, 1, 2), contract=False
+        )
+        vR1 = pR1.T @ (pR0 @ effR.to_raw_data())
         matR1 = SU2_Matrix.from_raw_data(vR1, virt_mid, self._phys * virt_right)
 
         # construct matrix theta and apply gate
         theta_mat = matL1 @ matR1
         theta = theta_mat.to_raw_data()
-        pLR2 = construct_matrix_projector(
-            (virt_left, self._phys), (self._phys, virt_right)
+        iso_theta = construct_transpose_matrix(
+            (virt_left, self._phys, self._phys, virt_right), 2, 2, (0, 3, 1, 2)
         )
-        pLR3 = construct_matrix_projector(
-            (virt_left, virt_right), (self._phys, self._phys)
-        )
-        iso_theta = np.tensordot(pLR3, pLR2, ((0, 2, 3, 1), (0, 1, 2, 3)))
         theta2 = iso_theta @ theta
         theta_mat2 = SU2_Matrix.from_raw_data(
             theta2, virt_left * virt_right, self._phys * self._phys
@@ -297,20 +293,19 @@ class SU2_SimpleUpdate(object):
 
         # recompute reshape matrices only if needed
         if new_virt_mid != virt_mid:
-            pL0 = construct_matrix_projector((virt_left,), (self._phys, new_virt_mid))
-            pL1 = construct_matrix_projector((virt_left, self._phys), (new_virt_mid,))
-            isoL1 = np.tensordot(pL1, pL0, ((0, 1, 2), (0, 1, 2)))
-
-            pR0 = construct_matrix_projector((new_virt_mid, self._phys), (virt_right,))
-            pR1 = construct_matrix_projector((new_virt_mid,), (self._phys, virt_right))
-            isoR1 = np.tensordot(pR1, pR0, ((0, 1, 2), (0, 1, 2)))
+            pL1, pL0 = construct_transpose_matrix(
+                (virt_left, self._phys, new_virt_mid), 1, 2, (0, 1, 2), contract=False
+            )
+            pR1, pR0 = construct_transpose_matrix(
+                (new_virt_mid, self._phys, virt_right), 2, 1, (0, 1, 2), contract=False
+            )
 
         # reshape to initial tree structure
-        new_vL = isoL1.T @ U1.to_raw_data()
+        new_vL = pL0.T @ (pL1 @ U1.to_raw_data())
         new_effL = SU2_Matrix.from_raw_data(
             new_vL, virt_left, self._phys * new_virt_mid
         )
-        new_vR = isoR1.T @ V1.to_raw_data()
+        new_vR = pR0.T @ (pR1 @ V1.to_raw_data())
         new_effR = SU2_Matrix.from_raw_data(
             new_vR, new_virt_mid * self._phys, virt_right
         )

@@ -394,7 +394,9 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     return proj
 
 
-def construct_transpose_matrix(representations, n_bra_leg1, n_bra_leg2, swap):
+def construct_transpose_matrix(
+    representations, n_bra_leg1, n_bra_leg2, swap, contract=True
+):
     r"""
     Construct isometry corresponding to change of tree structure of a SU(2) matrix.
 
@@ -424,6 +426,9 @@ def construct_transpose_matrix(representations, n_bra_leg1, n_bra_leg2, swap):
         Number of representations in left leg of transposed matrix.
     swap: enumerable of int
         Leg permutations, taking left and right legs in a row.
+    contract: bool
+        Whether to contract projectors. If False, non-contracted projectors are
+        returned.
     """
     assert len(representations) == len(swap)
     proj1 = construct_matrix_projector(
@@ -446,7 +451,9 @@ def construct_transpose_matrix(representations, n_bra_leg1, n_bra_leg2, swap):
     cumprod2 = np.array((1,) + proj2.shape[-2:0:-1]).cumprod()[::-1]
     nnz_indices = (nnz_indices[:, None] // cumprod1 % sh1)[:, swap] @ cumprod2
     proj2 = proj2.reshape(-1, proj2.shape[-1])[nnz_indices]
-    return proj2.T @ proj1
+    if contract:
+        return proj2.T @ proj1
+    return proj2, proj1
 
 
 class SU2_Matrix(object):
