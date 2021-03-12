@@ -351,6 +351,8 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     ldim = prod_l.dim
     rdim = prod_r.dim
     target = sorted(set(prod_l.irreps).intersection(prod_r.irreps))
+    if not target:
+        raise ValueError("Representations have no common irrep")
     # optimal would be to fuse only on target. Currently only truncate to max_spin
     prod_l.truncate_max_spin(target[-1])
     prod_r.truncate_max_spin(target[-1])
