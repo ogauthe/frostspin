@@ -365,32 +365,36 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     # optimal would be to fuse only on target. Currently only truncate to max_spin
     prod_l.truncate_max_spin(target[-1])
     prod_r.truncate_max_spin(target[-1])
-    proj_l = get_projector_chained(*rep_left_enum)[..., : prod_l.dim]
-    proj_r = get_projector_chained(*rep_right_enum)[..., : prod_r.dim]
+    proj_l = get_projector_chained(*rep_left_enum)
+    proj_l = np.ascontiguousarray(proj_l.reshape(ldim, -1)[:, : prod_l.dim])
+    proj_r = get_projector_chained(*rep_right_enum)
+    proj_r = np.ascontiguousarray(proj_r.reshape(rdim, -1)[:, : prod_r.dim])
     proj = get_projector(prod_l, prod_r, max_spin=1)
     singlet_dim = proj.shape[2]
 
-    # contract projectors following optimal contraction path
-    in_sh = proj_l.shape[:-1] + proj_r.shape[:-1]
-    proj_l = proj_l.reshape(ldim, prod_l.dim)
-    proj_r = proj_r.reshape(rdim, prod_r.dim)
     if conj_right:  # same as conjugating input irrep, with smaller dimensions
         proj_r = proj_r @ prod_r.get_conjugator()
+    # contract projectors following optimal contraction path
     cost_lr = prod_r.dim * ldim * (prod_l.dim + rdim)
     cost_rl = prod_l.dim * rdim * (prod_r.dim + ldim)
     if cost_lr < cost_rl:
         proj = proj_l @ proj.reshape(prod_l.dim, prod_r.dim * singlet_dim)
-        # del proj_l
+        del proj_l
         proj = proj.reshape(ldim, prod_r.dim, singlet_dim).swapaxes(0, 1).copy()
         proj = proj_r @ proj.reshape(prod_r.dim, ldim * singlet_dim)
+        del proj_r
         proj = proj.reshape(rdim, ldim, singlet_dim).swapaxes(0, 1).copy()
     else:
         proj = proj.swapaxes(0, 1).reshape(prod_r.dim, prod_l.dim * singlet_dim)
         proj = (proj_r @ proj).reshape(rdim, prod_l.dim, singlet_dim)
-        # del proj_r
+        del proj_r
         proj = proj.swapaxes(0, 1).reshape(prod_l.dim, rdim * singlet_dim)
         proj = proj_l @ proj
-    proj = proj.reshape(*in_sh, singlet_dim)
+    proj = proj.reshape(
+        tuple(r.dim for r in rep_left_enum)
+        + tuple(r.dim for r in rep_right_enum)
+        + (singlet_dim,)
+    )
     return proj
 
 
