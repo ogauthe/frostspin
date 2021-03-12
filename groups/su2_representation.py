@@ -6,6 +6,8 @@ import functools
 import numpy as np
 import scipy.linalg as lg
 
+from .toolsU1 import combine_colors
+
 
 def compute_CG(max_irr=22):
     # load sympy only if recomputing Clebsch-Gordon is required.
@@ -367,16 +369,73 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     cost_rl = prod_l.dim * rdim * (prod_r.dim + ldim)
     if cost_lr < cost_rl:
         proj = proj_l @ proj.reshape(prod_l.dim, prod_r.dim * singlet_dim)
+        # del proj_l
         proj = proj.reshape(ldim, prod_r.dim, singlet_dim).swapaxes(0, 1).copy()
         proj = proj_r @ proj.reshape(prod_r.dim, ldim * singlet_dim)
         proj = proj.reshape(rdim, ldim, singlet_dim).swapaxes(0, 1).copy()
     else:
         proj = proj.swapaxes(0, 1).reshape(prod_r.dim, prod_l.dim * singlet_dim)
         proj = (proj_r @ proj).reshape(rdim, prod_l.dim, singlet_dim)
+        # del proj_r
         proj = proj.swapaxes(0, 1).reshape(prod_l.dim, rdim * singlet_dim)
         proj = proj_l @ proj
     proj = proj.reshape(*in_sh, singlet_dim)
     return proj
+
+
+def construct_transpose_matrix(representations, n_bra_leg1, n_bra_leg2, swap):
+    r"""
+    Construct isometry corresponding to change of tree structure of a SU(2) matrix.
+
+                initial
+                /      \
+               /\      /\
+              /\ \    / /\
+              bra1    ket1
+              |||      |||
+             transposition
+              ||||      ||
+              bra2     ket2
+             \/ / /     \  /
+              \/ /       \/
+               \/        /
+                \       /
+                  output
+
+    Parameters
+    ----------
+    representations: enumerable of SU2_Representation
+        List of SU(2) representation on which the matrix acts.
+    n_bra_leg1: int
+        Matrix to transpose has representations[:n_bra_leg1] as left leg and the others
+        as right leg.
+    n_bra_leg2: int
+        Number of representations in left leg of transposed matrix.
+    swap: enumerable of int
+        Leg permutations, taking left and right legs in a row.
+    """
+    assert len(representations) == len(swap)
+    proj1 = construct_matrix_projector(
+        representations[:n_bra_leg1], representations[n_bra_leg1:]
+    )
+
+    # reduce to Sz=0 rows, others are empty
+    nnz_indices = (
+        combine_colors(*(rep.get_Sz() for rep in representations)) == 0
+    ).nonzero()[0]
+    sh1 = proj1.shape[:-1]
+    proj1 = proj1.reshape(-1, proj1.shape[-1])[nnz_indices]
+
+    proj2 = construct_matrix_projector(
+        [representations[i] for i in swap[:n_bra_leg2]],
+        [representations[i] for i in swap[n_bra_leg2:]],
+    )
+    # reduce proj2 to Sz=0 block AND sparse transpose it
+    cumprod1 = np.array((1,) + sh1[:0:-1]).cumprod()[::-1]
+    cumprod2 = np.array((1,) + proj2.shape[-2:0:-1]).cumprod()[::-1]
+    nnz_indices = (nnz_indices[:, None] // cumprod1 % sh1)[:, swap] @ cumprod2
+    proj2 = proj2.reshape(-1, proj2.shape[-1])[nnz_indices]
+    return proj2.T @ proj1
 
 
 class SU2_Matrix(object):
