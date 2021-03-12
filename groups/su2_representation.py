@@ -5,8 +5,9 @@ import functools
 
 import numpy as np
 import scipy.linalg as lg
+from numba import jit
 
-from .toolsU1 import combine_colors
+from groups.toolsU1 import combine_colors
 
 
 def compute_CG(max_irr=22):
@@ -109,6 +110,16 @@ def su2_irrep_generators(s):
     return gen
 
 
+@jit(nopython=True)  # numba product of 2 SU(2) representations
+def product_degen(degen1, irreps1, degen2, irreps2):
+    degen = np.zeros(irreps1[-1] + irreps2[-1] - 1, dtype=np.int64)
+    for (d1, irr1) in zip(degen1, irreps1):
+        for (d2, irr2) in zip(degen2, irreps2):
+            for irr in range(abs(irr1 - irr2), irr1 + irr2 - 1, 2):
+                degen[irr] += d1 * d2  # shit irr-1 <-- irr to start at 0
+    return degen
+
+
 class SU2_Representation(object):
     elementary_projectors, elementary_conj = get_CG()
 
@@ -159,12 +170,10 @@ class SU2_Representation(object):
             self._irreps == other._irreps
         ).all()
 
-    def __mul__(self, other):
-        prod_irreps = np.zeros(self._irreps[-1] + other._irreps[-1], dtype=int)
-        for (d1, irr1) in zip(self._degen, self._irreps):
-            for (d2, irr2) in zip(other._degen, other._irreps):
-                prod_irreps[np.arange(abs(irr1 - irr2) + 1, irr1 + irr2, 2)] += d1 * d2
-        return SU2_Representation(prod_irreps, np.arange(prod_irreps.size))
+    def __mul__(self, other):  # numba wrapper
+        degen = product_degen(self._degen, self._irreps, other._degen, other._irreps)
+        irreps = np.arange(1, degen.size + 1)
+        return SU2_Representation(degen, irreps)
 
     def __add__(self, other):
         i1, i2 = 0, 0
