@@ -350,52 +350,52 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
            /\ \            /\ \
          rep_left        rep_right
     """
-    prod_l = rep_left_enum[0].copy()  # need copy to truncate if n_rep_left = 1
+    repL = rep_left_enum[0].copy()  # need copy to truncate if n_rep_left = 1
     for rep in rep_left_enum[1:]:
-        prod_l = prod_l * rep
-    prod_r = rep_right_enum[0].copy()
+        repL = repL * rep
+    repR = rep_right_enum[0].copy()
     for rep in rep_right_enum[1:]:
-        prod_r = prod_r * rep
+        repR = repR * rep
     # save left and right dimensions before truncation
-    ldim = prod_l.dim
-    rdim = prod_r.dim
-    target = sorted(set(prod_l.irreps).intersection(prod_r.irreps))
+    dimL = repL.dim
+    dimR = repR.dim
+    target = sorted(set(repL.irreps).intersection(repR.irreps))
     if not target:
         raise ValueError("Representations have no common irrep")
     # optimal would be to fuse only on target. Currently only truncate to max_spin
-    prod_l.truncate_max_spin(target[-1])
-    prod_r.truncate_max_spin(target[-1])
-    proj_l = get_projector_chained(*rep_left_enum)
-    proj_l = np.ascontiguousarray(proj_l.reshape(ldim, -1)[:, : prod_l.dim])
-    proj_r = get_projector_chained(*rep_right_enum)
-    proj_r = np.ascontiguousarray(proj_r.reshape(rdim, -1)[:, : prod_r.dim])
-    proj = get_projector(prod_l, prod_r, max_spin=1)
-    singlet_dim = proj.shape[2]
+    repL.truncate_max_spin(target[-1])
+    repR.truncate_max_spin(target[-1])
+    projL = get_projector_chained(*rep_left_enum)
+    projL = np.ascontiguousarray(projL.reshape(dimL, -1)[:, : repL.dim])
+    projR = get_projector_chained(*rep_right_enum)
+    projR = np.ascontiguousarray(projR.reshape(dimR, -1)[:, : repR.dim])
+    projLR = get_projector(repL, repR, max_spin=1)
+    singlet_dim = projLR.shape[2]
 
     if conj_right:  # same as conjugating input irrep, with smaller dimensions
-        proj_r = proj_r @ prod_r.get_conjugator()
+        projR = projR @ repR.get_conjugator()
     # contract projectors following optimal contraction path
-    cost_lr = prod_r.dim * ldim * (prod_l.dim + rdim)
-    cost_rl = prod_l.dim * rdim * (prod_r.dim + ldim)
-    if cost_lr < cost_rl:
-        proj = proj_l @ proj.reshape(prod_l.dim, prod_r.dim * singlet_dim)
-        del proj_l
-        proj = proj.reshape(ldim, prod_r.dim, singlet_dim).swapaxes(0, 1).copy()
-        proj = proj_r @ proj.reshape(prod_r.dim, ldim * singlet_dim)
-        del proj_r
-        proj = proj.reshape(rdim, ldim, singlet_dim).swapaxes(0, 1).copy()
+    costLR = repR.dim * dimL * (repL.dim + dimR)
+    costRL = repL.dim * dimR * (repR.dim + dimL)
+    if costLR < costRL:
+        projLR = projL @ projLR.reshape(repL.dim, repR.dim * singlet_dim)
+        del projL
+        projLR = projLR.reshape(dimL, repR.dim, singlet_dim).swapaxes(0, 1).copy()
+        projLR = projR @ projLR.reshape(repR.dim, dimL * singlet_dim)
+        del projR
+        projLR = projLR.reshape(dimR, dimL, singlet_dim).swapaxes(0, 1).copy()
     else:
-        proj = proj.swapaxes(0, 1).reshape(prod_r.dim, prod_l.dim * singlet_dim)
-        proj = (proj_r @ proj).reshape(rdim, prod_l.dim, singlet_dim)
-        del proj_r
-        proj = proj.swapaxes(0, 1).reshape(prod_l.dim, rdim * singlet_dim)
-        proj = proj_l @ proj
-    proj = proj.reshape(
+        projLR = projLR.swapaxes(0, 1).reshape(repR.dim, repL.dim * singlet_dim)
+        projLR = (projR @ projLR).reshape(dimR, repL.dim, singlet_dim)
+        del projR
+        projLR = projLR.swapaxes(0, 1).reshape(repL.dim, dimR * singlet_dim)
+        projLR = projL @ projLR
+    projLR = projLR.reshape(
         tuple(r.dim for r in rep_left_enum)
         + tuple(r.dim for r in rep_right_enum)
         + (singlet_dim,)
     )
-    return proj
+    return projLR
 
 
 def construct_transpose_matrix(
