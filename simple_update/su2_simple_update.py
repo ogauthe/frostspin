@@ -385,9 +385,10 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
             raise ValueError("invalid shape for Hamiltonian")
 
         phys = SU2_Representation.irrep(d)
-        proj = construct_matrix_projector((phys, phys), (phys, phys), conj_right=True)
-        proj = proj.reshape(d ** 4, d)
-        h_raw_data = proj.T @ h.ravel()
+        proj, ind = construct_matrix_projector(
+            (phys, phys), (phys, phys), conj_right=True, reorder=False
+        )
+        h_raw_data = proj.T @ h.ravel()[ind]
         return cls(
             Dstar,
             0.0,
