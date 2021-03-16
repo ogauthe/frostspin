@@ -431,7 +431,7 @@ def construct_matrix_projector(
 
     # full_proj_U1 is *not* a valid BlockMatrixU1 because of unsorted indices in block
     if reorder:
-        ind_sort = np.argsort(ind_in)
+        ind_sort = np.argsort(ind_in)  # TODO: check if heapq.merge is faster
         full_proj_U1 = np.ascontiguousarray(full_proj_U1[ind_sort])
         return BlockMatrixU1(
             (dimL * dimR, singlet_dim),
@@ -484,21 +484,32 @@ def construct_transpose_matrix(
     proj1, nnz1 = construct_matrix_projector(
         representations[:n_bra_leg1], representations[n_bra_leg1:], reorder=False
     )
-    so1 = np.argsort(nnz1)
-    nnz1 = nnz1[so1]
-    proj1 = proj1[so1]
 
     rep_bra2 = tuple(representations[i] for i in swap[:n_bra_leg2])
     rep_ket2 = tuple(representations[i] for i in swap[n_bra_leg2:])
     proj2, nnz2 = construct_matrix_projector(rep_bra2, rep_ket2, reorder=False)
 
     # so, now we have initial shape projector and output shape projector, with only
-    # Sz=0 block and swap rows for both. We need to reorder rows to contract them.
+    # Sz=0 block and swapped rows for both. We need to reorder rows to contract them.
+    # proj1 has rows according to nnz1. proj2 has rows according to nnz2, which refers
+    # to transposed full tensor. It is more efficient to swap only one matrix.
+
+    # 1) reformulate nnz1 in terms of proj2 leg ordering
     sh2 = tuple(r.dim for r in rep_bra2) + tuple(r.dim for r in rep_ket2)
     cumprod1 = np.array((1,) + sh1[:0:-1]).cumprod()[::-1]
     cumprod2 = np.array((1,) + sh2[:0:-1]).cumprod()[::-1]
-    swapped_nnz1 = (nnz1[:, None] // cumprod1 % sh1)[:, swap] @ cumprod2
-    proj2 = proj2[np.argsort(nnz2)][np.argsort(np.argsort(swapped_nnz1))]
+    transposed_nnz1 = (nnz1[:, None] // cumprod1 % sh1)[:, swap] @ cumprod2
+
+    # 2) transposed_nnz1 and nnz2 contain the same values in different order. We want
+    # the permutation linking them. Better to sort first then use binary search.
+    so1 = np.argsort(transposed_nnz1)
+    sorted_transposed_nnz1 = transposed_nnz1[so1]
+    perm = np.searchsorted(sorted_transposed_nnz1, nnz2)
+
+    # 3) perm sends nnz2 to sorted_transposed_nnz1. We can first swap proj2 according
+    # to perm, then re-swap it under argsort(so1) - or in one row swap proj2 according
+    # to perm[argsort[so1] - to get transposed_nnz1. Avoid 2nd sort by swapping perm1
+    proj1 = proj1[so1[perm]]
     if contract:
         return proj2.T @ proj1
     return proj2, proj1
