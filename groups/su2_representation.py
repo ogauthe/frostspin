@@ -7,7 +7,7 @@ import numpy as np
 import scipy.linalg as lg
 from numba import jit
 
-from groups.toolsU1 import combine_colors
+from groups.toolsU1 import combine_colors, BlockMatrixU1
 
 
 def compute_CG(max_irr=22):
@@ -345,7 +345,9 @@ def get_projector_chained(*rep_in, singlet_only=False):
     return proj
 
 
-def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
+def construct_matrix_projector(
+    rep_left_enum, rep_right_enum, conj_right=False, reorder=True
+):
     r"""
                 list of matrices
                 /          \
@@ -355,6 +357,10 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
             /\              /\
            /\ \            /\ \
          rep_left        rep_right
+
+    if reorder, returns a BlockMatrixU1 with Sz=0 only block
+    if not reorder, returns a tuple (proj, indices), where proj is the Sz=0 block with
+    unsorted row indices and indices are the indices of the full matrix.
     """
     repL = rep_left_enum[0].copy()  # need copy to truncate if n_rep_left = 1
     for rep in rep_left_enum[1:]:
@@ -366,42 +372,75 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     dimL = repL.dim
     dimR = repR.dim
     target = sorted(set(repL.irreps).intersection(repR.irreps))
+    # TODO: deal separetly with integer and half-integer spins. Remove spins that are
+    # not in target in both left and right.
     if not target:
         raise ValueError("Representations have no common irrep")
-    # optimal would be to fuse only on target. Currently only truncate to max_spin
+    if repL.has_integer_spin() and repL.has_half_integer_spin():
+        raise NotImplementedError("Cannot mix integer and half integer spins yet")
+    if repR.has_integer_spin() and repR.has_half_integer_spin():
+        raise NotImplementedError("Cannot mix integer and half integer spins yet")
+
+    # current implementation: only half-integer OR only integer. Once truncated, same
+    # Sz sectors in left and right projectors, can use U(1) efficiently.
     repL.truncate_max_spin(target[-1])
     repR.truncate_max_spin(target[-1])
+
     projL = get_projector_chained(*rep_left_enum)
     projL = np.ascontiguousarray(projL.reshape(dimL, -1)[:, : repL.dim])
+    szL_in = combine_colors(*(r.get_Sz() for r in rep_left_enum))
+    szL_out = repL.get_Sz()
+    projL_U1 = BlockMatrixU1.from_dense(projL, szL_in, szL_out)
+    del projL
+
     projR = get_projector_chained(*rep_right_enum)
     projR = np.ascontiguousarray(projR.reshape(dimR, -1)[:, : repR.dim])
-    projLR = get_projector(repL, repR, max_spin=1)
-    singlet_dim = projLR.shape[2]
-
+    szR_in = combine_colors(*(r.get_Sz() for r in rep_right_enum))
+    szR_out = repR.get_Sz()
     if conj_right:  # same as conjugating input irrep, with smaller dimensions
         projR = projR @ repR.get_conjugator()
-    # contract projectors following optimal contraction path
-    costLR = repR.dim * dimL * (repL.dim + dimR)
-    costRL = repL.dim * dimR * (repR.dim + dimL)
-    if costLR < costRL:
-        projLR = projL @ projLR.reshape(repL.dim, repR.dim * singlet_dim)
-        del projL
-        projLR = projLR.reshape(dimL, repR.dim, singlet_dim).swapaxes(0, 1).copy()
-        projLR = projR @ projLR.reshape(repR.dim, dimL * singlet_dim)
-        del projR
-        projLR = projLR.reshape(dimR, dimL, singlet_dim).swapaxes(0, 1).copy()
-    else:
-        projLR = projLR.swapaxes(0, 1).reshape(repR.dim, repL.dim * singlet_dim)
-        projLR = (projR @ projLR).reshape(dimR, repL.dim, singlet_dim)
-        del projR
-        projLR = projLR.swapaxes(0, 1).reshape(repL.dim, dimR * singlet_dim)
-        projLR = projL @ projLR
-    projLR = projLR.reshape(
-        tuple(r.dim for r in rep_left_enum)
-        + tuple(r.dim for r in rep_right_enum)
-        + (singlet_dim,)
-    )
-    return projLR
+        szR_in = -szR_in  # read-only
+
+    projR_U1 = BlockMatrixU1.from_dense(projR, szR_in, szR_out)
+    del projR
+
+    projLR = get_projector(repL, repR, max_spin=1)
+    singlet_dim = projLR.shape[2]
+    projLR = projLR.reshape(-1, singlet_dim)
+
+    sz_0_blocks = [
+        bL.shape[0] * bR.shape[0]
+        for (bL, bR) in zip(projL_U1.blocks, projR_U1.blocks[::-1])
+    ]
+    sz_0_dim = sum(sz_0_blocks)
+    full_proj_U1 = np.empty((sz_0_dim, projLR.shape[1]))
+    ind_in = np.empty(sz_0_dim, dtype=int)
+    k = 0
+    for bi, bdim in enumerate(sz_0_blocks):
+        m = np.kron(projL_U1.blocks[bi], projR_U1.blocks[-bi - 1])
+        ind_in[k : k + bdim] = (
+            (projL_U1.row_indices[bi] * projR_U1.shape[0])[:, None]
+            + projR_U1.row_indices[-bi - 1]
+        ).ravel()
+        ind_out = (
+            (projL_U1.col_indices[bi] * projR_U1.shape[1])[:, None]
+            + projR_U1.col_indices[-bi - 1]
+        ).ravel()
+        full_proj_U1[k : k + bdim] = m @ projLR[ind_out]
+        k += bdim
+
+    # full_proj_U1 is *not* a valid BlockMatrixU1 because of unsorted indices in block
+    if reorder:
+        ind_sort = np.argsort(ind_in)
+        full_proj_U1 = np.ascontiguousarray(full_proj_U1[ind_sort])
+        return BlockMatrixU1(
+            (dimL * dimR, singlet_dim),
+            (0,),
+            (full_proj_U1,),
+            (ind_in[ind_sort],),
+            (np.arange(singlet_dim),),
+        )
+    return full_proj_U1, ind_in
 
 
 def construct_transpose_matrix(
