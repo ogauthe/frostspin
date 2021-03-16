@@ -62,6 +62,7 @@ def construct_projectors_U1(corner1, corner2, corner3, corner4, chi, cutoff=1e-1
         Pt[proj_indices, k : k + d] = rt @ v[:d].T.conj()
         k += d
 
+    # TODO: benchmark with heapq.nlargest(chi, range(k), lambda i: S[i])
     s_sort = S[:k].argsort()[::-1]
     S = S[s_sort]
     cut = min(chi, (S > cutoff * S[0]).nonzero()[0][-1] + 1)
