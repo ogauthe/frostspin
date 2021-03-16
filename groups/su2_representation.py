@@ -480,26 +480,25 @@ def construct_transpose_matrix(
         returned.
     """
     assert len(representations) == len(swap)
-    proj1 = construct_matrix_projector(
-        representations[:n_bra_leg1], representations[n_bra_leg1:]
+    sh1 = tuple(r.dim for r in representations)
+    proj1, nnz1 = construct_matrix_projector(
+        representations[:n_bra_leg1], representations[n_bra_leg1:], reorder=False
     )
+    so1 = np.argsort(nnz1)
+    nnz1 = nnz1[so1]
+    proj1 = proj1[so1]
 
-    # reduce to Sz=0 rows, others are empty
-    nnz_indices = (
-        combine_colors(*(rep.get_Sz() for rep in representations)) == 0
-    ).nonzero()[0]
-    sh1 = proj1.shape[:-1]
-    proj1 = proj1.reshape(-1, proj1.shape[-1])[nnz_indices]
+    rep_bra2 = tuple(representations[i] for i in swap[:n_bra_leg2])
+    rep_ket2 = tuple(representations[i] for i in swap[n_bra_leg2:])
+    proj2, nnz2 = construct_matrix_projector(rep_bra2, rep_ket2, reorder=False)
 
-    proj2 = construct_matrix_projector(
-        [representations[i] for i in swap[:n_bra_leg2]],
-        [representations[i] for i in swap[n_bra_leg2:]],
-    )
-    # reduce proj2 to Sz=0 block AND sparse transpose it
+    # so, now we have initial shape projector and output shape projector, with only
+    # Sz=0 block and swap rows for both. We need to reorder rows to contract them.
+    sh2 = tuple(r.dim for r in rep_bra2) + tuple(r.dim for r in rep_ket2)
     cumprod1 = np.array((1,) + sh1[:0:-1]).cumprod()[::-1]
-    cumprod2 = np.array((1,) + proj2.shape[-2:0:-1]).cumprod()[::-1]
-    nnz_indices = (nnz_indices[:, None] // cumprod1 % sh1)[:, swap] @ cumprod2
-    proj2 = proj2.reshape(-1, proj2.shape[-1])[nnz_indices]
+    cumprod2 = np.array((1,) + sh2[:0:-1]).cumprod()[::-1]
+    swapped_nnz1 = (nnz1[:, None] // cumprod1 % sh1)[:, swap] @ cumprod2
+    proj2 = proj2[np.argsort(nnz2)][np.argsort(np.argsort(swapped_nnz1))]
     if contract:
         return proj2.T @ proj1
     return proj2, proj1
