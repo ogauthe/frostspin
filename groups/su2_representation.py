@@ -417,7 +417,6 @@ def construct_matrix_projector(
     ind_in = np.empty(sz_0_dim, dtype=int)
     k = 0
     for bi, bdim in enumerate(sz_0_blocks):
-        m = np.kron(projL_U1.blocks[bi], projR_U1.blocks[-bi - 1])
         ind_in[k : k + bdim] = (
             (projL_U1.row_indices[bi] * projR_U1.shape[0])[:, None]
             + projR_U1.row_indices[-bi - 1]
@@ -426,6 +425,10 @@ def construct_matrix_projector(
             (projL_U1.col_indices[bi] * projR_U1.shape[1])[:, None]
             + projR_U1.col_indices[-bi - 1]
         ).ravel()
+        # bypass kron, much faster
+        sh = projL_U1.blocks[bi].shape + projR_U1.blocks[-bi - 1].shape
+        m = projL_U1.blocks[bi].ravel()[:, None] * projR_U1.blocks[-bi - 1].ravel()
+        m = m.reshape(sh).swapaxes(1, 2).reshape(bdim, ind_out.size)
         full_proj_U1[k : k + bdim] = m @ projLR[ind_out]
         k += bdim
 
