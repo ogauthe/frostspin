@@ -548,9 +548,10 @@ class SU2_Matrix(object):
     def from_dense(cls, mat, rep_left_enum, rep_right_enum):
         prod_l = functools.reduce(operator.mul, rep_left_enum)
         prod_r = functools.reduce(operator.mul, rep_right_enum)
-        p = construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=True)
-        p = p.reshape(-1, p.shape[-1])
-        data = p.T @ mat.ravel()
+        proj, ind = construct_matrix_projector(
+            rep_left_enum, rep_right_enum, conj_right=True, reorder=False
+        )
+        data = proj.T @ mat.ravel()[ind]
         return cls.from_raw_data(data, prod_l, prod_r)
 
     def to_raw_data(self):
