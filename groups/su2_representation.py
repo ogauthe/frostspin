@@ -213,6 +213,12 @@ class SU2_Representation(object):
     def copy(self):  # to save copy before truncation
         return SU2_Representation(self._degen.copy(), self._irreps.copy())
 
+    def has_integer_spin(self):
+        return (self._irreps % 2).any()
+
+    def has_half_integer_spin(self):
+        return (self._irreps % 2 == 0).any()
+
     def get_irrep_degen(self, irr):
         ind = np.searchsorted(self._irreps, irr)
         if ind < self._n_irr and self._irreps[ind] == irr:
