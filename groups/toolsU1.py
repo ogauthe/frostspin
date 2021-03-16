@@ -303,8 +303,9 @@ def combine_colors(*colors):
     if not colors[0].size:
         return default_color
     combined = colors[0]
-    for c in colors[1:]:
-        combined = (combined.reshape(-1, 1) + c).ravel()
+    if len(colors) > 1:
+        for c in colors[1:]:
+            combined = (combined.reshape(-1, 1) + c).ravel()
     return combined
 
 
