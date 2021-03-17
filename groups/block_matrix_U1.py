@@ -1,3 +1,5 @@
+import bisect
+
 import numpy as np
 from numba import jit, literal_unroll
 
@@ -99,14 +101,15 @@ class BlockMatrixU1(object):
 
     def __init__(self, shape, block_colors, blocks, row_indices, col_indices):
         """
-        Initialize block matrix. Empty matrices are not allowed.
+        Initialize block matrix. Empty matrices are not allowed. block_colors must be
+        sorted and the other lists must follow the same order.
 
         Parameters
         ----------
         shape : tuple of two int
             Dense matrix shape.
         block_colors : (k,) list of int
-            List of U(1) quantum numbers for every blocks.
+            List of *sorted* U(1) quantum numbers for every blocks.
         blocks : (k,) list of ndarray
             List of dense blocks with fixed quantum number.
         row_indices : (k,) list of interger 1D arrays
@@ -126,6 +129,7 @@ class BlockMatrixU1(object):
         self._blocks = tuple(blocks)
         self._row_indices = tuple(row_indices)
         self._col_indices = tuple(col_indices)
+        assert tuple(sorted(block_colors)) == self._block_colors
 
     @classmethod
     def from_dense(cls, M, row_colors, col_colors):
@@ -215,7 +219,7 @@ class BlockMatrixU1(object):
         )
 
     def get_block_row_col_with_color(self, color):
-        i = self._block_colors.index(color)
+        i = bisect.bisect_left(self._block_colors, color)
         return self._blocks[i], self._row_indices[i], self._col_indices[i]
 
     def norm(self):
