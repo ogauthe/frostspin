@@ -7,7 +7,8 @@ import numpy as np
 import scipy.linalg as lg
 from numba import jit
 
-from groups.toolsU1 import combine_colors, BlockMatrixU1
+from groups.toolsU1 import combine_colors
+from groups.block_matrix_U1 import BlockMatrixU1
 
 
 def compute_CG(max_irr=22):

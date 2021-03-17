@@ -4,7 +4,7 @@ from ctmrg.ctm_contract import (
     contract_open_corner,
     contract_open_corner_mirror,
 )
-from groups.toolsU1 import BlockMatrixU1
+from groups.block_matrix_U1 import BlockMatrixU1
 
 
 def rdm_1x2(C1, T1l, T1r, C2, T4, Al, Ar, T2, C4, T3l, T3r, C3):
