@@ -1,7 +1,7 @@
 import numpy as np
 
-from groups.su2_representation import (
-    SU2_Representation,
+from groups.su2_representation import SU2_Representation
+from groups.su2_matrix import (
     SU2_Matrix,
     construct_matrix_projector,
     construct_transpose_matrix,
