@@ -154,7 +154,7 @@ class SU2_Representation(object):
         return self._irreps
 
     @property
-    def max_spin(self):
+    def max_irrep(self):
         return self._irreps[-1]
 
     def __eq__(self, other):
@@ -219,11 +219,11 @@ class SU2_Representation(object):
             return self._degen[ind]
         return 0
 
-    def truncate_max_spin(self, max_spin):
+    def truncate_max_irrep(self, max_irrep):
         """
-        Truncate any spin strictly greater than max_spin. Returns updated dimension.
+        Truncate any spin strictly greater than max_irrep. Returns updated dimension.
         """
-        ind = np.searchsorted(self._irreps, max_spin + 1)
+        ind = np.searchsorted(self._irreps, max_irrep + 1)
         if ind < self._n_irr:
             self._degen = self._degen[:ind]
             self._irreps = self._irreps[:ind]

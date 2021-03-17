@@ -10,10 +10,10 @@ from groups.block_matrix_U1 import BlockMatrixU1
 from groups.su2_representation import SU2_Representation
 
 
-def get_projector(in1, in2, max_spin=np.inf):
-    # max_spin cannot be set to None since irr3 loop depends on it
+def get_projector(in1, in2, max_irrep=np.inf):
+    # max_irrep cannot be set to None since irr3 loop depends on it
     out = in1 * in2
-    out.truncate_max_spin(max_spin)
+    out.truncate_max_irrep(max_irrep)
     p = np.zeros((in1.dim, in2.dim, out.dim))
     shift3 = np.zeros(out.irreps[-1] + 1, dtype=int)
     n = 0
@@ -27,7 +27,7 @@ def get_projector(in1, in2, max_spin=np.inf):
             d2 = in2.degen[i2]
             ar = np.arange(d2)
             sl2 = slice(cs2[i2], cs2[i2] + d2 * irr2)
-            for irr3 in range(abs(irr1 - irr2) + 1, min(irr1 + irr2, max_spin + 1), 2):
+            for irr3 in range(abs(irr1 - irr2) + 1, min(irr1 + irr2, max_irrep + 1), 2):
                 sh = (irr1, d2, irr2, d2, irr3)
                 p123 = SU2_Representation.elementary_projectors[irr1, irr2, irr3]
                 shift1 = cs1[i1]
@@ -65,17 +65,17 @@ def get_projector_chained(*rep_in, singlet_only=False):
         if forwards[-1].irreps[0] != 1:
             raise ValueError("No singlet in product")
         truncations = [1]
-        forwards[-1].truncate_max_spin(1)
+        forwards[-1].truncate_max_irrep(1)
         for (f, b) in zip(reversed(forwards[:-1]), backwards[:-1]):
-            trunc = b.max_spin
-            f.truncate_max_spin(trunc)
+            trunc = b.max_irrep
+            f.truncate_max_irrep(trunc)
             truncations.append(trunc)
     else:
         truncations = [np.inf] * len(rep_in)
 
     proj = np.eye(rep_in[0].dim)
     for (f, rep, trunc) in zip(forwards, rep_in[1:], reversed(truncations[:-1])):
-        p = get_projector(f, rep, max_spin=trunc)
+        p = get_projector(f, rep, max_irrep=trunc)
         proj = np.tensordot(proj, p, ((-1,), (0,)))
     return proj
 
@@ -107,19 +107,13 @@ def construct_matrix_projector(
     dimL = repL.dim
     dimR = repR.dim
     target = sorted(set(repL.irreps).intersection(repR.irreps))
-    # TODO: deal separetly with integer and half-integer spins. Remove spins that are
-    # not in target in both left and right.
+    max_irr = target[-1]
     if not target:
         raise ValueError("Representations have no common irrep")
-    if repL.has_integer_spin() and repL.has_half_integer_spin():
-        raise NotImplementedError("Cannot mix integer and half integer spins yet")
-    if repR.has_integer_spin() and repR.has_half_integer_spin():
-        raise NotImplementedError("Cannot mix integer and half integer spins yet")
-
-    # current implementation: only half-integer OR only integer. Once truncated, same
-    # Sz sectors in left and right projectors, can use U(1) efficiently.
-    repL.truncate_max_spin(target[-1])
-    repR.truncate_max_spin(target[-1])
+    repL.truncate_max_irrep(max_irr)
+    repR.truncate_max_irrep(max_irr)
+    if target != list(repL.irreps) or target != list(repR.irreps):  # TODO
+        raise NotImplementedError("TODO: remove irreps that will not fuse")
 
     projL = get_projector_chained(*rep_left_enum)
     szL_in = combine_colors(*(r.get_Sz() for r in rep_left_enum))
