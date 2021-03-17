@@ -387,21 +387,23 @@ def construct_matrix_projector(
     repR.truncate_max_spin(target[-1])
 
     projL = get_projector_chained(*rep_left_enum)
-    projL = np.ascontiguousarray(projL.reshape(dimL, -1)[:, : repL.dim])
     szL_in = combine_colors(*(r.get_Sz() for r in rep_left_enum))
     szL_out = repL.get_Sz()
-    projL_U1 = BlockMatrixU1.from_dense(projL, szL_in, szL_out)
+    projL_U1 = BlockMatrixU1.from_dense(
+        projL.reshape(dimL, -1)[:, : repL.dim], szL_in, szL_out
+    )
     del projL
 
     projR = get_projector_chained(*rep_right_enum)
-    projR = np.ascontiguousarray(projR.reshape(dimR, -1)[:, : repR.dim])
     szR_in = combine_colors(*(r.get_Sz() for r in rep_right_enum))
     szR_out = repR.get_Sz()
     if conj_right:  # same as conjugating input irrep, with smaller dimensions
         projR = projR @ repR.get_conjugator()
         szR_in = -szR_in  # read-only
 
-    projR_U1 = BlockMatrixU1.from_dense(projR, szR_in, szR_out)
+    projR_U1 = BlockMatrixU1.from_dense(
+        projR.reshape(dimR, -1)[:, : repR.dim], szR_in, szR_out
+    )
     del projR
 
     projLR = get_projector(repL, repR, max_spin=1)
