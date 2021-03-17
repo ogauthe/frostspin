@@ -40,10 +40,12 @@ def construct_projectors_U1(corner1, corner2, corner3, corner4, chi, cutoff=1e-1
         .intersection(corner4.block_colors)
     )
     for c in shared:
-        m1, _, _ = corner1.get_block_row_col_with_color(c)
-        m2, _, proj_indices = corner2.get_block_row_col_with_color(c)
-        m3, _, _ = corner3.get_block_row_col_with_color(c)
-        m4, _, _ = corner4.get_block_row_col_with_color(c)
+        m1 = corner1.blocks[corner1.get_color_index(c)]
+        i2 = corner2.get_color_index(c)
+        m2 = corner2.blocks[i2]
+        proj_indices = corner2.col_indices[i2]
+        m3 = corner3.blocks[corner3.get_color_index(c)]
+        m4 = corner4.blocks[corner4.get_color_index(c)]
 
         r = m1 @ m2
         rt = m3 @ m4

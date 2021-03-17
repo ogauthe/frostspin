@@ -218,9 +218,8 @@ class BlockMatrixU1(object):
             self._shape, self._blocks, self._row_indices, self._col_indices
         )
 
-    def get_block_row_col_with_color(self, color):
-        i = bisect.bisect_left(self._block_colors, color)
-        return self._blocks[i], self._row_indices[i], self._col_indices[i]
+    def get_color_index(self, color):
+        return bisect.bisect_left(self._block_colors, color)
 
     def norm(self):
         norm2 = 0.0
