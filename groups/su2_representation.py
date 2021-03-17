@@ -196,10 +196,7 @@ class SU2_Representation(object):
         return SU2_Representation(degen, irreps)
 
     def __repr__(self):
-        s = ""
-        for (d1, irr1) in zip(self._degen, self._irreps):
-            s += f" + {d1}*{irr1}"
-        return s[3:]
+        return " + ".join(f"{d}*{irr}" for (d, irr) in zip(self._degen, self._irreps))
 
     def __hash__(self):
         return hash(repr(self))  # quick and dirty
