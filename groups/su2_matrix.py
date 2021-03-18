@@ -107,74 +107,85 @@ def construct_matrix_projector(
     dimL = repL.dim
     dimR = repR.dim
     target = sorted(set(repL.irreps).intersection(repR.irreps))
-    max_irr = target[-1]
     if not target:
         raise ValueError("Representations have no common irrep")
-    repL.truncate_max_irrep(max_irr)
-    repR.truncate_max_irrep(max_irr)
+    repL.truncate_max_irrep(target[-1])
+    repR.truncate_max_irrep(target[-1])
     if target != list(repL.irreps) or target != list(repR.irreps):  # TODO
         raise NotImplementedError("TODO: remove irreps that will not fuse")
 
-    projL = get_projector_chained(*rep_left_enum)
-    szL_in = combine_colors(*(r.get_Sz() for r in rep_left_enum))
-    szL_out = repL.get_Sz()
     projL_U1 = BlockMatrixU1.from_dense(
-        projL.reshape(dimL, -1)[:, : repL.dim], szL_in, szL_out
+        get_projector_chained(*rep_left_enum).reshape(dimL, -1)[:, : repL.dim],
+        combine_colors(*(r.get_Sz() for r in rep_left_enum)),
+        repL.get_Sz(),
     )
-    del projL
 
-    projR = get_projector_chained(*rep_right_enum)
+    projR = get_projector_chained(*rep_right_enum).reshape(dimR, -1)[:, : repR.dim]
     szR_in = combine_colors(*(r.get_Sz() for r in rep_right_enum))
-    szR_out = repR.get_Sz()
     if conj_right:  # same as conjugating input irrep, with smaller dimensions
         projR = projR @ repR.get_conjugator()
         szR_in = -szR_in  # read-only
 
-    projR_U1 = BlockMatrixU1.from_dense(
-        projR.reshape(dimR, -1)[:, : repR.dim], szR_in, szR_out
-    )
+    projR_U1 = BlockMatrixU1.from_dense(projR, szR_in, repR.get_Sz())
     del projR
 
-    projLR = get_projector(repL, repR, max_spin=1)
-    singlet_dim = projLR.shape[2]
-    projLR = projLR.reshape(-1, singlet_dim)
+    nrows = 0
+    slice_in_blocks = []
+    indices_in = []
+    for i in range(projL_U1.nblocks):
+        block_dim = projL_U1.blocks[i].shape[0] * projR_U1.blocks[-i - 1].shape[0]
+        slice_in_blocks.append(slice(nrows, nrows + block_dim))
+        indices_in.extend(
+            (
+                (projL_U1.row_indices[i] * projR_U1.shape[0])[:, None]
+                + projR_U1.row_indices[-i - 1]
+            ).ravel()
+        )
+        nrows += block_dim
 
-    sz_0_blocks = [
-        bL.shape[0] * bR.shape[0]
-        for (bL, bR) in zip(projL_U1.blocks, projR_U1.blocks[::-1])
-    ]
-    sz_0_dim = sum(sz_0_blocks)
-    full_proj_U1 = np.empty((sz_0_dim, projLR.shape[1]))
-    ind_in = np.empty(sz_0_dim, dtype=int)
-    k = 0
-    for bi, bdim in enumerate(sz_0_blocks):
-        ind_in[k : k + bdim] = (
-            (projL_U1.row_indices[bi] * projR_U1.shape[0])[:, None]
-            + projR_U1.row_indices[-bi - 1]
-        ).ravel()
-        ind_out = (
-            (projL_U1.col_indices[bi] * projR_U1.shape[1])[:, None]
-            + projR_U1.col_indices[-bi - 1]
-        ).ravel()
-        # bypass kron, much faster
-        sh = projL_U1.blocks[bi].shape + projR_U1.blocks[-bi - 1].shape
-        m = projL_U1.blocks[bi].ravel()[:, None] * projR_U1.blocks[-bi - 1].ravel()
-        m = m.reshape(sh).swapaxes(1, 2).reshape(bdim, ind_out.size)
-        full_proj_U1[k : k + bdim] = m @ projLR[ind_out]
-        k += bdim
+    indices_in = np.array(indices_in)
+    singlet_dim = repL.degen @ repR.degen
+    shift_out = 0
+    shiftL = np.zeros(projL_U1.nblocks, dtype=int)
+    shiftR = np.zeros(projR_U1.nblocks, dtype=int)
+    full_proj = np.zeros((nrows, singlet_dim))
+    for i, irr in enumerate(target):
+        degenL = repL.degen[i]
+        degenR = repR.degen[i]
+        slice_out = slice(shift_out, shift_out + degenL * degenR)
+        shift_out += degenL * degenR
+        for j in range(irr):
+            mz = irr - 1 - 2 * j
+            biL = projL_U1.get_color_index(mz)
+            biR = projR_U1.nblocks - biL - 1
+            matL = projL_U1.blocks[biL][:, shiftL[biL] : shiftL[biL] + degenL]
+            matR = projR_U1.blocks[biR][:, shiftR[biR] : shiftR[biR] + degenR]
+            if matL.size < matR.size:  # singlet proj = anti_diag(-1**i)/sqrt(irr)
+                matL = (1 - (irr + mz) // 2 % 2 * 2) / np.sqrt(irr) * matL
+            else:
+                matR = (1 - (irr + mz) // 2 % 2 * 2) / np.sqrt(irr) * matR
+            shiftL[biL] += degenL
+            shiftR[biR] += degenR
+            m = (
+                (matL.ravel()[:, None] * matR.ravel())
+                .reshape(matL.shape + matR.shape)
+                .swapaxes(1, 2)
+                .reshape(-1, degenL * degenR)
+            )
+            full_proj[slice_in_blocks[biL], slice_out] = m
 
-    # full_proj_U1 is *not* a valid BlockMatrixU1 because of unsorted indices in block
+    # full_proj is *not* a valid BlockMatrixU1 because of unsorted indices in only block
     if reorder:
-        ind_sort = np.argsort(ind_in)  # TODO: check if heapq.merge is faster
-        full_proj_U1 = np.ascontiguousarray(full_proj_U1[ind_sort])
+        ind_sort = indices_in.argsort()  # TODO: check if heapq.merge is faster
+        full_proj = np.ascontiguousarray(full_proj[ind_sort])
         return BlockMatrixU1(
             (dimL * dimR, singlet_dim),
             (0,),
-            (full_proj_U1,),
-            (ind_in[ind_sort],),
+            (full_proj,),
+            (indices_in[ind_sort],),
             (np.arange(singlet_dim),),
         )
-    return full_proj_U1, ind_in
+    return full_proj, indices_in
 
 
 def construct_transpose_matrix(
