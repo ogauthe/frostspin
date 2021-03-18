@@ -344,9 +344,12 @@ class SU2_Matrix(object):
             rep_left_enum = (self._rep_left,)
         if rep_right_enum is None:
             rep_right_enum = (self._rep_right,)
-        p = construct_matrix_projector(rep_left_enum, rep_right_enum, True)
-        t = np.dot(p, self.to_raw_data())
-        return t.reshape(self.shape)
+        proj, ind = construct_matrix_projector(
+            rep_left_enum, rep_right_enum, conj_right=True, reorder=False
+        )
+        ar = np.zeros(self._rep_left.dim * self._rep_right.dim)
+        ar[ind] = proj @ self.to_raw_data()
+        return ar.reshape(self.shape)
 
     def __repr__(self):
         s = "SU2_Matrix with irreps and shapes:\n"
