@@ -210,8 +210,8 @@ class SU2_SimpleUpdate(object):
         Compute the entanglement entropy on every bonds as s_ent = -sum_i p_i log_p_i
         """
         s_ent = np.empty(self._n_bonds)
-        for i, w in enumerate(self._weights):
-            s_ent[i] = -w * np.log(w) @ self._virt_rep_list[i].get_multiplet_structure()
+        for i, (w, rep) in enumerate(zip(self._weights, self._bond_representations)):
+            s_ent[i] = -w * np.log(w) @ rep.get_multiplet_structure()
         return s_ent
 
     def get_tensors(self):
