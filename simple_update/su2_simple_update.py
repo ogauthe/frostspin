@@ -214,6 +214,26 @@ class SU2_SimpleUpdate(object):
             s_ent[i] = -w * np.log(w) @ rep.get_multiplet_structure()
         return s_ent
 
+    def get_dense_weights(self, sort=True):
+        """
+        Return simple update weights for each bond with degeneracies.
+        """
+        dense_weights = []
+        for (w, rep) in zip(self._weights, self._bond_representations):
+            dw = np.empty(rep.dim)
+            w_index = 0
+            dw_index = 0
+            for (deg, irr) in zip(rep.degen, rep.irreps):
+                for i in range(deg):
+                    dw[dw_index : dw_index + irr] = w[w_index]
+                    w_index += 1
+                    dw_index += irr
+            if sort:
+                dw.sort()
+                dw = dw[::-1]
+            dense_weights.append(dw)
+        return dense_weights
+
     def get_tensors(self):
         """
         Return optimized tensors.
