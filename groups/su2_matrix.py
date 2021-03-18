@@ -243,17 +243,21 @@ def construct_transpose_matrix(
     sh2 = tuple(r.dim for r in rep_bra2) + tuple(r.dim for r in rep_ket2)
     strides1 = np.array((1,) + sh1[:0:-1]).cumprod()[::-1]
     strides2 = np.array((1,) + sh2[:0:-1]).cumprod()[::-1]
-    transposed_nnz1 = (nnz1[:, None] // strides1 % sh1)[:, swap] @ strides2
+    nnz1 = (nnz1[:, None] // strides1 % sh1)[:, swap] @ strides2
 
-    # 2) transposed_nnz1 and nnz2 contain the same values in different order. We want
+    # 2) transposed nnz1 and nnz2 contain the same values in different order. We want
     # the permutation linking them. Better to sort first then use binary search.
-    so1 = transposed_nnz1.argsort()
-    perm = np.searchsorted(transposed_nnz1, nnz2, sorter=so1)
+    so1 = nnz1.argsort()
+    perm = so1[np.searchsorted(nnz1, nnz2, sorter=so1)]
 
-    # 3) perm sends nnz2 to sorted(transposed_nnz1). We can first swap proj2 according
+    # 3) perm sends nnz2 to sorted(transposed nnz1). We can first swap proj2 according
     # to perm, then re-swap it under argsort(so1) - or in one row swap proj2 according
-    # to perm[argsort[so1] - to get transposed_nnz1. Avoid 2nd sort by swapping perm1
-    proj1 = proj1[so1[perm]]
+    # to perm[argsort[so1] - to get transposed nnz1. Avoid 2nd sort by swapping perm.
+
+    # Memory peak is here. Need to store proj1, proj1[perm] and proj2. It is possible
+    # to construct perm before proj2 and gain a factor 3/2, but requires doing twice
+    # construct_transpose_matrix work, arrays excepted.
+    proj1 = proj1[perm]
     if contract:
         return proj2.T @ proj1
     return proj2, proj1
