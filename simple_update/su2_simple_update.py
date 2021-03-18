@@ -519,9 +519,12 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         transposedB = isoB @ self._tensors_data[1]
         matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
 
-        newA, self._weights[i - 1], newB, self._bond_representations[
-            i - 1
-        ] = self.update_first_neighbor(
+        (
+            newA,
+            self._weights[i - 1],
+            newB,
+            self._bond_representations[i - 1],
+        ) = self.update_first_neighbor(
             matA, matB, self._weights[i - 1], self._bond_representations[i - 1], gate
         )
 
