@@ -17,6 +17,11 @@ class SU2_SimpleUpdate(object):
     _unit_cell, _n_bond, _n_hamilt and_n_tensors must be defined in subclasses.
     """
 
+    _unit_cell = NotImplemented
+    _n_bonds = NotImplemented
+    _n_hamilts = NotImplemented
+    _n_tensors = NotImplemented
+
     def __init__(
         self,
         Dstar,
@@ -215,8 +220,7 @@ class SU2_SimpleUpdate(object):
         Tensors are obtained by adding relevant sqrt(lambda) to every leg of gammaX
         For each virtual axis, sort by decreasing weights (instead of SU(2) order)
         """
-        # TODO
-        raise NotImplementedError
+        return NotImplemented
 
     def update_first_neighbor(self, matL0, matR0, weights, virt_mid, gate):
         r"""
