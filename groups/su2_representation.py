@@ -10,19 +10,11 @@ def compute_CG(max_irr=22):
     from sympy.physics.quantum.cg import CG
 
     elementary_projectors = {(1, 1, 1): np.ones((1, 1, 1))}
-    elementary_conj = {1: np.ones((1, 1))}
     for irr1 in range(2, max_irr):
         s1 = sp.Rational(irr1 - 1, 2)
         # singlet x irrep
         elementary_projectors[1, irr1, irr1] = np.eye(irr1)[None]
         elementary_projectors[irr1, 1, irr1] = np.eye(irr1)[:, None]
-
-        # irr1 -> bar(irr1)
-        singlet_proj = sp.zeros(irr1)
-        for i1 in range(irr1):
-            m1 = s1 - i1
-            singlet_proj[i1, irr1 - i1 - 1] = CG(s1, m1, s1, -m1, 0, 0).doit()
-        elementary_conj[irr1] = np.array(sp.sqrt(irr1) * singlet_proj.T, dtype=float)
 
         # irr1 x irr2 = sum irr3
         for irr2 in range(irr1, max_irr):
@@ -39,48 +31,39 @@ def compute_CG(max_irr=22):
                             p[i1, i2, i3] = CG(s1, m1, s2, m2, s3, m3).doit()
                 elementary_projectors[irr1, irr2, irr3] = p
                 elementary_projectors[irr2, irr1, irr3] = p.swapaxes(0, 1).copy()
-    return elementary_projectors, elementary_conj
+    return elementary_projectors
 
 
-def save_CG(savefile, elementary_projectors, elementary_conj):
+def save_CG(savefile, elementary_projectors):
     max_irr = np.array(list(elementary_projectors.keys()))[:, 0].max()
     data = {"_CG_max_irr": max_irr}
     for k in elementary_projectors:
         nk = f"_CG_proj_{k[0]}_{k[1]}_{k[2]}"
         data[nk] = elementary_projectors[k]
-    for k in elementary_conj:
-        nk = f"_CG_conj_{k}"
-        data[nk] = elementary_conj[k]
     np.savez_compressed(savefile, max_irr=max_irr, **data)
-    print(f"saved elementary_projectors and elementary_conj in file {savefile}")
+    print(f"saved elementary_projectors in file {savefile}")
 
 
 def load_CG(savefile):
-    elementary_projectors, elementary_conj = {}, {}
+    elementary_projectors = {}
     with np.load(savefile) as data:
-        for key in filter(lambda k: k[:9] in ("_CG_proj_", "_CG_conj_"), data.files):
-            indices = tuple(map(int, key[9:].split("_")))
-            if len(indices) == 3:
-                elementary_projectors[indices] = data[key]
-            elif len(indices) == 1:
-                elementary_conj[indices[0]] = data[key]
-            else:
-                raise KeyError
-    return elementary_projectors, elementary_conj
+        for key in filter(lambda k: k[:9] in ("_CG_proj_"), data.files):
+            elementary_projectors[tuple(map(int, key[9:].split("_")))] = data[key]
+    return elementary_projectors
 
 
 def get_CG(max_irr=22, savefile=None):
     if savefile is None:
         savefile = os.path.join(os.path.dirname(__file__), "_data_CG.npz")
     try:
-        elementary_projectors, elementary_conj = load_CG(savefile)
+        elementary_projectors = load_CG(savefile)
     except FileNotFoundError:
         print(f"File {savefile} not found.")
         print(f"Recompute Clebsch-Gordon with max_irr = {max_irr}.")
-        elementary_projectors, elementary_conj = compute_CG(max_irr)
+        elementary_projectors = compute_CG(max_irr)
         print(f"Done. Save them in file {savefile}")
-        save_CG(savefile, elementary_projectors, elementary_conj)
-    return elementary_projectors, elementary_conj
+        save_CG(savefile, elementary_projectors)
+    return elementary_projectors
 
 
 def su2_irrep_generators(s):
@@ -115,7 +98,7 @@ def product_degen(degen1, irreps1, degen2, irreps2):
 
 
 class SU2_Representation(object):
-    elementary_projectors, elementary_conj = get_CG()
+    elementary_projectors = get_CG()
 
     def __init__(self, degen, irreps):
         """
@@ -241,7 +224,7 @@ class SU2_Representation(object):
         conj = np.zeros((self._dim, self._dim))
         k = 0
         for (d, irr) in zip(self._degen, self._irreps):
-            irrep_conj = SU2_Representation.elementary_conj[irr]
+            irrep_conj = np.diag(1 - np.arange(irr) % 2 * 2)[::-1].copy()
             for i in range(d):
                 conj[k : k + irr, k : k + irr] = irrep_conj
                 k += irr
