@@ -149,7 +149,7 @@ class SU2_SimpleUpdate(object):
             verbosity,
         )
 
-    def save_to_file(self, file):
+    def save_to_file(self, file, additional_data={}):
         """
         Save simple update in given file.
 
@@ -176,7 +176,7 @@ class SU2_SimpleUpdate(object):
             data[f"_SU2_SU_irreps_bond_{i}"] = self._bond_representations[i].irreps
             data[f"_SU2_SU_weights_bond_{i}"] = self._weights[i]
 
-        np.savez_compressed(file, **data)
+        np.savez_compressed(file, **data, **additional_data)
         if self.verbosity > 0:
             print("Simple update data stored in file", file)
 
