@@ -503,15 +503,14 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
 
         # su must be in state 1, after an update on bond 1. This is always true after
         # an evolve call.
-        reps_left = (
+        aux_rep = (
             self._bond_representations[1],
             self._bond_representations[2],
             self._bond_representations[3],
             self._anc,
         )
-        projA, indicesA = construct_matrix_projector(
-            reps_left, (self._phys, self._bond_representations[0]), reorder=False
-        )
+        eff_rep = (self._phys, self._bond_representations[0])
+        projA, indicesA = construct_matrix_projector(aux_rep, eff_rep, reorder=False)
         gammaA = np.zeros(size)
         gammaA[indicesA] = projA @ self._tensors_data[0]
         del projA, indicesA
@@ -522,14 +521,8 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         ]
         gammaA /= np.amax(gammaA)
 
-        reps_right = (
-            self._bond_representations[1],
-            self._bond_representations[2],
-            self._bond_representations[3],
-            self._anc,
-        )
         projB, indicesB = construct_matrix_projector(
-            (self._bond_representations[0], self._phys), reps_right, reorder=False
+            eff_rep[::-1], aux_rep, reorder=False
         )
         gammaB = np.zeros(size)
         gammaB[indicesB] = projB @ self._tensors_data[1]
