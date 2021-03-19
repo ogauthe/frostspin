@@ -80,9 +80,7 @@ def get_projector_chained(*rep_in, singlet_only=False):
     return proj
 
 
-def construct_matrix_projector(
-    rep_left_enum, rep_right_enum, conj_right=False, reorder=True
-):
+def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     r"""
                 list of matrices
                 /          \
@@ -93,9 +91,13 @@ def construct_matrix_projector(
            /\ \            /\ \
          rep_left        rep_right
 
-    if reorder, returns a BlockMatrixU1 with Sz=0 only block
-    if not reorder, returns a tuple (proj, indices), where proj is the Sz=0 block with
-    unsorted row indices and indices are the indices of the full matrix.
+    Returns:
+    --------
+    proj : (M, N) ndarray
+        Projector on singlet, with N is the singlet space dimension and M the Sz=0
+        input sector dimension.
+    indices : (M,) integer ndarray
+        Indices of proj rows in terms of dense matrix labelling.
     """
     repL = rep_left_enum[0].copy()  # need copy to truncate if n_rep_left = 1
     for rep in rep_left_enum[1:]:
@@ -175,16 +177,6 @@ def construct_matrix_projector(
             full_proj[slice_in_blocks[biL], slice_out] = m
 
     # full_proj is *not* a valid BlockMatrixU1 because of unsorted indices in only block
-    if reorder:
-        ind_sort = indices_in.argsort()  # TODO: check if heapq.merge is faster
-        full_proj = np.ascontiguousarray(full_proj[ind_sort])
-        return BlockMatrixU1(
-            (dimL * dimR, singlet_dim),
-            (0,),
-            (full_proj,),
-            (indices_in[ind_sort],),
-            (np.arange(singlet_dim),),
-        )
     return full_proj, indices_in
 
 
@@ -227,12 +219,12 @@ def construct_transpose_matrix(
     assert len(representations) == len(swap)
     sh1 = tuple(r.dim for r in representations)
     proj1, nnz1 = construct_matrix_projector(
-        representations[:n_bra_leg1], representations[n_bra_leg1:], reorder=False
+        representations[:n_bra_leg1], representations[n_bra_leg1:]
     )
 
     rep_bra2 = tuple(representations[i] for i in swap[:n_bra_leg2])
     rep_ket2 = tuple(representations[i] for i in swap[n_bra_leg2:])
-    proj2, nnz2 = construct_matrix_projector(rep_bra2, rep_ket2, reorder=False)
+    proj2, nnz2 = construct_matrix_projector(rep_bra2, rep_ket2)
 
     # so, now we have initial shape projector and output shape projector, with only
     # Sz=0 block and swapped rows for both. We need to reorder rows to contract them.
@@ -307,7 +299,7 @@ class SU2_Matrix(object):
         prod_l = functools.reduce(operator.mul, rep_left_enum)
         prod_r = functools.reduce(operator.mul, rep_right_enum)
         proj, ind = construct_matrix_projector(
-            rep_left_enum, rep_right_enum, conj_right=True, reorder=False
+            rep_left_enum, rep_right_enum, conj_right=True
         )
         data = proj.T @ mat.ravel()[ind]
         return cls.from_raw_data(data, prod_l, prod_r)
@@ -345,7 +337,7 @@ class SU2_Matrix(object):
         if rep_right_enum is None:
             rep_right_enum = (self._rep_right,)
         proj, ind = construct_matrix_projector(
-            rep_left_enum, rep_right_enum, conj_right=True, reorder=False
+            rep_left_enum, rep_right_enum, conj_right=True
         )
         ar = np.zeros(self._rep_left.dim * self._rep_right.dim)
         ar[ind] = proj @ self.to_raw_data()

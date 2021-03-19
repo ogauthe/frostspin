@@ -411,7 +411,7 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
 
         phys = SU2_Representation.irrep(d)
         proj, ind = construct_matrix_projector(
-            (phys, phys), (phys, phys), conj_right=True, reorder=False
+            (phys, phys), (phys, phys), conj_right=True
         )
         h_raw_data = proj.T @ h.ravel()[ind]
         return cls(
@@ -510,7 +510,7 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
             self._anc,
         )
         eff_rep = (self._phys, self._bond_representations[0])
-        projA, indicesA = construct_matrix_projector(aux_rep, eff_rep, reorder=False)
+        projA, indicesA = construct_matrix_projector(aux_rep, eff_rep)
         gammaA = np.zeros(size)
         gammaA[indicesA] = projA @ self._tensors_data[0]
         del projA, indicesA
@@ -521,9 +521,7 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         ]
         gammaA /= np.amax(gammaA)
 
-        projB, indicesB = construct_matrix_projector(
-            eff_rep[::-1], aux_rep, reorder=False
-        )
+        projB, indicesB = construct_matrix_projector(eff_rep[::-1], aux_rep)
         gammaB = np.zeros(size)
         gammaB[indicesB] = projB @ self._tensors_data[1]
         del projB, indicesB
