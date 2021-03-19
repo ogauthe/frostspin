@@ -445,7 +445,6 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
             return  # else evolve for 1 step out of niter loop
         niter = round(beta_evolve / self._dbeta)  # 2nd order: evolve 2*tau by step
 
-        self._reset_tensor_state()  # allows for two bond 1 updates in a row
         self._update_bond(1, self._gates[0], backwards=True)
         for i in range(niter - 1):  # there is 1 step out of the loop
             self._update_bond(2, self._gates[0])
@@ -461,6 +460,7 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         self._update_bond(3, self._gates[0], backwards=True)
         self._update_bond(2, self._gates[0], backwards=True)
         self._update_bond(1, self._gates[0], backwards=True)
+        self._reset_tensor_state()  # always end up ready for update bond 1
         self._beta += self._dbeta
 
     def _reset_tensor_state(self):
@@ -477,6 +477,76 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         # 3 isometries: 1<->2, 2<->3 and 3<->4
         self._isoA = [None] * 3
         self._isoB = [None] * 3
+
+    def get_tensors_sz(self):
+        """
+        Return optimized tensors and associated Sz values.
+        Tensors are obtained by adding relevant sqrt(lambda) to every leg of gammaX
+        For each virtual axis, sort by decreasing weights (instead of SU(2) order)
+        """
+        w1, w2, w3, w4 = [1.0 / np.sqrt(w) for w in self.get_dense_weights(sort=False)]
+        so1 = w1.argsort()
+        so2 = w2.argsort()
+        so3 = w3.argsort()
+        so4 = w4.argsort()
+        sz_val0 = self._phys.get_Sz()
+        sz_val1 = self._bond_representations[0].get_Sz()[so1]
+        sz_val2 = self._bond_representations[1].get_Sz()[so2]
+        sz_val3 = self._bond_representations[2].get_Sz()[so3]
+        sz_val4 = self._bond_representations[3].get_Sz()[so4]
+
+        D1 = w1.size
+        D2 = w2.size
+        D3 = w3.size
+        D4 = w4.size
+        size = self._d * self._a * D1 * D2 * D3 * D4
+
+        # su must be in state 1, after an update on bond 1. This is always true after
+        # an evolve call.
+        conj2 = np.array([1.0, -1.0])  # more efficient than matrix product
+        reps_left = (
+            self._bond_representations[1],
+            self._bond_representations[2],
+            self._bond_representations[3],
+            self._anc,
+        )
+        projA, indicesA = construct_matrix_projector(
+            reps_left, (self._phys, self._bond_representations[0]), reorder=False
+        )
+        gammaA = np.zeros(size)
+        gammaA[indicesA] = projA @ self._tensors_data[0]
+        del projA, indicesA
+        gammaA = gammaA.reshape(D2, D3, D4, self._a, self._d, D1)
+        gammaA = np.einsum("rdlapu,p,u,r,d,l->paurdl", gammaA, conj2, w1, w2, w3, w4)
+        gammaA = gammaA[
+            ::-1, :, so1[:, None, None, None], so2[:, None, None], so3[:, None], so4
+        ]
+        gammaA /= np.amax(gammaA)
+
+        reps_right = (
+            self._bond_representations[1],
+            self._bond_representations[2],
+            self._bond_representations[3],
+            self._anc,
+        )
+        projB, indicesB = construct_matrix_projector(
+            (self._bond_representations[0], self._phys),
+            reps_right,
+            reorder=False,
+        )
+        gammaB = np.zeros(size)
+        gammaB[indicesB] = projB @ self._tensors_data[1]
+        del projB, indicesB
+        gammaB = gammaB.reshape(D1, self._d, D2, D3, D4, self._a)
+        gammaB = np.einsum("dplura,p,u,r,d,l->paurdl", gammaB, conj2, w3, w4, w1, w2)
+        gammaB = gammaB[
+            ::-1, :, so3[:, None, None, None], so4[:, None, None], so1[:, None], so2
+        ]
+        gammaB /= np.amax(gammaB)
+        return (
+            (gammaA, (-sz_val0, sz_val0, sz_val1, sz_val2, sz_val3, sz_val4)),
+            (gammaB, (sz_val0, -sz_val0, -sz_val3, -sz_val4, -sz_val1, -sz_val2)),
+        )
 
     def get_isoAB(self, i, backwards=False):
         ind = i + backwards - 2
