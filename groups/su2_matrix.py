@@ -394,7 +394,10 @@ class SU2_Matrix(object):
         blocks = [-b for b in self._blocks]
         return SU2_Matrix(blocks, self._block_irreps, self._rep_left, self._rep_right)
 
-    def norm2(self):
+    def norm(self):
+        """
+        Compute Frobenius norm.
+        """
         n2 = 0.0
         for (irr, b) in zip(self._block_irreps, self._blocks):
             n2 += irr * lg.norm(b) ** 2
