@@ -503,7 +503,6 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
 
         # su must be in state 1, after an update on bond 1. This is always true after
         # an evolve call.
-        conj2 = np.array([1.0, -1.0])  # more efficient than matrix product
         reps_left = (
             self._bond_representations[1],
             self._bond_representations[2],
@@ -517,9 +516,9 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         gammaA[indicesA] = projA @ self._tensors_data[0]
         del projA, indicesA
         gammaA = gammaA.reshape(D2, D3, D4, self._a, self._d, D1)
-        gammaA = np.einsum("rdlapu,p,u,r,d,l->paurdl", gammaA, conj2, w1, w2, w3, w4)
+        gammaA = np.einsum("rdlapu,u,r,d,l->paurdl", gammaA, w1, w2, w3, w4)
         gammaA = gammaA[
-            ::-1, :, so1[:, None, None, None], so2[:, None, None], so3[:, None], so4
+            :, :, so1[:, None, None, None], so2[:, None, None], so3[:, None], so4
         ]
         gammaA /= np.amax(gammaA)
 
@@ -530,22 +529,20 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
             self._anc,
         )
         projB, indicesB = construct_matrix_projector(
-            (self._bond_representations[0], self._phys),
-            reps_right,
-            reorder=False,
+            (self._bond_representations[0], self._phys), reps_right, reorder=False
         )
         gammaB = np.zeros(size)
         gammaB[indicesB] = projB @ self._tensors_data[1]
         del projB, indicesB
         gammaB = gammaB.reshape(D1, self._d, D2, D3, D4, self._a)
-        gammaB = np.einsum("dplura,p,u,r,d,l->paurdl", gammaB, conj2, w3, w4, w1, w2)
+        gammaB = np.einsum("dplura,u,r,d,l->paurdl", gammaB, w3, w4, w1, w2)
         gammaB = gammaB[
-            ::-1, :, so3[:, None, None, None], so4[:, None, None], so1[:, None], so2
+            :, :, so3[:, None, None, None], so4[:, None, None], so1[:, None], so2
         ]
         gammaB /= np.amax(gammaB)
         return (
-            (gammaA, (-sz_val0, sz_val0, sz_val1, sz_val2, sz_val3, sz_val4)),
-            (gammaB, (sz_val0, -sz_val0, -sz_val3, -sz_val4, -sz_val1, -sz_val2)),
+            (gammaA, (sz_val0, sz_val0, sz_val1, sz_val2, sz_val3, sz_val4)),
+            (gammaB, (-sz_val0, -sz_val0, -sz_val3, -sz_val4, -sz_val1, -sz_val2)),
         )
 
     def get_isoAB(self, i, backwards=False):
