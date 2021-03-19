@@ -75,11 +75,11 @@ class CTMRG(object):
         Parameters
         ----------
         chi : integer
-          Maximal corner dimension.
+            Maximal corner dimension.
         env: CTM_Environment
-          Environment object, as construced by from_file or from_elementary_tensors.
+            Environment object, as construced by from_file or from_elementary_tensors.
         verbosity : int
-          Level of log verbosity. Default is no log.
+            Level of log verbosity. Default is no log.
         """
         self.verbosity = verbosity
         if self.verbosity > 0:
@@ -101,13 +101,13 @@ class CTMRG(object):
         Parameters
         ----------
         tensors : enumerable of tensors
-          Elementary tensors of unit cell, from left to right from top to bottom.
+            Elementary tensors of unit cell, from left to right from top to bottom.
         tiling : string
-          String defining the shape of the unit cell, typically "A" or "AB\nCD".
+            String defining the shape of the unit cell, typically "A" or "AB\nCD".
         chi : integer
-          Maximal corner dimension.
+            Maximal corner dimension.
         verbosity : int
-          Level of log verbosity. Default is no log.
+            Level of log verbosity. Default is no log.
         """
         if verbosity > 0:
             print("Start CTMRG from scratch using elementary tensors")
@@ -121,10 +121,10 @@ class CTMRG(object):
         Parameters
         ----------
         filename : str
-          Path to npz file
+            Path to npz file
         verbosity : int
-          Level of log verbosity. Default is no log.
-       """
+            Level of log verbosity. Default is no log.
+        """
         if verbosity > 0:
             print("Restart CTMRG from file", filename)
         chi, env = CTM_Environment.from_file(filename)
@@ -661,15 +661,15 @@ class CTMRG_U1(CTMRG):
         Parameters
         ----------
         tensors : enumerable of tensors
-          Elementary tensors of unit cell, from left to right from top to bottom.
+            Elementary tensors of unit cell, from left to right from top to bottom.
         colors : enumerable of enumerable of integer arrays matching tensors.
-          Quantum numbers for elementary tensors.
+            Quantum numbers for elementary tensors.
         tiling : string
-          String defining the shape of the unit cell, typically "A" or "AB\nCD".
+            String defining the shape of the unit cell, typically "A" or "AB\nCD".
         chi : integer
-          Maximal corner dimension.
+            Maximal corner dimension.
         verbosity : int
-          Level of log verbosity. Default is no log.
+            Level of log verbosity. Default is no log.
         """
         if verbosity > 0:
             print("Start CTMRG from scratch using elementary tensors")
