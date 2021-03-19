@@ -178,7 +178,7 @@ class SU2_SimpleUpdate(object):
 
         np.savez_compressed(file, **data, **additional_data)
         if self.verbosity > 0:
-            print("Simple update data stored in file", file)
+            print("Simple update saved in file", file)
 
     @property
     def tau(self):
