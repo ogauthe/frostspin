@@ -234,11 +234,15 @@ class SU2_SimpleUpdate(object):
             dense_weights.append(dw)
         return dense_weights
 
-    def get_tensors(self):
+    def get_tensors_mz(self):
         """
-        Return optimized tensors.
-        Tensors are obtained by adding relevant sqrt(lambda) to every leg of gammaX
-        For each virtual axis, sort by decreasing weights (instead of SU(2) order)
+        Returns:
+        -------
+        tensors : tuple of size _n_tensors
+            Optimized dense tensors, with sqrt(weights) on all virtual legs. Virtual
+            legs are sorted by weights magnitude, not by SU(2) irreps.
+        mz : tuple of size _n_tensors
+            mz values for each axis of each tensor.
         """
         return NotImplemented
 
@@ -478,11 +482,15 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         self._isoA = [None] * 3
         self._isoB = [None] * 3
 
-    def get_tensors_sz(self):
+    def get_tensors_mz(self):
         """
-        Return optimized tensors and associated Sz values.
-        Tensors are obtained by adding relevant sqrt(lambda) to every leg of gammaX
-        For each virtual axis, sort by decreasing weights (instead of SU(2) order)
+        Returns:
+        -------
+        (A, B) : tuple of 2 ndarrays
+            Optimized dense tensors, with sqrt(weights) on all virtual legs. Virtual
+            legs are sorted by weights magnitude, not by SU(2) irreps.
+        (colorsA, colorsB) : tuple of tuple
+            Sz eigenvalues for each axis of each tensor.
         """
         w1, w2, w3, w4 = [1.0 / np.sqrt(w) for w in self.get_dense_weights(sort=False)]
         so1 = w1.argsort()
@@ -532,8 +540,11 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         ]
         gammaB /= np.amax(gammaB)
         return (
-            (gammaA, (sz_val0, sz_val0, sz_val1, sz_val2, sz_val3, sz_val4)),
-            (gammaB, (-sz_val0, -sz_val0, -sz_val3, -sz_val4, -sz_val1, -sz_val2)),
+            (gammaA, gammaB),
+            (
+                (sz_val0, sz_val0, sz_val1, sz_val2, sz_val3, sz_val4),
+                (-sz_val0, -sz_val0, -sz_val3, -sz_val4, -sz_val1, -sz_val2),
+            ),
         )
 
     def get_isoAB(self, i, backwards=False):
