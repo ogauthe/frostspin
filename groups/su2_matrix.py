@@ -168,13 +168,12 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
                 matR = (1 - (irr + mz) // 2 % 2 * 2) / np.sqrt(irr) * matR
             shiftL[biL] += degenL
             shiftR[biR] += degenR
-            m = (
+            full_proj[slice_in_blocks[biL], slice_out] = (
                 (matL.ravel()[:, None] * matR.ravel())
                 .reshape(matL.shape + matR.shape)
                 .swapaxes(1, 2)
                 .reshape(-1, degenL * degenR)
             )
-            full_proj[slice_in_blocks[biL], slice_out] = m
 
     # full_proj is *not* a valid BlockMatrixU1 because of unsorted indices in only block
     return full_proj, indices_in
