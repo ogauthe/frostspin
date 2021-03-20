@@ -17,9 +17,13 @@ def compute_corr_length(Tup_list, Tdown_list, v0=None, ncv=None, maxiter=1000, t
 
     op = slg.LinearOperator(sh_op, matvec=transfer_mat_dot)
 
-    vals = slg.eigs(
-        op, k=2, v0=v0, ncv=ncv, maxiter=maxiter, tol=tol, return_eigenvectors=False
-    )
-    v2, v1 = np.sort(np.abs(vals))
-    xi = len(Tup_list) / np.log(v1 / v2)
+    try:
+        vals = slg.eigs(
+            op, k=2, v0=v0, ncv=ncv, maxiter=maxiter, tol=tol, return_eigenvectors=False
+        )
+        v2, v1 = np.sort(np.abs(vals))
+        xi = len(Tup_list) / np.log(v1 / v2)
+    except slg.ArpackNoConvergence as err:
+        print("ARPACK did not converge", err.msg)
+        xi = np.nan
     return xi
