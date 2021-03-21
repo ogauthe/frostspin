@@ -78,7 +78,7 @@ class SU2_SimpleUpdate(object):
         if self.verbosity > 0:
             print(
                 f"Construct SU2_SimpleUpdate with d = {self._d}, D* = {Dstar},",
-                f"beta = {beta}",
+                f"beta = {beta:.6g}",
             )
             print(f"unit cell:\n{self._unit_cell}")
 
