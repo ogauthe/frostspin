@@ -239,7 +239,7 @@ def construct_transpose_matrix(
     # 2) transposed nnz1 and nnz2 contain the same values in different order. We want
     # the permutation linking them. Better to sort first then use binary search.
     so1 = nnz1.argsort()
-    perm = so1[np.searchsorted(nnz1, nnz2, sorter=so1)]
+    perm = so1[nnz1.searchsorted(nnz2, sorter=so1)]
 
     # 3) perm sends nnz2 to sorted(transposed nnz1). We can first swap proj2 according
     # to perm, then re-swap it under argsort(so1) - or in one row swap proj2 according
