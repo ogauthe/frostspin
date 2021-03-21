@@ -24,6 +24,6 @@ def compute_corr_length(Tup_list, Tdown_list, v0=None, ncv=None, maxiter=1000, t
         v2, v1 = np.sort(np.abs(vals))
         xi = len(Tup_list) / np.log(v1 / v2)
     except slg.ArpackNoConvergence as err:
-        print("ARPACK did not converge", err.msg)
+        print("ARPACK did not converge", err)
         xi = np.nan
     return xi
