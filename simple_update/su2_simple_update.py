@@ -348,6 +348,136 @@ class SU2_SimpleUpdate(object):
 
         return newL, newR, new_weights, new_virt_mid
 
+    def update_through_proxy(
+        self, matL0, mat_mid0, matR0, weightsL, weightsR, repL, repR, gate
+    ):
+        r"""
+        Apply gate between two tensors through a proxy (either 2nd ord 3rd neighbor)
+        A 1D geometry is considered for clarity, the function being direction-agnostic.
+
+        Parameters
+        ----------
+        matL0 : SU2_Matrix
+            "Left" matrix, tree structure is defined below.
+        mat_mid0 : SU2_Matrix
+            "Middle" matrix, tree structure is defined below.
+        matR0 : SU2_Matrix
+            "Right" matrix, tree structure is defined below.
+        weightsL : numpy array
+            Left bond weights before update.
+        weightsR : numpy array
+            Right bond weights before update.
+        repL : SU2_Representation
+            Left Bond SU(2) representation before update.
+        repR : SU2_Representation
+            Right Bond SU(2) representation before update.
+        gate : SU2_Matrix
+            Gate to apply on the bond. Tree structure must be
+            (self._d * self._d, self._d * self._d)
+
+
+            matL0            mat_mid0         matR0
+            /  \             /    \           /  \
+           /    \           /\     \         /    \
+          /     /\         /  \     \       /\     \
+        auxL   p repL    repL repR auxm   repR p  auxR
+        """
+        # 1) SVD cut between constant tensors and effective tensors to update
+        cstL, svL, effL, auxL = matL0.svd()
+        effL = svL[:, None] * effL
+        eff_m, sv_m, cst_m, aux_m = mat_mid0.svd()
+        eff_m = eff_m * sv_m
+        effR, svR, cstR, auxR = matR0.svd()
+        effR = effR * svR
+
+        # change tensor structure to contract mid
+        isoL = construct_transpose_matrix((auxL, self._phys, repL), 1, 2, (0, 1, 2))
+        matL1 = (
+            SU2_Matrix.from_raw_data(isoL @ effL.to_raw_data(), auxL * self._phys, repL)
+            / weightsL
+        )
+
+        iso_m = construct_transpose_matrix((repL, repR, aux_m), 2, 1, (0, 1, 2))
+        mat_m1 = SU2_Matrix.from_raw_data(
+            iso_m @ eff_m.to_raw_data(), repL, repR * aux_m
+        )
+
+        isoR = construct_transpose_matrix((repR, self._phys, auxR), 2, 1, (0, 1, 2))
+        matR1 = (
+            SU2_Matrix.from_raw_data(isoR @ effR.to_raw_data(), repR, self._phys * auxR)
+            / weightsR[:, None]
+        )
+
+        # contract tensor network
+        theta = matL1 @ mat_m1
+        iso1 = construct_transpose_matrix(
+            (auxL, self._phys, repR, aux_m), 2, 3, (0, 1, 3, 2)
+        )
+        theta = SU2_Matrix.from_raw_data(
+            iso1 @ theta.to_raw_data(), auxL * self._phys * aux_m, repR
+        )
+        theta = theta @ matR1
+        iso2 = construct_transpose_matrix(
+            (auxL, self._phys, aux_m, self._phys, auxR), 3, 3, (0, 2, 4, 1, 3)
+        )
+        theta = SU2_Matrix.from_raw_data(
+            iso2 @ theta.to_raw_data(), auxL * aux_m * auxR, self._phys2
+        )
+        theta = theta @ gate
+
+        # 1st SVD
+        theta = SU2_Matrix.from_raw_data(
+            iso2.T @ theta.to_raw_data(), auxL * self._phys * aux_m, repR
+        )
+        U, new_weightsR, V, new_repR = theta.svd(cut=self.Dstar, rcutoff=self.rcutoff)
+        new_weightsR /= new_weightsR @ new_repR.get_multiplet_structure()
+        effR = V * new_weightsR[:, None]
+
+        # recompute reshape matrices only if needed
+        if new_repR != repR:
+            isoR = construct_transpose_matrix(
+                (new_repR, self._phys, auxR), 2, 1, (0, 1, 2)
+            )
+            iso1 = construct_transpose_matrix(
+                (auxL, self._phys, new_repR, aux_m), 2, 3, (0, 1, 3, 2)
+            )
+
+        # cut left from mid
+        theta = U * new_weightsR
+        theta = SU2_Matrix(
+            iso1.T @ theta.to_raw_data(), auxL * self._phys, new_repR * aux_m
+        )
+        U, new_weightsL, V, new_repL = theta.svd(cut=self.Dstar, rcutoff=self.rcutoff)
+        new_weightsL /= new_weightsL @ new_repL.get_multiplet_structure()
+        eff_m = V * new_weightsL[:, None]
+        effL = U * new_weightsL
+        if new_repL != repL:
+            isoL = construct_transpose_matrix((auxL, self._phys, repL), 1, 2, (0, 1, 2))
+            iso_m = construct_transpose_matrix(
+                (new_repL, new_repR, aux_m), 2, 1, (0, 1, 2)
+            )
+        elif new_repR != repR:
+            iso_m = construct_transpose_matrix(
+                (new_repL, new_repR, aux_m), 2, 1, (0, 1, 2)
+            )
+
+        # reshape to initial tree structure
+        effL = SU2_Matrix.from_raw_data(
+            isoL.T @ effL.to_raw_data(), auxL, new_repL * self._phys
+        )
+        eff_m = SU2_Matrix.from_raw_data(
+            iso_m.T @ eff_m.to_raw_data(), new_repL * new_repR, aux_m
+        )
+        effR = SU2_Matrix.from_raw_data(
+            isoR.T @ effR.to_raw_data(), new_repR * self._phys, auxR
+        )
+
+        # reconnect with const parts
+        newL = cstL @ effL
+        new_mid = eff_m @ cst_m
+        newR = effR @ cstR
+        return newL, new_mid, newR, new_weightsL, new_weightsR, new_repL, new_repR
+
 
 class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
     """
