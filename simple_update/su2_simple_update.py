@@ -346,7 +346,7 @@ class SU2_SimpleUpdate(object):
         newL = cstL @ new_effL
         newR = new_effR @ cstR
 
-        return newL, new_weights, newR, new_virt_mid
+        return newL, newR, new_weights, new_virt_mid
 
 
 class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
@@ -617,8 +617,8 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
 
         (
             newA,
-            self._weights[i - 1],
             newB,
+            self._weights[i - 1],
             self._bond_representations[i - 1],
         ) = self.update_first_neighbor(
             matA, matB, self._weights[i - 1], self._bond_representations[i - 1], gate
