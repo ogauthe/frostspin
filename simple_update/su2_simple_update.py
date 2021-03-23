@@ -623,3 +623,150 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
 
         self._tensors_data[0] = newA.to_raw_data()
         self._tensors_data[1] = newB.to_raw_data()
+
+
+class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
+    """
+    SU(2) symmetric simple update algorithm on plaquette AB//CD, with
+    - 8 bonds
+    - 2 Hamiltonian
+    - 4 tensors
+
+    Conventions for leg ordering
+    ----------------------------
+          1     5
+          |     |
+       4--A--2--B--4
+          |     |
+          3     6
+          |     |
+       8--C--7--D--8
+          |     |
+          1     5
+
+    Notice that leg index starts at 1, a -1 shift is required to get array index.
+    """
+
+    _unit_cell = "AB\nCD"
+    _n_bonds = 8
+    _n_hamilts = 2
+    _n_tensors = 4
+
+    def __repr__(self):
+        return f"SU2_SimpleUpdate2x2 for irrep {self._d}"
+
+    def __str__(self):
+        return (
+            f"SU2_SimpleUpdate2x2 for irrep {self._d} at beta = {self._beta:.6g}\n"
+            f"D* = {self.Dstar}, tau = {self._tau}, rcutoff = {self.rcutoff}\n"
+            f"bond 1 representation: {self._bond_representations[0]}\n"
+            f"bond 2 representation: {self._bond_representations[1]}\n"
+            f"bond 3 representation: {self._bond_representations[2]}\n"
+            f"bond 4 representation: {self._bond_representations[3]}"
+            f"bond 5 representation: {self._bond_representations[4]}\n"
+            f"bond 6 representation: {self._bond_representations[5]}\n"
+            f"bond 7 representation: {self._bond_representations[6]}\n"
+            f"bond 8 representation: {self._bond_representations[7]}"
+        )
+
+    @classmethod
+    def from_infinite_temperature(
+        cls, d, Dstar, tau, h1, h2, rcutoff=1e-11, verbosity=0
+    ):
+        """
+        Initialize simple update at beta = 0 product state.
+
+        Parameters
+        ----------
+        d : int
+            dimension of physical SU(2) irreducible reprsentation on each site.
+        Dstar : int
+            Maximal number of independent multiplets kept on each bond.
+        tau : float
+            Imaginary time step.
+        h1 : (d**2, d**2) ndarray
+            First neighbor Hamltionian. Must be real symmetric or hermitian.
+        h2 : (d**2, d**2) ndarray
+            Second neighbor Hamltionian. Must be real symmetric or hermitian.
+        rcutoff : float, optional.
+            Singular values smaller than cutoff = rcutoff * sv[0] are set to zero to
+            improve stability.
+        verbosity : int
+            Level of log verbosity. Default is no log.
+        """
+        if verbosity > 0:
+            print("Initialize SU2_SimpleUpdate1x2 at beta = 0 thermal product state")
+
+        if h1.shape != (d ** 2, d ** 2) or h2.shape != (d ** 2, d ** 2):
+            raise ValueError("invalid shape for Hamiltonian")
+
+        phys = SU2_Representation.irrep(d)
+        proj, ind = construct_matrix_projector(
+            (phys, phys), (phys, phys), conj_right=True
+        )
+        h_raw_data = [proj.T @ h1.ravel()[ind], proj.T @ h2.ravel()[ind]]
+        return cls(
+            Dstar,
+            0.0,
+            tau,
+            rcutoff,
+            [h_raw_data],
+            [SU2_Representation.irrep(1)] * 8,
+            [np.ones(1)] * 8,
+            [np.ones(1)] * 4,
+            verbosity,
+        )
+
+    def evolve(self, beta_evolve=None):
+        """
+        Evolve in imaginary time using second order Trotter-Suzuki up to beta.
+        Convention: temperature value is the bilayer tensor one, twice the monolayer
+        one.
+        """
+        if beta_evolve is None:
+            beta_evolve = self._dbeta
+        if self.verbosity > 0:
+            print(
+                f"Evolve in imaginary time for beta from {self._beta:.6g} to "
+                f"{self._beta + beta_evolve:.6g}..."
+            )
+        if beta_evolve < -1e-12:
+            raise ValueError("Cannot evolve for negative imaginary time")
+        if beta_evolve < 0.9 * self._dbeta:  # care for float rounding
+            return  # else evolve for 1 step out of niter loop
+        niter = round(beta_evolve / self._dbeta)  # 2nd order: evolve 2*tau by step
+
+        # TODO
+        niter
+
+        self._beta += self._dbeta
+
+    def reset_isometries(self):
+        if self.verbosity > 1:
+            print(f"reset isometries at beta = {self._beta:.6g}")
+        # each tensor has 4 update states (URDL) and 4 proxy states (UR, RD, DL, LU)
+        self._isoA = [None] * 8
+        self._isoB = [None] * 8
+        self._isoC = [None] * 8
+        self._isoD = [None] * 8
+
+    def get_tensors_mz(self):
+        """
+        Returns:
+        -------
+        (A, B, C, D) : tuple of 4 ndarrays
+            Optimized dense tensors, with sqrt(weights) on all virtual legs. Virtual
+            legs are sorted by weights magnitude, not by SU(2) irreps.
+        (colorsA, colorsB, colorsC, colorsD) : tuple of tuple
+            Sz eigenvalues for each axis of each tensor.
+        """
+        sqweights = [1.0 / np.sqrt(w) for w in self.get_dense_weights(sort=False)]
+        Ds = np.array([sqw.size for sqw in sqweights])
+        so_all = [sqw.argsort() for sqw in sqweights]
+        sz_vals = [self._phys.get_Sz()] + [
+            rep.get_Sz()[so] for (rep, so) in zip(self._bond_representations, so_all)
+        ]
+
+        size = self._d * self._a * Ds.prod()
+        # TODO
+        sz_vals, size
