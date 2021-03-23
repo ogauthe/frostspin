@@ -284,9 +284,12 @@ class SU2_SimpleUpdate(object):
             dense_weights.append(dw)
         return dense_weights
 
+    def reset_isometries(self):
+        return NotImplemented
+
     def get_tensors_mz(self):
         """
-        Returns:
+        Returns
         -------
         tensors : tuple of size _n_tensors
             Optimized dense tensors, with sqrt(weights) on all virtual legs. Virtual
@@ -841,7 +844,7 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
 
     def get_tensors_mz(self):
         """
-        Returns:
+        Returns
         -------
         (A, B, C, D) : tuple of 4 ndarrays
             Optimized dense tensors, with sqrt(weights) on all virtual legs. Virtual
