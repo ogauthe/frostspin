@@ -380,6 +380,11 @@ class SU2_Matrix(object):
         blocks = [-b for b in self._blocks]
         return SU2_Matrix(blocks, self._block_irreps, self._rep_left, self._rep_right)
 
+    @property
+    def T(self):
+        blocks = [b.T for b in self._blocks]
+        return SU2_Matrix(blocks, self._block_irreps, self._rep_right, self._rep_left)
+
     def norm(self):
         """
         Compute Frobenius norm.
