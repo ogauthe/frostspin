@@ -85,10 +85,13 @@ class SU2_SimpleUpdate(object):
         self.Dstar = Dstar
         self._beta = beta
         self._phys = SU2_Representation.irrep(self._d)
+        self._phys2 = self._phys * self._phys
         self._a = self._d
         self._anc = self._phys
-        d2 = self._phys * self._phys
-        self._hamilts = [SU2_Matrix.from_raw_data(r, d2, d2) for r in hamilts_raw_data]
+        self._hamilts = [
+            SU2_Matrix.from_raw_data(r, self._phys2, self._phys2)
+            for r in hamilts_raw_data
+        ]
         self.tau = tau
         self.rcutoff = rcutoff
 
@@ -301,7 +304,7 @@ class SU2_SimpleUpdate(object):
         )
         theta2 = iso_theta @ theta
         theta_mat2 = SU2_Matrix.from_raw_data(
-            theta2, virt_left * virt_right, self._phys * self._phys
+            theta2, virt_left * virt_right, self._phys2
         )
         theta_mat3 = theta_mat2 @ gate
 
