@@ -103,6 +103,56 @@ class SU2_SimpleUpdate(object):
             print(self)
 
     @classmethod
+    def from_infinite_temperature(
+        cls, d, Dstar, tau, hamilts, rcutoff=1e-11, verbosity=0
+    ):
+        """
+        Initialize simple update at beta = 0 product state.
+
+        Parameters
+        ----------
+        d : int
+            dimension of physical SU(2) irreducible reprsentation on each site.
+        Dstar : int
+            Maximal number of independent multiplets kept on each bond.
+        tau : float
+            Imaginary time step.
+        hamilts : enumerable of (d**2, d**2) ndarray
+            Bond Hamltionians. Must be real symmetric or hermitian.
+        rcutoff : float, optional.
+            Singular values smaller than cutoff = rcutoff * sv[0] are set to zero to
+            improve stability.
+        verbosity : int
+            Level of log verbosity. Default is no log.
+        """
+        if verbosity > 0:
+            print("Initialize SU2_SimpleUpdate1x2 at beta = 0 thermal product state")
+
+        if len(hamilts) != cls._n_hamilts:
+            raise ValueError("invalid Hamiltonian number")
+
+        phys = SU2_Representation.irrep(d)
+        proj, ind = construct_matrix_projector(
+            (phys, phys), (phys, phys), conj_right=True
+        )
+        h_raw_data = []
+        for i, h in enumerate(hamilts):
+            if h.shape != (d ** 2, d ** 2):
+                raise ValueError(f"invalid shape for Hamiltonian {i}")
+            h_raw_data.append(proj.T @ h.ravel()[ind])
+        return cls(
+            Dstar,
+            0.0,
+            tau,
+            rcutoff,
+            h_raw_data,
+            [SU2_Representation.irrep(1)] * cls._n_bonds,
+            [np.ones(1)] * cls._n_bonds,
+            [np.ones(1)] * cls._n_tensors,
+            verbosity,
+        )
+
+    @classmethod
     def from_file(cls, file, verbosity=0):
         """
         Load simple update from given file.
@@ -518,50 +568,6 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
             f"bond 4 representation: {self._bond_representations[3]}"
         )
 
-    @classmethod
-    def from_infinite_temperature(cls, d, Dstar, tau, h, rcutoff=1e-11, verbosity=0):
-        """
-        Initialize simple update at beta = 0 product state.
-
-        Parameters
-        ----------
-        d : int
-            dimension of physical SU(2) irreducible reprsentation on each site.
-        Dstar : int
-            Maximal number of independent multiplets kept on each bond.
-        tau : float
-            Imaginary time step.
-        h : (d**2, d**2) ndarray
-            Hamltionian. Must be real symmetric or hermitian.
-        rcutoff : float, optional.
-            Singular values smaller than cutoff = rcutoff * sv[0] are set to zero to
-            improve stability.
-        verbosity : int
-            Level of log verbosity. Default is no log.
-        """
-        if verbosity > 0:
-            print("Initialize SU2_SimpleUpdate1x2 at beta = 0 thermal product state")
-
-        if h.shape != (d ** 2, d ** 2):
-            raise ValueError("invalid shape for Hamiltonian")
-
-        phys = SU2_Representation.irrep(d)
-        proj, ind = construct_matrix_projector(
-            (phys, phys), (phys, phys), conj_right=True
-        )
-        h_raw_data = proj.T @ h.ravel()[ind]
-        return cls(
-            Dstar,
-            0.0,
-            tau,
-            rcutoff,
-            [h_raw_data],
-            [SU2_Representation.irrep(1)] * 4,
-            [np.ones(1)] * 4,
-            [np.ones(1)] * 2,
-            verbosity,
-        )
-
     def evolve(self, beta_evolve=None):
         """
         Evolve in imaginary time using second order Trotter-Suzuki up to beta.
@@ -797,54 +803,6 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
             f"bond 6 representation: {self._bond_representations[5]}\n"
             f"bond 7 representation: {self._bond_representations[6]}\n"
             f"bond 8 representation: {self._bond_representations[7]}"
-        )
-
-    @classmethod
-    def from_infinite_temperature(
-        cls, d, Dstar, tau, h1, h2, rcutoff=1e-11, verbosity=0
-    ):
-        """
-        Initialize simple update at beta = 0 product state.
-
-        Parameters
-        ----------
-        d : int
-            dimension of physical SU(2) irreducible reprsentation on each site.
-        Dstar : int
-            Maximal number of independent multiplets kept on each bond.
-        tau : float
-            Imaginary time step.
-        h1 : (d**2, d**2) ndarray
-            First neighbor Hamltionian. Must be real symmetric or hermitian.
-        h2 : (d**2, d**2) ndarray
-            Second neighbor Hamltionian. Must be real symmetric or hermitian.
-        rcutoff : float, optional.
-            Singular values smaller than cutoff = rcutoff * sv[0] are set to zero to
-            improve stability.
-        verbosity : int
-            Level of log verbosity. Default is no log.
-        """
-        if verbosity > 0:
-            print("Initialize SU2_SimpleUpdate1x2 at beta = 0 thermal product state")
-
-        if h1.shape != (d ** 2, d ** 2) or h2.shape != (d ** 2, d ** 2):
-            raise ValueError("invalid shape for Hamiltonian")
-
-        phys = SU2_Representation.irrep(d)
-        proj, ind = construct_matrix_projector(
-            (phys, phys), (phys, phys), conj_right=True
-        )
-        h_raw_data = [proj.T @ h1.ravel()[ind], proj.T @ h2.ravel()[ind]]
-        return cls(
-            Dstar,
-            0.0,
-            tau,
-            rcutoff,
-            [h_raw_data],
-            [SU2_Representation.irrep(1)] * 8,
-            [np.ones(1)] * 8,
-            [np.ones(1)] * 4,
-            verbosity,
         )
 
     def evolve(self, beta_evolve=None):
