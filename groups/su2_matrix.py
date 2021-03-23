@@ -307,28 +307,23 @@ class SU2_Matrix(object):
         # some blocks may be allowed by SU(2) in current matrix form but be zero and
         # missing in block_irreps (matrix created by matrix product). Still, data has to
         # include the corresponding zeros at the accurate position.
-        data = []
-        i1, i2 = 0, 0
-        while i1 < self._rep_left.n_irr and i2 < self._rep_right.n_irr:
-            if self._rep_left.irreps[i1] == self._rep_right.irreps[i2]:
-                j = bisect.bisect_left(self._block_irreps, self._rep_left.irreps[i1])
-                if (
-                    j < self._nblocks
-                    and self._block_irreps[j] == self._rep_left.irreps[i1]
-                ):
-                    b = self._blocks[j]
-                    data.extend(b.ravel() * np.sqrt(self._block_irreps[j]))
-                else:  # missing block
-                    data.extend(
-                        [0.0] * (self._rep_left.degen[i1] * self._rep_right.degen[i2])
-                    )
-                i1 += 1
-                i2 += 1
-            elif self._rep_left.irreps[i1] < self._rep_right.irreps[i2]:
-                i1 += 1
-            else:
-                i2 += 1
-        return np.array(data)
+        shared, indL, indR = np.intersect1d(  # bruteforce numpy > clever python
+            self._rep_left.irreps,
+            self._rep_right.irreps,
+            assume_unique=True,
+            return_indices=True,
+        )
+        data = np.zeros(self._rep_left.degen[indL] @ self._rep_right.degen[indR])
+        k = 0
+        for i, irr in enumerate(shared):
+            j = bisect.bisect_left(self._block_irreps, irr)
+            if j < self._nblocks and self._block_irreps[j] == irr:
+                b = self._blocks[j]
+                data[k : k + b.size] = b.ravel() * np.sqrt(irr)
+                k += b.size
+            else:  # missing block
+                k += self._rep_left.degen[indL[i]] * self._rep_right.degen[indR[i]]
+        return data
 
     def toarray(self, rep_left_enum=None, rep_right_enum=None):
         if rep_left_enum is None:
