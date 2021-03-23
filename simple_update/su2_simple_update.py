@@ -128,9 +128,6 @@ class SU2_SimpleUpdate(object):
         if verbosity > 0:
             print("Initialize SU2_SimpleUpdate1x2 at beta = 0 thermal product state")
 
-        if len(hamilts) != cls._n_hamilts:
-            raise ValueError("invalid Hamiltonian number")
-
         phys = SU2_Representation.irrep(d)
         proj, ind = construct_matrix_projector(
             (phys, phys), (phys, phys), conj_right=True
