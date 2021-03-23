@@ -871,14 +871,12 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
 
         self._beta += self._dbeta
 
-    def reset_isometries(self):
+    def reset_isometries(self, ti):
         if self.verbosity > 1:
-            print(f"reset isometries at beta = {self._beta:.6g}")
+            print(f"reset isometries for tensor {ti} at beta = {self._beta:.6g}")
         # each tensor has 4 update states (URDL) and 4 proxy states (UR, RD, DL, LU)
-        self._isoA = [None] * 8
-        self._isoB = [None] * 8
-        self._isoC = [None] * 8
-        self._isoD = [None] * 8
+        # isometries are reset only for tensor ti
+        self._isometries[ti] = [None] * 8
 
     def get_tensors_mz(self):
         """
@@ -900,3 +898,73 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
         size = self._d * self._a * Ds.prod()
         # TODO
         sz_vals, size
+
+    def _update_bond_i(self, gate, iA, iC, dirA, i1, i3, i2, i4, i7, i8):
+        """
+        Generic first neighbor update function for plaquette AB//CD. Variable names
+        follow update_bond1 conventions.
+        iA = index of left tensor in tensors_data
+        iC = index of right tensor in tensors_data
+        dirA = updated direction for A, 0 for up, 1 for right, 2 for down, 3 for left
+        i1 = index of updated leg
+        i3 = index of shared auxiliary leg
+        i2, i4 = indices of A auxiliary legs
+        i7, i8 = indices of C auxiliary legs
+        """
+        dirC = (dirA + 2) % 4
+        eff_rep = self._phys * self._bond_representations[i1]
+        temp = self._anc * self._bond_representations[i3]
+        aux_repA = (
+            temp * self._bond_representations[i2] * self._bond_representations[i4]
+        )
+        aux_repC = (
+            temp * self._bond_representations[i7] * self._bond_representations[i8]
+        )
+        if self.verbosity > 2:
+            print(
+                f"update bond {i1+1}: rep{i1+1} = {self._bond_representations[{i1}]},",
+                f"1st aux_rep = {aux_repA}",
+                f"2nd aux_rep = {aux_repC}",
+            )
+        isoA = self.get_isometry(iA, dirA)
+        isoC = self.get_isometry(iC, dirC)
+        matA = SU2_Matrix(isoA @ self._tensors_data[iA], aux_repA, eff_rep)
+        matC = SU2_Matrix(isoC @ self._tensors_data[iC], eff_rep, aux_repC)
+
+        newA, newC, self._weights[i1], new_rep = self.update_first_neighbor(
+            matA, matC, self._weights[i1], self._bond_representations[i1], gate
+        )
+
+        if new_rep != self._bond_representations[i1]:
+            self.reset_isometries(iA)
+            self.reset_isometries(iC)
+
+        isoA = self.get_isoL(dirA)
+        isoC = self.get_isoR(dirC)
+        self._tensors_data[iA] = isoA.T @ newA.to_raw_data()
+        self._tensors_data[iC] = isoC.T @ newC.to_raw_data()
+
+    # leg indices have a -1 shift to start at 0.
+    def update_bond1(self, gate):
+        self._update_bond_i(gate, 0, 2, 0, 0, 2, 1, 3, 6, 7)
+
+    def update_bond2(self, gate):
+        self._update_bond_i(gate, 0, 1, 1, 1, 3, 0, 2, 4, 5)
+
+    def update_bond3(self, gate):
+        self._update_bond_i(gate, 0, 2, 2, 2, 0, 1, 3, 6, 7)
+
+    def update_bond4(self, gate):
+        self._update_bond_i(gate, 0, 1, 3, 3, 1, 0, 2, 4, 5)
+
+    def update_bond5(self, gate):
+        self._update_bond_i(gate, 1, 3, 0, 4, 5, 1, 3, 6, 7)
+
+    def update_bond6(self, gate):
+        self._update_bond_i(gate, 1, 3, 2, 5, 4, 1, 3, 6, 7)
+
+    def update_bond7(self, gate):
+        self._update_bond_i(gate, 2, 3, 1, 6, 7, 2, 0, 5, 4)
+
+    def update_bond8(self, gate):
+        self._update_bond_i(gate, 2, 3, 3, 7, 6, 2, 0, 5, 4)
