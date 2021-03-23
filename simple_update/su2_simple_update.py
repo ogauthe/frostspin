@@ -795,7 +795,7 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
             f"bond 1 representation: {self._bond_representations[0]}\n"
             f"bond 2 representation: {self._bond_representations[1]}\n"
             f"bond 3 representation: {self._bond_representations[2]}\n"
-            f"bond 4 representation: {self._bond_representations[3]}"
+            f"bond 4 representation: {self._bond_representations[3]}\n"
             f"bond 5 representation: {self._bond_representations[4]}\n"
             f"bond 6 representation: {self._bond_representations[5]}\n"
             f"bond 7 representation: {self._bond_representations[6]}\n"
