@@ -324,7 +324,6 @@ class SU2_SimpleUpdate(object):
 
         # recompute reshape matrices only if needed
         if new_virt_mid != virt_mid:
-            self.reset_isometries()
             pL1, pL0 = construct_transpose_matrix(
                 (virt_left, self._phys, new_virt_mid), 1, 2, (0, 1, 2), contract=False
             )
@@ -745,14 +744,12 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         transposedB = isoB @ self._tensors_data[1]
         matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
 
-        (
-            newA,
-            newB,
-            self._weights[i - 1],
-            self._bond_representations[i - 1],
-        ) = self.update_first_neighbor(
+        (newA, newB, self._weights[i - 1], new_rep) = self.update_first_neighbor(
             matA, matB, self._weights[i - 1], self._bond_representations[i - 1], gate
         )
+        if new_rep != self._bond_representations[i - 1]:
+            self.reset_isometries()
+            self._bond_representations[i - 1] = new_rep
 
         self._tensors_data[0] = newA.to_raw_data()
         self._tensors_data[1] = newB.to_raw_data()
