@@ -826,7 +826,13 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
 
         self._beta += self._dbeta
 
-    def reset_isometries(self, ti):
+    def reset_isometries(self):
+        self.reset_isometries_tensor(0)
+        self.reset_isometries_tensor(1)
+        self.reset_isometries_tensor(2)
+        self.reset_isometries_tensor(3)
+
+    def reset_isometries_tensor(self, ti):
         if self.verbosity > 1:
             print(f"reset isometries for tensor {ti} at beta = {self._beta:.6g}")
         # each tensor has 4 update states (URDL) and 4 proxy states (UR, RD, DL, LU)
@@ -891,8 +897,8 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
         )
 
         if new_rep != self._bond_representations[i1]:
-            self.reset_isometries(iA)
-            self.reset_isometries(iC)
+            self.reset_isometries_tensor(iA)
+            self.reset_isometries_tensor(iC)
 
         isoA = self.get_isoL(dirA)
         isoC = self.get_isoR(dirC)
