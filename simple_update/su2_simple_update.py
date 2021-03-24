@@ -551,9 +551,15 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
     _n_hamilts = 1
     _n_tensors = 2
 
-    # transpositions used in get_isoAB
-    _isoA_swaps = ((5, 1, 2, 3, 4, 0), (0, 5, 2, 3, 4, 1), (0, 1, 5, 3, 4, 2))
-    _isoB_swaps = ((2, 1, 0, 3, 4, 5), (3, 1, 2, 0, 4, 5), (4, 1, 2, 3, 0, 5))
+    # There are only 2 tensors, which have exactly the same bonds. Hence we can use the
+    # same isometry to move their axes and give them the same tree structure, with the
+    # ancilla + 3 non-updates legs as rows and physical leg + updated leg as columns,
+    # then just transpose matB. Due to cyclical 2nd order Trotter-Suzuki, only 3
+    # isometries are required.
+
+    # permutations used in get_isometry
+    #                       U -> R               R -> D            D -> L
+    _isometry_swaps = ((5, 1, 2, 3, 4, 0), (0, 5, 2, 3, 4, 1), (0, 1, 5, 3, 4, 2))
 
     def __repr__(self):
         return f"SU2_SimpleUpdate1x2 for irrep {self._d}"
@@ -609,16 +615,15 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         """
         Apply isoA/B_{1->2} to allow for two bond 1 updates in a row.
         """
-        isoA, isoB = self.get_isoAB(2)
-        self._tensors_data[0] = isoA @ self._tensors_data[0]
-        self._tensors_data[1] = isoB @ self._tensors_data[1]
+        iso = self.get_isometry(2)
+        self._tensors_data[0] = iso @ self._tensors_data[0]
+        self._tensors_data[1] = iso @ self._tensors_data[1]
 
     def reset_isometries(self):
         if self.verbosity > 1:
             print(f"reset isometries at beta = {self._beta:.6g}")
-        # 3 isometries: 1<->2, 2<->3 and 3<->4
-        self._isoA = [None] * 3
-        self._isoB = [None] * 3
+        # 3 isometries: up->right, right->down, down->left. Same for A and B.
+        self._isometries = [None] * 3
 
     def get_tensors_mz(self):
         """
@@ -685,39 +690,31 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
             ),
         )
 
-    def get_isoAB(self, i, backwards=False):
+    def get_isometry(self, i, backwards=False):
         ind = i + backwards - 2
-        assert -1 < ind < 3
-        assert i != 1 or backwards
-        assert i != 4 or not backwards
-        if self._isoA[ind] is None:
-            if self.verbosity > 1:
-                print(f"compute isoA and isoB for move {i-1+2*backwards} -> {i}")
-                print(*self._bond_representations, sep="\n")
-
-            # function works for any bond, for simplicity assume bond 1 in variables
-            leg_indices = sorted([(ind + 1) % 4, (ind + 2) % 4, (ind + 3) % 4])
-            rep1 = self._bond_representations[ind]
-            rep2 = self._bond_representations[leg_indices[0]]
-            rep3 = self._bond_representations[leg_indices[1]]
-            rep4 = self._bond_representations[leg_indices[2]]
-
-            self._isoA[ind] = construct_transpose_matrix(
-                (rep2, rep3, rep4, self._anc, self._phys, rep1),
-                4,
-                4,
-                self._isoA_swaps[ind],
-            )
-            self._isoB[ind] = construct_transpose_matrix(
-                (rep1, self._phys, rep2, rep3, rep4, self._anc),
-                2,
-                2,
-                self._isoB_swaps[ind],
-            )
-
+        if self._isometries[ind] is None:
+            self.construct_isometry(ind)
         if backwards:
-            return self._isoA[ind].T, self._isoB[ind].T
-        return self._isoA[ind], self._isoB[ind]
+            return self._isometries[ind].T
+        return self._isometries[ind]
+
+    def construct_isometry(self, ind):
+        if self.verbosity > 1:
+            print(f"compute isometry for direction {ind}")
+            print(*self._bond_representations, sep="\n")
+        # function works for any direction, for simplicity assume bond 1 in variables
+        leg_indices = sorted([(ind + 1) % 4, (ind + 2) % 4, (ind + 3) % 4])
+        rep1 = self._bond_representations[ind]
+        rep2 = self._bond_representations[leg_indices[0]]
+        rep3 = self._bond_representations[leg_indices[1]]
+        rep4 = self._bond_representations[leg_indices[2]]
+
+        self._isometries[ind] = construct_transpose_matrix(
+            (rep2, rep3, rep4, self._anc, self._phys, rep1),
+            4,
+            4,
+            self._isometry_swaps[ind],
+        )
 
     def _update_bond(self, i, gate, backwards=False):
         """
@@ -744,11 +741,11 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
                 f"update bond {i}: rep {i} = {self._bond_representations[i - 1]},",
                 f"aux_rep = {aux_rep}",
             )
-        isoA, isoB = self.get_isoAB(i, backwards)
-        transposedA = isoA @ self._tensors_data[0]
+        iso = self.get_isometry(i, backwards)
+        transposedA = iso @ self._tensors_data[0]
         matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
-        transposedB = isoB @ self._tensors_data[1]
-        matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
+        transposedB = iso @ self._tensors_data[1]
+        matB = SU2_Matrix.from_raw_data(transposedB, aux_rep, eff_rep).T
 
         (newA, newB, self._weights[i - 1], new_rep) = self.update_first_neighbor(
             matA, matB, self._weights[i - 1], self._bond_representations[i - 1], gate
@@ -758,7 +755,7 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
             self._bond_representations[i - 1] = new_rep
 
         self._tensors_data[0] = newA.to_raw_data()
-        self._tensors_data[1] = newB.to_raw_data()
+        self._tensors_data[1] = newB.T.to_raw_data()
 
 
 class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
