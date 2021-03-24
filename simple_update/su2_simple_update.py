@@ -661,10 +661,9 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
             self._anc,
         )
         eff_rep = (self._phys, self._bond_representations[0])
-        projA, indicesA = construct_matrix_projector(aux_rep, eff_rep)
+        proj, indices = construct_matrix_projector(aux_rep, eff_rep)
         gammaA = np.zeros(size)
-        gammaA[indicesA] = projA @ self._tensors_data[0]
-        del projA, indicesA
+        gammaA[indices] = proj @ self._tensors_data[0]
         gammaA = gammaA.reshape(D2, D3, D4, self._a, self._d, D1)
         gammaA = np.einsum("rdlapu,u,r,d,l->paurdl", gammaA, w1, w2, w3, w4)
         gammaA = gammaA[
@@ -674,10 +673,9 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
 
         projB, indicesB = construct_matrix_projector(eff_rep[::-1], aux_rep)
         gammaB = np.zeros(size)
-        gammaB[indicesB] = projB @ self._tensors_data[1]
-        del projB, indicesB
-        gammaB = gammaB.reshape(D1, self._d, D2, D3, D4, self._a)
-        gammaB = np.einsum("dplura,u,r,d,l->paurdl", gammaB, w3, w4, w1, w2)
+        gammaB[indices] = proj @ self._tensors_data[1]
+        gammaB = gammaB.reshape(D2, D3, D4, self._a, self._d, D1)
+        gammaB = np.einsum("lurapd,u,r,d,l->paurdl", gammaB, w3, w4, w1, w2)
         gammaB = gammaB[
             :, :, so3[:, None, None, None], so4[:, None, None], so1[:, None], so2
         ]
