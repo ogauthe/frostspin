@@ -559,7 +559,7 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
 
     # permutations used in get_isometry
     #                       U -> R               R -> D            D -> L
-    _isometry_swaps = ((5, 1, 2, 3, 4, 0), (0, 5, 2, 3, 4, 1), (0, 1, 5, 3, 4, 2))
+    _isometry_swaps = ((2, 1, 0, 3, 4, 5), (3, 1, 2, 0, 4, 5), (4, 1, 2, 3, 0, 5))
 
     def __repr__(self):
         return f"SU2_SimpleUpdate1x2 for irrep {self._d}"
@@ -708,9 +708,9 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         rep4 = self._bond_representations[leg_indices[2]]
 
         self._isometries[ind] = construct_transpose_matrix(
-            (rep2, rep3, rep4, self._anc, self._phys, rep1),
-            4,
-            4,
+            (rep1, self._phys, rep2, rep3, rep4, self._anc),
+            2,
+            2,
             self._isometry_swaps[ind],
         )
 
@@ -741,9 +741,9 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
             )
         iso = self.get_isometry(i, backwards)
         transposedA = iso @ self._tensors_data[0]
-        matA = SU2_Matrix.from_raw_data(transposedA, aux_rep, eff_rep)
+        matA = SU2_Matrix.from_raw_data(transposedA, eff_rep, aux_rep).T
         transposedB = iso @ self._tensors_data[1]
-        matB = SU2_Matrix.from_raw_data(transposedB, aux_rep, eff_rep).T
+        matB = SU2_Matrix.from_raw_data(transposedB, eff_rep, aux_rep)
 
         (newA, newB, self._weights[i - 1], new_rep) = self.update_first_neighbor(
             matA, matB, self._weights[i - 1], self._bond_representations[i - 1], gate
@@ -752,8 +752,8 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
             self.reset_isometries()
             self._bond_representations[i - 1] = new_rep
 
-        self._tensors_data[0] = newA.to_raw_data()
-        self._tensors_data[1] = newB.T.to_raw_data()
+        self._tensors_data[0] = newA.T.to_raw_data()
+        self._tensors_data[1] = newB.to_raw_data()
 
 
 class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
