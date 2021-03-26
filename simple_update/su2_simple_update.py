@@ -491,7 +491,7 @@ class SU2_SimpleUpdate(object):
 
         # cut left from mid
         theta = U * new_weightsR
-        theta = SU2_Matrix(
+        theta = SU2_Matrix.from_raw_data(
             iso1.T @ theta.to_raw_data(), auxL * self._phys, new_repR * aux_m
         )
         U, new_weightsL, V, new_repL = theta.svd(cut=self.Dstar, rcutoff=self.rcutoff)
@@ -1037,8 +1037,8 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
             - 6 for down-left
             - 7 for left-up.
         """
-        dirA = dirsB - 4  # direction for tensor "A"
-        dirD = (dirsB - 3) % 4  # direction for tensor "D"
+        dirA = (dirsB + 2) % 4  # # direction for tensor "A"
+        dirD = (dirsB + 3) % 4  # # direction for tensor "D"
         i2 = self._tensor_legs[iA][dirA]  # index of 1st updated leg
         i5 = self._tensor_legs[iD][dirD]  # index of 2nd updated leg
         eff_repA = self._phys * self._bond_representations[i2]
@@ -1076,7 +1076,7 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
         ).T
         matB = SU2_Matrix.from_raw_data(
             isoB @ self._tensors_data[iB], eff_repB, aux_repB
-        ).T
+        )
         matD = SU2_Matrix.from_raw_data(
             isoD @ self._tensors_data[iD], eff_repD, aux_repD
         )
