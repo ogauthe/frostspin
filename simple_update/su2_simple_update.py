@@ -912,26 +912,34 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
             )
         return self._isometries[tensor][direction]
 
-    def _update_bond_i(self, gate, iA, iC, dirA, i1, i3, i2, i4, i7, i8):
+    def _update_bond_i(self, gate, iA, iC, dirA):
         """
         Generic first neighbor update function for plaquette AB//CD. Variable names
         follow update_bond1 conventions.
-        iA = index of left tensor in tensors_data
-        iC = index of right tensor in tensors_data
-        dirA = updated direction for A, 0 for up, 1 for right, 2 for down, 3 for left
-        i1 = index of updated leg
-        i3 = index of shared auxiliary leg
-        i2, i4 = indices of A auxiliary legs
-        i7, i8 = indices of C auxiliary legs
+
+        Parameters
+        ----------
+        iA : int
+            Index of left tensor: 0 for A, 1 for B, 2 for C, 3 for D.
+        iC : int
+            Index of right tensor.
+        dirA : int
+            Updated direction for left tensor: 0 for up, 1 for right, 2 for down, 3 for
+            left.
         """
         dirC = (dirA + 2) % 4
+        i1 = self._tensor_legs[iA][dirA]  # index of updated leg
         eff_rep = self._phys * self._bond_representations[i1]
-        temp = self._anc * self._bond_representations[i3]
+        shared = self._anc * self._bond_representations[self._tensor_legs[iA][dirC]]
         aux_repA = (
-            temp * self._bond_representations[i2] * self._bond_representations[i4]
+            shared
+            * self._bond_representations[self._tensor_legs[iA][(dirA + 1) % 4]]
+            * self._bond_representations[self._tensor_legs[iA][(dirA + 3) % 4]]
         )
         aux_repC = (
-            temp * self._bond_representations[i7] * self._bond_representations[i8]
+            shared
+            * self._bond_representations[self._tensor_legs[iC][(dirA + 1) % 4]]
+            * self._bond_representations[self._tensor_legs[iC][(dirA + 3) % 4]]
         )
         if self.verbosity > 2:
             print(f"update bond {i1+1}: rep{i1+1} = {self._bond_representations[i1]}")
@@ -962,25 +970,25 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
 
     # leg indices have a -1 shift to start at 0.
     def update_bond1(self, gate):
-        self._update_bond_i(gate, 0, 2, 0, 0, 2, 1, 3, 6, 7)
+        self._update_bond_i(gate, 0, 2, 0)
 
     def update_bond2(self, gate):
-        self._update_bond_i(gate, 0, 1, 1, 1, 3, 0, 2, 4, 5)
+        self._update_bond_i(gate, 0, 1, 1)
 
     def update_bond3(self, gate):
-        self._update_bond_i(gate, 0, 2, 2, 2, 0, 1, 3, 6, 7)
+        self._update_bond_i(gate, 0, 2, 2)
 
     def update_bond4(self, gate):
-        self._update_bond_i(gate, 0, 1, 3, 3, 1, 0, 2, 4, 5)
+        self._update_bond_i(gate, 0, 1, 3)
 
     def update_bond5(self, gate):
-        self._update_bond_i(gate, 1, 3, 0, 4, 5, 1, 3, 6, 7)
+        self._update_bond_i(gate, 1, 3, 0)
 
     def update_bond6(self, gate):
-        self._update_bond_i(gate, 1, 3, 2, 5, 4, 1, 3, 6, 7)
+        self._update_bond_i(gate, 1, 3, 2)
 
     def update_bond7(self, gate):
-        self._update_bond_i(gate, 2, 3, 1, 6, 7, 2, 0, 5, 4)
+        self._update_bond_i(gate, 2, 3, 1)
 
     def update_bond8(self, gate):
-        self._update_bond_i(gate, 2, 3, 3, 7, 6, 2, 0, 5, 4)
+        self._update_bond_i(gate, 2, 3, 3)
