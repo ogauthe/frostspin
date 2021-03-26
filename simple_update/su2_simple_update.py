@@ -890,13 +890,16 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
 
     def get_isometry(self, tensor, direction):
         if self._isometries[tensor][direction] is None:
-            if self.verbosity > 1:
-                print(f"Compute isometry for tensor {tensor} and direction {direction}")
-                print(*self._bond_representations, sep="\n")
             rep1 = self._bond_representations[self._tensor_legs[tensor][0]]
             rep2 = self._bond_representations[self._tensor_legs[tensor][1]]
             rep3 = self._bond_representations[self._tensor_legs[tensor][2]]
             rep4 = self._bond_representations[self._tensor_legs[tensor][3]]
+            if self.verbosity > 1:
+                print(f"Compute isometry for tensor {tensor} and direction {direction}")
+                print(f"rep1 = {rep1}")
+                print(f"rep2 = {rep2}")
+                print(f"rep3 = {rep3}")
+                print(f"rep4 = {rep4}")
             self._isometries[tensor][direction] = construct_transpose_matrix(
                 (rep1, self._phys, rep2, rep3, rep4, self._anc),
                 3,
@@ -927,11 +930,9 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
             temp * self._bond_representations[i7] * self._bond_representations[i8]
         )
         if self.verbosity > 2:
-            print(
-                f"update bond {i1+1}: rep{i1+1} = {self._bond_representations[i1]},",
-                f"1st aux_rep = {aux_repA}",
-                f"2nd aux_rep = {aux_repC}",
-            )
+            print(f"update bond {i1+1}: rep{i1+1} = {self._bond_representations[i1]}")
+            print(f"1st aux_rep = {aux_repA}")
+            print(f"2nd aux_rep = {aux_repC}")
         isoA = self.get_isometry(iA, dirA)
         isoC = self.get_isometry(iC, dirC)
         matA = SU2_Matrix.from_raw_data(
