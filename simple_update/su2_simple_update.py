@@ -237,6 +237,7 @@ class SU2_SimpleUpdate(object):
             print(f"set tau to {tau}")
         self._tau = tau
         self._gates = [(-tau * h).expm() for h in self._hamilts]
+        self._sqrt_gates = [(-0.5 * tau * h).expm() for h in self._hamilts]
         self._squared_gates = [(-2 * tau * h).expm() for h in self._hamilts]
         self._dbeta = 4 * tau  # 2nd order Trotter Suzuki + rho is quadratic in psi
 
@@ -830,36 +831,59 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
 
         self.update_bond1(self._gates[0])
         for i in range(niter - 1):  # there is 1 step out of the loop
-            self.update_bond2(self._gates[0])
-            self.update_bond3(self._gates[0])
-            self.update_bond4(self._gates[0])
-            self.update_bond5(self._gates[0])
-            self.update_bond6(self._gates[0])
-            self.update_bond7(self._gates[0])
-            self.update_bond8(self._squared_gates[0])
-            self.update_bond7(self._gates[0])
-            self.update_bond6(self._gates[0])
-            self.update_bond5(self._gates[0])
-            self.update_bond4(self._gates[0])
-            self.update_bond3(self._gates[0])
-            self.update_bond2(self._gates[0])
+            self._2nd_order_step_no1()
             self.update_bond1(self._squared_gates[0])
             self._beta += self._dbeta
-        self.update_bond2(self._gates[0])
-        self.update_bond3(self._gates[0])
-        self.update_bond4(self._gates[0])
-        self.update_bond5(self._gates[0])
-        self.update_bond6(self._gates[0])
-        self.update_bond7(self._gates[0])
-        self.update_bond8(self._squared_gates[0])
-        self.update_bond7(self._gates[0])
-        self.update_bond6(self._gates[0])
-        self.update_bond5(self._gates[0])
-        self.update_bond4(self._gates[0])
-        self.update_bond3(self._gates[0])
-        self.update_bond2(self._gates[0])
+        self._2nd_order_step_no1()
         self.update_bond1(self._gates[0])
         self._beta += self._dbeta
+
+    def _2nd_order_step_no1(self):
+        self.update_bond2(self._gates[0])
+        self.update_bond3(self._gates[0])
+        self.update_bond4(self._gates[0])
+        self.update_bond5(self._gates[0])
+        self.update_bond6(self._gates[0])
+        self.update_bond7(self._gates[0])
+        self.update_bond8(self._gates[0])
+        self.update_bonds18(self._sqrt_gates[1])
+        self.update_bonds54(self._sqrt_gates[1])
+        self.update_bonds71(self._sqrt_gates[1])
+        self.update_bonds25(self._sqrt_gates[1])
+        self.update_bonds62(self._sqrt_gates[1])
+        self.update_bonds37(self._sqrt_gates[1])
+        self.update_bonds83(self._sqrt_gates[1])
+        self.update_bonds46(self._sqrt_gates[1])
+        self.update_bonds57(self._sqrt_gates[1])
+        self.update_bonds12(self._sqrt_gates[1])
+        self.update_bonds41(self._sqrt_gates[1])
+        self.update_bonds85(self._sqrt_gates[1])
+        self.update_bonds68(self._sqrt_gates[1])
+        self.update_bonds34(self._sqrt_gates[1])
+        self.update_bonds23(self._sqrt_gates[1])
+        self.update_bonds76(self._gates[1])
+        self.update_bonds23(self._sqrt_gates[1])
+        self.update_bonds34(self._sqrt_gates[1])
+        self.update_bonds68(self._sqrt_gates[1])
+        self.update_bonds85(self._sqrt_gates[1])
+        self.update_bonds41(self._sqrt_gates[1])
+        self.update_bonds12(self._sqrt_gates[1])
+        self.update_bonds57(self._sqrt_gates[1])
+        self.update_bonds46(self._sqrt_gates[1])
+        self.update_bonds83(self._sqrt_gates[1])
+        self.update_bonds37(self._sqrt_gates[1])
+        self.update_bonds62(self._sqrt_gates[1])
+        self.update_bonds25(self._sqrt_gates[1])
+        self.update_bonds71(self._sqrt_gates[1])
+        self.update_bonds54(self._sqrt_gates[1])
+        self.update_bonds18(self._sqrt_gates[1])
+        self.update_bond8(self._gates[0])
+        self.update_bond7(self._gates[0])
+        self.update_bond6(self._gates[0])
+        self.update_bond5(self._gates[0])
+        self.update_bond4(self._gates[0])
+        self.update_bond3(self._gates[0])
+        self.update_bond2(self._gates[0])
 
     def reset_isometries(self):
         self._isometries = [[None] * 8 for i in range(self._n_tensors)]
@@ -992,3 +1016,150 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
 
     def update_bond8(self, gate):
         self._update_bond_i(gate, 2, 3, 3)
+
+    def _update_second_neighbor(self, gate, iA, iB, iD, dirsB):
+        """
+        Generic second neighbor update function for plaquette AB//CD. Variable names
+        follow update 2-5 conventions.
+
+        Parameters
+        ----------
+        iA : int
+            Index of "left" tensor: 0 for A, 1 for B, 2 for C, 3 for D.
+        iB : int
+            Index of proxy tensor.
+        iD : int
+            Index of "right" tensor.
+        dirsB : int
+            Updated directions for proxy tensor:
+            - 4 for up-right
+            - 5 for right-down
+            - 6 for down-left
+            - 7 for left-up.
+        """
+        dirA = dirsB - 4  # direction for tensor "A"
+        dirD = (dirsB - 3) % 4  # direction for tensor "D"
+        i2 = self._tensor_legs[iA][dirA]  # index of 1st updated leg
+        i5 = self._tensor_legs[iD][dirD]  # index of 2nd updated leg
+        eff_repA = self._phys * self._bond_representations[i2]
+        eff_repD = self._phys * self._bond_representations[i5]
+        eff_repB = self._bond_representations[i2] * self._bond_representations[i5]
+        aux_repB = (
+            self._phys2  # phys * anc
+            * self._bond_representations[self._tensor_legs[iB][(dirA + 2) % 4]]
+            * self._bond_representations[self._tensor_legs[iB][(dirD + 2) % 4]]
+        )
+        aux_repA = (
+            self._anc
+            * self._bond_representations[self._tensor_legs[iA][(dirA + 1) % 4]]
+            * self._bond_representations[self._tensor_legs[iA][(dirA + 2) % 4]]
+            * self._bond_representations[self._tensor_legs[iA][(dirA + 3) % 4]]
+        )
+        aux_repD = (
+            self._anc
+            * self._bond_representations[self._tensor_legs[iD][(dirD + 1) % 4]]
+            * self._bond_representations[self._tensor_legs[iD][(dirD + 2) % 4]]
+            * self._bond_representations[self._tensor_legs[iD][(dirD + 3) % 4]]
+        )
+        if self.verbosity > 2:
+            print(f"update bonds {i2+1} and {i5+1}:")
+            print(f"rep{i2+1} = {self._bond_representations[i2]}")
+            print(f"rep{i5+1} = {self._bond_representations[i5]}")
+            print(f"left aux_rep = {aux_repA}")
+            print(f"mid aux_rep = {aux_repB}")
+            print(f"right aux_rep = {aux_repD}")
+        isoA = self.get_isometry(iA, dirA)
+        isoB = self.get_isometry(iB, dirsB)
+        isoD = self.get_isometry(iD, dirD)
+        matA = SU2_Matrix.from_raw_data(
+            isoA @ self._tensors_data[iA], eff_repA, aux_repA
+        ).T
+        matB = SU2_Matrix.from_raw_data(
+            isoB @ self._tensors_data[iB], eff_repB, aux_repB
+        ).T
+        matD = SU2_Matrix.from_raw_data(
+            isoD @ self._tensors_data[iD], eff_repD, aux_repD
+        )
+
+        (
+            newA,
+            newB,
+            newD,
+            self._weights[i2],
+            self._weight5[i5],
+            new_rep2,
+            new_rep5,
+        ) = self.update_through_proxy(
+            matA,
+            matB,
+            matD,
+            self._weights[i2],
+            self._weights[i5],
+            self._bond_representations[i2],
+            self._bond_representations[i5],
+            gate,
+        )
+
+        if new_rep2 != self._bond_representations[i2]:
+            self._bond_representations[i2] = new_rep2
+            self.reset_isometries_tensor(iA)
+            self.reset_isometries_tensor(iB)
+            isoA = self.get_isometry(iA, dirA)
+        if new_rep5 != self._bond_representations[i5]:
+            self._bond_representations[i5] = new_rep5
+            self.reset_isometries_tensor(iB)
+            self.reset_isometries_tensor(iD)
+            isoD = self.get_isometry(iD, dirD)
+
+        isoB = self.get_isometry(iB, 4 + dirA)
+        self._tensors_data[iA] = isoA.T @ newA.T.to_raw_data()
+        self._tensors_data[iB] = isoB.T @ newB.to_raw_data()
+        self._tensors_data[iD] = isoD.T @ newD.to_raw_data()
+
+    def update_bonds18(self, gate):
+        self._update_second_neighbor(gate, 0, 2, 3, 6)
+
+    def update_bonds54(self, gate):
+        self._update_second_neighbor(gate, 3, 1, 0, 4)
+
+    def update_bonds71(self, gate):
+        self._update_second_neighbor(gate, 3, 2, 0, 5)
+
+    def update_bonds25(self, gate):
+        self._update_second_neighbor(gate, 0, 1, 3, 7)
+
+    def update_bonds62(self, gate):
+        self._update_second_neighbor(gate, 3, 1, 0, 6)
+
+    def update_bonds37(self, gate):
+        self._update_second_neighbor(gate, 0, 2, 3, 4)
+
+    def update_bonds83(self, gate):
+        self._update_second_neighbor(gate, 3, 2, 0, 7)
+
+    def update_bonds46(self, gate):
+        self._update_second_neighbor(gate, 0, 1, 3, 5)
+
+    def update_bonds57(self, gate):
+        self._update_second_neighbor(gate, 1, 3, 2, 6)
+
+    def update_bonds12(self, gate):
+        self._update_second_neighbor(gate, 2, 0, 1, 4)
+
+    def update_bonds41(self, gate):
+        self._update_second_neighbor(gate, 1, 0, 2, 7)
+
+    def update_bonds85(self, gate):
+        self._update_second_neighbor(gate, 2, 3, 1, 5)
+
+    def update_bonds68(self, gate):
+        self._update_second_neighbor(gate, 1, 3, 2, 4)
+
+    def update_bonds34(self, gate):
+        self._update_second_neighbor(gate, 2, 0, 1, 6)
+
+    def update_bonds23(self, gate):
+        self._update_second_neighbor(gate, 1, 0, 2, 5)
+
+    def update_bonds76(self, gate):
+        self._update_second_neighbor(gate, 2, 3, 1, 7)
