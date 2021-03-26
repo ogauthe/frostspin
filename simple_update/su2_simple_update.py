@@ -125,9 +125,6 @@ class SU2_SimpleUpdate(object):
         verbosity : int
             Level of log verbosity. Default is no log.
         """
-        if verbosity > 0:
-            print("Initialize SU2_SimpleUpdate1x2 at beta = 0 thermal product state")
-
         phys = SU2_Representation.irrep(d)
         proj, ind = construct_matrix_projector(
             (phys, phys), (phys, phys), conj_right=True
