@@ -786,7 +786,7 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
         (3, 1, 0, 2, 4, 5),
         (4, 1, 0, 2, 3, 4),
     )
-    _tensors_leg = ((0, 1, 2, 3), (4, 3, 5, 1), (2, 6, 0, 7), (5, 7, 4, 6))
+    _tensor_legs = ((0, 1, 2, 3), (4, 3, 5, 1), (2, 6, 0, 7), (5, 7, 4, 6))
 
     def __repr__(self):
         return f"SU2_SimpleUpdate2x2 for irrep {self._d}"
@@ -893,10 +893,10 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
             if self.verbosity > 1:
                 print(f"Compute isometry for tensor {tensor} and direction {direction}")
                 print(*self._bond_representations, sep="\n")
-            rep1 = self._bond_representations[self._tensor_leg[tensor][0]]
-            rep2 = self._bond_representations[self._tensor_leg[tensor][1]]
-            rep3 = self._bond_representations[self._tensor_leg[tensor][2]]
-            rep4 = self._bond_representations[self._tensor_leg[tensor][3]]
+            rep1 = self._bond_representations[self._tensor_legs[tensor][0]]
+            rep2 = self._bond_representations[self._tensor_legs[tensor][1]]
+            rep3 = self._bond_representations[self._tensor_legs[tensor][2]]
+            rep4 = self._bond_representations[self._tensor_legs[tensor][3]]
             self._isometries[tensor][direction] = construct_transpose_matrix(
                 (rep1, self._phys, rep2, rep3, rep4, self._anc),
                 3,
@@ -928,20 +928,25 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
         )
         if self.verbosity > 2:
             print(
-                f"update bond {i1+1}: rep{i1+1} = {self._bond_representations[{i1}]},",
+                f"update bond {i1+1}: rep{i1+1} = {self._bond_representations[i1]},",
                 f"1st aux_rep = {aux_repA}",
                 f"2nd aux_rep = {aux_repC}",
             )
         isoA = self.get_isometry(iA, dirA)
         isoC = self.get_isometry(iC, dirC)
-        matA = SU2_Matrix(isoA @ self._tensors_data[iA], eff_rep, aux_repA).T
-        matC = SU2_Matrix(isoC @ self._tensors_data[iC], eff_rep, aux_repC)
+        matA = SU2_Matrix.from_raw_data(
+            isoA @ self._tensors_data[iA], eff_rep, aux_repA
+        ).T
+        matC = SU2_Matrix.from_raw_data(
+            isoC @ self._tensors_data[iC], eff_rep, aux_repC
+        )
 
         newA, newC, self._weights[i1], new_rep = self.update_first_neighbor(
             matA, matC, self._weights[i1], self._bond_representations[i1], gate
         )
 
         if new_rep != self._bond_representations[i1]:
+            self._bond_representations[i1] = new_rep
             self.reset_isometries_tensor(iA)
             self.reset_isometries_tensor(iC)
             isoA = self.get_isometry(iA, dirA)
