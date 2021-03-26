@@ -660,12 +660,12 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
             self._bond_representations[3],
             self._anc,
         )
-        eff_rep = (self._phys, self._bond_representations[0])
-        proj, indices = construct_matrix_projector(aux_rep, eff_rep)
+        eff_rep = (self._bond_representations[0], self._phys)
+        proj, indices = construct_matrix_projector(eff_rep, aux_rep)
         gammaA = np.zeros(size)
         gammaA[indices] = proj @ self._tensors_data[0]
-        gammaA = gammaA.reshape(D2, D3, D4, self._a, self._d, D1)
-        gammaA = np.einsum("rdlapu,u,r,d,l->paurdl", gammaA, w1, w2, w3, w4)
+        gammaA = gammaA.reshape(D1, self._d, D2, D3, D4, self._a)
+        gammaA = np.einsum("uprdla,u,r,d,l->paurdl", gammaA, w1, w2, w3, w4)
         gammaA = gammaA[
             :, :, so1[:, None, None, None], so2[:, None, None], so3[:, None], so4
         ]
@@ -674,8 +674,8 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         projB, indicesB = construct_matrix_projector(eff_rep[::-1], aux_rep)
         gammaB = np.zeros(size)
         gammaB[indices] = proj @ self._tensors_data[1]
-        gammaB = gammaB.reshape(D2, D3, D4, self._a, self._d, D1)
-        gammaB = np.einsum("lurapd,u,r,d,l->paurdl", gammaB, w3, w4, w1, w2)
+        gammaB = gammaB.reshape(D1, self._d, D2, D3, D4, self._a)
+        gammaB = np.einsum("dplura,u,r,d,l->paurdl", gammaB, w3, w4, w1, w2)
         gammaB = gammaB[
             :, :, so3[:, None, None, None], so4[:, None, None], so1[:, None], so2
         ]
@@ -783,6 +783,14 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
     _n_hamilts = 2
     _n_tensors = 4
 
+    _isometry_swaps = (
+        (0, 1, 2, 3, 4, 5),
+        (2, 1, 0, 3, 4, 5),
+        (3, 1, 0, 2, 4, 5),
+        (4, 1, 0, 2, 3, 4),
+    )
+    _tensors_leg = ((0, 1, 2, 3), (4, 3, 5, 1), (2, 6, 0, 7), (5, 7, 4, 6))
+
     def __repr__(self):
         return f"SU2_SimpleUpdate2x2 for irrep {self._d}"
 
@@ -819,16 +827,41 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
             return  # else evolve for 1 step out of niter loop
         niter = round(beta_evolve / self._dbeta)  # 2nd order: evolve 2*tau by step
 
-        # TODO
-        niter
-
+        self._update_bond1(self._gates[0])
+        for i in range(niter - 1):  # there is 1 step out of the loop
+            self._update_bond2(self._gates[0])
+            self._update_bond3(self._gates[0])
+            self._update_bond4(self._gates[0])
+            self._update_bond5(self._gates[0])
+            self._update_bond6(self._gates[0])
+            self._update_bond7(self._gates[0])
+            self._update_bond8(self._squared_gates[0])
+            self._update_bond7(self._gates[0])
+            self._update_bond6(self._gates[0])
+            self._update_bond5(self._gates[0])
+            self._update_bond4(self._gates[0])
+            self._update_bond3(self._gates[0])
+            self._update_bond2(self._gates[0])
+            self._update_bond1(self._squared_gates[0])
+            self._beta += self._dbeta
+        self._update_bond2(self._gates[0])
+        self._update_bond3(self._gates[0])
+        self._update_bond4(self._gates[0])
+        self._update_bond5(self._gates[0])
+        self._update_bond6(self._gates[0])
+        self._update_bond7(self._gates[0])
+        self._update_bond8(self._squared_gates[0])
+        self._update_bond7(self._gates[0])
+        self._update_bond6(self._gates[0])
+        self._update_bond5(self._gates[0])
+        self._update_bond4(self._gates[0])
+        self._update_bond3(self._gates[0])
+        self._update_bond2(self._gates[0])
+        self._update_bond1(self._gates[0])
         self._beta += self._dbeta
 
     def reset_isometries(self):
-        self.reset_isometries_tensor(0)
-        self.reset_isometries_tensor(1)
-        self.reset_isometries_tensor(2)
-        self.reset_isometries_tensor(3)
+        self._isometries = [[None] * 8 for i in range(self._n_tensors)]
 
     def reset_isometries_tensor(self, ti):
         if self.verbosity > 1:
@@ -857,6 +890,23 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
         size = self._d * self._a * Ds.prod()
         # TODO
         sz_vals, size
+
+    def get_isometry(self, tensor, direction):
+        if self._isometries[tensor][direction] is None:
+            if self.verbosity > 1:
+                print(f"Compute isometry for tensor {tensor} and direction {direction}")
+                print(*self._bond_representations, sep="\n")
+            rep1 = self._bond_representations[self._tensor_leg[tensor][0]]
+            rep2 = self._bond_representations[self._tensor_leg[tensor][1]]
+            rep3 = self._bond_representations[self._tensor_leg[tensor][2]]
+            rep4 = self._bond_representations[self._tensor_leg[tensor][3]]
+            self._isometries[tensor][direction] = construct_transpose_matrix(
+                (rep1, self._phys, rep2, rep3, rep4, self._anc),
+                3,
+                4,
+                self._isometry_swaps[direction],
+            )
+        return self._isometries[tensor][direction]
 
     def _update_bond_i(self, gate, iA, iC, dirA, i1, i3, i2, i4, i7, i8):
         """
@@ -887,7 +937,7 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
             )
         isoA = self.get_isometry(iA, dirA)
         isoC = self.get_isometry(iC, dirC)
-        matA = SU2_Matrix(isoA @ self._tensors_data[iA], aux_repA, eff_rep)
+        matA = SU2_Matrix(isoA @ self._tensors_data[iA], eff_rep, aux_repA).T
         matC = SU2_Matrix(isoC @ self._tensors_data[iC], eff_rep, aux_repC)
 
         newA, newC, self._weights[i1], new_rep = self.update_first_neighbor(
@@ -897,10 +947,10 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
         if new_rep != self._bond_representations[i1]:
             self.reset_isometries_tensor(iA)
             self.reset_isometries_tensor(iC)
+            isoA = self.get_isometry(iA, dirA)
+            isoC = self.get_isometry(iC, dirC)
 
-        isoA = self.get_isoL(dirA)
-        isoC = self.get_isoR(dirC)
-        self._tensors_data[iA] = isoA.T @ newA.to_raw_data()
+        self._tensors_data[iA] = isoA.T @ newA.T.to_raw_data()
         self._tensors_data[iC] = isoC.T @ newC.to_raw_data()
 
     # leg indices have a -1 shift to start at 0.
