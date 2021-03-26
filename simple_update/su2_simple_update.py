@@ -903,7 +903,7 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
             self._isometries[tensor][direction] = construct_transpose_matrix(
                 (rep1, self._phys, rep2, rep3, rep4, self._anc),
                 3,
-                4,
+                2,
                 self._isometry_swaps[direction],
             )
         return self._isometries[tensor][direction]
