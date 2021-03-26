@@ -780,13 +780,17 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
     _n_hamilts = 2
     _n_tensors = 4
 
-    _isometry_swaps = (
-        (0, 1, 2, 3, 4, 5),
-        (2, 1, 0, 3, 4, 5),
-        (3, 1, 0, 2, 4, 5),
-        (4, 1, 0, 2, 3, 5),
-    )
     _tensor_legs = ((0, 1, 2, 3), (4, 3, 5, 1), (2, 6, 0, 7), (5, 7, 4, 6))
+    _isometry_swaps = (
+        (0, 1, 2, 3, 4, 5),  # default to up update
+        (2, 1, 0, 3, 4, 5),  # default to right update
+        (3, 1, 0, 2, 4, 5),  # default to down update
+        (4, 1, 0, 2, 3, 5),  # default to left update
+        (0, 2, 1, 3, 4, 5),  # default to UR proxy
+        (2, 3, 1, 0, 4, 5),  # default to RD proxy
+        (3, 4, 1, 0, 2, 5),  # default to DL proxy
+        (4, 0, 1, 2, 3, 5),  # default to LU proxy
+    )
 
     def __repr__(self):
         return f"SU2_SimpleUpdate2x2 for irrep {self._d}"
