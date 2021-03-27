@@ -926,10 +926,10 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
             rep4 = self._bond_representations[self._tensor_legs[tensor][3]]
             if self.verbosity > 1:
                 print(f"Compute isometry for tensor {tensor} and direction {direction}")
-                print(f"rep1 = {rep1}")
-                print(f"rep2 = {rep2}")
-                print(f"rep3 = {rep3}")
-                print(f"rep4 = {rep4}")
+                print(f"rep{self._tensor_legs[tensor][0] + 1} = {rep1}")
+                print(f"rep{self._tensor_legs[tensor][1] + 1} = {rep2}")
+                print(f"rep{self._tensor_legs[tensor][2] + 1} = {rep3}")
+                print(f"rep{self._tensor_legs[tensor][3] + 1} = {rep4}")
             self._isometries[tensor][direction] = construct_transpose_matrix(
                 (rep1, self._phys, rep2, rep3, rep4, self._anc),
                 3,
