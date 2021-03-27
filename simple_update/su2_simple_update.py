@@ -474,7 +474,7 @@ class SU2_SimpleUpdate(object):
 
         # 1st SVD
         theta = SU2_Matrix.from_raw_data(
-            iso2.T @ theta.to_raw_data(), auxL * self._phys * aux_m, repR
+            iso2.T @ theta.to_raw_data(), auxL * self._phys * aux_m, self._phys * auxR
         )
         U, new_weightsR, V, new_repR = theta.svd(cut=self.Dstar, rcutoff=self.rcutoff)
         new_weightsR /= new_weightsR @ new_repR.get_multiplet_structure()
@@ -499,7 +499,9 @@ class SU2_SimpleUpdate(object):
         eff_m = V * new_weightsL[:, None]
         effL = U * new_weightsL
         if new_repL != repL:
-            isoL = construct_transpose_matrix((auxL, self._phys, repL), 1, 2, (0, 1, 2))
+            isoL = construct_transpose_matrix(
+                (auxL, self._phys, new_repL), 1, 2, (0, 1, 2)
+            )
             iso_m = construct_transpose_matrix(
                 (new_repL, new_repR, aux_m), 2, 1, (0, 1, 2)
             )
@@ -1046,8 +1048,8 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
         eff_repB = self._bond_representations[i2] * self._bond_representations[i5]
         aux_repB = (
             self._phys2  # phys * anc
-            * self._bond_representations[self._tensor_legs[iB][(dirA + 2) % 4]]
-            * self._bond_representations[self._tensor_legs[iB][(dirD + 2) % 4]]
+            * self._bond_representations[self._tensor_legs[iB][dirA]]
+            * self._bond_representations[self._tensor_legs[iB][dirD]]
         )
         aux_repA = (
             self._anc
@@ -1086,7 +1088,7 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
             newB,
             newD,
             self._weights[i2],
-            self._weight5[i5],
+            self._weights[i5],
             new_rep2,
             new_rep5,
         ) = self.update_through_proxy(
