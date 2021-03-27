@@ -82,7 +82,7 @@ def get_projector_chained(*rep_in, singlet_only=False):
 
 def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     r"""
-                list of matrices
+                singlet space
                 /          \
                /            \
             prod_l        prod_r
@@ -94,8 +94,8 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     Returns:
     --------
     proj : (M, N) ndarray
-        Projector on singlet, with N is the singlet space dimension and M the Sz=0
-        input sector dimension.
+        Projector on singlet, with N the singlet space dimension and M the Sz=0 input
+        sector dimension.
     indices : (M,) integer ndarray
         Indices of proj rows in terms of dense matrix labelling.
     """
