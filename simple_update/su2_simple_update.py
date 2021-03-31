@@ -1113,7 +1113,7 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
             self.reset_isometries_tensor(iD)
             isoD = self.get_isometry(iD, dirD)
 
-        isoB = self.get_isometry(iB, 4 + dirA)
+        isoB = self.get_isometry(iB, dirsB)
         self._tensors_data[iA] = isoA.T @ newA.T.to_raw_data()
         self._tensors_data[iB] = isoB.T @ newB.to_raw_data()
         self._tensors_data[iD] = isoD.T @ newD.to_raw_data()
