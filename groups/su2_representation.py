@@ -98,6 +98,10 @@ def product_degen(degen1, irreps1, degen2, irreps2):
 
 
 class SU2_Representation(object):
+    """
+    SU(2) representation. Representations are immutable, hashable objects.
+    """
+
     elementary_projectors = get_CG()
 
     def __init__(self, degen, irreps):
@@ -184,9 +188,6 @@ class SU2_Representation(object):
     def __hash__(self):
         return hash(repr(self))  # quick and dirty
 
-    def copy(self):  # to save copy before truncation
-        return SU2_Representation(self._degen.copy(), self._irreps.copy())
-
     def has_integer_spin(self):
         return (self._irreps % 2).any()
 
@@ -199,16 +200,15 @@ class SU2_Representation(object):
             return self._degen[ind]
         return 0
 
-    def truncate_max_irrep(self, max_irrep):
+    def truncated(self, max_irrep):
         """
-        Truncate any spin strictly greater than max_irrep. Returns updated dimension.
+        Return a new representation truncated to max_irrep. If no truncation occurred,
+        return self.
         """
         ind = np.searchsorted(self._irreps, max_irrep + 1)
         if ind < self._n_irr:
-            self._degen = self._degen[:ind]
-            self._irreps = self._irreps[:ind]
-            self._dim = self._degen @ self._irreps
-        return self._dim
+            return SU2_Representation(self._degen[:ind], self._irreps[:ind])
+        return self
 
     def get_generators(self):
         gen = np.zeros((3, self._dim, self._dim), dtype=complex)

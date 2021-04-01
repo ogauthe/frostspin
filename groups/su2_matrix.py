@@ -13,7 +13,7 @@ from groups.su2_representation import SU2_Representation
 def get_projector(in1, in2, max_irrep=np.inf):
     # max_irrep cannot be set to None since irr3 loop depends on it
     out = in1 * in2
-    out.truncate_max_irrep(max_irrep)
+    out = out.truncated(max_irrep)
     p = np.zeros((in1.dim, in2.dim, out.dim))
     shift3 = np.zeros(out.irreps[-1] + 1, dtype=int)
     n = 0
@@ -55,8 +55,9 @@ def get_projector_chained(*rep_in, singlet_only=False):
             /  \   \
            1    2   3 ...
     """
-    forwards, backwards = [[rep_in[0].copy()], [rep_in[-1]]]
-    for i in range(1, len(rep_in)):
+    forwards, backwards = [[rep_in[0]], [rep_in[-1]]]
+    n = len(rep_in)
+    for i in range(1, n):
         forwards.append(forwards[i - 1] * rep_in[i])
         backwards.append(backwards[i - 1] * rep_in[-i - 1])
 
@@ -65,13 +66,13 @@ def get_projector_chained(*rep_in, singlet_only=False):
         if forwards[-1].irreps[0] != 1:
             raise ValueError("No singlet in product")
         truncations = [1]
-        forwards[-1].truncate_max_irrep(1)
-        for (f, b) in zip(reversed(forwards[:-1]), backwards[:-1]):
-            trunc = b.max_irrep
-            f.truncate_max_irrep(trunc)
+        forwards[-1] = forwards[-1].truncated(1)
+        for i in range(n - 1):
+            trunc = backwards[i].max_irrep
+            forwards[-i - 2] = forwards[-i].truncated(trunc)
             truncations.append(trunc)
     else:
-        truncations = [np.inf] * len(rep_in)
+        truncations = [np.inf] * n
 
     proj = np.eye(rep_in[0].dim)
     for (f, rep, trunc) in zip(forwards, rep_in[1:], reversed(truncations[:-1])):
@@ -99,20 +100,16 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     indices : (M,) integer ndarray
         Indices of proj rows in terms of dense matrix labelling.
     """
-    repL = rep_left_enum[0].copy()  # need copy to truncate if n_rep_left = 1
-    for rep in rep_left_enum[1:]:
-        repL = repL * rep
-    repR = rep_right_enum[0].copy()
-    for rep in rep_right_enum[1:]:
-        repR = repR * rep
+    repL = functools.reduce(operator.mul, rep_left_enum)
+    repR = functools.reduce(operator.mul, rep_right_enum)
     # save left and right dimensions before truncation
     dimL = repL.dim
     dimR = repR.dim
     target = sorted(set(repL.irreps).intersection(repR.irreps))
     if not target:
         raise ValueError("Representations have no common irrep")
-    repL.truncate_max_irrep(target[-1])
-    repR.truncate_max_irrep(target[-1])
+    repL = repL.truncated(target[-1])
+    repR = repR.truncated(target[-1])
     if target != list(repL.irreps) or target != list(repR.irreps):  # TODO
         raise NotImplementedError("TODO: remove irreps that will not fuse")
 
