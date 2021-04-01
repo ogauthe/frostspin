@@ -283,7 +283,11 @@ class SU2_SimpleUpdate(object):
         return dense_weights
 
     def reset_isometries(self):
-        return NotImplemented
+        """
+        Generic function to reset all isometries.
+        """
+        self._left_isometries = {}
+        self._right_isometries = {}
 
     def get_tensors_mz(self):
         """
@@ -296,6 +300,22 @@ class SU2_SimpleUpdate(object):
             mz values for each axis of each tensor.
         """
         return NotImplemented
+
+    def get_left_isometry(self, left, mid):
+        try:
+            iso = self._left_isometries[left, mid]
+        except KeyError:
+            iso = construct_transpose_matrix((left, self._phys, mid), 1, 2, (0, 1, 2))
+            self._left_isometries[left, mid] = iso
+        return iso
+
+    def get_right_isometry(self, mid, right):
+        try:
+            iso = self._right_isometries[mid, right]
+        except KeyError:
+            iso = construct_transpose_matrix((mid, self._phys, right), 2, 1, (0, 1, 2))
+            self._right_isometries[mid, right] = iso
+        return iso
 
     def update_first_neighbor(self, matL0, matR0, weights, virt_mid, gate):
         r"""
@@ -330,24 +350,12 @@ class SU2_SimpleUpdate(object):
         effR = effR * svR
 
         # change tensor structure to contract mid
-        try:
-            isoL = self._left_isometries[virt_left, virt_mid]
-        except KeyError:
-            isoL = construct_transpose_matrix(
-                (virt_left, self._phys, virt_mid), 1, 2, (0, 1, 2)
-            )
-            self._left_isometries[virt_left, virt_mid] = isoL
+        isoL = self.get_left_isometry(virt_left, virt_mid)
         matL1 = SU2_Matrix.from_raw_data(
             isoL @ effL.to_raw_data(), virt_left * self._phys, virt_mid
         )
 
-        try:
-            isoR = self._right_isometries[virt_mid, virt_right]
-        except KeyError:
-            isoR = construct_transpose_matrix(
-                (virt_mid, self._phys, virt_right), 2, 1, (0, 1, 2)
-            )
-            self._right_isometries[virt_mid, virt_right] = isoR
+        isoR = self.get_right_isometry(virt_mid, virt_right)
         matR1 = SU2_Matrix.from_raw_data(
             isoR @ effR.to_raw_data(), virt_mid, self._phys * virt_right
         )
@@ -380,20 +388,8 @@ class SU2_SimpleUpdate(object):
 
         # recompute reshape matrices only if needed
         if new_virt_mid != virt_mid:
-            try:
-                isoL = self._left_isometries[virt_left, new_virt_mid]
-            except KeyError:
-                isoL = construct_transpose_matrix(
-                    (virt_left, self._phys, new_virt_mid), 1, 2, (0, 1, 2)
-                )
-                self._left_isometries[virt_left, new_virt_mid] = isoL
-            try:
-                isoR = self._right_isometries[new_virt_mid, virt_right]
-            except KeyError:
-                isoR = construct_transpose_matrix(
-                    (new_virt_mid, self._phys, virt_right), 2, 1, (0, 1, 2)
-                )
-                self._right_isometries[new_virt_mid, virt_right] = isoR
+            isoL = self.get_left_isometry(virt_left, new_virt_mid)
+            isoR = self.get_right_isometry(new_virt_mid, virt_right)
 
         # reshape to initial tree structure
         new_effL = SU2_Matrix.from_raw_data(
@@ -452,7 +448,7 @@ class SU2_SimpleUpdate(object):
         effR = effR * svR
 
         # change tensor structure to contract mid
-        isoL = construct_transpose_matrix((auxL, self._phys, repL), 1, 2, (0, 1, 2))
+        isoL = self.get_left_isometry(auxL, repL)
         matL1 = (
             SU2_Matrix.from_raw_data(isoL @ effL.to_raw_data(), auxL * self._phys, repL)
             / weightsL
@@ -463,7 +459,7 @@ class SU2_SimpleUpdate(object):
             iso_m @ eff_m.to_raw_data(), repL, repR * aux_m
         )
 
-        isoR = construct_transpose_matrix((repR, self._phys, auxR), 2, 1, (0, 1, 2))
+        isoR = self.get_right_isometry(repR, auxR)
         matR1 = (
             SU2_Matrix.from_raw_data(isoR @ effR.to_raw_data(), repR, self._phys * auxR)
             / weightsR[:, None]
@@ -496,9 +492,7 @@ class SU2_SimpleUpdate(object):
 
         # recompute reshape matrices only if needed
         if new_repR != repR:
-            isoR = construct_transpose_matrix(
-                (new_repR, self._phys, auxR), 2, 1, (0, 1, 2)
-            )
+            isoR = self.get_right_isometry(new_repR, auxR)
             iso1 = construct_transpose_matrix(
                 (auxL, self._phys, new_repR, aux_m), 2, 3, (0, 1, 3, 2)
             )
@@ -513,9 +507,7 @@ class SU2_SimpleUpdate(object):
         eff_m = V * new_weightsL[:, None]
         effL = U * new_weightsL
         if new_repL != repL:
-            isoL = construct_transpose_matrix(
-                (auxL, self._phys, new_repL), 1, 2, (0, 1, 2)
-            )
+            isoL = self.get_left_isometry(auxL, new_repL)
             iso_m = construct_transpose_matrix(
                 (new_repL, new_repR, aux_m), 2, 1, (0, 1, 2)
             )
