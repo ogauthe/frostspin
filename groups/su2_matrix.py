@@ -57,6 +57,9 @@ def get_projector_chained(*rep_in, singlet_only=False):
     """
     forwards, backwards = [[rep_in[0]], [rep_in[-1]]]
     n = len(rep_in)
+    if n == 1:
+        return np.eye(rep_in[0].dim)
+
     for i in range(1, n):
         forwards.append(forwards[i - 1] * rep_in[i])
         backwards.append(backwards[i - 1] * rep_in[-i - 1])
@@ -74,8 +77,8 @@ def get_projector_chained(*rep_in, singlet_only=False):
     else:
         truncations = [np.inf] * n
 
-    proj = np.eye(rep_in[0].dim)
-    for (f, rep, trunc) in zip(forwards, rep_in[1:], reversed(truncations[:-1])):
+    proj = get_projector(forwards[0], rep_in[1], max_irrep=truncations[-2])
+    for (f, rep, trunc) in zip(forwards[1:], rep_in[2:], reversed(truncations[:-2])):
         p = get_projector(f, rep, max_irrep=trunc)
         proj = np.tensordot(proj, p, ((-1,), (0,)))
     return proj
