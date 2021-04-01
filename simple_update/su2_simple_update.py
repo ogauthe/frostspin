@@ -330,22 +330,30 @@ class SU2_SimpleUpdate(object):
         effR = effR * svR
 
         # change tensor structure to contract mid
-        pL1, pL0 = construct_transpose_matrix(
-            (virt_left, self._phys, virt_mid), 1, 2, (0, 1, 2), contract=False
-        )
-        vL1 = pL1.T @ (pL0 @ effL.to_raw_data())  # faster than contracting pL1 @ pL0
-        matL1 = (
-            SU2_Matrix.from_raw_data(vL1, virt_left * self._phys, virt_mid) / weights
+        try:
+            isoL = self._left_isometries[virt_left, virt_mid]
+        except KeyError:
+            isoL = construct_transpose_matrix(
+                (virt_left, self._phys, virt_mid), 1, 2, (0, 1, 2)
+            )
+            self._left_isometries[virt_left, virt_mid] = isoL
+        matL1 = SU2_Matrix.from_raw_data(
+            isoL @ effL.to_raw_data(), virt_left * self._phys, virt_mid
         )
 
-        pR1, pR0 = construct_transpose_matrix(
-            (virt_mid, self._phys, virt_right), 2, 1, (0, 1, 2), contract=False
+        try:
+            isoR = self._right_isometries[virt_mid, virt_right]
+        except KeyError:
+            isoR = construct_transpose_matrix(
+                (virt_mid, self._phys, virt_right), 2, 1, (0, 1, 2)
+            )
+            self._right_isometries[virt_mid, virt_right] = isoR
+        matR1 = SU2_Matrix.from_raw_data(
+            isoR @ effR.to_raw_data(), virt_mid, self._phys * virt_right
         )
-        vR1 = pR1.T @ (pR0 @ effR.to_raw_data())
-        matR1 = SU2_Matrix.from_raw_data(vR1, virt_mid, self._phys * virt_right)
 
         # construct matrix theta and apply gate
-        theta_mat = matL1 @ matR1
+        theta_mat = (matL1 / weights) @ matR1
         theta = theta_mat.to_raw_data()
         iso_theta = construct_transpose_matrix(
             (virt_left, self._phys, self._phys, virt_right), 2, 2, (0, 3, 1, 2)
@@ -372,21 +380,27 @@ class SU2_SimpleUpdate(object):
 
         # recompute reshape matrices only if needed
         if new_virt_mid != virt_mid:
-            pL1, pL0 = construct_transpose_matrix(
-                (virt_left, self._phys, new_virt_mid), 1, 2, (0, 1, 2), contract=False
-            )
-            pR1, pR0 = construct_transpose_matrix(
-                (new_virt_mid, self._phys, virt_right), 2, 1, (0, 1, 2), contract=False
-            )
+            try:
+                isoL = self._left_isometries[virt_left, new_virt_mid]
+            except KeyError:
+                isoL = construct_transpose_matrix(
+                    (virt_left, self._phys, new_virt_mid), 1, 2, (0, 1, 2)
+                )
+                self._left_isometries[virt_left, new_virt_mid] = isoL
+            try:
+                isoR = self._right_isometries[new_virt_mid, virt_right]
+            except KeyError:
+                isoR = construct_transpose_matrix(
+                    (new_virt_mid, self._phys, virt_right), 2, 1, (0, 1, 2)
+                )
+                self._right_isometries[new_virt_mid, virt_right] = isoR
 
         # reshape to initial tree structure
-        new_vL = pL0.T @ (pL1 @ U1.to_raw_data())
         new_effL = SU2_Matrix.from_raw_data(
-            new_vL, virt_left, self._phys * new_virt_mid
+            isoL.T @ U1.to_raw_data(), virt_left, self._phys * new_virt_mid
         )
-        new_vR = pR0.T @ (pR1 @ V1.to_raw_data())
         new_effR = SU2_Matrix.from_raw_data(
-            new_vR, new_virt_mid * self._phys, virt_right
+            isoR.T @ V1.to_raw_data(), new_virt_mid * self._phys, virt_right
         )
 
         # reconnect with const parts
@@ -624,6 +638,8 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
             print(f"reset isometries at beta = {self._beta:.6g}")
         # 3 isometries: up->right, right->down, down->left. Same for A and B.
         self._isometries = [None] * 3
+        self._left_isometries = {}
+        self._right_isometries = {}
 
     def get_tensors_mz(self):
         """
