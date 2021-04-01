@@ -836,6 +836,8 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
             self._2nd_order_step_no1()
             self.update_bond1(self._squared_gates[0])
             self._beta += self._dbeta
+            if self.verbosity > 2:
+                print(f"set beta to {self._beta:.6g}")
         self._2nd_order_step_no1()
         self.update_bond1(self._gates[0])
         self._beta += self._dbeta
