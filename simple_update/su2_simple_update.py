@@ -288,6 +288,7 @@ class SU2_SimpleUpdate(object):
         """
         self._left_isometries = {}
         self._right_isometries = {}
+        self._proxy_isometries = {}
 
     def get_tensors_mz(self):
         """
@@ -405,6 +406,14 @@ class SU2_SimpleUpdate(object):
 
         return newL, newR, new_weights, new_virt_mid
 
+    def get_proxy_isometry(self, left, right, aux_middle):
+        try:
+            iso = self._proxy_isometries[left, right, aux_middle]
+        except KeyError:
+            iso = construct_transpose_matrix((left, right, aux_middle), 2, 1, (0, 1, 2))
+            self._proxy_isometries[left, right, aux_middle] = iso
+        return iso
+
     def update_through_proxy(
         self, matL0, mat_mid0, matR0, weightsL, weightsR, repL, repR, gate
     ):
@@ -454,7 +463,7 @@ class SU2_SimpleUpdate(object):
             / weightsL
         )
 
-        iso_m = construct_transpose_matrix((repL, repR, aux_m), 2, 1, (0, 1, 2))
+        iso_m = self.get_proxy_isometry(repL, repR, aux_m)
         mat_m1 = SU2_Matrix.from_raw_data(
             iso_m @ eff_m.to_raw_data(), repL, repR * aux_m
         )
@@ -508,13 +517,9 @@ class SU2_SimpleUpdate(object):
         effL = U * new_weightsL
         if new_repL != repL:
             isoL = self.get_left_isometry(auxL, new_repL)
-            iso_m = construct_transpose_matrix(
-                (new_repL, new_repR, aux_m), 2, 1, (0, 1, 2)
-            )
+            iso_m = self.get_proxy_isometry(new_repL, new_repR, aux_m)
         elif new_repR != repR:
-            iso_m = construct_transpose_matrix(
-                (new_repL, new_repR, aux_m), 2, 1, (0, 1, 2)
-            )
+            iso_m = self.get_proxy_isometry(new_repL, new_repR, aux_m)
 
         # reshape to initial tree structure
         effL = SU2_Matrix.from_raw_data(
@@ -898,6 +903,9 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
         self.update_bond2(self._gates[0])
 
     def reset_isometries(self):
+        self._left_isometries = {}
+        self._right_isometries = {}
+        self._proxy_isometries = {}
         self._isometries = [[None] * 8 for i in range(self._n_tensors)]
 
     def reset_isometries_tensor(self, ti):
