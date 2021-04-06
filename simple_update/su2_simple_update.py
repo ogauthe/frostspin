@@ -1007,24 +1007,43 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
 
     def get_gamma_isometry(self, tensor, direction):
         iso = self._gamma_isometries[tensor][direction]
-        if iso is None:
-            rep1 = self._bond_representations[self._tensor_legs[tensor][0]]
-            rep2 = self._bond_representations[self._tensor_legs[tensor][1]]
-            rep3 = self._bond_representations[self._tensor_legs[tensor][2]]
-            rep4 = self._bond_representations[self._tensor_legs[tensor][3]]
-            if self.verbosity > 1:
-                print(f"Compute isometry for tensor {tensor} and direction {direction}")
-                print(f"rep{self._tensor_legs[tensor][0] + 1} = {rep1}")
-                print(f"rep{self._tensor_legs[tensor][1] + 1} = {rep2}")
-                print(f"rep{self._tensor_legs[tensor][2] + 1} = {rep3}")
-                print(f"rep{self._tensor_legs[tensor][3] + 1} = {rep4}")
-            iso = construct_transpose_matrix(
-                (rep1, self._phys, rep2, rep3, rep4, self._anc),
-                3,
-                2,
-                self._gamma_isometry_swaps[direction],
-            )
-            self._gamma_isometries[tensor][direction] = iso
+        if iso is not None:
+            return iso
+
+        legs = self._tensor_legs[tensor]
+        rep1 = self._bond_representations[legs[0]]
+        rep2 = self._bond_representations[legs[1]]
+        rep3 = self._bond_representations[legs[2]]
+        rep4 = self._bond_representations[legs[3]]
+
+        for shift in range(1, 4):  # first, look for the same isometry in other tensors
+            other = (tensor + shift) % 4
+            other_legs = self._tensor_legs[other]
+            if (
+                rep1 == self._bond_representations[other_legs[0]]
+                and rep2 == self._bond_representations[other_legs[1]]
+                and rep3 == self._bond_representations[other_legs[2]]
+                and rep4 == self._bond_representations[other_legs[3]]
+                and self._gamma_isometries[other][direction] is not None
+            ):
+                iso = self._gamma_isometries[other][direction]
+                self._gamma_isometries[tensor][direction] = iso
+                return iso
+
+        # construct only if not found elsewhere
+        if self.verbosity > 1:
+            print(f"Compute isometry for tensor {tensor} and direction {direction}")
+            print(f"rep{legs[0] + 1} = {rep1}")
+            print(f"rep{legs[1] + 1} = {rep2}")
+            print(f"rep{legs[2] + 1} = {rep3}")
+            print(f"rep{legs[3] + 1} = {rep4}")
+        iso = construct_transpose_matrix(
+            (rep1, self._phys, rep2, rep3, rep4, self._anc),
+            3,
+            2,
+            self._gamma_isometry_swaps[direction],
+        )
+        self._gamma_isometries[tensor][direction] = iso
         return iso
 
     def _update_bond_i(self, gate, iA, iC, dirA):
