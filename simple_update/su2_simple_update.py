@@ -289,6 +289,7 @@ class SU2_SimpleUpdate(object):
         self._left_isometries = {}
         self._right_isometries = {}
         self._proxy_isometries = {}
+        self._theta_proxy_isometries2 = {}
 
     def get_tensors_mz(self):
         """
@@ -415,6 +416,20 @@ class SU2_SimpleUpdate(object):
         return newL, newR, new_weights, new_virt_mid
 
     def get_proxy_isometry(self, left, right, aux_middle):
+        r"""
+        Construct isometry for transpose (leg 1 from bra to ket)
+
+            0-proxy-1     -->     0-proxy-1
+               ||                    ||
+                2                     2
+
+        with legs corresponding to (enumerate following input):
+            0 : virtual left
+            1 : virtual right
+            2 : auxiliary proxy
+
+        size is typically (D ** 2,) * 2
+        """
         try:
             iso = self._proxy_isometries[left, right, aux_middle]
         except KeyError:
@@ -435,6 +450,8 @@ class SU2_SimpleUpdate(object):
             1 : physical left
             2 : virtual right
             3 : auxiliary proxy
+
+        size is typically (d ** 2 * d ** 4,) * 2
         """
         iso = construct_transpose_matrix(
             (auxL, self._phys, repR, aux_m), 2, 3, (0, 1, 3, 2)
@@ -455,10 +472,17 @@ class SU2_SimpleUpdate(object):
             2 : auxiliary proxy
             3 : physical right
             4 : auxiliary right
+
+        size is typically (d ** 4 * D ** 4,) * 2
         """
-        iso = construct_transpose_matrix(
-            (auxL, self._phys, aux_m, self._phys, auxR), 3, 3, (0, 2, 4, 1, 3)
-        )
+        try:
+            iso = self._theta_proxy_isometries2[auxL, aux_m, auxR]
+        except KeyError:
+            iso = construct_transpose_matrix(
+                (auxL, self._phys, aux_m, self._phys, auxR), 3, 3, (0, 2, 4, 1, 3)
+            )
+            self._theta_proxy_isometries2[auxL, aux_m, auxR] = iso
+            print("iso shape", iso.shape)
         return iso
 
     def update_through_proxy(
@@ -952,6 +976,7 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
         self._left_isometries = {}
         self._right_isometries = {}
         self._proxy_isometries = {}
+        self._theta_proxy_isometries2 = {}
         self._gamma_isometries = [[None] * 8 for i in range(self._n_tensors)]
 
     def reset_isometries_tensor(self, ti):
