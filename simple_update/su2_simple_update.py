@@ -482,7 +482,6 @@ class SU2_SimpleUpdate(object):
                 (auxL, self._phys, aux_m, self._phys, auxR), 3, 3, (0, 2, 4, 1, 3)
             )
             self._theta_proxy_isometries2[auxL, aux_m, auxR] = iso
-            print("iso shape", iso.shape)
         return iso
 
     def update_through_proxy(
@@ -773,29 +772,28 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         are only 3 isometries used both for A and B.
         """
         ind = i + backwards - 2
-        if self._gamma_isometries[ind] is None:
-            self.construct_gamma_isometry(ind)
+        iso = self._gamma_isometries[ind]
+        if iso is None:
+            if self.verbosity > 1:
+                print(f"compute isometry for direction {ind}")
+                print(*self._bond_representations, sep="\n")
+            # assume bond 1 in variables for simplicity
+            leg_indices = sorted([(ind + 1) % 4, (ind + 2) % 4, (ind + 3) % 4])
+            rep1 = self._bond_representations[ind]
+            rep2 = self._bond_representations[leg_indices[0]]
+            rep3 = self._bond_representations[leg_indices[1]]
+            rep4 = self._bond_representations[leg_indices[2]]
+
+            iso = construct_transpose_matrix(
+                (rep1, self._phys, rep2, rep3, rep4, self._anc),
+                2,
+                2,
+                self._gamma_isometry_swaps[ind],
+            )
+            self._gamma_isometries[ind] = iso
         if backwards:
-            return self._gamma_isometries[ind].T
-        return self._gamma_isometries[ind]
-
-    def construct_gamma_isometry(self, ind):
-        if self.verbosity > 1:
-            print(f"compute isometry for direction {ind}")
-            print(*self._bond_representations, sep="\n")
-        # function works for any direction, for simplicity assume bond 1 in variables
-        leg_indices = sorted([(ind + 1) % 4, (ind + 2) % 4, (ind + 3) % 4])
-        rep1 = self._bond_representations[ind]
-        rep2 = self._bond_representations[leg_indices[0]]
-        rep3 = self._bond_representations[leg_indices[1]]
-        rep4 = self._bond_representations[leg_indices[2]]
-
-        self._gamma_isometries[ind] = construct_transpose_matrix(
-            (rep1, self._phys, rep2, rep3, rep4, self._anc),
-            2,
-            2,
-            self._gamma_isometry_swaps[ind],
-        )
+            return iso.T
+        return iso
 
     def _update_bond(self, i, gate, backwards=False):
         """
@@ -1008,7 +1006,8 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
         sz_vals, size
 
     def get_gamma_isometry(self, tensor, direction):
-        if self._gamma_isometries[tensor][direction] is None:
+        iso = self._gamma_isometries[tensor][direction]
+        if iso is None:
             rep1 = self._bond_representations[self._tensor_legs[tensor][0]]
             rep2 = self._bond_representations[self._tensor_legs[tensor][1]]
             rep3 = self._bond_representations[self._tensor_legs[tensor][2]]
@@ -1019,13 +1018,14 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
                 print(f"rep{self._tensor_legs[tensor][1] + 1} = {rep2}")
                 print(f"rep{self._tensor_legs[tensor][2] + 1} = {rep3}")
                 print(f"rep{self._tensor_legs[tensor][3] + 1} = {rep4}")
-            self._gamma_isometries[tensor][direction] = construct_transpose_matrix(
+            iso = construct_transpose_matrix(
                 (rep1, self._phys, rep2, rep3, rep4, self._anc),
                 3,
                 2,
                 self._gamma_isometry_swaps[direction],
             )
-        return self._gamma_isometries[tensor][direction]
+            self._gamma_isometries[tensor][direction] = iso
+        return iso
 
     def _update_bond_i(self, gate, iA, iC, dirA):
         """
