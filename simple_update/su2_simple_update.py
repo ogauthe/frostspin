@@ -307,7 +307,7 @@ class SU2_SimpleUpdate(object):
     def get_left_isometry(self, left, mid):
         """
         Isometry used in all updates to transpose "left" tensor after svd between const
-        and effective parts.
+        and effective parts. Shape is typically (d ** 2 * D ** 2,) * 2.
         """
         try:
             iso = self._left_isometries[left, mid]
@@ -319,7 +319,7 @@ class SU2_SimpleUpdate(object):
     def get_right_isometry(self, mid, right):
         """
         Isometry used in all updates to transpose "right" tensor after svd between const
-        and effective parts.
+        and effective parts. Shape is typically (d ** 2 * D ** 2,) * 2.
         """
         try:
             iso = self._right_isometries[mid, right]
@@ -468,7 +468,7 @@ class SU2_SimpleUpdate(object):
             2 : virtual right
             3 : auxiliary proxy
 
-        size is typically (d ** 2 * d ** 4,) * 2
+        shape is typically (d ** 2 * d ** 4,) * 2
         """
         iso = construct_transpose_matrix(
             (auxL, self._phys, repR, aux_m), 2, 3, (0, 1, 3, 2)
@@ -490,7 +490,7 @@ class SU2_SimpleUpdate(object):
             3 : physical right
             4 : auxiliary right
 
-        size is typically (d ** 4 * D ** 4,) * 2
+        shape is typically (d ** 4 * D ** 4,) * 2
         """
         try:
             iso = self._theta_proxy_isometries2[auxL, aux_m, auxR]
