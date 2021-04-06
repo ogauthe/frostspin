@@ -288,6 +288,7 @@ class SU2_SimpleUpdate(object):
         """
         self._left_isometries = {}
         self._right_isometries = {}
+        self._theta_1stnei_isometries = {}
         self._proxy_isometries = {}
         self._theta_proxy_isometries2 = {}
 
@@ -325,6 +326,24 @@ class SU2_SimpleUpdate(object):
         except KeyError:
             iso = construct_transpose_matrix((mid, self._phys, right), 2, 1, (0, 1, 2))
             self._right_isometries[mid, right] = iso
+        return iso
+
+    def get_theta_1stnei_isometry(self, left, right):
+        r"""
+        Isometry used in first neighbor updates for transposition
+                0=effL-effR=3               0=effL-effR=1
+                   |     |         -->         |     |
+                   1     2                     2     3
+
+        shape is typically (d ** 4  * D ** 2,) * 2
+        """
+        try:
+            iso = self._theta_1stnei_isometries[left, right]
+        except KeyError:
+            iso = construct_transpose_matrix(
+                (left, self._phys, self._phys, right), 2, 2, (0, 3, 1, 2)
+            )
+            self._theta_1stnei_isometries[left, right] = iso
         return iso
 
     def update_first_neighbor(self, matL0, matR0, weights, virt_mid, gate):
@@ -373,9 +392,7 @@ class SU2_SimpleUpdate(object):
         # construct matrix theta and apply gate
         theta_mat = (matL1 / weights) @ matR1
         theta = theta_mat.to_raw_data()
-        iso_theta = construct_transpose_matrix(
-            (virt_left, self._phys, self._phys, virt_right), 2, 2, (0, 3, 1, 2)
-        )
+        iso_theta = self.get_theta_1stnei_isometry(virt_left, virt_right)
         theta2 = iso_theta @ theta
         theta_mat2 = SU2_Matrix.from_raw_data(
             theta2, virt_left * virt_right, self._phys2
@@ -702,6 +719,7 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         self._gamma_isometries = [None] * 3
         self._left_isometries = {}
         self._right_isometries = {}
+        self._theta_1stnei_isometries = {}
 
     def get_tensors_mz(self):
         """
@@ -973,6 +991,7 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
     def reset_isometries(self):
         self._left_isometries = {}
         self._right_isometries = {}
+        self._theta_1stnei_isometries = {}
         self._proxy_isometries = {}
         self._theta_proxy_isometries2 = {}
         self._gamma_isometries = [[None] * 8 for i in range(self._n_tensors)]
