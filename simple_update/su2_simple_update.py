@@ -422,6 +422,45 @@ class SU2_SimpleUpdate(object):
             self._proxy_isometries[left, right, aux_middle] = iso
         return iso
 
+    def get_theta_proxy_isometry1(self, auxL, repR, aux_m):
+        r"""
+        Construct isometry for transpose
+
+            0=effL-proxy-2     -->        0=effL-proxy-3
+               |     ||                       |     ||
+               1      3                       1      2
+
+        with legs corresponding to (enumerate following input):
+            0 : auxiliary left
+            1 : physical left
+            2 : virtual right
+            3 : auxiliary proxy
+        """
+        iso = construct_transpose_matrix(
+            (auxL, self._phys, repR, aux_m), 2, 3, (0, 1, 3, 2)
+        )
+        return iso
+
+    def get_theta_proxy_isometry2(self, auxL, aux_m, auxR):
+        r"""
+        Construct isometry for transpose
+
+            0=effL-proxy-effR=4     -->     0=effL-proxy-effR=1
+               |     ||    |                    |     ||   |
+               1      2    3                    3      2   4
+
+        with legs corresponding to (enumerate following input):
+            0 : auxiliary left
+            1 : physical left
+            2 : auxiliary proxy
+            3 : physical right
+            4 : auxiliary right
+        """
+        iso = construct_transpose_matrix(
+            (auxL, self._phys, aux_m, self._phys, auxR), 3, 3, (0, 2, 4, 1, 3)
+        )
+        return iso
+
     def update_through_proxy(
         self, matL0, mat_mid0, matR0, weightsL, weightsR, repL, repR, gate
     ):
@@ -484,16 +523,13 @@ class SU2_SimpleUpdate(object):
 
         # contract tensor network
         theta = matL1 @ mat_m1
-        iso1 = construct_transpose_matrix(
-            (auxL, self._phys, repR, aux_m), 2, 3, (0, 1, 3, 2)
-        )
+        iso1 = self.get_theta_proxy_isometry1(auxL, repR, aux_m)
+
         theta = SU2_Matrix.from_raw_data(
             iso1 @ theta.to_raw_data(), auxL * self._phys * aux_m, repR
         )
         theta = theta @ matR1
-        iso2 = construct_transpose_matrix(
-            (auxL, self._phys, aux_m, self._phys, auxR), 3, 3, (0, 2, 4, 1, 3)
-        )
+        iso2 = self.get_theta_proxy_isometry2(auxL, aux_m, auxR)  # bottleneck
         theta = SU2_Matrix.from_raw_data(
             iso2 @ theta.to_raw_data(), auxL * aux_m * auxR, self._phys2
         )
@@ -510,9 +546,7 @@ class SU2_SimpleUpdate(object):
         # recompute reshape matrices only if needed
         if new_repR != repR:
             isoR = self.get_right_isometry(new_repR, auxR)
-            iso1 = construct_transpose_matrix(
-                (auxL, self._phys, new_repR, aux_m), 2, 3, (0, 1, 3, 2)
-            )
+            iso1 = self.get_theta_proxy_isometry1(auxL, new_repR, aux_m)
 
         # cut left from mid
         theta = U * new_weightsR
