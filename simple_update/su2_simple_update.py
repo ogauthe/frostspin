@@ -391,20 +391,17 @@ class SU2_SimpleUpdate(object):
 
         # construct matrix theta and apply gate
         theta_mat = (matL1 / weights) @ matR1
-        theta = theta_mat.to_raw_data()
         iso_theta = self.get_theta_1stnei_isometry(virt_left, virt_right)
-        theta2 = iso_theta @ theta
-        theta_mat2 = SU2_Matrix.from_raw_data(
-            theta2, virt_left * virt_right, self._phys2
+        theta_mat = SU2_Matrix.from_raw_data(
+            iso_theta @ theta_mat.to_raw_data(), virt_left * virt_right, self._phys2
         )
-        theta_mat3 = theta_mat2 @ gate
+        theta_mat = theta_mat @ gate
 
         # transpose back LxR, compute SVD and truncate
-        theta3 = iso_theta.T @ theta_mat3.to_raw_data()
-        theta_mat4 = SU2_Matrix.from_raw_data(
-            theta3, virt_left * self._phys, self._phys * virt_right
+        theta_mat = SU2_Matrix.from_raw_data(
+            iso_theta.T @ theta_mat.to_raw_data(), matL1.left_rep, matR1.right_rep
         )
-        U, new_weights, V, new_virt_mid = theta_mat4.svd(
+        U, new_weights, V, new_virt_mid = theta_mat.svd(
             cut=self.Dstar, rcutoff=self.rcutoff
         )
 
