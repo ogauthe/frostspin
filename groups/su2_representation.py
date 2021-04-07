@@ -186,7 +186,7 @@ class SU2_Representation(object):
         return " + ".join(f"{d}*{irr}" for (d, irr) in zip(self._degen, self._irreps))
 
     def __hash__(self):
-        return hash(repr(self))  # quick and dirty
+        return hash(tuple(self._degen) + tuple(self._irreps))
 
     def has_integer_spin(self):
         return (self._irreps % 2).any()
