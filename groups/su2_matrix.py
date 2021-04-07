@@ -257,18 +257,26 @@ def construct_transpose_matrix(
 class SU2_Matrix(object):
     __array_priority__ = 15.0  # bypass ndarray.__mul__
 
-    def __init__(self, blocks, block_irreps, rep_left, rep_right):
+    def __init__(self, blocks, block_irreps, left_rep, right_rep):
         # need block_irreps since some blocks may be zero
         assert len(blocks) == len(block_irreps)
         self._blocks = blocks
         self._block_irreps = block_irreps
         self._nblocks = len(blocks)
-        self._rep_left = rep_left
-        self._rep_right = rep_right
+        self._left_rep = left_rep
+        self._right_rep = right_rep
 
     @property
     def shape(self):
-        return (self._rep_left.dim, self._rep_right.dim)
+        return (self._left_rep.dim, self._right_rep.dim)
+
+    @property
+    def left_rep(self):
+        return self._left_rep
+
+    @property
+    def right_rep(self):
+        return self._right_rep
 
     @classmethod
     def from_raw_data(cls, data, rep_in, rep_out):
@@ -308,12 +316,12 @@ class SU2_Matrix(object):
         # missing in block_irreps (matrix created by matrix product). Still, data has to
         # include the corresponding zeros at the accurate position.
         shared, indL, indR = np.intersect1d(  # bruteforce numpy > clever python
-            self._rep_left.irreps,
-            self._rep_right.irreps,
+            self._left_rep.irreps,
+            self._right_rep.irreps,
             assume_unique=True,
             return_indices=True,
         )
-        data = np.zeros(self._rep_left.degen[indL] @ self._rep_right.degen[indR])
+        data = np.zeros(self._left_rep.degen[indL] @ self._right_rep.degen[indR])
         k = 0
         for i, irr in enumerate(shared):
             j = bisect.bisect_left(self._block_irreps, irr)
@@ -322,18 +330,18 @@ class SU2_Matrix(object):
                 data[k : k + b.size] = b.ravel() * np.sqrt(irr)
                 k += b.size
             else:  # missing block
-                k += self._rep_left.degen[indL[i]] * self._rep_right.degen[indR[i]]
+                k += self._left_rep.degen[indL[i]] * self._right_rep.degen[indR[i]]
         return data
 
     def toarray(self, rep_left_enum=None, rep_right_enum=None):
         if rep_left_enum is None:
-            rep_left_enum = (self._rep_left,)
+            rep_left_enum = (self._left_rep,)
         if rep_right_enum is None:
-            rep_right_enum = (self._rep_right,)
+            rep_right_enum = (self._right_rep,)
         proj, ind = construct_matrix_projector(
             rep_left_enum, rep_right_enum, conj_right=True
         )
-        ar = np.zeros(self._rep_left.dim * self._rep_right.dim)
+        ar = np.zeros(self._left_rep.dim * self._right_rep.dim)
         ar[ind] = proj @ self.to_raw_data()
         return ar.reshape(self.shape)
 
@@ -365,7 +373,7 @@ class SU2_Matrix(object):
                 raise ValueError("Operand has non-compatible shape")
         else:
             raise ValueError("Operand must be scalar or 1D vector")
-        return SU2_Matrix(blocks, self._block_irreps, self._rep_left, self._rep_right)
+        return SU2_Matrix(blocks, self._block_irreps, self._left_rep, self._right_rep)
 
     def __rmul__(self, x):
         return self * x
@@ -378,12 +386,12 @@ class SU2_Matrix(object):
 
     def __neg__(self):
         blocks = [-b for b in self._blocks]
-        return SU2_Matrix(blocks, self._block_irreps, self._rep_left, self._rep_right)
+        return SU2_Matrix(blocks, self._block_irreps, self._left_rep, self._right_rep)
 
     @property
     def T(self):
         blocks = [b.T for b in self._blocks]
-        return SU2_Matrix(blocks, self._block_irreps, self._rep_right, self._rep_left)
+        return SU2_Matrix(blocks, self._block_irreps, self._right_rep, self._left_rep)
 
     def norm(self):
         """
@@ -409,13 +417,13 @@ class SU2_Matrix(object):
                 i1 += 1
             else:
                 i2 += 1
-        return SU2_Matrix(blocks, block_irreps, self._rep_left, other._rep_right)
+        return SU2_Matrix(blocks, block_irreps, self._left_rep, other._right_rep)
 
     def __add__(self, other):
-        # not that rep_left and rep_right are product of input / output of rep. They may
+        # not that left_rep and right_rep are product of input / output of rep. They may
         # correspond to different decompositions and addition would not be allowed for
         # dense tensors (different shapes) / meaningless for matrices.
-        if self._rep_left != other._left or self._rep_right != other._right:
+        if self._left_rep != other._left_rep or self._right_rep != other._right_rep:
             raise ValueError("Matrices have non-compatible representations")
         blocks = []
         block_irreps = []
@@ -434,7 +442,7 @@ class SU2_Matrix(object):
                 blocks.append(other._block[i2])
                 block_irreps.append(other._block_irreps[i2])
                 i2 += 1
-        return SU2_Matrix(blocks, block_irreps, self._rep_left, other._rep_right)
+        return SU2_Matrix(blocks, block_irreps, self._left_rep, other._right_rep)
 
     def __sub__(self, other):
         return self + (-other)
@@ -444,7 +452,7 @@ class SU2_Matrix(object):
         Compute expm(self)
         """
         blocks = [lg.expm(b) for b in self._blocks]
-        return SU2_Matrix(blocks, self._block_irreps, self._rep_left, self._rep_right)
+        return SU2_Matrix(blocks, self._block_irreps, self._left_rep, self._right_rep)
 
     def svd(self, cut=None, rcutoff=1e-11):
         """
@@ -490,7 +498,7 @@ class SU2_Matrix(object):
                 del block_v[bi]
 
         mid_rep = SU2_Representation(block_cuts, self._block_irreps)
-        U = SU2_Matrix(block_u, mid_rep.irreps, self._rep_left, mid_rep)
-        V = SU2_Matrix(block_v, mid_rep.irreps, mid_rep, self._rep_right)
+        U = SU2_Matrix(block_u, mid_rep.irreps, self._left_rep, mid_rep)
+        V = SU2_Matrix(block_v, mid_rep.irreps, mid_rep, self._right_rep)
         s = np.array(s[::-1])
         return U, s, V, mid_rep
