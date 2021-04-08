@@ -313,6 +313,8 @@ class SU2_SimpleUpdate(object):
         try:
             iso = self._left_isometries[left, mid]
         except KeyError:
+            if self.verbosity > 1:
+                print(f"Compute left isometry with left = {left} and mid = {mid}")
             iso = construct_transpose_matrix((left, self._phys, mid), 1, 2, (0, 1, 2))
             self._left_isometries[left, mid] = iso
         return iso
@@ -325,6 +327,8 @@ class SU2_SimpleUpdate(object):
         try:
             iso = self._right_isometries[mid, right]
         except KeyError:
+            if self.verbosity > 1:
+                print(f"Compute right isometry with mid = {mid} and right = {right}")
             iso = construct_transpose_matrix((mid, self._phys, right), 2, 1, (0, 1, 2))
             self._right_isometries[mid, right] = iso
         return iso
@@ -341,6 +345,8 @@ class SU2_SimpleUpdate(object):
         try:
             iso = self._theta_1stnei_isometries[left, right]
         except KeyError:
+            if self.verbosity > 1:
+                print(f"Compute 1stnei isometry with left = {left} and right = {right}")
             iso = construct_transpose_matrix(
                 (left, self._phys, self._phys, right), 2, 2, (0, 3, 1, 2)
             )
@@ -448,6 +454,11 @@ class SU2_SimpleUpdate(object):
         try:
             iso = self._proxy_isometries[left, right, aux_middle]
         except KeyError:
+            if self.verbosity > 1:
+                print("Compute proxy isometry with")
+                print(f"left = {left}")
+                print(f"aux_middle = {aux_middle}")
+                print(f"right = {right}")
             iso = construct_transpose_matrix((left, right, aux_middle), 2, 1, (0, 1, 2))
             self._proxy_isometries[left, right, aux_middle] = iso
         return iso
@@ -471,6 +482,11 @@ class SU2_SimpleUpdate(object):
         try:
             iso = self._theta_proxy_isometries1[auxL, repR, aux_m]
         except KeyError:
+            if self.verbosity > 1:
+                print("Compute theta proxy isometry1 with")
+                print(f"auxL = {auxL}")
+                print(f"aux_m = {aux_m}")
+                print(f"repR = {repR}")
             iso = construct_transpose_matrix(
                 (auxL, self._phys, repR, aux_m), 2, 3, (0, 1, 3, 2)
             )
@@ -497,6 +513,11 @@ class SU2_SimpleUpdate(object):
         try:
             iso = self._theta_proxy_isometries2[auxL, aux_m, auxR]
         except KeyError:
+            if self.verbosity > 1:
+                print("Compute theta proxy isometry2 with")
+                print(f"auxL = {auxL}")
+                print(f"aux_m = {aux_m}")
+                print(f"auxR = {auxR}")
             iso = construct_transpose_matrix(
                 (auxL, self._phys, aux_m, self._phys, auxR), 3, 3, (0, 2, 4, 1, 3)
             )
@@ -795,7 +816,7 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         iso = self._gamma_isometries[ind]
         if iso is None:
             if self.verbosity > 1:
-                print(f"compute isometry for direction {ind}")
+                print(f"compute gamma isometry for direction {ind}")
                 print(*self._bond_representations, sep="\n")
             # assume bond 1 in variables for simplicity
             leg_indices = sorted([(ind + 1) % 4, (ind + 2) % 4, (ind + 3) % 4])
@@ -1054,7 +1075,9 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
 
         # construct only if not found elsewhere
         if self.verbosity > 1:
-            print(f"Compute isometry for tensor {tensor} and direction {direction}")
+            print(
+                f"Compute gamma isometry for tensor {tensor} and direction {direction}"
+            )
             print(f"rep{legs[0] + 1} = {rep1}")
             print(f"rep{legs[1] + 1} = {rep2}")
             print(f"rep{legs[2] + 1} = {rep3}")
