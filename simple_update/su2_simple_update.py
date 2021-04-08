@@ -290,6 +290,7 @@ class SU2_SimpleUpdate(object):
         self._right_isometries = {}
         self._theta_1stnei_isometries = {}
         self._proxy_isometries = {}
+        self._theta_proxy_isometries1 = {}
         self._theta_proxy_isometries2 = {}
 
     def get_tensors_mz(self):
@@ -467,9 +468,13 @@ class SU2_SimpleUpdate(object):
 
         shape is typically (d ** 2 * d ** 4,) * 2
         """
-        iso = construct_transpose_matrix(
-            (auxL, self._phys, repR, aux_m), 2, 3, (0, 1, 3, 2)
-        )
+        try:
+            iso = self._theta_proxy_isometries1[auxL, repR, aux_m]
+        except KeyError:
+            iso = construct_transpose_matrix(
+                (auxL, self._phys, repR, aux_m), 2, 3, (0, 1, 3, 2)
+            )
+            self._theta_proxy_isometries1[auxL, repR, aux_m] = iso
         return iso
 
     def get_theta_proxy_isometry2(self, auxL, aux_m, auxR):
@@ -990,6 +995,7 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
         self._right_isometries = {}
         self._theta_1stnei_isometries = {}
         self._proxy_isometries = {}
+        self._theta_proxy_isometries1 = {}
         self._theta_proxy_isometries2 = {}
         self._gamma_isometries = [[None] * 8 for i in range(self._n_tensors)]
 
