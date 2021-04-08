@@ -1037,16 +1037,55 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
         (colorsA, colorsB, colorsC, colorsD) : tuple of tuple
             Sz eigenvalues for each axis of each tensor.
         """
-        sqweights = [1.0 / np.sqrt(w) for w in self.get_dense_weights(sort=False)]
-        Ds = np.array([sqw.size for sqw in sqweights])
-        so_all = [sqw.argsort() for sqw in sqweights]
-        sz_vals = [self._phys.get_Sz()] + [
+        sqw = [1.0 / np.sqrt(w) for w in self.get_dense_weights(sort=False)]
+        so_all = [sqw.argsort() for sqw in sqw]
+        sz_phys = self._phys.get_Sz()
+        sz_vals = [
             rep.get_Sz()[so] for (rep, so) in zip(self._bond_representations, so_all)
         ]
 
-        size = self._d * self._a * Ds.prod()
-        # TODO
-        sz_vals, size
+        # su must be in state 1, after an update on bond 1. This is always true after
+        # an evolve call.
+        tensors = [None] * self._n_tensors
+        sz_tensors = [None] * self._n_tensors
+        for i in range(self._n_tensors):
+            i1, i2, i3, i4 = self._tensor_legs[i]
+            rep1 = self._bond_representations[i1]
+            rep2 = self._bond_representations[i2]
+            rep3 = self._bond_representations[i3]
+            rep4 = self._bond_representations[i4]
+            size = rep1.dim * self._d * rep2.dim * rep3.dim * rep4.dim * self._a
+
+            proj, indices = construct_matrix_projector(
+                (rep1, self._phys, rep2), (rep3, rep4, self._anc)
+            )
+            gamma = np.zeros(size)
+            gamma[indices] = proj @ self._tensors_data[i]
+            gamma = gamma.reshape(
+                rep1.dim, self._d, rep2.dim, rep3.dim, rep4.dim, self._a
+            )
+            gamma = np.einsum(
+                "uprdla,u,r,d,l->paurdl", gamma, sqw[i1], sqw[i2], sqw[i3], sqw[i4]
+            )
+            gamma = gamma[
+                :,
+                :,
+                so_all[i1][:, None, None, None],
+                so_all[i2][:, None, None],
+                so_all[i3][:, None],
+                so_all[i4],
+            ]
+            tensors[i] = gamma / np.amax(gamma)
+            conj = 1 - (i // 2 + i % 2) % 2 * 2
+            sz_tensors[i] = (
+                conj * sz_phys,
+                conj * sz_phys,
+                conj * sz_vals[i1],
+                conj * sz_vals[i2],
+                conj * sz_vals[i3],
+                conj * sz_vals[i4],
+            )
+        return tuple(tensors), tuple(sz_tensors)
 
     def get_gamma_isometry(self, tensor, direction):
         iso = self._gamma_isometries[tensor][direction]
