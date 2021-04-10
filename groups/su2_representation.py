@@ -124,6 +124,19 @@ class SU2_Representation(object):
     def irrep(cls, irr):
         return cls([1], [irr])
 
+    @classmethod
+    def from_string(cls, s):
+        """
+        Construct SU2_Representation from string representation. Absolutly NO check is
+        made on input, which has to follow str syntax.
+        """
+        degen = []
+        irreps = []
+        for (d, irr) in (word.split("*") for word in s.split(" + ")):
+            degen.append(int(d))
+            irreps.append(int(irr))
+        return cls(degen, irreps)
+
     @property
     def dim(self):
         return self._dim
