@@ -1020,6 +1020,65 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
         self._theta_proxy_isometries2 = {}
         self._gamma_isometries = [[None] * 8 for i in range(self._n_tensors)]
 
+    def save_isometries(self, savefile):
+        """
+        Save all isometries in external file for future use. This includes:
+        - _left_isometries
+        - _right_isometries
+        - _theta_1stnei_isometries
+        - _proxy_isometries
+        - _theta_proxy_isometries1
+        - _theta_proxy_isometries2
+        """
+        data = {"_SU2_SU2x2_d": self._d}
+        count = 0
+        for (iso_dic, tag) in (
+            (self._left_isometries, "left"),
+            (self._right_isometries, "right"),
+            (self._theta_1stnei_isometries, "theta-1stnei"),
+            (self._proxy_isometries, "proxy"),
+            (self._theta_proxy_isometries1, "theta-proxy1"),
+            (self._theta_proxy_isometries2, "theta-proxy2"),
+        ):
+            root = f"_SU2_SU2x2_iso_{tag}_"
+            keys = []
+            for k, v in iso_dic.items():
+                nk = ";".join(f"{str(rep)}" for rep in k)
+                keys.append(nk)
+                data[root + nk] = v
+                count += 1
+            data[root + "keys"] = np.array(keys)
+        np.savez_compressed(savefile, **data)
+        if self.verbosity > 0:
+            print(f"{count} isometries saved in file", savefile)
+
+    def load_isometries(self, savefile):
+        """
+        Load isometries from external file following save_isometries format.
+        """
+        with np.load(savefile) as data:
+            if data["_SU2_SU2x2_d"][()] != self._d:
+                raise ValueError("Incompatible physical dimension")
+            count = 0
+            for (iso_dic, tag) in (
+                (self._left_isometries, "left"),
+                (self._right_isometries, "right"),
+                (self._theta_1stnei_isometries, "theta-1stnei"),
+                (self._proxy_isometries, "proxy"),
+                (self._theta_proxy_isometries1, "theta-proxy1"),
+                (self._theta_proxy_isometries2, "theta-proxy2"),
+            ):
+                root = f"_SU2_SU2x2_iso_{tag}_"
+                keys = data[root + "keys"]
+                for k in keys:
+                    newkey = tuple(
+                        SU2_Representation.from_string(s) for s in k.split(";")
+                    )
+                    iso_dic[newkey] = data[root + k]
+                    count += 1
+        if self.verbosity > 0:
+            print(f"{count} isometries loaded from file", savefile)
+
     def reset_isometries_tensor(self, ti):
         if self.verbosity > 1:
             print(f"reset isometries for tensor {ti} at beta = {self._beta:.6g}")
