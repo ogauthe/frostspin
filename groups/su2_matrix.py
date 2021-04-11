@@ -454,7 +454,7 @@ class SU2_Matrix(object):
         blocks = [lg.expm(b) for b in self._blocks]
         return SU2_Matrix(blocks, self._block_irreps, self._left_rep, self._right_rep)
 
-    def svd(self, cut=None, rcutoff=1e-11):
+    def svd(self, cut=None, rcutoff=0.0):
         """
         Compute block-wise SVD of self and keep only cut largest singular values. Do not
         truncate if cut is not provided. Keep only values larger than rcutoff * max(sv).
@@ -469,11 +469,14 @@ class SU2_Matrix(object):
 
         cutoff = block_max_vals.max() * rcutoff  # cannot be set before 1st loop
         block_cuts = [0] * self._nblocks
-        if cut is None:  # still remove values smaller than cutoff
-            for bi, bs in enumerate(block_s):
-                keep = (bs > cutoff).nonzero()[0]
-                if keep.size:
-                    block_cuts[bi] = keep[-1] + 1
+        if cut is None:
+            if rcutoff > 0.0:  # remove values smaller than cutoff
+                for bi, bs in enumerate(block_s):
+                    keep = (bs > cutoff).nonzero()[0]
+                    if keep.size:
+                        block_cuts[bi] = keep[-1] + 1
+            else:
+                block_cuts = [b.size for b in block_s]
         else:  # Assume number of blocks is small, block_max_val is never sorted
             k = 0  # and elements are compared at each iteration
             while k < cut:
