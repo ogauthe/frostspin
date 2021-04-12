@@ -1018,7 +1018,8 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
         self._proxy_isometries = {}
         self._theta_proxy_isometries1 = {}
         self._theta_proxy_isometries2 = {}
-        self._gamma_isometries = [[None] * 8 for i in range(self._n_tensors)]
+        # each gamma has 4 update states (URDL) and 4 proxy states (UR, RD, DL, LU)
+        self._gamma_isometries = tuple({} for i in range(8))
 
     def save_isometries(self, savefile):
         """
@@ -1029,6 +1030,7 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
         - _proxy_isometries
         - _theta_proxy_isometries1
         - _theta_proxy_isometries2
+        - _gamma_isometries
         """
         data = {"_SU2_SU2x2_d": self._d}
         count = 0
@@ -1039,7 +1041,7 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
             (self._proxy_isometries, "proxy"),
             (self._theta_proxy_isometries1, "theta-proxy1"),
             (self._theta_proxy_isometries2, "theta-proxy2"),
-        ):
+        ) + tuple((self._gamma_isometries[i], f"gamma-{i}") for i in range(8)):
             root = f"_SU2_SU2x2_iso_{tag}_"
             keys = []
             for k, v in iso_dic.items():
@@ -1067,7 +1069,7 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
                 (self._proxy_isometries, "proxy"),
                 (self._theta_proxy_isometries1, "theta-proxy1"),
                 (self._theta_proxy_isometries2, "theta-proxy2"),
-            ):
+            ) + tuple((self._gamma_isometries[i], f"gamma-{i}") for i in range(8)):
                 root = f"_SU2_SU2x2_iso_{tag}_"
                 keys = data[root + "keys"]
                 for k in keys:
@@ -1078,13 +1080,6 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
                     count += 1
         if self.verbosity > 0:
             print(f"{count} isometries loaded from file", savefile)
-
-    def reset_isometries_tensor(self, ti):
-        if self.verbosity > 1:
-            print(f"reset isometries for tensor {ti} at beta = {self._beta:.6g}")
-        # each tensor has 4 update states (URDL) and 4 proxy states (UR, RD, DL, LU)
-        # isometries are reset only for tensor ti
-        self._gamma_isometries[ti] = [None] * 8
 
     def get_tensors_mz(self):
         """
@@ -1147,46 +1142,30 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
         return tuple(tensors), tuple(sz_tensors)
 
     def get_gamma_isometry(self, tensor, direction):
-        iso = self._gamma_isometries[tensor][direction]
-        if iso is not None:
-            return iso
-
         legs = self._tensor_legs[tensor]
         rep1 = self._bond_representations[legs[0]]
         rep2 = self._bond_representations[legs[1]]
         rep3 = self._bond_representations[legs[2]]
         rep4 = self._bond_representations[legs[3]]
-
-        for shift in range(1, 4):  # first, look for the same isometry in other tensors
-            other = (tensor + shift) % 4
-            other_legs = self._tensor_legs[other]
-            if (
-                rep1 == self._bond_representations[other_legs[0]]
-                and rep2 == self._bond_representations[other_legs[1]]
-                and rep3 == self._bond_representations[other_legs[2]]
-                and rep4 == self._bond_representations[other_legs[3]]
-                and self._gamma_isometries[other][direction] is not None
-            ):
-                iso = self._gamma_isometries[other][direction]
-                self._gamma_isometries[tensor][direction] = iso
-                return iso
-
-        # construct only if not found elsewhere
-        if self.verbosity > 1:
-            print(
-                f"Compute gamma isometry for tensor {tensor} and direction {direction}"
+        try:
+            iso = self._gamma_isometries[direction][rep1, rep2, rep3, rep4]
+        except KeyError:  # construct only if not found
+            if self.verbosity > 1:
+                print(
+                    f"Compute gamma isometry for tensor {tensor} and direction",
+                    f"{direction}",
+                )
+                print(f"rep{legs[0] + 1} = {rep1}")
+                print(f"rep{legs[1] + 1} = {rep2}")
+                print(f"rep{legs[2] + 1} = {rep3}")
+                print(f"rep{legs[3] + 1} = {rep4}")
+            iso = construct_transpose_matrix(
+                (rep1, self._phys, rep2, rep3, rep4, self._anc),
+                3,
+                2,
+                self._gamma_isometry_swaps[direction],
             )
-            print(f"rep{legs[0] + 1} = {rep1}")
-            print(f"rep{legs[1] + 1} = {rep2}")
-            print(f"rep{legs[2] + 1} = {rep3}")
-            print(f"rep{legs[3] + 1} = {rep4}")
-        iso = construct_transpose_matrix(
-            (rep1, self._phys, rep2, rep3, rep4, self._anc),
-            3,
-            2,
-            self._gamma_isometry_swaps[direction],
-        )
-        self._gamma_isometries[tensor][direction] = iso
+            self._gamma_isometries[direction][rep1, rep2, rep3, rep4] = iso
         return iso
 
     def _update_bond_i(self, gate, iA, iC, dirA):
@@ -1237,8 +1216,6 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
 
         if new_rep != self._bond_representations[i1]:
             self._bond_representations[i1] = new_rep
-            self.reset_isometries_tensor(iA)
-            self.reset_isometries_tensor(iC)
             isoA = self.get_gamma_isometry(iA, dirA)
             isoC = self.get_gamma_isometry(iC, dirC)
 
@@ -1355,13 +1332,9 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
 
         if new_rep2 != self._bond_representations[i2]:
             self._bond_representations[i2] = new_rep2
-            self.reset_isometries_tensor(iA)
-            self.reset_isometries_tensor(iB)
             isoA = self.get_gamma_isometry(iA, dirA)
         if new_rep5 != self._bond_representations[i5]:
             self._bond_representations[i5] = new_rep5
-            self.reset_isometries_tensor(iB)
-            self.reset_isometries_tensor(iD)
             isoD = self.get_gamma_isometry(iD, dirD)
 
         isoB = self.get_gamma_isometry(iB, dirsB)
