@@ -4,9 +4,11 @@ import functools
 
 import numpy as np
 import scipy.linalg as lg
+import scipy.sparse as ssp
 
+from misc_tools.sparse_tools import sparse_transpose
 from groups.toolsU1 import combine_colors
-from groups.block_matrix_U1 import BlockMatrixU1
+from groups.block_matrix_U1 import BlockSparseMatrixU1
 from groups.su2_representation import SU2_Representation
 
 
@@ -14,7 +16,7 @@ def get_projector(in1, in2, max_irrep=np.inf):
     # max_irrep cannot be set to None since irr3 loop depends on it
     out = in1 * in2
     out = out.truncated(max_irrep)
-    p = np.zeros((in1.dim, in2.dim, out.dim))
+    p = ssp.dok_matrix((in1.dim, in2.dim * out.dim))  # contract 1st leg in chained
     shift3 = np.zeros(out.irreps[-1] + 1, dtype=int)
     n = 0
     for i, irr3 in enumerate(out.irreps):
@@ -26,20 +28,24 @@ def get_projector(in1, in2, max_irrep=np.inf):
         for i2, irr2 in enumerate(in2.irreps):
             d2 = in2.degen[i2]
             ar = np.arange(d2)
-            sl2 = slice(cs2[i2], cs2[i2] + d2 * irr2)
+            sl2 = np.arange(cs2[i2], cs2[i2] + d2 * irr2)[:, None] * out.dim
             for irr3 in range(abs(irr1 - irr2) + 1, min(irr1 + irr2, max_irrep + 1), 2):
-                sh = (irr1, d2, irr2, d2, irr3)
                 p123 = SU2_Representation.elementary_projectors[irr1, irr2, irr3]
+                sh = (irr1, d2, irr2, d2, irr3)
+                temp = np.zeros(sh)
+                temp[:, ar, :, ar] = p123
+                temp = ssp.coo_matrix(temp.reshape(irr1, d2 ** 2 * irr2 * irr3))
                 shift1 = cs1[i1]
                 for d1 in range(in1.degen[i1]):
                     p[
                         shift1 : shift1 + irr1,
-                        sl2,
-                        shift3[irr3] : shift3[irr3] + d2 * irr3,
-                    ].reshape(sh)[:, ar, :, ar] = p123
+                        (
+                            sl2 + np.arange(shift3[irr3], shift3[irr3] + d2 * irr3)
+                        ).ravel(),
+                    ] = temp
                     shift3[irr3] += d2 * irr3
                     shift1 += irr1
-    return p
+    return p.tocoo()
 
 
 def get_projector_chained(*rep_in, singlet_only=False):
@@ -58,7 +64,7 @@ def get_projector_chained(*rep_in, singlet_only=False):
     forwards, backwards = [[rep_in[0]], [rep_in[-1]]]
     n = len(rep_in)
     if n == 1:
-        return np.eye(rep_in[0].dim)
+        return ssp.eye(rep_in[0].dim).tocsc()
 
     for i in range(1, n):
         forwards.append(forwards[i - 1] * rep_in[i])
@@ -80,7 +86,8 @@ def get_projector_chained(*rep_in, singlet_only=False):
     proj = get_projector(forwards[0], rep_in[1], max_irrep=truncations[-2])
     for (f, rep, trunc) in zip(forwards[1:], rep_in[2:], reversed(truncations[:-2])):
         p = get_projector(f, rep, max_irrep=trunc)
-        proj = np.tensordot(proj, p, ((-1,), (0,)))
+        proj = proj.reshape(-1, p.shape[0]) @ p
+    proj = proj.reshape(-1, forwards[-1].dim).tocsc()  # need to slice columns
     return proj
 
 
@@ -97,7 +104,7 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
 
     Returns:
     --------
-    proj : (M, N) ndarray
+    proj : (M, N) sparse matrix
         Projector on singlet, with N the singlet space dimension and M the Sz=0 input
         sector dimension.
     indices : (M,) integer ndarray
@@ -105,9 +112,6 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     """
     repL = functools.reduce(operator.mul, rep_left_enum)
     repR = functools.reduce(operator.mul, rep_right_enum)
-    # save left and right dimensions before truncation
-    dimL = repL.dim
-    dimR = repR.dim
     target = sorted(set(repL.irreps).intersection(repR.irreps))
     if not target:
         raise ValueError("Representations have no common irrep")
@@ -116,19 +120,19 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     if target != list(repL.irreps) or target != list(repR.irreps):  # TODO
         raise NotImplementedError("TODO: remove irreps that will not fuse")
 
-    projL_U1 = BlockMatrixU1.from_dense(
-        get_projector_chained(*rep_left_enum).reshape(dimL, -1)[:, : repL.dim],
+    projL_U1 = BlockSparseMatrixU1.from_dense(
+        get_projector_chained(*rep_left_enum)[:, : repL.dim],
         combine_colors(*(r.get_Sz() for r in rep_left_enum)),
         repL.get_Sz(),
     )
 
-    projR = get_projector_chained(*rep_right_enum).reshape(dimR, -1)[:, : repR.dim]
+    projR = get_projector_chained(*rep_right_enum)[:, : repR.dim]
     szR_in = combine_colors(*(r.get_Sz() for r in rep_right_enum))
     if conj_right:  # same as conjugating input irrep, with smaller dimensions
-        projR = projR @ repR.get_conjugator()
+        projR = projR @ ssp.csc_matrix(repR.get_conjugator())
         szR_in = -szR_in  # read-only
 
-    projR_U1 = BlockMatrixU1.from_dense(projR, szR_in, repR.get_Sz())
+    projR_U1 = BlockSparseMatrixU1.from_dense(projR, szR_in, repR.get_Sz())
     del projR
 
     nrows = 0
@@ -150,33 +154,33 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     shift_out = 0
     shiftL = np.zeros(projL_U1.nblocks, dtype=int)
     shiftR = np.zeros(projR_U1.nblocks, dtype=int)
-    full_proj = np.zeros((nrows, singlet_dim))
+    full_proj = ssp.dok_matrix((nrows, singlet_dim))
     for i, irr in enumerate(target):
         degenL = repL.degen[i]
         degenR = repR.degen[i]
-        slice_out = slice(shift_out, shift_out + degenL * degenR)
-        shift_out += degenL * degenR
+        degenLR = degenL * degenR
+        slice_out = slice(shift_out, shift_out + degenLR)
+        shift_out += degenLR
         for j in range(irr):
             mz = irr - 1 - 2 * j
             biL = projL_U1.get_color_index(mz)
             biR = projR_U1.nblocks - biL - 1
             matL = projL_U1.blocks[biL][:, shiftL[biL] : shiftL[biL] + degenL]
             matR = projR_U1.blocks[biR][:, shiftR[biR] : shiftR[biR] + degenR]
-            if matL.size < matR.size:  # singlet proj = anti_diag(-1**i)/sqrt(irr)
-                matL = (1 - (irr + mz) // 2 % 2 * 2) / np.sqrt(irr) * matL
+            if matL.nnz < matR.nnz:  # singlet proj = anti_diag(-1**i)/sqrt(irr)
+                matL.data *= (1 - (irr + mz) // 2 % 2 * 2) / np.sqrt(irr)
             else:
-                matR = (1 - (irr + mz) // 2 % 2 * 2) / np.sqrt(irr) * matR
+                matR.data *= (1 - (irr + mz) // 2 % 2 * 2) / np.sqrt(irr)
+            matLR = matL.reshape(-1, 1).tocsr() @ matR.reshape(1, -1).tocsr()
+            sh_in = matL.shape + matR.shape
+            sh_out = (matL.shape[0] * matR.shape[0], degenLR)
+            matLR = sparse_transpose(matLR.reshape(-1, 1), sh_in, (0, 2, 1, 3), sh_out)
+            full_proj[slice_in_blocks[biL], slice_out] = matLR
             shiftL[biL] += degenL
             shiftR[biR] += degenR
-            full_proj[slice_in_blocks[biL], slice_out] = (
-                (matL.ravel()[:, None] * matR.ravel())
-                .reshape(matL.shape + matR.shape)
-                .swapaxes(1, 2)
-                .reshape(-1, degenL * degenR)
-            )
 
     # full_proj is *not* a valid BlockMatrixU1 because of unsorted indices in only block
-    return full_proj, indices_in
+    return full_proj.tocsr(), indices_in
 
 
 def construct_transpose_matrix(
