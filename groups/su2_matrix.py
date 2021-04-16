@@ -16,9 +16,11 @@ def get_projector(in1, in2, max_irrep=np.inf):
     # max_irrep cannot be set to None since irr3 loop depends on it
     out = in1 * in2
     out = out.truncated(max_irrep)
-    p = ssp.dok_matrix((in1.dim, in2.dim * out.dim))  # contract 1st leg in chained
     shift3 = np.zeros(out.irreps[-1] + 1, dtype=int)
     n = 0
+    row = []
+    col = []
+    data = []
     for i, irr3 in enumerate(out.irreps):
         shift3[irr3] = n  # indexed with IRREP, not index
         n += out.degen[i] * irr3
@@ -37,15 +39,16 @@ def get_projector(in1, in2, max_irrep=np.inf):
                 temp = ssp.coo_matrix(temp.reshape(irr1, d2 ** 2 * irr2 * irr3))
                 shift1 = cs1[i1]
                 for d1 in range(in1.degen[i1]):
-                    p[
-                        shift1 : shift1 + irr1,
-                        (
-                            sl2 + np.arange(shift3[irr3], shift3[irr3] + d2 * irr3)
-                        ).ravel(),
-                    ] = temp
+                    full_col = (
+                        sl2 + np.arange(shift3[irr3], shift3[irr3] + d2 * irr3)
+                    ).ravel()
+                    row.extend(shift1 + temp.row)
+                    col.extend(full_col[temp.col])
+                    data.extend(temp.data)
                     shift3[irr3] += d2 * irr3
                     shift1 += irr1
-    return p.tocoo()
+    sh = (in1.dim, in2.dim * out.dim)  # contract 1st leg in chained
+    return ssp.csr_matrix((data, (row, col)), shape=sh)
 
 
 def get_projector_chained(*rep_in, singlet_only=False):
