@@ -140,13 +140,16 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
         degenR = repR.degen[i]
         matR = projR[:, shiftR : shiftR + degenR * irr].reshape(-1, irr)
         matL = projL[:, shiftL : shiftL + degenL * irr].reshape(-1, irr)
-        sing_proj = ssp.csr_matrix(
-            SU2_Representation.irrep(irr).get_conjugator() / np.sqrt(irr)
-        )
 
         if degenL < degenR:  # singlet proj = anti_diag(-1**i)/sqrt(irr)
+            sing_proj = ssp.csr_matrix(
+                SU2_Representation.irrep(irr).get_conjugator() / np.sqrt(irr)
+            )
             matL = matL @ sing_proj
         else:
+            sing_proj = ssp.csc_matrix(
+                SU2_Representation.irrep(irr).get_conjugator() / np.sqrt(irr)
+            ).T
             matR = matR @ sing_proj
         matLR = matL @ matR.T
         sh_in = (dimL, degenL, dimR, degenR)
