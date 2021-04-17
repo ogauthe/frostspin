@@ -154,7 +154,7 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
         matLR = matL @ matR.T
         sh_in = (dimL, degenL, dimR, degenR)
         sh_out = (dim_in, degenL * degenR)
-        matLR = sparse_transpose(matLR, sh_in, (0, 2, 1, 3), sh_out).tocoo()
+        matLR = sparse_transpose(matLR, sh_in, (0, 2, 1, 3), sh_out, cast="coo")
         row.extend(matLR.row)
         col.extend(shift_out + matLR.col)
         data.extend(matLR.data)
