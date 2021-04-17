@@ -166,9 +166,7 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     return full_proj
 
 
-def construct_transpose_matrix(
-    representations, n_bra_leg1, n_bra_leg2, swap, contract=True
-):
+def construct_transpose_matrix(representations, n_bra_leg1, n_bra_leg2, swap):
     r"""
     Construct isometry corresponding to change of tree structure of a SU(2) matrix.
 
@@ -215,17 +213,13 @@ def construct_transpose_matrix(
     # so, now we have initial shape projector and output shape projector. We need to
     # transpose rows to contract them. Since there is no bra/ket exchange, this can be
     # done by pure advanced slicing, without calling heavier sparse_transpose.
-
-    # 1) reformulate nnz1 in terms of proj2 leg ordering
     sh2 = tuple(r.dim for r in rep_bra2) + tuple(r.dim for r in rep_ket2)
     strides1 = np.array((1,) + sh1[:0:-1]).cumprod()[::-1]
     strides2 = np.array((1,) + sh2[:0:-1]).cumprod()[::-1]
     nrows = (np.arange(proj1.shape[0])[:, None] // strides1 % sh1)[:, swap] @ strides2
 
     proj2 = proj2[nrows]
-    if contract:
-        return proj2.T @ proj1
-    return proj2, proj1
+    return proj2.T @ proj1
 
 
 class SU2_Matrix(object):
