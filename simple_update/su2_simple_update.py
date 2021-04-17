@@ -767,7 +767,6 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         D2 = w2.size
         D3 = w3.size
         D4 = w4.size
-        size = self._d * self._a * D1 * D2 * D3 * D4
 
         # su must be in state 1, after an update on bond 1. This is always true after
         # an evolve call.
@@ -778,9 +777,8 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
             self._anc,
         )
         eff_rep = (self._bond_representations[0], self._phys)
-        proj, indices = construct_matrix_projector(eff_rep, aux_rep)
-        gammaA = np.zeros(size)
-        gammaA[indices] = proj @ self._tensors_data[0]
+        projA = construct_matrix_projector(eff_rep, aux_rep)
+        gammaA = projA @ self._tensors_data[0]
         gammaA = gammaA.reshape(D1, self._d, D2, D3, D4, self._a)
         gammaA = np.einsum("uprdla,u,r,d,l->paurdl", gammaA, w1, w2, w3, w4)
         gammaA = gammaA[
@@ -788,9 +786,8 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         ]
         gammaA /= np.amax(gammaA)
 
-        projB, indicesB = construct_matrix_projector(eff_rep[::-1], aux_rep)
-        gammaB = np.zeros(size)
-        gammaB[indices] = proj @ self._tensors_data[1]
+        projB = construct_matrix_projector(eff_rep[::-1], aux_rep)
+        gammaB = projB @ self._tensors_data[1]
         gammaB = gammaB.reshape(D1, self._d, D2, D3, D4, self._a)
         gammaB = np.einsum("dplura,u,r,d,l->paurdl", gammaB, w3, w4, w1, w2)
         gammaB = gammaB[
