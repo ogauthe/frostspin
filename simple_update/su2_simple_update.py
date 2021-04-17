@@ -777,8 +777,8 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
             self._anc,
         )
         eff_rep = (self._bond_representations[0], self._phys)
-        projA = construct_matrix_projector(eff_rep, aux_rep)
-        gammaA = projA @ self._tensors_data[0]
+        proj = construct_matrix_projector(eff_rep, aux_rep)
+        gammaA = proj @ self._tensors_data[0]
         gammaA = gammaA.reshape(D1, self._d, D2, D3, D4, self._a)
         gammaA = np.einsum("uprdla,u,r,d,l->paurdl", gammaA, w1, w2, w3, w4)
         gammaA = gammaA[
@@ -786,8 +786,7 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         ]
         gammaA /= np.amax(gammaA)
 
-        projB = construct_matrix_projector(eff_rep[::-1], aux_rep)
-        gammaB = projB @ self._tensors_data[1]
+        gammaB = proj @ self._tensors_data[1]
         gammaB = gammaB.reshape(D1, self._d, D2, D3, D4, self._a)
         gammaB = np.einsum("dplura,u,r,d,l->paurdl", gammaB, w3, w4, w1, w2)
         gammaB = gammaB[
