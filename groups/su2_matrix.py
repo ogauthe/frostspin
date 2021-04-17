@@ -146,7 +146,7 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
             SU2_Representation.irrep(irr).get_conjugator() / np.sqrt(irr)
         )
 
-        if degenL < degenR:  # singlet proj = anti_diag(-1**i)/sqrt(irr)
+        if matL.nnz < matR.nnz:
             matL = matL @ sing_proj
         else:
             matR = matR @ sing_proj.T
