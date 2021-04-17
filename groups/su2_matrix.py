@@ -7,8 +7,6 @@ import scipy.linalg as lg
 import scipy.sparse as ssp
 
 from misc_tools.sparse_tools import sparse_transpose
-from groups.toolsU1 import combine_colors
-from groups.block_matrix_U1 import BlockSparseMatrixU1
 from groups.su2_representation import SU2_Representation
 
 
@@ -115,6 +113,8 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     """
     repL = functools.reduce(operator.mul, rep_left_enum)
     repR = functools.reduce(operator.mul, rep_right_enum)
+    dimL = repL.dim
+    dimR = repR.dim
     target = sorted(set(repL.irreps).intersection(repR.irreps))
     if not target:
         raise ValueError("Representations have no common irrep")
@@ -123,67 +123,44 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     if target != list(repL.irreps) or target != list(repR.irreps):  # TODO
         raise NotImplementedError("TODO: remove irreps that will not fuse")
 
-    projL_U1 = BlockSparseMatrixU1.from_dense(
-        get_projector_chained(*rep_left_enum)[:, : repL.dim],
-        combine_colors(*(r.get_Sz() for r in rep_left_enum)),
-        repL.get_Sz(),
-    )
-
-    projR = get_projector_chained(*rep_right_enum)[:, : repR.dim]
-    szR_in = combine_colors(*(r.get_Sz() for r in rep_right_enum))
+    projL = get_projector_chained(*rep_left_enum)
+    projR = get_projector_chained(*rep_right_enum)
     if conj_right:  # same as conjugating input irrep, with smaller dimensions
         projR = projR @ ssp.csc_matrix(repR.get_conjugator())
-        szR_in = -szR_in  # read-only
 
-    projR_U1 = BlockSparseMatrixU1.from_dense(projR, szR_in, repR.get_Sz())
-    del projR
-
-    nrows = 0
-    slice_in_blocks = []
-    indices_in = []
-    for i in range(projL_U1.nblocks):
-        block_dim = projL_U1.blocks[i].shape[0] * projR_U1.blocks[-i - 1].shape[0]
-        slice_in_blocks.append(slice(nrows, nrows + block_dim))
-        indices_in.extend(
-            (
-                (projL_U1.row_indices[i] * projR_U1.shape[0])[:, None]
-                + projR_U1.row_indices[-i - 1]
-            ).ravel()
-        )
-        nrows += block_dim
-
-    indices_in = np.array(indices_in)
-    singlet_dim = repL.degen @ repR.degen
+    row = []
+    col = []
+    data = []
+    shiftL = 0
+    shiftR = 0
     shift_out = 0
-    shiftL = np.zeros(projL_U1.nblocks, dtype=int)
-    shiftR = np.zeros(projR_U1.nblocks, dtype=int)
-    full_proj = ssp.dok_matrix((nrows, singlet_dim))
+    dim_in = dimL * dimR
     for i, irr in enumerate(target):
         degenL = repL.degen[i]
         degenR = repR.degen[i]
-        degenLR = degenL * degenR
-        slice_out = slice(shift_out, shift_out + degenLR)
-        shift_out += degenLR
-        for j in range(irr):
-            mz = irr - 1 - 2 * j
-            biL = projL_U1.get_color_index(mz)
-            biR = projR_U1.nblocks - biL - 1
-            matL = projL_U1.blocks[biL][:, shiftL[biL] : shiftL[biL] + degenL]
-            matR = projR_U1.blocks[biR][:, shiftR[biR] : shiftR[biR] + degenR]
-            if matL.nnz < matR.nnz:  # singlet proj = anti_diag(-1**i)/sqrt(irr)
-                matL.data *= (1 - (irr + mz) // 2 % 2 * 2) / np.sqrt(irr)
-            else:
-                matR.data *= (1 - (irr + mz) // 2 % 2 * 2) / np.sqrt(irr)
-            matLR = matL.reshape(-1, 1).tocsr() @ matR.reshape(1, -1).tocsr()
-            sh_in = matL.shape + matR.shape
-            sh_out = (matL.shape[0] * matR.shape[0], degenLR)
-            matLR = sparse_transpose(matLR.reshape(-1, 1), sh_in, (0, 2, 1, 3), sh_out)
-            full_proj[slice_in_blocks[biL], slice_out] = matLR
-            shiftL[biL] += degenL
-            shiftR[biR] += degenR
+        matR = projR[:, shiftR : shiftR + degenR * irr].reshape(-1, irr)
+        matL = projL[:, shiftL : shiftL + degenL * irr].reshape(-1, irr)
+        sing_proj = ssp.csr_matrix(
+            SU2_Representation.irrep(irr).get_conjugator() / np.sqrt(irr)
+        )
 
-    # full_proj is *not* a valid BlockMatrixU1 because of unsorted indices in only block
-    return full_proj.tocsr(), indices_in
+        if degenL < degenR:  # singlet proj = anti_diag(-1**i)/sqrt(irr)
+            matL = matL @ sing_proj
+        else:
+            matR = matR @ sing_proj
+        matLR = matL @ matR.T
+        sh_in = (dimL, degenL, dimR, degenR)
+        sh_out = (dim_in, degenL * degenR)
+        matLR = sparse_transpose(matLR, sh_in, (0, 2, 1, 3), sh_out).tocoo()
+        row.extend(matLR.row)
+        col.extend(shift_out + matLR.col)
+        data.extend(matLR.data)
+        shift_out += degenL * degenR
+        shiftL += degenL * irr
+        shiftR += degenR * irr
+
+    full_proj = ssp.csr_matrix((data, (row, col)), shape=(dim_in, shift_out))
+    return full_proj
 
 
 def construct_transpose_matrix(
@@ -224,38 +201,25 @@ def construct_transpose_matrix(
     """
     assert len(representations) == len(swap)
     sh1 = tuple(r.dim for r in representations)
-    proj1, nnz1 = construct_matrix_projector(
+    proj1 = construct_matrix_projector(
         representations[:n_bra_leg1], representations[n_bra_leg1:]
     )
 
     rep_bra2 = tuple(representations[i] for i in swap[:n_bra_leg2])
     rep_ket2 = tuple(representations[i] for i in swap[n_bra_leg2:])
-    proj2, nnz2 = construct_matrix_projector(rep_bra2, rep_ket2)
+    proj2 = construct_matrix_projector(rep_bra2, rep_ket2)
 
-    # so, now we have initial shape projector and output shape projector, with only
-    # Sz=0 block and swapped rows for both. We need to reorder rows to contract them.
-    # proj1 has rows according to nnz1. proj2 has rows according to nnz2, which refers
-    # to transposed full tensor. It is more efficient to swap only one matrix.
+    # so, now we have initial shape projector and output shape projector. We need to
+    # transpose rows to contract them. Since there is no bra/ket exchange, this can be
+    # done by pure advanced slicing, without calling heavier sparse_transpose.
 
     # 1) reformulate nnz1 in terms of proj2 leg ordering
     sh2 = tuple(r.dim for r in rep_bra2) + tuple(r.dim for r in rep_ket2)
     strides1 = np.array((1,) + sh1[:0:-1]).cumprod()[::-1]
     strides2 = np.array((1,) + sh2[:0:-1]).cumprod()[::-1]
-    nnz1 = (nnz1[:, None] // strides1 % sh1)[:, swap] @ strides2
+    nrows = (np.arange(proj1.shape[0])[:, None] // strides1 % sh1)[:, swap] @ strides2
 
-    # 2) transposed nnz1 and nnz2 contain the same values in different order. We want
-    # the permutation linking them. Better to sort first then use binary search.
-    so1 = nnz1.argsort()
-    perm = so1[nnz1.searchsorted(nnz2, sorter=so1)]
-
-    # 3) perm sends nnz2 to sorted(transposed nnz1). We can first swap proj2 according
-    # to perm, then re-swap it under argsort(so1) - or in one row swap proj2 according
-    # to perm[argsort[so1] - to get transposed nnz1. Avoid 2nd sort by swapping perm.
-
-    # Memory peak is here. Need to store proj1, proj1[perm] and proj2. It is possible
-    # to construct perm before proj2 and gain a factor 3/2, but requires doing twice
-    # construct_transpose_matrix work, arrays excepted.
-    proj1 = proj1[perm]
+    proj2 = proj2[nrows]
     if contract:
         return proj2.T @ proj1
     return proj2, proj1
@@ -312,10 +276,10 @@ class SU2_Matrix(object):
     def from_dense(cls, mat, rep_left_enum, rep_right_enum):
         prod_l = functools.reduce(operator.mul, rep_left_enum)
         prod_r = functools.reduce(operator.mul, rep_right_enum)
-        proj, ind = construct_matrix_projector(
+        proj = construct_matrix_projector(
             rep_left_enum, rep_right_enum, conj_right=True
         )
-        data = proj.T @ mat.ravel()[ind]
+        data = proj.T @ mat.ravel()
         return cls.from_raw_data(data, prod_l, prod_r)
 
     def to_raw_data(self):

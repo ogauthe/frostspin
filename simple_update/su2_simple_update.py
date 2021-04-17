@@ -126,14 +126,12 @@ class SU2_SimpleUpdate(object):
             Level of log verbosity. Default is no log.
         """
         phys = SU2_Representation.irrep(d)
-        proj, ind = construct_matrix_projector(
-            (phys, phys), (phys, phys), conj_right=True
-        )
+        proj = construct_matrix_projector((phys, phys), (phys, phys), conj_right=True)
         h_raw_data = []
         for i, h in enumerate(hamilts):
             if h.shape != (d ** 2, d ** 2):
                 raise ValueError(f"invalid shape for Hamiltonian {i}")
-            h_raw_data.append(proj.T @ h.ravel()[ind])
+            h_raw_data.append(proj.T @ h.ravel())
         return cls(
             Dstar,
             0.0,
@@ -1108,13 +1106,11 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
             rep2 = self._bond_representations[i2]
             rep3 = self._bond_representations[i3]
             rep4 = self._bond_representations[i4]
-            size = rep1.dim * self._d * rep2.dim * rep3.dim * rep4.dim * self._a
 
-            proj, indices = construct_matrix_projector(
+            proj = construct_matrix_projector(
                 (rep1, self._phys, rep2), (rep3, rep4, self._anc)
             )
-            gamma = np.zeros(size)
-            gamma[indices] = proj @ self._tensors_data[i]
+            gamma = proj @ self._tensors_data[i]
             gamma = gamma.reshape(
                 rep1.dim, self._d, rep2.dim, rep3.dim, rep4.dim, self._a
             )
