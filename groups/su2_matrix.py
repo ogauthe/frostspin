@@ -217,8 +217,8 @@ def construct_transpose_matrix(representations, n_bra_leg1, n_bra_leg2, swap):
     strides2 = np.array((1,) + sh2[:0:-1]).cumprod()[::-1]
     nrows = (np.arange(proj1.shape[0])[:, None] // strides1 % sh1)[:, swap] @ strides2
 
-    proj2 = proj2[nrows]
-    return proj2.T @ proj1
+    proj2 = proj2[nrows].T.tocsr()
+    return proj2 @ proj1
 
 
 class SU2_Matrix(object):
