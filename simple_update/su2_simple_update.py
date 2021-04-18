@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.sparse as ssp
 
 from groups.su2_representation import SU2_Representation
 from groups.su2_matrix import (
@@ -1041,7 +1042,10 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
             for k, v in iso_dic.items():
                 nk = ";".join(f"{str(rep)}" for rep in k)
                 keys.append(nk)
-                data[root + nk] = v
+                data[root + nk + "_data"] = v.data
+                data[root + nk + "_indices"] = v.indices
+                data[root + nk + "_indptr"] = v.indptr
+                data[root + nk + "_shape"] = v.shape
                 count += 1
             data[root + "keys"] = np.array(keys)
         np.savez_compressed(savefile, **data)
@@ -1070,7 +1074,14 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
                     newkey = tuple(
                         SU2_Representation.from_string(s) for s in k.split(";")
                     )
-                    iso_dic[newkey] = data[root + k]
+                    iso_dic[newkey] = ssp.csr_matrix(
+                        (
+                            data[root + k + "_data"],
+                            data[root + k + "_indices"],
+                            data[root + k + "_indptr"],
+                        ),
+                        shape=data[root + k + "_shape"],
+                    )
                     count += 1
         if self.verbosity > 0:
             print(f"{count} isometries loaded from file", savefile)
