@@ -140,17 +140,20 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
         degenR = repR.degen[i]
         matR = projR[:, shiftR : shiftR + degenR * irr].reshape(-1, irr)
         matL = projL[:, shiftL : shiftL + degenL * irr].reshape(-1, irr)
-        matL = matL.tocsr()
+        # matL and matR have many rows but irr slice. CSC much more efficient than
+        # CSR: indptr is a dense array with size col/row, may saturate memory. However
+        # after matR transpose, either matL or matR will have unconvenient format:
+        # format has to be the same (enforced by @) and shapes are (M, irr) and (irr, N)
+        # At least add singlet proj to the efficient format matrix.
         matR = matR.tocsc()
-        sing_proj = ssp.csr_matrix(
-            SU2_Representation.irrep(irr).get_conjugator() / np.sqrt(irr)
+        sing_projT = ssp.csc_matrix(
+            SU2_Representation.irrep(irr).get_conjugator().T / np.sqrt(irr)
         )
-
-        if matL.nnz < matR.nnz:
-            matL = matL @ sing_proj
-        else:
-            matR = matR @ sing_proj.T
+        matR = matR @ sing_projT
+        matL = matL.tocsr()  # memory wasteful yet required
         matLR = matL @ matR.T
+        del matL, matR
+
         sh_in = (dimL, degenL, dimR, degenR)
         sh_out = (dim_in, degenL * degenR)
         matLR = sparse_transpose(matLR, sh_in, (0, 2, 1, 3), sh_out, cast="coo")
