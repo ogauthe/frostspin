@@ -6,7 +6,6 @@ import numpy as np
 import scipy.linalg as lg
 import scipy.sparse as ssp
 
-from misc_tools.sparse_tools import sparse_transpose
 from groups.su2_representation import SU2_Representation
 
 
@@ -134,37 +133,33 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     shiftL = 0
     shiftR = 0
     shift_out = 0
-    dim_in = dimL * dimR
     for i, irr in enumerate(target):
-        degenL = repL.degen[i]
         degenR = repR.degen[i]
-        matR = projR[:, shiftR : shiftR + degenR * irr].reshape(-1, irr)
-        matL = projL[:, shiftL : shiftL + degenL * irr].reshape(-1, irr)
-        # matL and matR have many rows but irr slice. CSC much more efficient than
-        # CSR: indptr is a dense array with size col/row, may saturate memory. However
-        # after matR transpose, either matL or matR will have unconvenient format:
-        # format has to be the same (enforced by @) and shapes are (M, irr) and (irr, N)
-        # At least add singlet proj to the efficient format matrix.
-        matR = matR.tocsc()
-        sing_projT = ssp.csc_matrix(
-            SU2_Representation.irrep(irr).get_conjugator().T / np.sqrt(irr)
+        matR = projR[:, shiftR : shiftR + degenR * irr].reshape(dimR * degenR, irr)
+        matR = matR.T.tocsr()
+        sing_proj = ssp.csr_matrix(
+            SU2_Representation.irrep(irr).get_conjugator() / np.sqrt(irr)
         )
-        matR = matR @ sing_projT
-        matL = matL.tocsr()  # memory wasteful yet required
-        matLR = matL @ matR.T
-        del matL, matR
-
-        sh_in = (dimL, degenL, dimR, degenR)
-        sh_out = (dim_in, degenL * degenR)
-        matLR = sparse_transpose(matLR, sh_in, (0, 2, 1, 3), sh_out, cast="coo")
-        row.extend(matLR.row)
-        col.extend(shift_out + matLR.col)
-        data.extend(matLR.data)
-        shift_out += degenL * degenR
-        shiftL += degenL * irr
+        matR = sing_proj @ matR
+        # it is not memory efficient to contract directly with the full matL: in csr,
+        # indptr has size nrows, which would be dimL * degenL, much too large (saturates
+        # memory). It also requires some sparse transpose. Using csc just puts the
+        # problem on matR instead of matL. So to save memory, slice projL irrep by irrep
+        # instead of taking all of them with degenL * irr. Slower but memory efficient.
+        for j in range(repL.degen[i]):
+            matLR = projL[:, shiftL : shiftL + irr].tocsr()  # avoid large indptr
+            matLR = matLR @ matR
+            matLR = matLR.tocoo()  # explicit cast needed in case shape does not change
+            matLR = matLR.reshape(dimL * dimR, degenR)
+            row.extend(matLR.row)
+            col.extend(shift_out + matLR.col)
+            data.extend(matLR.data)
+            shiftL += irr
+            shift_out += degenR
         shiftR += degenR * irr
 
-    full_proj = ssp.csr_matrix((data, (row, col)), shape=(dim_in, shift_out))
+    assert shift_out == repL.degen @ repR.degen
+    full_proj = ssp.csr_matrix((data, (row, col)), shape=(dimL * dimR, shift_out))
     return full_proj
 
 
