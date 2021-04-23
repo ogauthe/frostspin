@@ -438,7 +438,9 @@ class SU2_Matrix(object):
         block_v = [None] * self._nblocks
         block_max_vals = np.empty(self._nblocks)
         for bi, b in enumerate(self._blocks):
-            block_u[bi], block_s[bi], block_v[bi] = lg.svd(b, full_matrices=False)
+            block_u[bi], block_s[bi], block_v[bi] = lg.svd(
+                b, full_matrices=False, check_finite=False
+            )
             block_max_vals[bi] = block_s[bi][0]
 
         cutoff = block_max_vals.max() * rcutoff  # cannot be set before 1st loop
