@@ -5,7 +5,7 @@ import functools
 import numpy as np
 import scipy.linalg as lg
 import scipy.sparse as ssp
-from numba import njit
+from numba import njit, literal_unroll
 
 from groups.su2_representation import SU2_Representation
 
@@ -243,13 +243,64 @@ def blocks_from_raw_data(degen_in, irreps_in, degen_out, irreps_out, data):
     return blocks, block_irreps
 
 
+@njit
+def block_svd(blocks, cut, rcutoff):
+    nblocks = len(blocks)
+    block_u = []
+    block_s = []
+    block_v = []
+    block_max_vals = np.empty(nblocks)
+    bi = 0
+    for b in literal_unroll(blocks):
+        u, s, v = np.linalg.svd(b, full_matrices=False)
+        block_u.append(u)
+        block_s.append(s)
+        block_v.append(v)
+        block_max_vals[bi] = s[0]
+        bi += 1
+
+    cutoff = block_max_vals.max() * rcutoff  # cannot be set before 1st loop
+    if cut is None:
+        if rcutoff > 0.0:  # remove values smaller than cutoff
+            block_cuts = np.zeros(nblocks, dtype=np.int64)
+            for bi, bs in enumerate(block_s):
+                keep = (bs > cutoff).nonzero()[0]
+                if keep.size:
+                    block_cuts[bi] = keep[-1] + 1
+        else:
+            block_cuts = np.array([b.size for b in block_s])
+    else:  # Assume number of blocks is small, block_max_val is never sorted
+        block_cuts = np.zeros(nblocks, dtype=np.int64)
+        k = 0  # and elements are compared at each iteration
+        while k < cut:
+            bi = block_max_vals.argmax()
+            if block_max_vals[bi] < cutoff:
+                break
+            block_cuts[bi] += 1
+            if block_cuts[bi] < block_s[bi].size:
+                block_max_vals[bi] = block_s[bi][block_cuts[bi]]
+            else:
+                block_max_vals[bi] = -1.0  # in case cutoff = 0
+            k += 1
+
+    s = []
+    truncated_u = []
+    truncated_v = []
+    for bi in range(nblocks):  # no enumerate in numba
+        if block_cuts[bi]:
+            truncated_u.append(block_u[bi][:, : block_cuts[bi]])
+            s.extend(block_s[bi][: block_cuts[bi]])
+            truncated_v.append(block_v[bi][: block_cuts[bi]])
+    return truncated_u, np.array(s), truncated_v, block_cuts
+
+
 class SU2_Matrix(object):
     __array_priority__ = 15.0  # bypass ndarray.__mul__
 
     def __init__(self, blocks, block_irreps, left_rep, right_rep):
         # need block_irreps since some blocks may be zero
         assert len(blocks) == len(block_irreps)
-        self._blocks = blocks
+        self._blocks = tuple(blocks)  # tuple for numba
         self._block_irreps = block_irreps
         self._nblocks = len(blocks)
         self._left_rep = left_rep
@@ -433,51 +484,8 @@ class SU2_Matrix(object):
         Compute block-wise SVD of self and keep only cut largest singular values. Do not
         truncate if cut is not provided. Keep only values larger than rcutoff * max(sv).
         """
-        block_u = [None] * self._nblocks
-        block_s = [None] * self._nblocks
-        block_v = [None] * self._nblocks
-        block_max_vals = np.empty(self._nblocks)
-        for bi, b in enumerate(self._blocks):
-            block_u[bi], block_s[bi], block_v[bi] = lg.svd(
-                b, full_matrices=False, check_finite=False
-            )
-            block_max_vals[bi] = block_s[bi][0]
-
-        cutoff = block_max_vals.max() * rcutoff  # cannot be set before 1st loop
-        block_cuts = [0] * self._nblocks
-        if cut is None:
-            if rcutoff > 0.0:  # remove values smaller than cutoff
-                for bi, bs in enumerate(block_s):
-                    keep = (bs > cutoff).nonzero()[0]
-                    if keep.size:
-                        block_cuts[bi] = keep[-1] + 1
-            else:
-                block_cuts = [b.size for b in block_s]
-        else:  # Assume number of blocks is small, block_max_val is never sorted
-            k = 0  # and elements are compared at each iteration
-            while k < cut:
-                bi = block_max_vals.argmax()
-                if block_max_vals[bi] < cutoff:
-                    break
-                block_cuts[bi] += 1
-                if block_cuts[bi] < block_s[bi].size:
-                    block_max_vals[bi] = block_s[bi][block_cuts[bi]]
-                else:
-                    block_max_vals[bi] = -1.0  # in case cutoff = 0
-                k += 1
-
-        s = []
-        for bi in reversed(range(self._nblocks)):  # reversed to del
-            if block_cuts[bi]:
-                block_u[bi] = block_u[bi][:, : block_cuts[bi]]
-                s.extend(block_s[bi][: block_cuts[bi]][::-1])
-                block_v[bi] = block_v[bi][: block_cuts[bi]]
-            else:  # do not keep empty matrices
-                del block_u[bi]
-                del block_v[bi]
-
+        block_u, s, block_v, block_cuts = block_svd(self._blocks, cut, rcutoff)  # numba
         mid_rep = SU2_Representation(block_cuts, self._block_irreps)
         U = SU2_Matrix(block_u, mid_rep.irreps, self._left_rep, mid_rep)
         V = SU2_Matrix(block_v, mid_rep.irreps, mid_rep, self._right_rep)
-        s = np.array(s[::-1])
         return U, s, V, mid_rep
