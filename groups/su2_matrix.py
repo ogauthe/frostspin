@@ -5,6 +5,7 @@ import functools
 import numpy as np
 import scipy.linalg as lg
 import scipy.sparse as ssp
+from numba import njit
 
 from groups.su2_representation import SU2_Representation
 
@@ -219,6 +220,29 @@ def construct_transpose_matrix(representations, n_bra_leg1, n_bra_leg2, swap):
     return proj2 @ proj1
 
 
+@njit
+def blocks_from_raw_data(degen_in, irreps_in, degen_out, irreps_out, data):
+    i1 = 0
+    i2 = 0
+    blocks = []
+    block_irreps = []
+    k = 0
+    while i1 < irreps_in.size and i2 < irreps_out.size:
+        if irreps_in[i1] == irreps_out[i2]:
+            sh = (degen_in[i1], degen_out[i2])
+            m = data[k : k + sh[0] * sh[1]].reshape(sh) / np.sqrt(irreps_in[i1])
+            blocks.append(m)
+            k += m.size
+            block_irreps.append(irreps_in[i1])
+            i1 += 1
+            i2 += 1
+        elif irreps_in[i1] < irreps_out[i2]:
+            i1 += 1
+        else:
+            i2 += 1
+    return blocks, block_irreps
+
+
 class SU2_Matrix(object):
     __array_priority__ = 15.0  # bypass ndarray.__mul__
 
@@ -245,25 +269,9 @@ class SU2_Matrix(object):
 
     @classmethod
     def from_raw_data(cls, data, rep_in, rep_out):
-        i1 = 0
-        i2 = 0
-        blocks = []
-        block_irreps = []
-        k = 0
-        while i1 < rep_in.n_irr and i2 < rep_out.n_irr:
-            if rep_in.irreps[i1] == rep_out.irreps[i2]:
-                sh = (rep_in.degen[i1], rep_out.degen[i2])
-                m = data[k : k + sh[0] * sh[1]].reshape(sh) / np.sqrt(rep_in.irreps[i1])
-                blocks.append(m)
-                k += m.size
-                block_irreps.append(rep_in.irreps[i1])
-                i1 += 1
-                i2 += 1
-            elif rep_in.irreps[i1] < rep_out.irreps[i2]:
-                i1 += 1
-            else:
-                i2 += 1
-        assert k == data.size
+        blocks, block_irreps = blocks_from_raw_data(
+            rep_in.degen, rep_in.irreps, rep_out.degen, rep_out.irreps, data
+        )
         return cls(blocks, block_irreps, rep_in, rep_out)
 
     @classmethod
@@ -288,6 +296,7 @@ class SU2_Matrix(object):
         )
         data = np.zeros(self._left_rep.degen[indL] @ self._right_rep.degen[indR])
         k = 0
+        # hard to jit, need to call self._blocks[i] which may be heterogenous
         for i, irr in enumerate(shared):
             j = bisect.bisect_left(self._block_irreps, irr)
             if j < self._nblocks and self._block_irreps[j] == irr:
