@@ -217,7 +217,14 @@ def construct_transpose_matrix(representations, n_bra_leg1, n_bra_leg2, swap):
     nrows = (np.arange(proj1.shape[0])[:, None] // strides1 % sh1)[:, swap] @ strides2
 
     proj2 = proj2[nrows].T.tocsr()
-    return proj2 @ proj1
+    iso = proj2 @ proj1
+    # tests show that construct_matrix_projector output has no numerical zeros
+    # however iso may have more than 70% "non-zero" coeff being numerical zeros,
+    # with several order of magnitude between them and real non-zeros.
+    iso.data[np.abs(iso.data) < 1e-14] = 0
+    iso.eliminate_zeros()
+    iso = iso.sorted_indices()  # copy to get clean data array
+    return iso
 
 
 @njit
