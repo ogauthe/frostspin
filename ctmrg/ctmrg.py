@@ -652,7 +652,7 @@ class CTMRG_U1(CTMRG):
     block form.
     """
 
-    @classmethod  # not specialized __init__ required
+    @classmethod  # no specialized __init__ required
     def from_elementary_tensors(cls, tensors, colors, tiling, chi, verbosity=0):
         """
         Construct U(1) symmetric CTMRG from elementary tensors and tiling. Symmetry is
