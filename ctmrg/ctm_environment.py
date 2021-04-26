@@ -394,20 +394,13 @@ class CTM_Environment(object):
             colors_C4_r,
         )
 
-    def save_to_file(self, filename, chi, additional_data={}):
+    def get_data_to_save(self):
         """
-        Save all tensors into external .npz file.
-
-        Parameters
-        ----------
-        filename: str
-          Name of the storage file.
-        additional_data: dict
-          Data to store together with environment data. Keys have to be string type.
+        Return environment data as a dict to save in external file.
         """
         # do not store lists to avoid pickle
         # come back to elementary numpy arrays
-        data = {"_CTM_chi": chi, "_CTM_cell": self._cell}
+        data = {"_CTM_cell": self._cell}
 
         for i in range(self._Nneq):
             data[f"_CTM_A_{i}"] = self._neq_As[i]
@@ -430,7 +423,7 @@ class CTM_Environment(object):
             for leg in range(6):
                 data[f"_CTM_colors_A_{i}_{leg}"] = self._colors_A[i][leg]
 
-        np.savez_compressed(filename, **data, **additional_data)
+        return data
 
     @classmethod
     def from_file(cls, filename):
@@ -438,7 +431,6 @@ class CTM_Environment(object):
         Construct CTM_Environment from save file.
         """
         with np.load(filename) as data:
-            chi = data["_CTM_chi"]
             cell = data["_CTM_cell"]
             Nneq = len(set(cell.flat))
 
@@ -485,29 +477,26 @@ class CTM_Environment(object):
                 colors_C4_u[i] = data[f"_CTM_colors_C4_u_{i}"]
                 colors_C4_r[i] = data[f"_CTM_colors_C4_r_{i}"]
 
-        return (
-            chi,
-            cls(
-                cell,
-                neq_As,
-                neq_C1s,
-                neq_T1s,
-                neq_C2s,
-                neq_T2s,
-                neq_C3s,
-                neq_T3s,
-                neq_C4s,
-                neq_T4s,
-                colors_A,
-                colors_C1_r,
-                colors_C1_d,
-                colors_C2_d,
-                colors_C2_l,
-                colors_C3_u,
-                colors_C3_l,
-                colors_C4_u,
-                colors_C4_r,
-            ),
+        return cls(
+            cell,
+            neq_As,
+            neq_C1s,
+            neq_T1s,
+            neq_C2s,
+            neq_T2s,
+            neq_C3s,
+            neq_T3s,
+            neq_C4s,
+            neq_T4s,
+            colors_A,
+            colors_C1_r,
+            colors_C1_d,
+            colors_C2_d,
+            colors_C2_l,
+            colors_C3_u,
+            colors_C3_l,
+            colors_C4_u,
+            colors_C4_r,
         )
 
     def set_tensors(self, tensors, colors=None):

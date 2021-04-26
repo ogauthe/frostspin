@@ -73,8 +73,9 @@ def construct_projectors_U1(
     s_sort = S[:k].argsort()[::-1]  # remove non-written values before sorting
     S = S[s_sort]
     cut = min(chi, (S > cutoff * S[0]).nonzero()[0][-1] + 1)
-    if degen_ratio is not None:
-        nnz = (S[cut - 1 : -1] > degen_ratio * S[cut:]).nonzero()[0]
+    # 0 < degen_ratio < 1
+    if degen_ratio > 0.0:
+        nnz = (S[cut:] < degen_ratio * S[cut - 1 : -1]).nonzero()[0]
         if nnz.size:
             cut += nnz[0]
     s12 = 1 / np.sqrt(S[:cut])

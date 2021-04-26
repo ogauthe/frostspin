@@ -1,3 +1,5 @@
+import numpy as np
+
 from ctmrg import rdm, observables
 from ctmrg.ctm_environment import CTM_Environment
 from ctmrg.ctm_contract import (
@@ -80,9 +82,10 @@ class CTMRG(object):
             Maximal corner dimension. If degen_ratio is set, actual cut may be larger.
         cutoff : float
             Singular value cutoff to improve stability.
-        degen_ratio : float or None
-            If set, used to define multiplets in projector singular values and truncate
-            between two multiplets.
+        degen_ratio : float
+            If set to nonzero, used to define multiplets in projector singular values
+            and truncate between two multiplets. Two consecutive (decreasing) values are
+            considered degenerate if 1 >= s[i+1]/s[i] > degen_ratio > 0.
         window : int
             In projector construction, compute chi + window singular values to preserve
             multiplet structure.
@@ -106,7 +109,7 @@ class CTMRG(object):
 
     @classmethod
     def from_elementary_tensors(
-        cls, tensors, tiling, chi, cutoff=0.0, degen_ratio=None, window=0, verbosity=0
+        cls, tensors, tiling, chi, cutoff=0.0, degen_ratio=0.0, window=0, verbosity=0
     ):
         """
         Construct CTMRG from elementary tensors and tiling.
@@ -121,9 +124,10 @@ class CTMRG(object):
             Maximal corner dimension. If degen_ratio is set, actual cut may be larger.
         cutoff : float
             Singular value cutoff to improve stability.
-        degen_ratio : float or None
-            If set, used to define multiplets in projector singular values and truncate
-            between two multiplets.
+        degen_ratio : float
+            If set to nonzero, used to define multiplets in projector singular values
+            and truncate between two multiplets. Two consecutive (decreasing) values are
+            considered degenerate if 1 >= s[i+1]/s[i] > degen_ratio > 0.
         window : int
             In projector construction, compute chi + window singular values to preserve
             multiplet structure.
@@ -148,19 +152,41 @@ class CTMRG(object):
         """
         if verbosity > 0:
             print("Restart CTMRG from file", filename)
-        # TODO move load from env to here
-        chi, env = CTM_Environment.from_file(filename)
-        cutoff = 0.0  # TODO
-        degen_ratio = None  # TODO
-        window = 0  # TODO
+        with np.load(filename) as fin:
+            chi = fin["_CTM_chi"][()]
+            try:
+                cutoff = fin["_CTM_cutoff"][()]
+                degen_ratio = fin["_CTM_degen_ratio"][()]
+                window = fin["_CTM_window"][()]
+            except KeyError:  # old data format
+                cutoff = 0.0
+                degen_ratio = 0.0
+                window = 0
+        # env construction can take a lot of time (A-A* contraction is expensive)
+        # better to open and close savefile twice (here and in env) to have env __init__
+        # outside of file opening block.
+        env = CTM_Environment.from_file(filename)
         return cls(env, chi, cutoff, degen_ratio, window, verbosity)
 
     def save_to_file(self, filename, additional_data={}):
         """
-        Save CTMRG data in file. If file is not provided, a data dictionary is returned.
+        Save CTMRG data in external file.
+
+        Parameters
+        ----------
+        filename: str
+            Path to file.
+        additional_data: dict
+            Data to store together with environment data. Keys have to be string type.
         """
-        # TODO: move actual save from env to here
-        self._env.save_to_file(filename, self.chi, additional_data)
+        data = {
+            "_CTM_chi": self.chi,
+            "_CTM_cutoff": self.cutoff,
+            "_CTM_degen_ratio": self.degen_ratio,
+            "_CTM_window": self.window,
+        }
+        env_data = self._env.get_data_to_save()
+        np.savez_compressed(filename, **data, **env_data, **additional_data)
         if self.verbosity > 0:
             print("CTMRG saved in file", filename)
 
@@ -694,7 +720,7 @@ class CTMRG_U1(CTMRG):
         tiling,
         chi,
         cutoff=0.0,
-        degen_ratio=None,
+        degen_ratio=0.0,
         window=0,
         verbosity=0,
     ):
@@ -711,7 +737,17 @@ class CTMRG_U1(CTMRG):
         tiling : string
             String defining the shape of the unit cell, typically "A" or "AB\nCD".
         chi : integer
-            Maximal corner dimension.
+            Maximal corner dimension. If degen_ratio is set, actual cut may be larger.
+        cutoff : float
+            Singular value cutoff to improve stability.
+        degen_ratio : float
+            If set to nonzero, used to define multiplets in projector singular values
+            and truncate between two multiplets. Two consecutive (decreasing) values are
+            considered degenerate if 1 >= s[i+1]/s[i] > degen_ratio > 0.
+        window : int
+            During projector construction, compute chi + window singular values in each
+            block to preserve multiplet structure inside a color block. Can be kept at 0
+            if no multiplets are expected inside a color block (as for SU(2)).
         verbosity : int
             Level of log verbosity. Default is no log.
         """
