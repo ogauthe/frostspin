@@ -67,25 +67,36 @@ class CTMRG(object):
     computation, it is mostly interface and tensor selection.
     """
 
-    def __init__(self, chi, env, verbosity=0):
+    def __init__(self, env, chi, cutoff, degen_ratio, window, verbosity):
         """
         Constructor for totally asymmetric CTMRG algorithm. Consider using from_file or
         from_elementary_tensors methods instead of calling this one directly.
 
         Parameters
         ----------
-        chi : integer
-            Maximal corner dimension.
         env: CTM_Environment
             Environment object, as construced by from_file or from_elementary_tensors.
+        chi : integer
+            Maximal corner dimension. If degen_ratio is set, actual cut may be larger.
+        cutoff : float
+            Singular value cutoff to improve stability.
+        degen_ratio : float or None
+            If set, used to define multiplets in projector singular values and truncate
+            between two multiplets.
+        window : int
+            In projector construction, compute chi + window singular values to preserve
+            multiplet structure.
         verbosity : int
-            Level of log verbosity. Default is no log.
+            Level of log verbosity.
         """
         self.verbosity = verbosity
         if self.verbosity > 0:
             print(f"initalize CTMRG with chi = {chi} and verbosity = {self.verbosity}")
-        self.chi = chi
         self._env = env
+        self.chi = chi
+        self.cutoff = cutoff
+        self.window = window
+        self.degen_ratio = degen_ratio
         self._neq_coords = self._env.neq_coords
         if self.verbosity > 0:
             print("CTMRG constructed")
@@ -94,7 +105,9 @@ class CTMRG(object):
                 self.print_tensor_shapes()
 
     @classmethod
-    def from_elementary_tensors(cls, tensors, tiling, chi, verbosity=0):
+    def from_elementary_tensors(
+        cls, tensors, tiling, chi, cutoff=0.0, degen_ratio=None, window=0, verbosity=0
+    ):
         """
         Construct CTMRG from elementary tensors and tiling.
 
@@ -105,14 +118,22 @@ class CTMRG(object):
         tiling : string
             String defining the shape of the unit cell, typically "A" or "AB\nCD".
         chi : integer
-            Maximal corner dimension.
+            Maximal corner dimension. If degen_ratio is set, actual cut may be larger.
+        cutoff : float
+            Singular value cutoff to improve stability.
+        degen_ratio : float or None
+            If set, used to define multiplets in projector singular values and truncate
+            between two multiplets.
+        window : int
+            In projector construction, compute chi + window singular values to preserve
+            multiplet structure.
         verbosity : int
             Level of log verbosity. Default is no log.
         """
         if verbosity > 0:
             print("Start CTMRG from scratch using elementary tensors")
         env = CTM_Environment.from_elementary_tensors(tensors, tiling)
-        return cls(chi, env, verbosity)
+        return cls(env, chi, cutoff, degen_ratio, window, verbosity)
 
     @classmethod
     def from_file(cls, filename, verbosity=0):
@@ -127,13 +148,18 @@ class CTMRG(object):
         """
         if verbosity > 0:
             print("Restart CTMRG from file", filename)
+        # TODO move load from env to here
         chi, env = CTM_Environment.from_file(filename)
-        return cls(chi, env, verbosity)
+        cutoff = 0.0  # TODO
+        degen_ratio = None  # TODO
+        window = 0  # TODO
+        return cls(env, chi, cutoff, degen_ratio, window, verbosity)
 
     def save_to_file(self, filename, additional_data={}):
         """
         Save CTMRG data in file. If file is not provided, a data dictionary is returned.
         """
+        # TODO: move actual save from env to here
         self._env.save_to_file(filename, self.chi, additional_data)
         if self.verbosity > 0:
             print("CTMRG saved in file", filename)
@@ -242,7 +268,9 @@ class CTMRG(object):
             #        L         R
             #        L         R
             #        L-1     0-R
-            P, Pt = construct_projectors(R, Rt, self.chi)
+            P, Pt = construct_projectors(
+                R, Rt, self.chi, self.cutoff, self.degen_ratio, self.window
+            )
             self._env.store_projectors(
                 x + 2, y, P, Pt
             )  # indices: Pt <=> renormalized T in R
@@ -306,7 +334,9 @@ class CTMRG(object):
                 self._env.get_A(x + 2, y + 1),
                 self._env.get_T2(x + 3, y + 1),
             )
-            P, Pt = construct_projectors(R, Rt, self.chi)
+            P, Pt = construct_projectors(
+                R, Rt, self.chi, self.cutoff, self.degen_ratio, self.window
+            )
             self._env.store_projectors(x + 3, y + 2, P, Pt)
             del R, Rt
 
@@ -368,7 +398,9 @@ class CTMRG(object):
                 self._env.get_C3(x + 3, y + 3),
             )
 
-            P, Pt = construct_projectors(R, Rt, self.chi)
+            P, Pt = construct_projectors(
+                R, Rt, self.chi, self.cutoff, self.degen_ratio, self.window
+            )
             self._env.store_projectors(x + 3, y + 3, P, Pt)
             del R, Rt
 
@@ -427,7 +459,9 @@ class CTMRG(object):
                 self._env.get_T3(x + 2, y + 3),
                 self._env.get_C3(x + 3, y + 3),
             )
-            P, Pt = construct_projectors(R, Rt, self.chi)
+            P, Pt = construct_projectors(
+                R, Rt, self.chi, self.cutoff, self.degen_ratio, self.window
+            )
             self._env.store_projectors(x, y + 1, P, Pt)
             del R, Rt
 
@@ -653,7 +687,17 @@ class CTMRG_U1(CTMRG):
     """
 
     @classmethod  # no specialized __init__ required
-    def from_elementary_tensors(cls, tensors, colors, tiling, chi, verbosity=0):
+    def from_elementary_tensors(
+        cls,
+        tensors,
+        colors,
+        tiling,
+        chi,
+        cutoff=0.0,
+        degen_ratio=None,
+        window=0,
+        verbosity=0,
+    ):
         """
         Construct U(1) symmetric CTMRG from elementary tensors and tiling. Symmetry is
         NOT checked for elementary tensors.
@@ -674,7 +718,7 @@ class CTMRG_U1(CTMRG):
         if verbosity > 0:
             print("Start CTMRG from scratch using elementary tensors")
         env = CTM_Environment.from_elementary_tensors(tensors, tiling, colors)
-        return cls(chi, env, verbosity)
+        return cls(env, chi, cutoff, degen_ratio, window, verbosity)
 
     def set_tensors(self, tensors, colors, keep_env=True):
         if keep_env:
@@ -889,7 +933,14 @@ class CTMRG_U1(CTMRG):
             reduced_ul = self.construct_reduced_ul(x, y)
             reduced_dl = self.construct_reduced_dl(x, y)
             P, Pt, colors = construct_projectors_U1(
-                reduced_dr, reduced_ur, reduced_ul, reduced_dl, self.chi
+                reduced_dr,
+                reduced_ur,
+                reduced_ul,
+                reduced_dl,
+                self.chi,
+                self.cutoff,
+                self.degen_ratio,
+                self.window,
             )
             self._env.store_projectors(x + 2, y, P, Pt, colors)
 
@@ -949,7 +1000,14 @@ class CTMRG_U1(CTMRG):
             reduced_ur = self.construct_reduced_ur(x, y)
             reduced_ul = self.construct_reduced_ul(x, y)
             P, Pt, colors = construct_projectors_U1(
-                reduced_dl, reduced_dr, reduced_ur, reduced_ul, self.chi
+                reduced_dl,
+                reduced_dr,
+                reduced_ur,
+                reduced_ul,
+                self.chi,
+                self.cutoff,
+                self.degen_ratio,
+                self.window,
             )
             self._env.store_projectors(x + 3, y + 2, P, Pt, colors)
 
@@ -1006,7 +1064,14 @@ class CTMRG_U1(CTMRG):
             reduced_dr = self.construct_reduced_dr(x, y)
             reduced_ur = self.construct_reduced_ur(x, y)
             P, Pt, colors = construct_projectors_U1(
-                reduced_ul, reduced_dl, reduced_dr, reduced_ur, self.chi
+                reduced_ul,
+                reduced_dl,
+                reduced_dr,
+                reduced_ur,
+                self.chi,
+                self.cutoff,
+                self.degen_ratio,
+                self.window,
             )
             self._env.store_projectors(x + 3, y + 3, P, Pt, colors)
 
@@ -1063,7 +1128,14 @@ class CTMRG_U1(CTMRG):
             reduced_dl = self.construct_reduced_dl(x, y)
             reduced_dr = self.construct_reduced_dr(x, y)
             P, Pt, colors = construct_projectors_U1(
-                reduced_ur, reduced_ul, reduced_dl, reduced_dr, self.chi
+                reduced_ur,
+                reduced_ul,
+                reduced_dl,
+                reduced_dr,
+                self.chi,
+                self.cutoff,
+                self.degen_ratio,
+                self.window,
             )
 
             self._env.store_projectors(x, y + 1, P, Pt, colors)

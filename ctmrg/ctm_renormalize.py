@@ -5,8 +5,10 @@ from misc_tools.svd_tools import svd_truncate, sparse_svd
 from ctmrg.ctm_contract import add_a_blockU1
 
 
-def construct_projectors(R, Rt, chi):
-    U, S, V, _ = svd_truncate(R @ Rt, chi)
+def construct_projectors(R, Rt, chi, cutoff, degen_ratio, window):
+    U, S, V, _ = svd_truncate(
+        R @ Rt, chi, cutoff=cutoff, degen_ratio=degen_ratio, window=window
+    )
     s12 = 1 / np.sqrt(S)  # S contains no 0
     # convention: projectors have shape (last_chi*D**2,chi)
     # since values of last_chi and D are not known (nor used) here
@@ -20,7 +22,9 @@ def construct_projectors(R, Rt, chi):
     return P, Pt
 
 
-def construct_projectors_U1(corner1, corner2, corner3, corner4, chi, cutoff=1e-16):
+def construct_projectors_U1(
+    corner1, corner2, corner3, corner4, chi, cutoff, degen_ratio, window
+):
     # once corner are constructed, no reshape or transpose is done. Decompose corner in
     # U(1) sectors as soon as they are constructed, then construct halves and R @ Rt
     # blockwise only. SVD and projectors can also be computed blockwise in same loop.
@@ -53,7 +57,8 @@ def construct_projectors_U1(corner1, corner2, corner3, corner4, chi, cutoff=1e-1
         if min(m.shape) < 3 * chi:  # use full svd for small blocks
             u, s, v = lg.svd(m, full_matrices=False, overwrite_a=True)
         else:
-            u, s, v = sparse_svd(m, k=chi, maxiter=1000)
+            # for U(1) as SU(2) subgroup, no degen inside a color block
+            u, s, v = sparse_svd(m, k=chi + window, maxiter=1000)
 
         d = min(chi, s.size)  # may be smaller than chi
         S[k : k + d] = s[:d]
@@ -65,9 +70,13 @@ def construct_projectors_U1(corner1, corner2, corner3, corner4, chi, cutoff=1e-1
         k += d
 
     # TODO: benchmark with heapq.nlargest(chi, range(k), lambda i: S[i])
-    s_sort = S[:k].argsort()[::-1]
+    s_sort = S[:k].argsort()[::-1]  # remove non-written values before sorting
     S = S[s_sort]
     cut = min(chi, (S > cutoff * S[0]).nonzero()[0][-1] + 1)
+    if degen_ratio is not None:
+        nnz = (S[cut - 1 : -1] > degen_ratio * S[cut:]).nonzero()[0]
+        if nnz.size:
+            cut += nnz[0]
     s12 = 1 / np.sqrt(S[:cut])
     colors = colors[s_sort[:cut]]
     P = P[:, s_sort[:cut]] * s12
