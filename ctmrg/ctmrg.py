@@ -95,7 +95,7 @@ class CTMRG(object):
         """
         self.verbosity = verbosity
         if self.verbosity > 0:
-            print(f"initalize CTMRG with chi = {chi} and verbosity = {self.verbosity}")
+            print(f"initalize CTMRG with verbosity = {self.verbosity}")
         self._env = env
         self.chi = chi
         self.cutoff = cutoff
@@ -105,6 +105,10 @@ class CTMRG(object):
         if self.verbosity > 0:
             print("CTMRG constructed")
             print("unit cell =", self._env.cell, sep="\n")
+            print("chi =", self.chi)
+            print("cutoff =", self.cutoff)
+            print("window =", self.window)
+            print("degen_ratio =", self.degen_ratio)
             if self.verbosity > 2:
                 self.print_tensor_shapes()
 
