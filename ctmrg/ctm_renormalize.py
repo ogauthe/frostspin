@@ -43,7 +43,7 @@ def construct_projectors_U1(
         .intersection(corner3.block_colors)
         .intersection(corner4.block_colors)
     )
-    for c in shared:
+    for c in shared:  # avoid svd_truncate to compute SVD on the fly
         m1 = corner1.blocks[corner1.get_color_index(c)]
         i2 = corner2.get_color_index(c)
         m2 = corner2.blocks[i2]
@@ -73,11 +73,10 @@ def construct_projectors_U1(
     s_sort = S[:k].argsort()[::-1]  # remove non-written values before sorting
     S = S[s_sort]
     cut = min(chi, (S > cutoff * S[0]).nonzero()[0][-1] + 1)
-    # 0 < degen_ratio < 1
-    if degen_ratio > 0.0:
-        nnz = (S[cut:] < degen_ratio * S[cut - 1 : -1]).nonzero()[0]
-        if nnz.size:
-            cut += nnz[0]
+    # cut between multiplets, defined as S[i+1]/S[i] >= degen_ratio (>= for ratio=1)
+    nnz = (S[cut:] <= degen_ratio * S[cut - 1 : -1]).nonzero()[0]
+    if nnz.size:
+        cut += nnz[0]
     s12 = 1 / np.sqrt(S[:cut])
     colors = colors[s_sort[:cut]]
     P = P[:, s_sort[:cut]] * s12

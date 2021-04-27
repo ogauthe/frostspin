@@ -14,8 +14,8 @@ def svd_truncate(
     full=False,
     maxiter=1000,
     cutoff=0.0,
-    degen_ratio=None,
-    window=10,
+    degen_ratio=1.0,
+    window=0,
 ):
     """
     Unique function to compute singular value decomposition of a matrix and truncate.
@@ -27,8 +27,7 @@ def svd_truncate(
     M : (m,n) ndarray
       Matrix to decompose.
     cut : integer
-      Number of singular vectors to keep. Actual value depends on keep_multiplets (see
-      notes).
+      Number of singular vectors to keep. Actual value depends on kept multiplets.
     row_colors : (m,) integer ndarray
       U(1) quantum numbers of the rows.
     col_colors : (n,) integer ndarray
@@ -40,50 +39,45 @@ def svd_truncate(
       of running forever. Not read if full is True.
     cutoff : float
       Singular values smaller than cutoff * max(singular values) are set to zero and
-      associated singular vectors are removed.
-    degen_ratio : None or float
-      If set, preserve non-abelian symmetry by cutting between two different multiplets.
-      Consider two consecutive values as degenerate if s[i]/s[i+1] < degen_ratio.
+      associated singular vectors are removed. Default is 0.0 (no cutoff)
+    degen_ratio : float
+        Used to define multiplets in singular values and truncate between two
+        multiplets. Two consecutive singular values are considered degenerate if
+        1 >= s[i+1]/s[i] >= degen_ratio > 0. Default is 1.0 (exact degeneracies)
     window : integer
       If degen_ratio is not None and full is false, compute cut + window vectors in each
-      sector to preserve multiplets.
+      sector to preserve multiplets. Default is 0.
 
     Returns
     -------
-    U : (m,k) ndarray
+    U : (m, k) ndarray
       Left singular vectors.
     s : (k,) ndarray, float
       Singular values.
-    V : (k,n) ndarray
+    V : (k, n) ndarray
       Right singular vectors.
     colors : (k,) ndarray, int8
       U(1) quantum numbers of s.
 
     Notes:
     ------
-    cut is fixed if keep_multiplets is False, else as the smallest value in
-    [cut, cut + window[ such that s[cut+1] < degen_tol*s[cut].
     Even if a truncature is made, full can be used to compute the full SVD, which may
     be more precise or faster (especially with numba)
     Note that U(1) symmetry forces to compute much more than k vectors, hence a small
     or even 0 window is fine.
     """
-    keep_multiplets = degen_ratio is not None
     if full or min(M.shape) < 3 * cut:  # full allows to use numba while cutting
         U, s, V, colors = svdU1(M, row_colors, col_colors)
     else:
         U, s, V, colors = sparse_svdU1(  # FIXME: interplay svd_truncate / sparse_svdU1
-            M, cut + keep_multiplets * window, row_colors, col_colors, maxiter=maxiter
+            M, cut + window, row_colors, col_colors, maxiter=maxiter
         )
     # zeros must be removed, without caring for multiplets. If a non-zero multiplet is
     # split, cutoff was not set properly.
     cut = min(cut, (s > cutoff * s[0]).nonzero()[0][-1] + 1)
-    if keep_multiplets and cut < s.size:  # assume no multiplet around cutoff
-        nnz = (s[cut - 1 : -1] > degen_ratio * s[cut:]).nonzero()[0]
-        if nnz.size:
-            cut = cut + nnz[0]
-        else:
-            cut = s.size
+    nnz = (s[cut:] <= degen_ratio * s[cut - 1 : -1]).nonzero()[0]
+    if nnz.size:
+        cut += nnz[0]
     U = U[:, :cut]
     s = s[:cut]
     V = V[:cut]

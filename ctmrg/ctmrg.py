@@ -79,13 +79,14 @@ class CTMRG(object):
         env: CTM_Environment
             Environment object, as construced by from_file or from_elementary_tensors.
         chi : integer
-            Maximal corner dimension. If degen_ratio is set, actual cut may be larger.
+            Maximal corner dimension.
         cutoff : float
             Singular value cutoff to improve stability.
         degen_ratio : float
-            If set to nonzero, used to define multiplets in projector singular values
-            and truncate between two multiplets. Two consecutive (decreasing) values are
-            considered degenerate if 1 >= s[i+1]/s[i] > degen_ratio > 0.
+            Used to define multiplets in projector singular values and truncate between
+            two multiplets. Two consecutive (decreasing) values are considered
+            degenerate if 1 >= s[i+1]/s[i] >= degen_ratio > 0. Default is 1.0 (exact
+            degeneracies)
         window : int
             In projector construction, compute chi + window singular values to preserve
             multiplet structure.
@@ -109,7 +110,7 @@ class CTMRG(object):
 
     @classmethod
     def from_elementary_tensors(
-        cls, tensors, tiling, chi, cutoff=0.0, degen_ratio=0.0, window=0, verbosity=0
+        cls, tensors, tiling, chi, cutoff=0.0, degen_ratio=1.0, window=0, verbosity=0
     ):
         """
         Construct CTMRG from elementary tensors and tiling.
@@ -123,14 +124,15 @@ class CTMRG(object):
         chi : integer
             Maximal corner dimension. If degen_ratio is set, actual cut may be larger.
         cutoff : float
-            Singular value cutoff to improve stability.
+            Singular value cutoff to improve stability. Default is 0.0 (no cutoff)
         degen_ratio : float
-            If set to nonzero, used to define multiplets in projector singular values
-            and truncate between two multiplets. Two consecutive (decreasing) values are
-            considered degenerate if 1 >= s[i+1]/s[i] > degen_ratio > 0.
+            Used to define multiplets in projector singular values and truncate between
+            two multiplets. Two consecutive (decreasing) values are considered
+            degenerate if 1 >= s[i+1]/s[i] >= degen_ratio > 0. Default is 1.0 (exact
+            degeneracies)
         window : int
             In projector construction, compute chi + window singular values to preserve
-            multiplet structure.
+            multiplet structure. Default is 0.
         verbosity : int
             Level of log verbosity. Default is no log.
         """
@@ -160,7 +162,7 @@ class CTMRG(object):
                 window = fin["_CTM_window"][()]
             except KeyError:  # old data format
                 cutoff = 0.0
-                degen_ratio = 0.0
+                degen_ratio = 1.0
                 window = 0
         # env construction can take a lot of time (A-A* contraction is expensive)
         # better to open and close savefile twice (here and in env) to have env __init__
@@ -720,7 +722,7 @@ class CTMRG_U1(CTMRG):
         tiling,
         chi,
         cutoff=0.0,
-        degen_ratio=0.0,
+        degen_ratio=1.0,
         window=0,
         verbosity=0,
     ):
@@ -737,17 +739,19 @@ class CTMRG_U1(CTMRG):
         tiling : string
             String defining the shape of the unit cell, typically "A" or "AB\nCD".
         chi : integer
-            Maximal corner dimension. If degen_ratio is set, actual cut may be larger.
+            Maximal corner dimension. Actual cut may be larger if multiplets are kept.
         cutoff : float
-            Singular value cutoff to improve stability.
+            Singular value cutoff to improve stability. Default is 0.0 (no cutoff)
         degen_ratio : float
-            If set to nonzero, used to define multiplets in projector singular values
-            and truncate between two multiplets. Two consecutive (decreasing) values are
-            considered degenerate if 1 >= s[i+1]/s[i] > degen_ratio > 0.
+            Used to define multiplets in projector singular values and truncate between
+            two multiplets. Two consecutive (decreasing) values are considered
+            degenerate if 1 >= s[i+1]/s[i] >= degen_ratio > 0. Default is 1.0 (exact
+            degeneracies)
         window : int
             During projector construction, compute chi + window singular values in each
-            block to preserve multiplet structure inside a color block. Can be kept at 0
-            if no multiplets are expected inside a color block (as for SU(2)).
+            block to preserve multiplet structure inside a color block. Default is 0.
+            Can be kept at 0 if no multiplets are expected inside a color block (as for
+            SU(2)).
         verbosity : int
             Level of log verbosity. Default is no log.
         """
