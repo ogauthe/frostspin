@@ -11,12 +11,12 @@ def update_first_neighbor(
     gate,
     d,
     Dmax,
-    col_L=default_color,
-    col_R=default_color,
-    col_bond=default_color,
-    col_d=default_color,
-    cutoff=1e-13,
-    degen_ratio=None,
+    col_L,
+    col_R,
+    col_bond,
+    col_d,
+    cutoff,
+    degen_ratio,
 ):
     """
     First neighbor simple update algorithm.
@@ -96,14 +96,14 @@ def update_second_neighbor(
     gate,
     d,
     Dmax,
-    col_L=default_color,
-    col_mid=default_color,
-    col_R=default_color,
-    col_bL=default_color,
-    col_bR=default_color,
-    col_d=default_color,
-    cutoff=1e-13,
-    degen_ratio=None,
+    col_L,
+    col_mid,
+    col_R,
+    col_bL,
+    col_bR,
+    col_d,
+    cutoff,
+    degen_ratio,
 ):
     """
     Second and third neighbor simple update algorithm.
@@ -208,8 +208,8 @@ class SimpleUpdate1x2(object):
         h=None,
         tensors=None,
         colors=None,
-        cutoff=1e-13,
-        degen_ratio=None,
+        cutoff=1e-10,
+        degen_ratio=1.0,
         file=None,
         verbosity=0,
     ):
@@ -240,9 +240,11 @@ class SimpleUpdate1x2(object):
             assumed.
         cutoff : float, optional.
             Singular values smaller than cutoff are set to zero to improve stability.
-        degen_ratio : None or float, optional.
-            If set, keep singular value multiplet structure by cutting between two
-            values such that s[i+1]/s[i] > degen_ratio
+            Default is 1e-10.
+        degen_ratio : float, optional.
+            Used to define multiplets in singular values and truncate between two
+            multiplets. Two consecutive singular values are considered degenerate if
+            1 >= s[i+1]/s[i] >= degen_ratio > 0. Default is 1.0 (exact degeneracies)
         file : str, optional
             Save file containing data to restart computation from. File must follow
             save_to_file / load_from_file syntax. If file is provided, d and a are read
@@ -774,8 +776,8 @@ class SimpleUpdate2x2(object):
         h2=None,
         tensors=None,
         colors=None,
-        cutoff=1e-13,
-        degen_ratio=None,
+        cutoff=1e-10,
+        degen_ratio=1.0,
         file=None,
         verbosity=0,
     ):
@@ -810,9 +812,11 @@ class SimpleUpdate2x2(object):
           assumed.
         cutoff : float, optional.
             Singular values smaller than cutoff are set to zero to improve stability.
-        degen_ratio : None or float, optional.
-            If set, keep singular value multiplet structure by cutting between two
-            values such that s[i+1]/s[i] > degen_ratio
+            Default is 1e-10.
+        degen_ratio : float, optional.
+            Used to define multiplets in singular values and truncate between two
+            multiplets. Two consecutive singular values are considered degenerate if
+            1 >= s[i+1]/s[i] >= degen_ratio > 0. Default is 1.0 (exact degeneracies)
         file : str, optional
           Save file containing data to restart computation from. File must follow
           save_to_file / load_from_file syntax. If file is provided, d and a are read to
