@@ -237,6 +237,10 @@ class CTM_Environment(object):
             self._colors_C4_u = [default_color] * self._Nneq
             self._colors_C4_r = [default_color] * self._Nneq
 
+    @property
+    def Dmax(self):
+        return max(max(A.shape[2:]) for A in self._neq_As)
+
     def restart(self):
         """
         Erase current environment tensors C and T and restart them from elementary

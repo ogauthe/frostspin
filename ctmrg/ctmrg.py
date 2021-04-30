@@ -97,6 +97,7 @@ class CTMRG(object):
         if self.verbosity > 0:
             print(f"initalize CTMRG with verbosity = {self.verbosity}")
         self._env = env
+        self._Dmax = self._env.Dmax
         self.chi = chi
         self.cutoff = cutoff
         self.window = window
@@ -235,6 +236,7 @@ class CTMRG(object):
                 print("Restart with new tensors and new environment")
             tiling = "\n".join("".join(s) for s in self.cell)
             self._env = CTM_Environment.from_elementary_tensors(tensors, tiling)
+        self._Dmax = self._env.Dmax
 
     def print_tensor_shapes(self):
         print("tensor shapes for C1 T1 C2 // T4 A T2 // C4 T3 C4:")
@@ -774,6 +776,7 @@ class CTMRG_U1(CTMRG):
                 print("Restart with new tensors and new environment")
             tiling = "\n".join("".join(s) for s in self.cell)
             self._env = CTM_Environment.from_elementary_tensors(tensors, tiling, colors)
+        self._Dmax = self._env.Dmax
 
     def print_colors(self):
         print("colors_A, colorsC1, colorsC2, colorsC3, colorsC4:")
