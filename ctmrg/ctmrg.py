@@ -218,7 +218,7 @@ class CTMRG(object):
 
     def __str__(self):
         return (
-            f"asymetric CTMRG with Dmax = {self._Dmax} and chi = {self.chi}\n"
+            f"asymmetric CTMRG with Dmax = {self._Dmax} and chi = {self.chi}\n"
             f"cutoff = {self.cutoff}, degen_ratio = {self.degen_ratio}, window = "
             f"{self.window}\nunit cell =\n{self._env.cell}"
         )
@@ -776,7 +776,7 @@ class CTMRG_U1(CTMRG):
 
     def __str__(self):
         return (
-            f"U(1) symetric CTMRG with Dmax = {self._Dmax} and chi = {self.chi}\n"
+            f"U(1) symmetric CTMRG with Dmax = {self._Dmax} and chi = {self.chi}\n"
             f"cutoff = {self.cutoff}, degen_ratio = {self.degen_ratio}, window = "
             f"{self.window}\nunit cell =\n{self._env.cell}"
         )
