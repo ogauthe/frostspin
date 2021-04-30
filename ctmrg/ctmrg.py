@@ -104,12 +104,7 @@ class CTMRG(object):
         self.degen_ratio = degen_ratio
         self._neq_coords = self._env.neq_coords
         if self.verbosity > 0:
-            print("CTMRG constructed")
-            print("unit cell =", self._env.cell, sep="\n")
-            print("chi =", self.chi)
-            print("cutoff =", self.cutoff)
-            print("window =", self.window)
-            print("degen_ratio =", self.degen_ratio)
+            print(self)
             if self.verbosity > 2:
                 self.print_tensor_shapes()
 
@@ -217,6 +212,17 @@ class CTMRG(object):
     def cell_number_neq_sites(self):
         return self._env.Nneq
 
+    @property
+    def Dmax(self):
+        return self._Dmax
+
+    def __str__(self):
+        return (
+            f"asymetric CTMRG with Dmax = {self._Dmax} and chi = {self.chi}\n"
+            f"cutoff = {self.cutoff}, degen_ratio = {self.degen_ratio}, window = "
+            f"{self.window}\nunit cell =\n{self._env.cell}"
+        )
+
     def restart_environment(self):
         """
         Restart environment tensors from elementary ones. ERASE current environment,
@@ -237,6 +243,8 @@ class CTMRG(object):
             tiling = "\n".join("".join(s) for s in self.cell)
             self._env = CTM_Environment.from_elementary_tensors(tensors, tiling)
         self._Dmax = self._env.Dmax
+        if self.verbosity > 0:
+            print(self)
 
     def print_tensor_shapes(self):
         print("tensor shapes for C1 T1 C2 // T4 A T2 // C4 T3 C4:")
@@ -766,6 +774,13 @@ class CTMRG_U1(CTMRG):
         env = CTM_Environment.from_elementary_tensors(tensors, tiling, colors)
         return cls(env, chi, cutoff, degen_ratio, window, verbosity)
 
+    def __str__(self):
+        return (
+            f"U(1) symetric CTMRG with Dmax = {self._Dmax} and chi = {self.chi}\n"
+            f"cutoff = {self.cutoff}, degen_ratio = {self.degen_ratio}, window = "
+            f"{self.window}\nunit cell =\n{self._env.cell}"
+        )
+
     def set_tensors(self, tensors, colors, keep_env=True):
         if keep_env:
             if self.verbosity > 0:
@@ -777,6 +792,8 @@ class CTMRG_U1(CTMRG):
             tiling = "\n".join("".join(s) for s in self.cell)
             self._env = CTM_Environment.from_elementary_tensors(tensors, tiling, colors)
         self._Dmax = self._env.Dmax
+        if self.verbosity > 0:
+            print(self)
 
     def print_colors(self):
         print("colors_A, colorsC1, colorsC2, colorsC3, colorsC4:")
