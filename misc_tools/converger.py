@@ -83,7 +83,7 @@ class Converger(object):
         t0 = time.time()
         for i in range(warmup):
             self.iterate()
-            if self.verbosity > 0:
+            if self.verbosity > 1:
                 print(f"i = {self._niter}, t = {time.time()-t0:.1f}")
 
         if self.verbosity > 0:
@@ -97,16 +97,27 @@ class Converger(object):
             self._value = self.get_value()
             delta = self._distance(self._last_value, self.value)
             self._delta_list.append(delta)
-            if self.verbosity > 0:
+            if self.verbosity > 1:
                 print(
                     f"i = {self._niter}, t = {time.time()-t0:.1f}, delta = {delta:.3e}"
                 )
-
             if delta < tol:
-                return True, "success!"
-
+                msg = "Convergence succeded!"
+                break
             if self._niter > maxiter:
-                return False, "Convergence did not occur before maxiter"
-
+                msg = (
+                    f"Convergence failed: maxiter = {maxiter} reached before "
+                    "convergence!"
+                )
+                break
             if self._niter > shift_warm and delta / self._delta_list[-shift] > stuck:
-                return False, "delta has stabilized higher than tol"
+                msg = "Convergence failed: delta has stabilized higher than tol!"
+                break
+
+        if self.verbosity > 0:
+            print(msg)
+            print(
+                f"Converger exit parameters: niter = {self._niter},",
+                f"t = {time.time()-t0:.1f}, delta = {delta:.3e}",
+            )
+        return delta
