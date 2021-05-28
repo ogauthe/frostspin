@@ -1392,3 +1392,59 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
 
     def update_bonds76(self, gate):
         self._update_second_neighbor(gate, 2, 3, 1, 7)
+
+
+class SU2_SimpleUpdate2x2_asym(SU2_SimpleUpdate2x2):
+    """
+    SU2_SimpleUpdate2x2 with bond-dependent Hamiltonian.
+    """
+
+    # keep SU2_SimpleUpdate2x2 the simplest possible
+    _n_hamilts = 16
+
+    def _2nd_order_step_no1(self):
+        self.update_bond2(self._gates[1])
+        self.update_bond3(self._gates[2])
+        self.update_bond4(self._gates[3])
+        self.update_bond5(self._gates[4])
+        self.update_bond6(self._gates[5])
+        self.update_bond7(self._gates[6])
+        self.update_bond8(self._gates[7])
+        self.update_bonds18(self._sqrt_gates[8])
+        self.update_bonds54(self._sqrt_gates[8])
+        self.update_bonds71(self._sqrt_gates[9])
+        self.update_bonds25(self._sqrt_gates[9])
+        self.update_bonds62(self._sqrt_gates[10])
+        self.update_bonds37(self._sqrt_gates[10])
+        self.update_bonds83(self._sqrt_gates[11])
+        self.update_bonds46(self._sqrt_gates[11])
+        self.update_bonds57(self._sqrt_gates[12])
+        self.update_bonds12(self._sqrt_gates[12])
+        self.update_bonds41(self._sqrt_gates[13])
+        self.update_bonds85(self._sqrt_gates[13])
+        self.update_bonds68(self._sqrt_gates[14])
+        self.update_bonds34(self._sqrt_gates[14])
+        self.update_bonds23(self._sqrt_gates[15])
+        self.update_bonds76(self._gates[15])
+        self.update_bonds23(self._sqrt_gates[15])
+        self.update_bonds34(self._sqrt_gates[14])
+        self.update_bonds68(self._sqrt_gates[14])
+        self.update_bonds85(self._sqrt_gates[13])
+        self.update_bonds41(self._sqrt_gates[13])
+        self.update_bonds12(self._sqrt_gates[12])
+        self.update_bonds57(self._sqrt_gates[12])
+        self.update_bonds46(self._sqrt_gates[11])
+        self.update_bonds83(self._sqrt_gates[11])
+        self.update_bonds37(self._sqrt_gates[10])
+        self.update_bonds62(self._sqrt_gates[10])
+        self.update_bonds25(self._sqrt_gates[9])
+        self.update_bonds71(self._sqrt_gates[9])
+        self.update_bonds54(self._sqrt_gates[8])
+        self.update_bonds18(self._sqrt_gates[8])
+        self.update_bond8(self._gates[7])
+        self.update_bond7(self._gates[6])
+        self.update_bond6(self._gates[5])
+        self.update_bond5(self._gates[4])
+        self.update_bond4(self._gates[3])
+        self.update_bond3(self._gates[2])
+        self.update_bond2(self._gates[1])
