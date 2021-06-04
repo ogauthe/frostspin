@@ -51,13 +51,23 @@ class SymmetricTensor(object):
     def nnz(self):
         return self._nnz
 
-    def toarray(self):
-        return NotImplemented
+    def copy(self):
+        blocks = tuple(b.copy() for b in self._blocks)
+        return type(self)(
+            blocks,
+            self._block_irreps,
+            self._shape,
+            self._axes_irreps,
+            self._n_leg_rows,
+        )
 
     @property
     def T(self):
-        # pretty different from transpose, so write own implementation
-        blocks = [b.T for b in self._blocks]
+        # Transpose the matrix representation of the tensor, ie swap rows and columns
+        # and transpose diagonal blocks, without any data move or copy. Irreps need to
+        # be conjugate since row (bra) and columns (ket) are swapped. If this operation
+        # is non-trivial, specialization is required.
+        blocks = tuple(b.T for b in self._blocks)
         shape = self._shape[self._n_leg_rows :] + self._shape[: self._n_leg_rows]
         axes_irreps = (
             self._axes_irreps[self._n_leg_rows :]
@@ -71,14 +81,24 @@ class SymmetricTensor(object):
             self._ndim - self._n_leg_rows,
         )
 
-    def transpose(self, axes, n_leg_rows):
+    def __add__(self, other):
+        assert (
+            self._axes_irreps == other._axes_irreps
+        ), "SymmetricTensors have non-compatible axes"
+        assert (
+            self._n_row_legs == other._n_row_legs
+        ), "SymmetricTensors have non-compatible matrix shapes"
+        blocks = tuple(b1 + b2 for (b1, b2) in zip(self._blocks, other._blocks))
+        return type(self)(
+            blocks,
+            self._block_irreps,
+            self._shape,
+            self._axes_irreps,
+            self._n_leg_rows,
+        )
+
+    def __mul__(self, x):
         return NotImplemented
-        """
-        if len(axes) != self._ndim:
-            raise ValueError("axes don't match SymmetricTensor")
-        if tuple(axes) == tuple(range(self._ndim)) and n_leg_rows == self._n_leg_rows:
-            return self
-        """
 
     def __rmul__(self, x):
         return self * x
@@ -99,6 +119,13 @@ class SymmetricTensor(object):
             self._n_leg_rows,
         )
 
+    # symmetry dependant methods with fixed signature
+    def toarray(self):
+        return NotImplemented
+
+    def transpose(self, axes, n_leg_rows):
+        return NotImplemented
+
     def __matmul__(self, other):
         # unfortunately dealing with empty blocks requires knowledge on symmetry
         return NotImplemented
@@ -115,30 +142,7 @@ class SymmetricTensor(object):
             self._axes_irreps[: self._n_leg_rows]
             != other._axes_irreps[other._n_leg_rows :]
         )
-        return type(self)(
-            blocks,
-            block_irreps,
-            shape,
-            axes_irreps,
-            self._n_leg_rows,
-        )
-
-    def __mul__(self, x):
-        return NotImplemented
-
-    def __add__(self, other):
-        if self._axes_irreps != other._axes_irreps:
-            raise ValueError("SymmetricTensors have non-compatible axes")
-        if self._n_row_legs != other._n_row_legs:
-            raise ValueError("SymmetricTensors have non-compatible matrix shapes")
-        blocks = tuple(b1 + b2 for (b1, b2) in zip(self._blocks, other._blocks))
-        return type(self)(
-            blocks,
-            self._block_irreps,
-            self._shape,
-            self._axes_irreps,
-            self._n_leg_rows,
-        )
+        return type(self)(blocks, block_irreps, shape, axes_irreps, self._n_leg_rows,)
 
     def svd(self, cut=None, rcutoff=0.0):
         """
@@ -194,15 +198,6 @@ class SymmetricTensor(object):
         s = np.array(s[::-1])
         return U, s, V, mid_rep
 
-    def copy(self):
-        blocks = tuple(b.copy() for b in self._blocks)
-        return type(self)(
-            blocks,
-            self._block_irreps,
-            self._shape,
-            self._axes_irreps,
-            self._n_leg_rows,
-        )
 
 
 # class AsymmetricTensor(SymmetricTensor):
