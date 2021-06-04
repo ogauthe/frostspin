@@ -22,7 +22,7 @@ class SymmetricTensor(object):
         self._shape = shape
         self._axes_irreps = axes_irreps
         self._n_leg_rows = n_leg_rows
-        self._ncoeff = sum(b.size for b in blocks)
+        self._nnz = sum(b.size for b in blocks)
 
     @property
     def nblocks(self):
@@ -48,8 +48,8 @@ class SymmetricTensor(object):
         return self._n_leg_rows
 
     @property
-    def ncoeff(self):
-        return self._ncoeff
+    def nnz(self):
+        return self._nnz
 
     def toarray(self):
         return NotImplemented
