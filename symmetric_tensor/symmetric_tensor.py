@@ -10,19 +10,17 @@ class SymmetricTensor(object):
     Tensors are seen as matrices, with legs grouped into two packs, rows and columns.
     """
 
-    def __init__(
-        self, blocks, block_quantum_numbers, shape, axes_quantum_numbers, n_leg_rows
-    ):
+    def __init__(self, blocks, block_irreps, shape, axes_irreps, n_leg_rows):
         self._ndim = len(shape)
         self._nblocks = len(blocks)
-        assert len(block_quantum_numbers) == self._nblocks
-        # for non abelian symmetries, len(axis_quantum_numbers) != dim(axis)
-        assert len(axes_quantum_numbers) == self._ndim
+        assert len(block_irreps) == self._nblocks
+        # for non abelian symmetries, len(axis_irreps) != dim(axis)
+        assert len(axes_irreps) == self._ndim
         assert 0 < n_leg_rows < self._ndim
         self._blocks = blocks
-        self._block_quantum_numbers = block_quantum_numbers
+        self._block_irreps = block_irreps
         self._shape = shape
-        self._axes_quantum_numbers = axes_quantum_numbers
+        self._axes_irreps = axes_irreps
         self._n_leg_rows = n_leg_rows
         self._ncoeff = sum(b.size for b in blocks)
 
@@ -61,15 +59,15 @@ class SymmetricTensor(object):
         # pretty different from transpose, so write own implementation
         blocks = [b.T for b in self._blocks]
         shape = self._shape[self._n_leg_rows :] + self._shape[: self._n_leg_rows]
-        axes_quantum_numbers = (
-            self._axes_quantum_numbers[self._n_leg_rows :]
-            + self._axes_quantum_numbers[: self._n_leg_rows]
+        axes_irreps = (
+            self._axes_irreps[self._n_leg_rows :]
+            + self._axes_irreps[: self._n_leg_rows]
         )
         return type(self)(
             blocks,
-            self._block_quantum_numbers,
+            self._block_irreps,
             shape,
-            axes_quantum_numbers,
+            axes_irreps,
             self._ndim - self._n_leg_rows,
         )
 
@@ -95,9 +93,9 @@ class SymmetricTensor(object):
         blocks = [-b for b in self._blocks]
         return type(self)(
             blocks,
-            self._block_quantum_numbers,
+            self._block_irreps,
             self._shape,
-            self._axes_quantum_numbers,
+            self._axes_irreps,
             self._n_leg_rows,
         )
 
@@ -105,23 +103,23 @@ class SymmetricTensor(object):
         # unfortunately dealing with empty blocks requires knowledge on symmetry
         return NotImplemented
         if (
-            self._axes_quantum_numbers[self._n_leg_rows :]
-            != other._axes_quantum_numbers[: other._n_leg_rows]
+            self._axes_irreps[self._n_leg_rows :]
+            != other._axes_irreps[: other._n_leg_rows]
         ):
             raise ValueError("SymmetricTensors have non-compatible axes")
         for (b1, b2) in zip(self._blocks, other._blocks):
             blocks = tuple(b1 @ b2 for (b1, b2) in zip(self._blocks, other._blocks))
-        block_quantum_numbers = tuple(self._block_quantum_numbers)
+        block_irreps = tuple(self._block_irreps)
         shape = self._shape[: self._n_leg_rows] + other._shape[other._n_leg_rows :]
-        axes_quantum_numbers = (
-            self._axes_quantum_numbers[: self._n_leg_rows]
-            != other._axes_quantum_numbers[other._n_leg_rows :]
+        axes_irreps = (
+            self._axes_irreps[: self._n_leg_rows]
+            != other._axes_irreps[other._n_leg_rows :]
         )
         return type(self)(
             blocks,
-            block_quantum_numbers,
+            block_irreps,
             shape,
-            axes_quantum_numbers,
+            axes_irreps,
             self._n_leg_rows,
         )
 
@@ -129,16 +127,16 @@ class SymmetricTensor(object):
         return NotImplemented
 
     def __add__(self, other):
-        if self._axes_quantum_numbers != other._axes_quantum_numbers:
+        if self._axes_irreps != other._axes_irreps:
             raise ValueError("SymmetricTensors have non-compatible axes")
         if self._n_row_legs != other._n_row_legs:
             raise ValueError("SymmetricTensors have non-compatible matrix shapes")
         blocks = tuple(b1 + b2 for (b1, b2) in zip(self._blocks, other._blocks))
         return type(self)(
             blocks,
-            self._block_quantum_numbers,
+            self._block_irreps,
             self._shape,
-            self._axes_quantum_numbers,
+            self._axes_irreps,
             self._n_leg_rows,
         )
 
@@ -200,9 +198,9 @@ class SymmetricTensor(object):
         blocks = tuple(b.copy() for b in self._blocks)
         return type(self)(
             blocks,
-            self._block_quantum_numbers,
+            self._block_irreps,
             self._shape,
-            self._axes_quantum_numbers,
+            self._axes_irreps,
             self._n_leg_rows,
         )
 
