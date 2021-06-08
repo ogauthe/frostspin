@@ -147,7 +147,11 @@ class SymmetricTensor(object):
             != other._axes_irreps[other._n_leg_rows :]
         )
         return self.from_raw(
-            blocks, block_irreps, shape, axes_irreps, self._n_leg_rows,
+            blocks,
+            block_irreps,
+            shape,
+            axes_irreps,
+            self._n_leg_rows,
         )
 
     def svd(self, cut=None, rcutoff=0.0):
@@ -203,7 +207,6 @@ class SymmetricTensor(object):
         V = self.from_raw(block_v, mid_rep.irreps, mid_rep, self._right_rep)
         s = np.array(s[::-1])
         return U, s, V, mid_rep
-
 
 
 # class AsymmetricTensor(SymmetricTensor):
