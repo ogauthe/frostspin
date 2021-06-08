@@ -146,13 +146,7 @@ class SymmetricTensor(object):
             self._axis_irreps[: self._n_leg_rows]
             != other._axis_irreps[other._n_leg_rows :]
         )
-        return self.from_raw(
-            blocks,
-            block_irreps,
-            shape,
-            axis_irreps,
-            self._n_leg_rows,
-        )
+        return self.from_raw(blocks, block_irreps, shape, axis_irreps, self._n_leg_rows)
 
     def svd(self, cut=None, rcutoff=0.0):
         """
