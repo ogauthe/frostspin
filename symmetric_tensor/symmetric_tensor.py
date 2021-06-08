@@ -24,6 +24,10 @@ class SymmetricTensor(object):
         self._n_leg_rows = n_leg_rows
         self._nnz = sum(b.size for b in blocks)
 
+    @classmethod
+    def from_raw(cls, block_irreps, shape, axes_irreps, n_leg_rows):
+        return cls(block_irreps, shape, axes_irreps, n_leg_rows)
+
     @property
     def nblocks(self):
         return self._nblocks
@@ -53,7 +57,7 @@ class SymmetricTensor(object):
 
     def copy(self):
         blocks = tuple(b.copy() for b in self._blocks)
-        return type(self)(
+        return self.from_raw(
             blocks,
             self._block_irreps,
             self._shape,
@@ -73,7 +77,7 @@ class SymmetricTensor(object):
             self._axes_irreps[self._n_leg_rows :]
             + self._axes_irreps[: self._n_leg_rows]
         )
-        return type(self)(
+        return self.from_raw(
             blocks,
             self._block_irreps,
             shape,
@@ -89,7 +93,7 @@ class SymmetricTensor(object):
             self._n_row_legs == other._n_row_legs
         ), "SymmetricTensors have non-compatible matrix shapes"
         blocks = tuple(b1 + b2 for (b1, b2) in zip(self._blocks, other._blocks))
-        return type(self)(
+        return self.from_raw(
             blocks,
             self._block_irreps,
             self._shape,
@@ -111,7 +115,7 @@ class SymmetricTensor(object):
 
     def __neg__(self):
         blocks = [-b for b in self._blocks]
-        return type(self)(
+        return self.from_raw(
             blocks,
             self._block_irreps,
             self._shape,
@@ -142,7 +146,9 @@ class SymmetricTensor(object):
             self._axes_irreps[: self._n_leg_rows]
             != other._axes_irreps[other._n_leg_rows :]
         )
-        return type(self)(blocks, block_irreps, shape, axes_irreps, self._n_leg_rows,)
+        return self.from_raw(
+            blocks, block_irreps, shape, axes_irreps, self._n_leg_rows,
+        )
 
     def svd(self, cut=None, rcutoff=0.0):
         """
@@ -193,8 +199,8 @@ class SymmetricTensor(object):
                 del block_v[bi]
 
         mid_rep = (block_cuts, self._block_irreps)  # TODO
-        U = type(self)(block_u, mid_rep.irreps, self._left_rep, mid_rep)
-        V = type(self)(block_v, mid_rep.irreps, mid_rep, self._right_rep)
+        U = self.from_raw(block_u, mid_rep.irreps, self._left_rep, mid_rep)
+        V = self.from_raw(block_v, mid_rep.irreps, mid_rep, self._right_rep)
         s = np.array(s[::-1])
         return U, s, V, mid_rep
 
