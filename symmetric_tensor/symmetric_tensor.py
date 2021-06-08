@@ -25,8 +25,8 @@ class SymmetricTensor(object):
         self._nnz = sum(b.size for b in blocks)
 
     @classmethod
-    def from_raw(cls, block_irreps, shape, axes_irreps, n_leg_rows):
-        return cls(block_irreps, shape, axes_irreps, n_leg_rows)
+    def from_raw(cls, blocks, block_irreps, shape, axes_irreps, n_leg_rows):
+        return cls(blocks, block_irreps, shape, axes_irreps, n_leg_rows)
 
     @property
     def nblocks(self):
