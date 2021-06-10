@@ -55,7 +55,18 @@ def construct_projectors_U1(
         rt = m3 @ m4
         m = r @ rt
         if min(m.shape) < 3 * chi:  # use full svd for small blocks
-            u, s, v = lg.svd(m, full_matrices=False, overwrite_a=True)
+            try:
+                u, s, v = lg.svd(m, full_matrices=False, overwrite_a=True)
+            except lg.LinAlgError as err:
+                print("Error in scipy dense SVD:", err)
+                m = r @ rt  # overwrite_a=True may have erased it
+                u, s, v = lg.svd(
+                    m,
+                    full_matrices=False,
+                    overwrite_a=True,
+                    check_finite=False,
+                    driver="gesvd",
+                )
         else:
             # for U(1) as SU(2) subgroup, no degen inside a color block
             u, s, v = sparse_svd(m, k=chi + window, maxiter=1000)
