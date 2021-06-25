@@ -23,15 +23,35 @@ def get_transfer_matrix(Tup_list, Tdown_list):
     return op
 
 
-def compute_corr_length(Tup_list, Tdown_list, v0=None, ncv=None, maxiter=1000, tol=0):
+def compute_transfer_spectrum(
+    Tup_list, Tdown_list, nval, v0=None, ncv=None, maxiter=1000, tol=0
+):
     op = get_transfer_matrix(Tup_list, Tdown_list)
     try:
         vals = slg.eigs(
-            op, k=2, v0=v0, ncv=ncv, maxiter=maxiter, tol=tol, return_eigenvectors=False
+            op,
+            k=nval,
+            v0=v0,
+            ncv=ncv,
+            maxiter=maxiter,
+            tol=tol,
+            return_eigenvectors=False,
         )
-        v2, v1 = np.sort(np.abs(vals))
-        xi = len(Tup_list) / np.log(v1 / v2)
+        if np.linalg.norm(vals.imag / vals.real) > 1e-6:
+            print("Error: eigenvalues are not real")
+            vals = np.nan * np.ones(nval)
+        else:
+            vals = vals[np.abs(vals).argsort()[::-1]]
+            vals = vals / vals[0]
     except slg.ArpackNoConvergence as err:
         print("ARPACK did not converge", err)
-        xi = np.nan
+        vals = np.nan * np.ones(nval)
+    return vals
+
+
+def compute_corr_length(Tup_list, Tdown_list, v0=None, ncv=None, maxiter=1000, tol=0):
+    _, v2 = compute_transfer_spectrum(
+        Tup_list, Tdown_list, 2, v0=v0, ncv=ncv, maxiter=maxiter, tol=tol
+    )
+    xi = len(Tup_list) / np.log(np.abs(v2))
     return xi
