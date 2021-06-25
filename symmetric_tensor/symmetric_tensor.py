@@ -2,6 +2,50 @@ import numpy as np
 import scipy.linalg as lg
 
 
+class Abelian_Representation(object):
+    """
+    Minimalist class for Abelian representations. A non-abelian symmetry is a much more
+    complicate object with quite different features. Implementation becomes simpler
+    without defining a common Representation base class.
+    """
+
+    def __init__(self, degen, irreps):
+        """
+        Construct an abelian representation.
+
+        Parameters
+        ----------
+        degen : integer array
+            Degeneracy of given irreps
+        irreps : tuple of Irrep
+            Irreps needs to implement __eq__. No other requirement to keep things
+            simple.
+        """
+        self._degen = degen
+        self._irreps = irreps
+        self._dim = degen.sum()
+        self._n_irreps = degen.size
+        assert len(irreps) == self._n_irreps
+        assert degen.shape == (self._n_irreps,)
+        assert degen.all()
+        assert np.issubdtype(degen.dtype, np.integer)
+
+    @property
+    def dim(self):
+        return self._dim
+
+    @property
+    def degen(self):
+        return self._degen
+
+    @property
+    def irreps(self):
+        return self._irreps
+
+    def __eq__(self, other):
+        return self._irreps == other._irreps and (self._degen == other._degen).all()
+
+
 class SymmetricTensor(object):
     """
     Generic base class to deal with symmetric tensors. Defines interface that can be
@@ -10,23 +54,17 @@ class SymmetricTensor(object):
     Tensors are seen as matrices, with legs grouped into two packs, rows and columns.
     """
 
-    def __init__(self, blocks, block_irreps, shape, axis_irreps, n_leg_rows):
-        self._ndim = len(shape)
+    def __init__(self, axis_reps, n_leg_rows, blocks, block_irreps):
+        self._axis_reps = axis_reps
+        self._n_leg_rows = n_leg_rows
+        self._shape = tuple(rep.dim for rep in axis_reps)
+        self._ndim = len(axis_reps)
         self._nblocks = len(blocks)
-        assert len(block_irreps) == self._nblocks
-        # for non abelian symmetries, len(axis_irreps) != dim(axis)
-        assert len(axis_irreps) == self._ndim
-        assert 0 < n_leg_rows < self._ndim
         self._blocks = blocks
         self._block_irreps = block_irreps
-        self._shape = shape
-        self._axis_irreps = axis_irreps
-        self._n_leg_rows = n_leg_rows
         self._nnz = sum(b.size for b in blocks)
-
-    @classmethod
-    def from_raw(cls, blocks, block_irreps, shape, axis_irreps, n_leg_rows):
-        return cls(blocks, block_irreps, shape, axis_irreps, n_leg_rows)
+        assert 0 < n_leg_rows < self._ndim
+        assert len(block_irreps) == self._nblocks
 
     @property
     def nblocks(self):
@@ -57,13 +95,7 @@ class SymmetricTensor(object):
 
     def copy(self):
         blocks = tuple(b.copy() for b in self._blocks)
-        return self.from_raw(
-            blocks,
-            self._block_irreps,
-            self._shape,
-            self._axis_irreps,
-            self._n_leg_rows,
-        )
+        return type(self)(self._axis_reps, self._n_leg_rows, blocks, self._block_irreps)
 
     @property
     def T(self):
@@ -71,35 +103,34 @@ class SymmetricTensor(object):
         # and transpose diagonal blocks, without any data move or copy. Irreps need to
         # be conjugate since row (bra) and columns (ket) are swapped. If this operation
         # is non-trivial, specialization is required.
+
+        # other solution: have irreps object supporting < and conjugate
+        # then one can have
+        # block_irreps = self._block_irreps.conj()
+        # so = block_irreps.argsort()
+        # block_irreps = block_irreps[so]
+        # blocks = tuple(self._blocks[i].T for i in so)
+        # perm = tuple(range(ndim - n_leg_rows, ndim)) + tuple(range(ndim - n_leg_rows))
+        # axis_rep = self._axis_reps.conj()[perm]
+        # and no need for specialization  => too heavy for python
         blocks = tuple(b.T for b in self._blocks)
-        shape = self._shape[self._n_leg_rows :] + self._shape[: self._n_leg_rows]
-        axis_irreps = (
-            self._axis_irreps[self._n_leg_rows :]
-            + self._axis_irreps[: self._n_leg_rows]
+        axis_reps = (
+            self._axis_reps[self._n_leg_rows :] + self._axis_reps[: self._n_leg_rows]
         )
-        return self.from_raw(
-            blocks,
-            self._block_irreps,
-            shape,
-            axis_irreps,
-            self._ndim - self._n_leg_rows,
+        return type(self)(
+            axis_reps, self._ndim - self._n_leg_rows, blocks, self._block_irreps
         )
 
     def __add__(self, other):
+        assert type(other) == type(self), "Mixing incompatible types"
         assert (
-            self._axis_irreps == other._axis_irreps
+            self._axis_reps == other._axis_reps
         ), "SymmetricTensors have non-compatible axes"
         assert (
             self._n_row_legs == other._n_row_legs
-        ), "SymmetricTensors have non-compatible matrix shapes"
+        ), "SymmetricTensors have non-compatible fusion trees"
         blocks = tuple(b1 + b2 for (b1, b2) in zip(self._blocks, other._blocks))
-        return self.from_raw(
-            blocks,
-            self._block_irreps,
-            self._shape,
-            self._axis_irreps,
-            self._n_leg_rows,
-        )
+        return type(self)(self._axis_reps, self._n_leg_rows, blocks, self._block_irreps)
 
     def __mul__(self, x):
         return NotImplemented
@@ -114,14 +145,8 @@ class SymmetricTensor(object):
         return self * (1.0 / x)
 
     def __neg__(self):
-        blocks = [-b for b in self._blocks]
-        return self.from_raw(
-            blocks,
-            self._block_irreps,
-            self._shape,
-            self._axis_irreps,
-            self._n_leg_rows,
-        )
+        blocks = tuple(-b for b in self._blocks)
+        return type(self)(self._axis_reps, self._n_leg_rows, blocks, self._block_irreps)
 
     # symmetry dependant methods with fixed signature
     def toarray(self):
@@ -187,20 +212,26 @@ class SymmetricTensor(object):
                 k += 1
 
         s = []
+        mid_irreps = []
         for bi in reversed(range(self._nblocks)):  # reversed to del
             if block_cuts[bi]:
                 block_u[bi] = block_u[bi][:, : block_cuts[bi]]
                 s.extend(block_s[bi][: block_cuts[bi]][::-1])
                 block_v[bi] = block_v[bi][: block_cuts[bi]]
+                mid_irreps.append(self._block_irreps[bi])
             else:  # do not keep empty matrices
                 del block_u[bi]
                 del block_v[bi]
 
-        mid_rep = (block_cuts, self._block_irreps)  # TODO
-        U = self.from_raw(block_u, mid_rep.irreps, self._left_rep, mid_rep)
-        V = self.from_raw(block_v, mid_rep.irreps, mid_rep, self._right_rep)
+        mid_irreps = tuple(mid_irreps[::-1])
+        mid_rep = type(self._axis_reps)(block_cuts, mid_irreps)
+        rep_u = self._axis_reps[: self._n_leg_rows] + (mid_rep,)
+        rep_v = (mid_rep,) + self._axis_reps[self._n_leg_rows :]
+
+        U = type(self)(rep_u, self._n_leg_rows, block_u, mid_rep.irreps)
+        V = type(self)(rep_v, 1, block_v, mid_rep.irreps)
         s = np.array(s[::-1])
-        return U, s, V, mid_rep
+        return U, s, V
 
 
 # class AsymmetricTensor(SymmetricTensor):
