@@ -47,11 +47,3 @@ def compute_transfer_spectrum(
         print("ARPACK did not converge", err)
         vals = np.nan * np.ones(nval)
     return vals
-
-
-def compute_corr_length(Tup_list, Tdown_list, v0=None, ncv=None, maxiter=1000, tol=0):
-    _, v2 = compute_transfer_spectrum(
-        Tup_list, Tdown_list, 2, v0=v0, ncv=ncv, maxiter=maxiter, tol=tol
-    )
-    xi = len(Tup_list) / np.log(np.abs(v2))
-    return xi
