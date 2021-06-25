@@ -41,7 +41,7 @@ def compute_transfer_spectrum(
             print("Error: eigenvalues are not real")
             vals = np.nan * np.ones(nval)
         else:
-            vals = vals[np.abs(vals).argsort()[::-1]]
+            vals = vals.real[np.abs(vals).argsort()[::-1]]
             vals = vals / vals[0]
     except slg.ArpackNoConvergence as err:
         print("ARPACK did not converge", err)
