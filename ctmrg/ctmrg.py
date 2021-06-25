@@ -721,7 +721,7 @@ class CTMRG(object):
         _, v2 = self.compute_transfer_spectrum_h(
             2, y, v0=v0, ncv=ncv, maxiter=maxiter, tol=tol
         )
-        xi = self._Lx / np.log(np.abs(v2))
+        xi = -self.Lx / np.log(np.abs(v2))
         return xi
 
     def compute_corr_length_v(self, x=0, v0=None, ncv=None, maxiter=1000, tol=0):
@@ -731,7 +731,7 @@ class CTMRG(object):
         _, v2 = self.compute_transfer_spectrum_v(
             2, x, v0=v0, ncv=ncv, maxiter=maxiter, tol=tol
         )
-        xi = self._Ly / np.log(np.abs(v2))
+        xi = -self.Ly / np.log(np.abs(v2))
         return xi
 
 
