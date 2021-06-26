@@ -155,22 +155,33 @@ class SymmetricTensor(object):
         return NotImplemented  # symmetry dependant
 
     def __matmul__(self, other):
-        # unfortunately dealing with empty blocks requires knowledge on symmetry
-        return NotImplemented
-        if (
+        # requires __lt__ to be defined for irreps
+        # do not construct empty blocks: those will be missing
+        assert (
             self._axis_irreps[self._n_leg_rows :]
-            != other._axis_irreps[: other._n_leg_rows]
-        ):
-            raise ValueError("SymmetricTensors have non-compatible axes")
-        for (b1, b2) in zip(self._blocks, other._blocks):
-            blocks = tuple(b1 @ b2 for (b1, b2) in zip(self._blocks, other._blocks))
-        block_irreps = tuple(self._block_irreps)
-        shape = self._shape[: self._n_leg_rows] + other._shape[other._n_leg_rows :]
-        axis_irreps = (
-            self._axis_irreps[: self._n_leg_rows]
-            != other._axis_irreps[other._n_leg_rows :]
+            == other._axis_irreps[: other._n_leg_rows]
         )
-        return self.from_raw(blocks, block_irreps, shape, axis_irreps, self._n_leg_rows)
+        i1 = 0
+        i2 = 0
+        blocks = []
+        block_irreps = []
+        while i1 < self._nblocks and i2 < other._nblocks:
+            if self._block_irreps[i1] == other._block_irreps[i2]:
+                blocks.append(self._blocks[i1] @ other._blocks[i2])
+                block_irreps.append(self._block_irreps[i1])
+                i1 += 1
+                i2 += 1
+            elif self._block_irreps[i1] < other._block_irreps[i2]:
+                i1 += 1
+            else:
+                i2 += 1
+
+        block_irreps = tuple(self._block_irreps)
+        axis_reps = (
+            self._axis_reps[: self._n_leg_rows]
+            + other._axis_irreps[other._n_leg_rows :]
+        )
+        return type(self)(axis_reps, self._n_leg_rows, blocks, block_irreps)
 
     def svd(self, cut=None, rcutoff=0.0):
         """
