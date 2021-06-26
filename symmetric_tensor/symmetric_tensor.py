@@ -148,12 +148,11 @@ class SymmetricTensor(object):
         blocks = tuple(-b for b in self._blocks)
         return type(self)(self._axis_reps, self._n_leg_rows, blocks, self._block_irreps)
 
-    # symmetry dependant methods with fixed signature
     def toarray(self):
-        return NotImplemented
+        return NotImplemented  # symmetry dependant
 
     def transpose(self, axes, n_leg_rows):
-        return NotImplemented
+        return NotImplemented  # symmetry dependant
 
     def __matmul__(self, other):
         # unfortunately dealing with empty blocks requires knowledge on symmetry
