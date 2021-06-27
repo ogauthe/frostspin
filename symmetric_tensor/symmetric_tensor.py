@@ -193,9 +193,16 @@ class SymmetricTensor(object):
         block_v = [None] * self._nblocks
         block_max_vals = np.empty(self._nblocks)
         for bi, b in enumerate(self._blocks):
-            block_u[bi], block_s[bi], block_v[bi] = lg.svd(
-                b, full_matrices=False, check_finite=False
-            )
+            # TODO implement sparse svd
+            try:
+                block_u[bi], block_s[bi], block_v[bi] = lg.svd(
+                    b, full_matrices=False, check_finite=False
+                )
+            except lg.LinAlgError as err:
+                print("Error in scipy dense SVD:", err)
+                block_u[bi], block_s[bi], block_v[bi] = lg.svd(
+                    b, full_matrices=False, check_finite=False, driver="gesvd"
+                )
             block_max_vals[bi] = block_s[bi][0]
 
         cutoff = block_max_vals.max() * rcutoff  # cannot be set before 1st loop
