@@ -68,6 +68,7 @@ class SymmetricTensor(object):
         self._blocks = blocks
         self._block_irreps = block_irreps
         self._nnz = sum(b.size for b in blocks)
+        assert self._nblocks > 0
         assert 0 < n_leg_rows < self._ndim
         assert len(block_irreps) == self._nblocks
 
