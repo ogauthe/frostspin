@@ -91,6 +91,10 @@ class SymmetricTensor(object):
         )
 
     @property
+    def dtype(self):
+        return self._blocks[0].dtype
+
+    @property
     def n_leg_rows(self):
         return self._n_leg_rows
 
