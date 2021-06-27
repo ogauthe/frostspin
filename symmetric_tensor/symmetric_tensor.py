@@ -52,6 +52,9 @@ class SymmetricTensor(object):
     implemented as derived classes for any symmetry.
 
     Tensors are seen as matrices, with legs grouped into two packs, rows and columns.
+    Some authorized blocks are allowed to be missing if they are 0. Such cases arises
+    from a matmul call when irrep X appears on left rows and right columns but not in
+    the middle representation.
     """
 
     def __init__(self, axis_reps, n_leg_rows, blocks, block_irreps):
