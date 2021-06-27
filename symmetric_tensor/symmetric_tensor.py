@@ -1,3 +1,5 @@
+import bisect
+
 import numpy as np
 import scipy.linalg as lg
 
@@ -58,6 +60,8 @@ class SymmetricTensor(object):
     from a matmul call when irrep X appears on left rows and right columns but not in
     the middle representation.
     """
+
+    _symmetry = NotImplemented
 
     def __init__(self, axis_reps, n_leg_rows, blocks, block_irreps):
         self._axis_reps = axis_reps
@@ -124,8 +128,9 @@ class SymmetricTensor(object):
         # axis_rep = self._axis_reps.conj()[perm]
         # and no need for specialization  => too heavy for python
         blocks = tuple(b.T for b in self._blocks)
-        axis_reps = (
-            self._axis_reps[self._n_leg_rows :] + self._axis_reps[: self._n_leg_rows]
+        axis_reps = tuple(
+            self._axis_reps[i]
+            for i in range(self._n_leg_rows - self._ndim, self._n_leg_rows)
         )
         return type(self)(
             axis_reps, self._ndim - self._n_leg_rows, blocks, self._block_irreps
@@ -253,7 +258,7 @@ class SymmetricTensor(object):
                 del block_v[bi]
 
         mid_irreps = tuple(mid_irreps[::-1])
-        mid_rep = type(self._axis_reps)(block_cuts, mid_irreps)
+        mid_rep = self._symmetry(block_cuts, mid_irreps)
         rep_u = self._axis_reps[: self._n_leg_rows] + (mid_rep,)
         rep_v = (mid_rep,) + self._axis_reps[self._n_leg_rows :]
 
@@ -263,4 +268,128 @@ class SymmetricTensor(object):
         return U, s, V
 
 
-# class AsymmetricTensor(SymmetricTensor):
+class AsymmetricTensor(SymmetricTensor):
+    _symmetry = AbelianRepresentation  # no need to sublcass; no comparison can occur
+
+    @classmethod
+    def from_dense(cls, arr, n_leg_rows):
+        axis_reps = tuple(AbelianRepresentation(d, [None]) for d in arr.shape)
+        matrix_shape = (
+            np.prod(arr.shape[:n_leg_rows]),
+            np.prod(arr.shape[n_leg_rows:]),
+        )
+        block = (arr.reshape(matrix_shape),)
+        return cls(axis_reps, n_leg_rows, block, [None])
+
+    def toarray(self):
+        return self._blocks[0].reshape(self._shape)
+
+    def transpose(self, axes, n_leg_rows):
+        new_shape = tuple(self._shape[i] for i in axes)
+        new_matrix_shape = (
+            np.prod(new_shape[: self._n_leg_rows]),
+            np.prod(new_shape[self._n_leg_rows :]),
+        )
+        block = (self._blocks[0].transpose(axes).reshape(new_matrix_shape),)
+        reps = tuple(self._axis_reps[i] for i in axes)
+        return AsymmetricTensor(reps, n_leg_rows, block, [None])
+
+
+class AbelianSymmetricTensor(SymmetricTensor):
+    _symmetry = AbelianRepresentation
+
+    @classmethod
+    def from_dense(cls, arr, axis_reps, n_leg_rows):
+        assert arr.shape == tuple(rep.dim for rep in axis_reps)
+        sh = (np.prod(arr.shape[:n_leg_rows]), np.prod(arr.shape[n_leg_rows:]))
+        row_irreps = cls._symmetry.combine_irreps(*axis_reps[:n_leg_rows])
+        col_irreps = cls._symmetry.combine_irreps(*axis_reps[n_leg_rows:])
+        row_sort = row_irreps.argsort(kind="mergesort")
+        sorted_row_irreps = row_irreps[row_sort]
+        col_sort = col_irreps.argsort(kind="mergesort")
+        sorted_col_irreps = col_irreps[col_sort]
+        row_blocks = (
+            [0]
+            + list((sorted_row_irreps[:-1] != sorted_row_irreps[1:]).nonzero()[0] + 1)
+            + [sh[0]]
+        )
+        col_blocks = (
+            [0]
+            + list((sorted_col_irreps[:-1] != sorted_col_irreps[1:]).nonzero()[0] + 1)
+            + [sh[1]]
+        )
+
+        blocks = []
+        block_irreps = []
+        rbi, cbi, rbimax, cbimax = 0, 0, len(row_blocks) - 1, len(col_blocks) - 1
+        m = arr.reshape(sh)
+        while rbi < rbimax and cbi < cbimax:
+            if sorted_row_irreps[row_blocks[rbi]] == sorted_col_irreps[col_blocks[cbi]]:
+                ri = row_sort[row_blocks[rbi] : row_blocks[rbi + 1]]
+                ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]]
+                blocks.append(np.ascontiguousarray(m[ri[:, None], ci]))
+                block_irreps.append(sorted_row_irreps[row_blocks[rbi]])
+                rbi += 1
+                cbi += 1
+            elif (
+                sorted_row_irreps[row_blocks[rbi]] < sorted_col_irreps[col_blocks[cbi]]
+            ):
+                rbi += 1
+            else:
+                cbi += 1
+        return cls(axis_reps, n_leg_rows, blocks, block_irreps)
+
+    def toarray(self):
+        # cumbersome dealing with absent blocks
+        row_irreps = self._symmetry.combine_irreps(*self._axis_reps[: self._n_leg_rows])
+        col_irreps = self._symmetry.combine_irreps(*self._axis_reps[self._n_leg_rows :])
+        allowed_irreps = sorted(set(row_irreps).intersect(col_irreps))
+        ar = np.zeros(self.matrix_shape)
+        i, j = 0, 0
+        for irr in allowed_irreps:
+            k = bisect.bisect_left(self._block_irreps, irr)
+            if k < self._nblocks and self._block_irreps[k] == irr:
+                b = self._blocks[k]
+                assert b.shape[0] == (row_irreps == irr).sum()
+                assert b.shape[1] == (col_irreps == irr).sum()
+                ar[i : i + b.shape[0], j : j + b.shape[1]] = b
+                i += b.shape[0]
+                j += b.shape[1]
+            else:
+                i += (row_irreps == irr).sum()
+                j += (col_irreps == irr).sum()
+
+        row_perm = row_irreps.argsort(
+            kind="stable"
+        ).argsort()  # reverse from_dense permutation
+        col_perm = col_irreps.argsort(
+            kind="stable"
+        ).argsort()  # reverse from_dense permutation
+        ar = ar[row_perm[:, None], col_perm[:, None]]
+        return ar.reshape(self._shape)
+
+
+class U1_SymmetricTensor(AbelianSymmetricTensor):
+    @property
+    def T(self):
+        # arrows on axes are swapped, meanning representations get conjugated
+        # Colors need to stay sorted for __matmul__, so reverse all block-related lists.
+        blocks = tuple(b.T for b in reversed(self._blocks))
+        block_irreps = tuple(-c for c in reversed(self._block_irreps))
+        axis_reps = []
+        for i in range(-self._ndim + self._n_leg_rows, self._n_leg_rows):
+            rep = self._axis_reps[i]
+            axis_reps.append(AbelianRepresentation(rep.degen[::-1], -rep.irreps[::-1]))
+        axis_reps = tuple(axis_reps)
+        return U1_SymmetricTensor(
+            axis_reps,
+            self._ndim - self._n_leg_rows,
+            blocks,
+            block_irreps,
+        )
+
+    def transpose(self, axes, n_leg_rows):
+        # cast to dense to reshape.
+        ar = self.toarray().transpose(axes)
+        axis_reps = tuple(self._axis_reps[i] for i in axes)
+        return U1_SymmetricTensor.from_dense(ar, axis_reps, n_leg_rows)
