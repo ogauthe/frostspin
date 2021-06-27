@@ -1,6 +1,8 @@
 import numpy as np
 import scipy.linalg as lg
 
+from misc_tools.svd_tools import sparse_svd
+
 
 class Abelian_Representation(object):
     """
@@ -186,7 +188,7 @@ class SymmetricTensor(object):
         )
         return type(self)(axis_reps, self._n_leg_rows, blocks, block_irreps)
 
-    def svd(self, cut=None, rcutoff=0.0):
+    def svd(self, cut=np.inf, rcutoff=0.0):
         """
         Compute block-wise SVD of self and keep only cut largest singular values. Do not
         truncate if cut is not provided. Keep only values larger than rcutoff * max(sv).
@@ -196,21 +198,23 @@ class SymmetricTensor(object):
         block_v = [None] * self._nblocks
         block_max_vals = np.empty(self._nblocks)
         for bi, b in enumerate(self._blocks):
-            # TODO implement sparse svd
-            try:
-                block_u[bi], block_s[bi], block_v[bi] = lg.svd(
-                    b, full_matrices=False, check_finite=False
-                )
-            except lg.LinAlgError as err:
-                print("Error in scipy dense SVD:", err)
-                block_u[bi], block_s[bi], block_v[bi] = lg.svd(
-                    b, full_matrices=False, check_finite=False, driver="gesvd"
-                )
+            if min(b.shape) < 3 * cut:  # dense svd for small blocks
+                try:
+                    block_u[bi], block_s[bi], block_v[bi] = lg.svd(
+                        b, full_matrices=False, check_finite=False
+                    )
+                except lg.LinAlgError as err:
+                    print("Error in scipy dense SVD:", err)
+                    block_u[bi], block_s[bi], block_v[bi] = lg.svd(
+                        b, full_matrices=False, check_finite=False, driver="gesvd"
+                    )
+            else:
+                block_u[bi], block_s[bi], block_v[bi] = sparse_svd(b, k=cut)
             block_max_vals[bi] = block_s[bi][0]
 
         cutoff = block_max_vals.max() * rcutoff  # cannot be set before 1st loop
         block_cuts = [0] * self._nblocks
-        if cut is None:
+        if cut == np.inf:
             if rcutoff > 0.0:  # remove values smaller than cutoff
                 for bi, bs in enumerate(block_s):
                     keep = (bs > cutoff).nonzero()[0]
@@ -250,7 +254,7 @@ class SymmetricTensor(object):
 
         U = type(self)(rep_u, self._n_leg_rows, block_u, mid_rep.irreps)
         V = type(self)(rep_v, 1, block_v, mid_rep.irreps)
-        s = np.array(s[::-1])
+        s = np.array(s[::-1])  # cancel reversed in truncation loop
         return U, s, V
 
 
