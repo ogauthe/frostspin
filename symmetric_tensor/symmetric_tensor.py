@@ -4,7 +4,7 @@ import scipy.linalg as lg
 from misc_tools.svd_tools import sparse_svd
 
 
-class Abelian_Representation(object):
+class AbelianRepresentation(object):
     """
     Minimalist class for Abelian representations. A non-abelian symmetry is a much more
     complicate object with quite different features. Implementation becomes simpler
