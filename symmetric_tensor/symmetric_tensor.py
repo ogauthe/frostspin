@@ -4,50 +4,7 @@ import numpy as np
 import scipy.linalg as lg
 
 from misc_tools.svd_tools import sparse_svd
-
-
-class AbelianRepresentation(object):
-    """
-    Minimalist class for Abelian representations. A non-abelian symmetry is a much more
-    complicate object with quite different features. Implementation becomes simpler
-    without defining a common Representation base class.
-    """
-
-    def __init__(self, degen, irreps):
-        """
-        Construct an abelian representation.
-
-        Parameters
-        ----------
-        degen : integer array
-            Degeneracy of given irreps
-        irreps : tuple of Irrep
-            Irreps needs to implement __eq__. No other requirement to keep things
-            simple.
-        """
-        self._degen = degen
-        self._irreps = irreps
-        self._dim = degen.sum()
-        self._n_irreps = degen.size
-        assert len(irreps) == self._n_irreps
-        assert degen.shape == (self._n_irreps,)
-        assert degen.all()
-        assert np.issubdtype(degen.dtype, np.integer)
-
-    @property
-    def dim(self):
-        return self._dim
-
-    @property
-    def degen(self):
-        return self._degen
-
-    @property
-    def irreps(self):
-        return self._irreps
-
-    def __eq__(self, other):
-        return self._irreps == other._irreps and (self._degen == other._degen).all()
+import AbelianRepresentation
 
 
 class SymmetricTensor(object):
@@ -339,10 +296,20 @@ class AbelianSymmetricTensor(SymmetricTensor):
                 cbi += 1
         return cls(axis_reps, n_leg_rows, blocks, block_irreps)
 
+    def get_row_representation(self):
+        return self._symmetry.combine_irreps(*self._axis_reps[: self._n_leg_rows])
+
+    def get_column_representation(self):
+        return self._symmetry.combine_irreps(*self._axis_reps[: self._n_leg_rows])
+
     def toarray(self):
         # cumbersome dealing with absent blocks
-        row_irreps = self._symmetry.combine_irreps(*self._axis_reps[: self._n_leg_rows])
-        col_irreps = self._symmetry.combine_irreps(*self._axis_reps[self._n_leg_rows :])
+        row_irreps = self._symmetry.combine_raw_irreps(
+            *(rep.irreps for rep in self._axis_reps[: self._n_leg_rows])
+        )
+        col_irreps = self._symmetry.combine_raw_irreps(
+            *(rep.irreps for rep in self._axis_reps[self._n_leg_rows :])
+        )
         allowed_irreps = sorted(set(row_irreps).intersect(col_irreps))
         ar = np.zeros(self.matrix_shape)
         i, j = 0, 0
