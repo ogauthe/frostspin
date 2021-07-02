@@ -695,7 +695,7 @@ class CTMRG(object):
         for x in range(self.Lx):
             T1s.append(self._env.get_T1(x, y))
             T3s.append(self._env.get_T3(x, y + 1))
-        return observables.compute_transfer_spectrum(
+        return observables.compute_mps_transfer_spectrum(
             T1s, T3s, nval, v0=v0, ncv=ncv, maxiter=maxiter, tol=tol
         )
 
@@ -710,7 +710,7 @@ class CTMRG(object):
         for y in range(self.Ly):
             T2s.append(self._env.get_T2(x + 1, y).transpose(1, 2, 3, 0))
             T4s.append(self._env.get_T4(x, y).transpose(1, 2, 3, 0))
-        return observables.compute_transfer_spectrum(
+        return observables.compute_mps_transfer_spectrum(
             T2s, T4s, nval, v0=v0, ncv=ncv, maxiter=maxiter, tol=tol
         )
 
