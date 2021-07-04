@@ -1089,15 +1089,13 @@ class SimpleUpdate2x2(object):
             self._colors8,
         )
 
-    @property
-    def lambdas(self):
+    def get_weights(self):
         """
         Tuple
         Simple update weights.
         Convention: return ((None,None),leg_i) to be consistent with colors.
         """
         return (
-            (None, None),
             self._lambda1,
             self._lambda2,
             self._lambda3,
