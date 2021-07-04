@@ -1162,7 +1162,7 @@ class SimpleUpdate2x2(object):
         if self._a != self._gammaA.shape[1]:
             raise ValueError("Ancila dimension differs from save")
 
-    def save_to_file(self, file=None):
+    def save_to_file(self, file, additional_data={}):
         data = {}
         data["_SU2x2_lambda1"] = self._lambda1
         data["_SU2x2_lambda2"] = self._lambda2
@@ -1194,11 +1194,8 @@ class SimpleUpdate2x2(object):
         data["_SU2x2_beta"] = self._beta
         data["_SU2x2_Dmax"] = self.Dmax
         data["_SU2x2_cutoff"] = self.cutoff
-        if self.degen_ratio is not None:
-            data["_SU2x2_degen_ratio"] = self.degen_ratio
-        if file is None:
-            return data
-        np.savez_compressed(file, **data)
+        data["_SU2x2_degen_ratio"] = self.degen_ratio
+        np.savez_compressed(file, **data, **additional_data)
         if self.verbosity > 0:
             print("Simple update data stored in file", file)
 
