@@ -1106,6 +1106,12 @@ class SimpleUpdate2x2(object):
             self._lambda8,
         )
 
+    def __str__(self):
+        return (
+            f"SimpleUpdate2x2 for d = {self._d} at beta = {self._beta:.6g}\n"
+            f"D = {self.Dmax}, tau = {self._tau}, cutoff = {self.cutoff}"
+        )
+
     def load_from_file(self, file):
         if self.verbosity > 0:
             print("Restart simple update from file", file)
