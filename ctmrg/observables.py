@@ -171,7 +171,12 @@ def compute_mps_rdm(up_mps_list, down_mps_list, ncell=1):
     D = up_mps_list[0].shape[-1]
     tm = construct_mps_transfer_matrix(up_mps_list, down_mps_list)
     (lval,), left_edge = slg.eigs(tm, k=1)
-    left_edge = left_edge.reshape(D, 1, D)
+    if abs(lval.imag / lval.real) > 1e-6:
+        raise ValueError("leading eigenvalue is not real")
+    if np.linalg.norm(left_edge.imag) / np.linalg.norm(left_edge.real) > 1e-6:
+        raise ValueError("left edge is not real")
+    left_edge = np.ascontiguousarray(left_edge.real.reshape(D, 1, D))
+
     for i in range(ncell):
         for (up, down) in zip(up_mps_list, down_mps_list):
             left_edge = mps_tranfer_open_leg(left_edge, up, down)
@@ -180,10 +185,13 @@ def compute_mps_rdm(up_mps_list, down_mps_list, ncell=1):
     left_edge = left_edge.swapaxes(0, 1).reshape(d ** (2 * nt), D ** 2)
     tmT = construct_mps_transfer_matrix(up_mps_list, down_mps_list, transpose=True)
     (rval,), right_edge = slg.eigs(tmT, k=1)
-    if abs(lval.imag / lval.real) > 1e-6:
-        print("Error: leading eigenvalue is not real")
+    if abs(rval.imag / rval.real) > 1e-6:
+        raise ValueError("leading eigenvalue is not real")
+    if np.linalg.norm(right_edge.imag) / np.linalg.norm(right_edge.real) > 1e-6:
+        raise ValueError("right edge is not real")
     if abs(1.0 - rval / lval) > 1e-6:
-        print("Error: right and left eigenvalues differ")
+        raise ValueError("right and left eigenvalues differ")
+    right_edge = right_edge.real
 
     rdm = left_edge @ right_edge
     perm = tuple(range(0, 2 * nt, 2)) + tuple(range(1, 2 * nt, 2))
