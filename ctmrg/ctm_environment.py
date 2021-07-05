@@ -175,6 +175,7 @@ class CTM_Environment(object):
 
         # 2) store tensors. They have to follow cell.flat order.
         self._neq_As = neq_As
+        self._Dmax = max(max(A.shape[2:]) for A in self._neq_As)
         self._neq_C1s = neq_C1s
         self._neq_T1s = neq_T1s
         self._neq_C2s = neq_C2s
@@ -239,7 +240,14 @@ class CTM_Environment(object):
 
     @property
     def Dmax(self):
-        return max(max(A.shape[2:]) for A in self._neq_As)
+        return self._Dmax
+
+    @property
+    def chi_max(self):
+        return max(
+            max(C.shape)
+            for C in self._neq_C1s + self._neq_C2s + self._neq_C3s + self._neq_C4s
+        )
 
     def restart(self):
         """
@@ -622,6 +630,7 @@ class CTM_Environment(object):
         self._corners_ur = [None] * self._Nneq
         self._corners_dl = [None] * self._Nneq
         self._corners_dr = [None] * self._Nneq
+        self._Dmax = max(max(A.shape[2:]) for A in self._neq_As)
 
     @property
     def cell(self):

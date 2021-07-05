@@ -69,7 +69,7 @@ class CTMRG(object):
     computation, it is mostly interface and tensor selection.
     """
 
-    def __init__(self, env, chi, cutoff, degen_ratio, window, verbosity):
+    def __init__(self, env, chi_setpoint, cutoff, degen_ratio, window, verbosity):
         """
         Constructor for totally asymmetric CTMRG algorithm. Consider using from_file or
         from_elementary_tensors methods instead of calling this one directly.
@@ -78,18 +78,18 @@ class CTMRG(object):
         ----------
         env: CTM_Environment
             Environment object, as construced by from_file or from_elementary_tensors.
-        chi : integer
-            Maximal corner dimension.
+        chi_setpoint : integer
+            Maximal corner dimension. This is a setpoint, actual corner dimension
+            may be smaller due to cutoff or slightly larger to keep multiplets.
         cutoff : float
             Singular value cutoff to improve stability.
         degen_ratio : float
             Used to define multiplets in projector singular values and truncate between
             two multiplets. Two consecutive (decreasing) values are considered
-            degenerate if 1 >= s[i+1]/s[i] >= degen_ratio > 0. Default is 1.0 (exact
-            degeneracies)
+            degenerate if 1 >= s[i+1]/s[i] >= degen_ratio > 0.
         window : int
-            In projector construction, compute chi + window singular values to preserve
-            multiplet structure.
+            In projector construction, compute chi_setpoint + window singular values
+            to preserve multiplet structure.
         verbosity : int
             Level of log verbosity.
         """
@@ -97,8 +97,7 @@ class CTMRG(object):
         if self.verbosity > 0:
             print(f"initalize CTMRG with verbosity = {self.verbosity}")
         self._env = env
-        self._Dmax = self._env.Dmax
-        self.chi = chi
+        self.chi_setpoint = chi_setpoint
         self.cutoff = cutoff
         self.window = window
         self.degen_ratio = degen_ratio
@@ -110,7 +109,14 @@ class CTMRG(object):
 
     @classmethod
     def from_elementary_tensors(
-        cls, tensors, tiling, chi, cutoff=0.0, degen_ratio=1.0, window=0, verbosity=0
+        cls,
+        tensors,
+        tiling,
+        chi_setpoint,
+        cutoff=0.0,
+        degen_ratio=1.0,
+        window=0,
+        verbosity=0,
     ):
         """
         Construct CTMRG from elementary tensors and tiling.
@@ -121,25 +127,13 @@ class CTMRG(object):
             Elementary tensors of unit cell, from left to right from top to bottom.
         tiling : string
             String defining the shape of the unit cell, typically "A" or "AB\nCD".
-        chi : integer
-            Maximal corner dimension. If degen_ratio is set, actual cut may be larger.
-        cutoff : float
-            Singular value cutoff to improve stability. Default is 0.0 (no cutoff)
-        degen_ratio : float
-            Used to define multiplets in projector singular values and truncate between
-            two multiplets. Two consecutive (decreasing) values are considered
-            degenerate if 1 >= s[i+1]/s[i] >= degen_ratio > 0. Default is 1.0 (exact
-            degeneracies)
-        window : int
-            In projector construction, compute chi + window singular values to preserve
-            multiplet structure. Default is 0.
-        verbosity : int
-            Level of log verbosity. Default is no log.
+
+        Refer to __init__ for the other parameters.
         """
         if verbosity > 0:
             print("Start CTMRG from scratch using elementary tensors")
         env = CTM_Environment.from_elementary_tensors(tensors, tiling)
-        return cls(env, chi, cutoff, degen_ratio, window, verbosity)
+        return cls(env, chi_setpoint, cutoff, degen_ratio, window, verbosity)
 
     @classmethod
     def from_file(cls, filename, verbosity=0):
@@ -155,7 +149,10 @@ class CTMRG(object):
         if verbosity > 0:
             print("Restart CTMRG from file", filename)
         with np.load(filename) as fin:
-            chi = fin["_CTM_chi"][()]
+            try:
+                chi_setpoint = fin["_CTM_chi_setpoint"][()]
+            except KeyError:  # old data format
+                chi_setpoint = fin["_CTM_chi"][()]
             try:
                 cutoff = fin["_CTM_cutoff"][()]
                 degen_ratio = fin["_CTM_degen_ratio"][()]
@@ -168,7 +165,7 @@ class CTMRG(object):
         # better to open and close savefile twice (here and in env) to have env __init__
         # outside of file opening block.
         env = CTM_Environment.from_file(filename)
-        return cls(env, chi, cutoff, degen_ratio, window, verbosity)
+        return cls(env, chi_setpoint, cutoff, degen_ratio, window, verbosity)
 
     def save_to_file(self, filename, additional_data={}):
         """
@@ -182,7 +179,7 @@ class CTMRG(object):
             Data to store together with environment data. Keys have to be string type.
         """
         data = {
-            "_CTM_chi": self.chi,
+            "_CTM_chi_setpoint": self.chi_setpoint,
             "_CTM_cutoff": self.cutoff,
             "_CTM_degen_ratio": self.degen_ratio,
             "_CTM_window": self.window,
@@ -214,13 +211,23 @@ class CTMRG(object):
 
     @property
     def Dmax(self):
-        return self._Dmax
+        return self._env.Dmax
+
+    @property
+    def chi_max(self):  # maximal corner dimension, may differ from chi_setpoint
+        return self._env.chi_max
+
+    def __repr__(self):
+        return f"asymmetric CTMRG with Dmax = {self.Dmax} and chi_max = {self.chi_max}"
 
     def __str__(self):
-        return (
-            f"asymmetric CTMRG with Dmax = {self._Dmax} and chi = {self.chi}\n"
-            f"cutoff = {self.cutoff}, degen_ratio = {self.degen_ratio}, window = "
-            f"{self.window}\nunit cell =\n{self._env.cell}"
+        return "\n".join(
+            (
+                repr(self),
+                f"chi_setpoint = {self.chi_setpoint}, cutoff = {self.cutoff}",
+                f"degen_ratio = {self.degen_ratio}, window = {self.window}",
+                f"unit cell =\n{self._env.cell}",
+            )
         )
 
     def restart_environment(self):
@@ -242,7 +249,6 @@ class CTMRG(object):
                 print("Restart with new tensors and new environment")
             tiling = "\n".join("".join(s) for s in self.cell)
             self._env = CTM_Environment.from_elementary_tensors(tensors, tiling)
-        self._Dmax = self._env.Dmax
         if self.verbosity > 0:
             print(self)
 
@@ -311,7 +317,7 @@ class CTMRG(object):
             #        L         R
             #        L-1     0-R
             P, Pt = construct_projectors(
-                R, Rt, self.chi, self.cutoff, self.degen_ratio, self.window
+                R, Rt, self.chi_setpoint, self.cutoff, self.degen_ratio, self.window
             )
             self._env.store_projectors(
                 x + 2, y, P, Pt
@@ -377,7 +383,7 @@ class CTMRG(object):
                 self._env.get_T2(x + 3, y + 1),
             )
             P, Pt = construct_projectors(
-                R, Rt, self.chi, self.cutoff, self.degen_ratio, self.window
+                R, Rt, self.chi_setpoint, self.cutoff, self.degen_ratio, self.window
             )
             self._env.store_projectors(x + 3, y + 2, P, Pt)
             del R, Rt
@@ -441,7 +447,7 @@ class CTMRG(object):
             )
 
             P, Pt = construct_projectors(
-                R, Rt, self.chi, self.cutoff, self.degen_ratio, self.window
+                R, Rt, self.chi_setpoint, self.cutoff, self.degen_ratio, self.window
             )
             self._env.store_projectors(x + 3, y + 3, P, Pt)
             del R, Rt
@@ -502,7 +508,7 @@ class CTMRG(object):
                 self._env.get_C3(x + 3, y + 3),
             )
             P, Pt = construct_projectors(
-                R, Rt, self.chi, self.cutoff, self.degen_ratio, self.window
+                R, Rt, self.chi_setpoint, self.cutoff, self.degen_ratio, self.window
             )
             self._env.store_projectors(x, y + 1, P, Pt)
             del R, Rt
@@ -762,7 +768,7 @@ class CTMRG_U1(CTMRG):
         tensors,
         colors,
         tiling,
-        chi,
+        chi_setpoint,
         cutoff=0.0,
         degen_ratio=1.0,
         window=0,
@@ -780,8 +786,9 @@ class CTMRG_U1(CTMRG):
             Quantum numbers for elementary tensors.
         tiling : string
             String defining the shape of the unit cell, typically "A" or "AB\nCD".
-        chi : integer
-            Maximal corner dimension. Actual cut may be larger if multiplets are kept.
+        chi_setpoint : integer
+            Maximal corner dimension. This is a setpoint, actual corner dimension
+            may be smaller due to cutoff or slightly larger to keep multiplets.
         cutoff : float
             Singular value cutoff to improve stability. Default is 0.0 (no cutoff)
         degen_ratio : float
@@ -790,23 +797,22 @@ class CTMRG_U1(CTMRG):
             degenerate if 1 >= s[i+1]/s[i] >= degen_ratio > 0. Default is 1.0 (exact
             degeneracies)
         window : int
-            During projector construction, compute chi + window singular values in each
-            block to preserve multiplet structure inside a color block. Default is 0.
-            Can be kept at 0 if no multiplets are expected inside a color block (as for
-            SU(2)).
+            During projector construction, compute chi_setpoint + window singular values
+            in each block to preserve multiplet structure inside a color block. Default
+            is 0. Can be kept to 0 if no multiplets are expected inside a color block
+            (as for SU(2)).
         verbosity : int
             Level of log verbosity. Default is no log.
         """
         if verbosity > 0:
             print("Start CTMRG from scratch using elementary tensors")
         env = CTM_Environment.from_elementary_tensors(tensors, tiling, colors)
-        return cls(env, chi, cutoff, degen_ratio, window, verbosity)
+        return cls(env, chi_setpoint, cutoff, degen_ratio, window, verbosity)
 
-    def __str__(self):
+    def __repr__(self):
         return (
-            f"U(1) symmetric CTMRG with Dmax = {self._Dmax} and chi = {self.chi}\n"
-            f"cutoff = {self.cutoff}, degen_ratio = {self.degen_ratio}, window = "
-            f"{self.window}\nunit cell =\n{self._env.cell}"
+            f"U(1) symmetric CTMRG with Dmax = {self.Dmax} and chi_max = "
+            f"{self.chi_max}"
         )
 
     def set_tensors(self, tensors, colors, keep_env=True):
@@ -819,7 +825,6 @@ class CTMRG_U1(CTMRG):
                 print("Restart with new tensors and new environment")
             tiling = "\n".join("".join(s) for s in self.cell)
             self._env = CTM_Environment.from_elementary_tensors(tensors, tiling, colors)
-        self._Dmax = self._env.Dmax
         if self.verbosity > 0:
             print(self)
 
@@ -1029,7 +1034,7 @@ class CTMRG_U1(CTMRG):
                 reduced_ur,
                 reduced_ul,
                 reduced_dl,
-                self.chi,
+                self.chi_setpoint,
                 self.cutoff,
                 self.degen_ratio,
                 self.window,
@@ -1096,7 +1101,7 @@ class CTMRG_U1(CTMRG):
                 reduced_dr,
                 reduced_ur,
                 reduced_ul,
-                self.chi,
+                self.chi_setpoint,
                 self.cutoff,
                 self.degen_ratio,
                 self.window,
@@ -1160,7 +1165,7 @@ class CTMRG_U1(CTMRG):
                 reduced_dl,
                 reduced_dr,
                 reduced_ur,
-                self.chi,
+                self.chi_setpoint,
                 self.cutoff,
                 self.degen_ratio,
                 self.window,
@@ -1224,7 +1229,7 @@ class CTMRG_U1(CTMRG):
                 reduced_ul,
                 reduced_dl,
                 reduced_dr,
-                self.chi,
+                self.chi_setpoint,
                 self.cutoff,
                 self.degen_ratio,
                 self.window,
