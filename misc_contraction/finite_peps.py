@@ -64,7 +64,7 @@ def mps_vert_2sites(A, B):
     return mps
 
 
-def contract_cylinder_2rows(A, B, C, D):
+def rdm_2xinf(A, B, C, D):
     r"""
     0 2
      \|
