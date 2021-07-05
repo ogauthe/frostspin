@@ -156,6 +156,17 @@ def mps_tranfer_open_leg(left_edge, up_mps, down_mps):
 
 
 def compute_mps_rdm(up_mps_list, down_mps_list, ncell=1):
+    """
+    Expected leg ordering:
+
+          2-up-0            3-up-0
+             |                ||
+             1                12
+                      OR
+             0                01
+             |                ||
+          2-down-1         3-down-2
+    """
     d = up_mps_list[0].shape[1]
     D = up_mps_list[0].shape[-1]
     tm = construct_mps_transfer_matrix(up_mps_list, down_mps_list)
