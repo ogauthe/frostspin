@@ -1,6 +1,8 @@
 import numpy as np
 import scipy.sparse.linalg as slg
 
+# TODO: write class MPS, with unit cell and elementary tensors
+
 
 def construct_dense_transfer_matrix(Tup_list, Tdown_list):
     """
@@ -100,6 +102,83 @@ def construct_mps_transfer_matrix(Tup_list, Tdown_list, transpose=False):
 
     tm = slg.LinearOperator((sh_vec[0] * sh_vec[1],) * 2, matvec=transfer_matvec)
     return tm
+
+
+def mps_tranfer_open_leg(left_edge, up_mps, down_mps):
+    r"""
+    Apply MPS transfer matrix without contracting physical legs to obtain reduced
+    density matrix
+
+    Parameters
+    ----------
+    left_edge : ndarray
+        Left MPS environment, typically left eigenvector of MPS transfer matrix. May
+        include an additional middle leg (physical legs from former calls)
+    up_mps : ndarray
+        MPS up tensors, with or without ancilla leg
+    down_mps : ndarray
+        MPS down tensors, with or without ancilla leg
+
+    Transfer matrix is defined as acting on a left edge state by adding MPS tensors
+    from left to right.
+
+    Notes
+    -----
+    Edge legs can be either
+    -0            /0
+    |    OR     1-
+    -1            \2
+
+    MPS legs may have or not have ancilla:
+       2-Tup-0              3-Tup-0
+          |                    ||
+          1                    12
+                      OR
+          0                    01
+          |                    ||
+       2-Tdown-1           3-Tdown-2
+    """
+    if up_mps.ndim == 3:  # add ancila
+        up = up_mps[:, :, None]
+        down = np.ascontiguousarray(down_mps.transpose(2, 0, 1)[None])
+    else:
+        up = up_mps
+        down = np.ascontiguousarray(down_mps.transpose(1, 3, 0, 2))
+    if left_edge.ndim == 2:  # add middle leg
+        new_edge = left_edge[:, None]
+    else:
+        new_edge = left_edge
+    new_edge = np.tensordot(up, new_edge, ((3,), (0,)))
+    new_edge = new_edge.transpose(0, 3, 1, 2, 4).copy()
+    new_edge = np.tensordot(new_edge, down, ((3, 4), (0, 1)))
+    new_edge = new_edge.reshape(up_mps.shape[0], -1, down_mps.shape[2])
+    return new_edge
+
+
+def compute_mps_rdm(up_mps_list, down_mps_list, ncell=1):
+    d = up_mps_list[0].shape[1]
+    D = up_mps_list[0].shape[-1]
+    tm = construct_mps_transfer_matrix(up_mps_list, down_mps_list)
+    (lval,), left_edge = slg.eigs(tm, k=1)
+    left_edge = left_edge.reshape(D, 1, D)
+    for i in range(ncell):
+        for (up, down) in zip(up_mps_list, down_mps_list):
+            left_edge = mps_tranfer_open_leg(left_edge, up, down)
+
+    nt = len(up_mps_list) * ncell
+    left_edge = left_edge.swapaxes(0, 1).reshape(d ** (2 * nt), D ** 2)
+    tmT = construct_mps_transfer_matrix(up_mps_list, down_mps_list, transpose=True)
+    (rval,), right_edge = slg.eigs(tmT, k=1)
+    if abs(lval.imag / lval.real) > 1e-6:
+        print("Error: leading eigenvalue is not real")
+    if abs(1.0 - rval / lval) > 1e-6:
+        print("Error: right and left eigenvalues differ")
+
+    rdm = left_edge @ right_edge
+    perm = tuple(range(0, 2 * nt, 2)) + tuple(range(1, 2 * nt, 2))
+    rdm = rdm.reshape((d,) * (2 * nt)).transpose(perm).reshape(d ** nt, d ** nt)
+    rdm /= rdm.trace()
+    return rdm
 
 
 def compute_mps_transfer_spectrum(
