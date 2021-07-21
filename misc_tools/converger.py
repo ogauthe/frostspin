@@ -88,6 +88,7 @@ class Converger(object):
 
         if self.verbosity > 0:
             print(f"{warmup} warmup iterations finished.")
+            print(f"{maxiter - warmup} iterations left before reaching maxiter.")
 
         shift_warm = shift + warmup
         self._value = self.get_value()
