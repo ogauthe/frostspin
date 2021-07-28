@@ -5,7 +5,7 @@ import functools
 import numpy as np
 import scipy.linalg as lg
 import scipy.sparse as ssp
-from numba import njit
+import numba
 
 from groups.su2_representation import SU2_Representation
 
@@ -229,7 +229,7 @@ def construct_transpose_matrix(representations, n_bra_leg1, n_bra_leg2, swap):
     return iso
 
 
-@njit
+@numba.njit
 def blocks_from_raw_data(degen_in, irreps_in, degen_out, irreps_out, data):
     i1 = 0
     i2 = 0

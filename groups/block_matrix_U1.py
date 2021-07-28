@@ -2,10 +2,10 @@ import bisect
 
 import numpy as np
 import scipy.sparse as ssp
-from numba import jit, literal_unroll
+import numba
 
 
-@jit(nopython=True)
+@numba.njit
 def reduce_matrix_to_blocks(M, row_colors, col_colors):
     """
     Reduce a dense U(1) symmetric matrix into U(1) blocks.
@@ -78,7 +78,7 @@ def reduce_matrix_to_blocks(M, row_colors, col_colors):
     return block_colors, blocks, row_indices, col_indices
 
 
-@jit(nopython=True)
+@numba.njit
 def blocks_to_array(shape, blocks, row_indices, col_indices):
     ar = np.zeros(shape)
     # blocks may be a numba heterogeneous tuple because a size 1 matrix stays
@@ -87,7 +87,7 @@ def blocks_to_array(shape, blocks, row_indices, col_indices):
     # cannot enumerate on literal_unroll
     # cannot getitem or zip heterogeneous tuple
     k = 0
-    for b in literal_unroll(blocks):
+    for b in numba.literal_unroll(blocks):
         for i, ri in enumerate(row_indices[k]):
             for j, cj in enumerate(col_indices[k]):
                 ar[ri, cj] = b[i, j]
