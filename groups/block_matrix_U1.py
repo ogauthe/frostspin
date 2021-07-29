@@ -3,6 +3,7 @@ import bisect
 import numpy as np
 import scipy.sparse as ssp
 import numba
+from numba import literal_unroll  # numba issue #5344
 
 
 @numba.njit
@@ -87,7 +88,7 @@ def blocks_to_array(shape, blocks, row_indices, col_indices):
     # cannot enumerate on literal_unroll
     # cannot getitem or zip heterogeneous tuple
     k = 0
-    for b in numba.literal_unroll(blocks):
+    for b in literal_unroll(blocks):
         for i, ri in enumerate(row_indices[k]):
             for j, cj in enumerate(col_indices[k]):
                 ar[ri, cj] = b[i, j]
