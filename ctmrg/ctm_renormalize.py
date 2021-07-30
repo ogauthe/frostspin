@@ -127,7 +127,7 @@ def renormalize_T(Pt, T, A, P):
         .reshape(Pt.shape[0], A.shape[2] ** 2 * P.shape[1])
     )
     nT = (Pt.T @ nT).reshape(Pt.shape[1], A.shape[2], A.shape[2], P.shape[1])
-    nT /= nT.max()
+    nT /= np.linalg.norm(nT, ord=np.inf)
     return nT
 
 
@@ -152,7 +152,7 @@ def renormalize_corner_P(C, T, P):
     #       \   |
     #        \3-|
     nC = nC @ P
-    nC /= nC.max()
+    nC /= np.linalg.norm(nC, ord=np.inf)
     return nC
 
 
@@ -177,7 +177,7 @@ def renormalize_corner_Pt(C, T, Pt):
     #  |   /
     #  |-3/
     nC = nC @ Pt
-    nC /= nC.max()
+    nC /= np.linalg.norm(nC, ord=np.inf)
     return nC
 
 
@@ -301,8 +301,8 @@ def renormalize_T1_U1(Pt, T1, a_ul, P, col_T1_r, col_Pt, col_a_ul, col_a_r, col_
     #            \ ||
     #               1'
     nT1 = P.T @ nT1
-    nT1 /= nT1.max()
-    dim_d = round(float(np.sqrt(nT1.shape[1] // Pt.shape[1])))
+    nT1 /= np.linalg.norm(nT1, ord=np.inf)
+    dim_d = round(np.sqrt(nT1.shape[1] // Pt.shape[1]))
     nT1 = nT1.reshape(P.shape[1], dim_d, dim_d, Pt.shape[1])
     return nT1
 
@@ -325,8 +325,8 @@ def renormalize_T2_U1(Pt, T2, a_ur, P, col_T2_d, col_Pt, col_a_ur, col_a_d, col_
     #              \\  |
     #               0  1
     nT2 = P.T @ nT2
-    nT2 /= nT2.max()
-    dim_d = round(float(np.sqrt(nT2.shape[1] // Pt.shape[1])))
+    nT2 /= np.linalg.norm(nT2, ord=np.inf)
+    dim_d = round(np.sqrt(nT2.shape[1] // Pt.shape[1]))
     nT2 = nT2.reshape(P.shape[1], dim_d, dim_d, Pt.shape[1]).transpose(3, 0, 1, 2)
     return nT2
 
@@ -356,8 +356,8 @@ def renormalize_T3_U1(Pt, T3, a_dl, P, col_T3_r, col_P, col_a_dl, col_a_u, col_a
     #         3-P  ||
     #            \-T3-1
     nT3 = Pt.T @ nT3
-    nT3 /= nT3.max()
-    dim_d = round(float(np.sqrt(nT3.shape[1] // P.shape[1])))
+    nT3 /= np.linalg.norm(nT3, ord=np.inf)
+    dim_d = round(np.sqrt(nT3.shape[1] // P.shape[1]))
     nT3 = nT3.reshape(Pt.shape[1], dim_d, dim_d, P.shape[1]).transpose(1, 2, 0, 3)
     return nT3
 
@@ -382,7 +382,7 @@ def renormalize_T4_U1(Pt, T4, a_ul, P, col_T4_d, col_P, col_a_ul, col_a_r, col_a
     #            \ ||
     #            3  2
     nT4 = nT4 @ Pt
-    nT4 /= nT4.max()
-    dim_d = round(float(np.sqrt(nT4.shape[0] // P.shape[1])))
+    nT4 /= np.linalg.norm(nT4, ord=np.inf)
+    dim_d = round(np.sqrt(nT4.shape[0] // P.shape[1]))
     nT4 = nT4.reshape(dim_d, dim_d, P.shape[1], Pt.shape[1]).transpose(2, 0, 1, 3)
     return nT4
