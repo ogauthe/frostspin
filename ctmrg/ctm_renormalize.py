@@ -23,7 +23,7 @@ def construct_projectors(R, Rt, chi, cutoff, degen_ratio, window):
 
 
 def construct_projectors_U1(
-    corner1, corner2, corner3, corner4, chi, cutoff, degen_ratio, window
+    corner1, corner2, corner3, corner4, chi, rcutoff, degen_ratio, window
 ):
     # once corner are constructed, no reshape or transpose is done. Decompose corner in
     # U(1) sectors as soon as they are constructed, then construct halves and R @ Rt
@@ -31,35 +31,32 @@ def construct_projectors_U1(
     # There are 4 sets of colors, since 2 adjacent blocks share one. Interior indices
     # refer to indices of each color blocks between R and Rt, where projectors are
     # needed.
-    k = 0
-    max_k = sum(min(chi, m.shape[0]) for m in corner1.blocks)  # upper bound
-    P = np.zeros((corner2.shape[1], max_k))
-    Pt = np.zeros((corner2.shape[1], max_k))
-    S = np.empty(max_k)
-    colors = np.empty(max_k, dtype=np.int8)
-    shared = (
+    shared = sorted(
         set(corner1.block_colors)
         .intersection(corner2.block_colors)
         .intersection(corner3.block_colors)
         .intersection(corner4.block_colors)
     )
-    for c in shared:  # avoid svd_truncate to compute SVD on the fly
+    n_blocks = len(shared)
+
+    # first loop: compute SVD for all blocks
+    block_r, block_rt, block_u, block_s, block_v = [[None] * n_blocks for i in range(5)]
+
+    for bi, c in enumerate(shared):  # avoid svd_truncate to compute SVD on the fly
         m1 = corner1.blocks[corner1.get_color_index(c)]
-        i2 = corner2.get_color_index(c)
-        m2 = corner2.blocks[i2]
-        proj_indices = corner2.col_indices[i2]
+        m2 = corner2.blocks[corner2.get_color_index(c)]
         m3 = corner3.blocks[corner3.get_color_index(c)]
         m4 = corner4.blocks[corner4.get_color_index(c)]
 
-        r = m1 @ m2
-        rt = m3 @ m4
-        m = r @ rt
+        block_r[bi] = m1 @ m2
+        block_rt[bi] = m3 @ m4
+        m = block_r[bi] @ block_rt[bi]
         if min(m.shape) < 3 * chi:  # use full svd for small blocks
             try:
                 u, s, v = lg.svd(m, full_matrices=False, overwrite_a=True)
             except lg.LinAlgError as err:
                 print("Error in scipy dense SVD:", err)
-                m = r @ rt  # overwrite_a=True may have erased it
+                m = block_r[bi] @ block_rt[bi]  # overwrite_a=True may have erased it
                 u, s, v = lg.svd(
                     m,
                     full_matrices=False,
@@ -71,27 +68,54 @@ def construct_projectors_U1(
             # for U(1) as SU(2) subgroup, no degen inside a color block
             u, s, v = sparse_svd(m, k=chi + window, maxiter=1000)
 
-        d = min(chi, s.size)  # may be smaller than chi
-        S[k : k + d] = s[:d]
+        block_u[bi] = u
+        block_s[bi] = s
+        block_v[bi] = v
+
+    # Once singular values are known, find chi largest.
+    # Assume number of blocks is small: block_max_val is never sorted and elements
+    # are compared at each iteration.
+    block_max_vals = np.array([s[0] for s in block_s])
+    cutoff = block_max_vals.max() * rcutoff
+    block_cuts = [0] * n_blocks
+    kept = 0
+    while kept < chi - 1:
+        bi = block_max_vals.argmax()
+        if block_max_vals[bi] < cutoff:
+            break
+        block_cuts[bi] += 1
+        kept += 1
+        if block_cuts[bi] < block_s[bi].size:
+            block_max_vals[bi] = block_s[bi][block_cuts[bi]]
+        else:
+            block_max_vals[bi] = -1.0  # in case cutoff = 0
+
+    # keep last multiplet
+    bi = block_max_vals.argmax()
+    cutoff = max(cutoff, degen_ratio * block_max_vals[bi])
+    while block_max_vals[bi] >= cutoff:
+        block_cuts[bi] += 1
+        kept += 1
+        if block_cuts[bi] < block_s[bi].size:
+            block_max_vals[bi] = block_s[bi][block_cuts[bi]]
+        else:
+            block_max_vals[bi] = -1.0
+        bi = block_max_vals.argmax()
+
+    # second loop: construct projectors
+    P = np.zeros((corner2.shape[1], kept))
+    Pt = np.zeros((corner2.shape[1], kept))
+    colors = np.empty(kept, dtype=np.int8)
+    k = 0
+    for bi, c in enumerate(shared):
+        proj_indices = corner2.col_indices[corner2.get_color_index(c)]
+        d = block_cuts[bi]
+        s12 = 1.0 / np.sqrt(block_s[bi][:d])
+        P[proj_indices, k : k + d] = block_r[bi].T @ block_u[bi][:, :d].conj() * s12
+        Pt[proj_indices, k : k + d] = block_rt[bi] @ block_v[bi][:d].T.conj() * s12
         colors[k : k + d] = c
-        # not all blocks are used, the information which color sectors are used is
-        # only known here. Need it to find row indices for P and Pt.
-        P[proj_indices, k : k + d] = r.T @ u[:, :d].conj()
-        Pt[proj_indices, k : k + d] = rt @ v[:d].T.conj()
         k += d
 
-    # TODO: benchmark with heapq.nlargest(chi, range(k), lambda i: S[i])
-    s_sort = S[:k].argsort()[::-1]  # remove non-written values before sorting
-    S = S[s_sort]
-    cut = min(chi, (S > cutoff * S[0]).nonzero()[0][-1] + 1)
-    # cut between multiplets, defined as S[i+1]/S[i] >= degen_ratio (>= for ratio=1)
-    nnz = (S[cut:] <= degen_ratio * S[cut - 1 : -1]).nonzero()[0]
-    if nnz.size:
-        cut += nnz[0]
-    s12 = 1 / np.sqrt(S[:cut])
-    colors = colors[s_sort[:cut]]
-    P = P[:, s_sort[:cut]] * s12
-    Pt = Pt[:, s_sort[:cut]] * s12
     return P, Pt, colors
 
 
