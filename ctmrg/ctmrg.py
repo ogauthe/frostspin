@@ -94,6 +94,7 @@ class CTMRG(object):
             Level of log verbosity.
         """
         self.verbosity = verbosity
+        print(" *** DEV MODE ***")
         if self.verbosity > 0:
             print(f"initalize CTMRG with verbosity = {self.verbosity}")
         self._env = env
