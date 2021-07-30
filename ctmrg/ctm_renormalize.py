@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.linalg as lg
 
-from misc_tools.svd_tools import svd_truncate, sparse_svd
+from misc_tools.svd_tools import find_chi_largest, svd_truncate, sparse_svd
 from ctmrg.ctm_contract import add_a_blockU1
 
 
@@ -72,35 +72,9 @@ def construct_projectors_U1(
         block_s[bi] = s
         block_v[bi] = v
 
-    # Once singular values are known, find chi largest.
-    # Assume number of blocks is small: block_max_val is never sorted and elements
-    # are compared at each iteration.
-    block_max_vals = np.array([s[0] for s in block_s])
-    cutoff = block_max_vals.max() * rcutoff
-    block_cuts = [0] * n_blocks
-    kept = 0
-    while kept < chi - 1:
-        bi = block_max_vals.argmax()
-        if block_max_vals[bi] < cutoff:
-            break
-        block_cuts[bi] += 1
-        kept += 1
-        if block_cuts[bi] < block_s[bi].size:
-            block_max_vals[bi] = block_s[bi][block_cuts[bi]]
-        else:
-            block_max_vals[bi] = -1.0  # in case cutoff = 0
-
-    # keep last multiplet
-    bi = block_max_vals.argmax()
-    cutoff = max(cutoff, degen_ratio * block_max_vals[bi])
-    while block_max_vals[bi] >= cutoff:
-        block_cuts[bi] += 1
-        kept += 1
-        if block_cuts[bi] < block_s[bi].size:
-            block_max_vals[bi] = block_s[bi][block_cuts[bi]]
-        else:
-            block_max_vals[bi] = -1.0
-        bi = block_max_vals.argmax()
+    # keep chi largest singular values + last multiplet
+    block_cuts = find_chi_largest(block_s, chi, rcutoff, degen_ratio)
+    kept = block_cuts.sum()
 
     # second loop: construct projectors
     P = np.zeros((corner2.shape[1], kept))
