@@ -2,6 +2,7 @@
 Corner and halves contraction for CTMRG algorithm
 Library agnostic module, only calls __matmul__, reshape and transpose methods.
 """
+import numpy as np
 
 from groups.toolsU1 import combine_colors
 from groups.block_matrix_U1 import BlockMatrixU1
@@ -450,6 +451,58 @@ def contract_dl_corner_U1(
     return dl.T
 
 
+def swapaxes12_toblock(M, row_colors, col_colors, d1, d2):
+    row_sort = row_colors.argsort(kind="mergesort")
+    sorted_row_colors = row_colors[row_sort]
+    col_sort = col_colors.argsort(kind="mergesort")
+    sorted_col_colors = col_colors[col_sort]
+    row_blocks = (
+        [0]
+        + list((sorted_row_colors[:-1] != sorted_row_colors[1:]).nonzero()[0] + 1)
+        + [row_colors.size]
+    )
+    col_blocks = (
+        [0]
+        + list((sorted_col_colors[:-1] != sorted_col_colors[1:]).nonzero()[0] + 1)
+        + [col_colors.size]
+    )
+
+    blocks = []
+    block_colors = []
+    row_indices = []
+    col_indices = []
+    rbi, cbi, rbimax, cbimax = 0, 0, len(row_blocks) - 1, len(col_blocks) - 1
+    d3 = col_colors.size // d2
+
+    while rbi < rbimax and cbi < cbimax:
+        if sorted_row_colors[row_blocks[rbi]] == sorted_col_colors[col_blocks[cbi]]:
+            ri = row_sort[row_blocks[rbi] : row_blocks[rbi + 1]].copy()
+            ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]].copy()
+            row_indices.append(ri)  # copy ri to own data and delete row_sort at exit
+            col_indices.append(ci)  # same for ci
+            ri0, ri1 = np.divmod(ri, d1)
+            ci0, ci1 = np.divmod(ci, d2)
+            ri_swap = (ri0[:, None] * d3 + ci0).ravel()
+            ci_swap = (ri1[:, None] * d2 + ci1).ravel()
+            m = M[ri_swap, ci_swap].reshape(ri.size, ci.size)
+            # m = np.empty((ri.size, ci.size))
+            # for i, r in enumerate(ri):
+            #    r0, r1 = divmod(r, d1)
+            #    for j, c in enumerate(ci):
+            #        c0, c1 = divmod(c, d2)
+            #        m[i,j] = t[r0, c0, r1, c1]
+
+            blocks.append(m)
+            block_colors.append(sorted_row_colors[row_blocks[rbi]])
+            rbi += 1
+            cbi += 1
+        elif sorted_row_colors[row_blocks[rbi]] < sorted_col_colors[col_blocks[cbi]]:
+            rbi += 1
+        else:
+            cbi += 1
+    return block_colors, blocks, row_indices, col_indices
+
+
 def add_a_blockU1(
     up,
     left,
@@ -514,15 +567,16 @@ def add_a_blockU1(
     #  left=1 -> 2
     #  |
     #  2 -> 3
-    ul = (
-        up.reshape(up.shape[0] * up.shape[1], up.shape[2])
-        @ left.reshape(left.shape[0], left.shape[1] * left.shape[2])
-    ).reshape(up.shape[0], up.shape[1], left.shape[1], left.shape[2])
-    ul = (
-        ul.swapaxes(1, 2)
-        .copy()
-        .reshape(up.shape[0] * left.shape[1], up.shape[1] * left.shape[2])
+    ul = up.reshape(up.shape[0] * up.shape[1], up.shape[2]) @ left.reshape(
+        left.shape[0], left.shape[1] * left.shape[2]
     )
+
+    ########################################################################
+    # => need a dedidacted U(1) function here
+    # send ul to BlockMatrixU1 *while* swapping axes
+    # contract with a_block
+    # send back to dense while swapping again
+
     #  --------up-2
     #  |       ||
     #  |       0
@@ -530,7 +584,10 @@ def add_a_blockU1(
     #  |
     #  3
     cc = combine_colors(col_up_r, col_left_d)
-    ul = BlockMatrixU1.from_dense(ul, col_a_ul, cc)
+    ul = BlockMatrixU1(
+        (col_a_ul.size, cc.size),
+        *swapaxes12_toblock(ul, col_a_ul, cc, left.shape[1], left.shape[2])
+    )
     ul = a_block @ ul
     # reshape through dense casting. This is inefficient.
     #  -----up-2 -> 1
@@ -542,6 +599,7 @@ def add_a_blockU1(
     ul = ul.swapaxes(1, 2).reshape(
         col_a_r.size * up.shape[1], col_a_d.size * left.shape[2]
     )
+    ###########################################################################
     if return_blockwise:
         rc = combine_colors(col_a_r, col_up_r)
         cc = -combine_colors(col_a_d, col_left_d)
