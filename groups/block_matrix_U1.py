@@ -44,12 +44,12 @@ def reduce_matrix_to_blocks(M, row_colors, col_colors):
     row_blocks = (
         [0]
         + list((sorted_row_colors[:-1] != sorted_row_colors[1:]).nonzero()[0] + 1)
-        + [M.shape[0]]
+        + [row_colors.size]
     )
     col_blocks = (
         [0]
         + list((sorted_col_colors[:-1] != sorted_col_colors[1:]).nonzero()[0] + 1)
-        + [M.shape[1]]
+        + [col_colors.size]
     )
 
     blocks = []
