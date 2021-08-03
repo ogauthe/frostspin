@@ -1,8 +1,62 @@
 import numpy as np
 import scipy.linalg as lg
 import scipy.sparse.linalg as slg
+import numba
 
 from groups.toolsU1 import default_color, svdU1
+
+
+def find_chi_largest(block_s, chi, rcutoff=0.0, degen_ratio=1.0):
+    """
+    Find chi largest values from a tuple of blockwise, decreasing singular values.
+    Assume number of blocks is small: block_max_val is never sorted and elements
+    are compared at each iteration.
+
+    Parameters
+    ----------
+    block_s: enum of 1D ndarray sorted by decreasing values
+        Sorted values by block
+    chi: int
+        number of values to keep
+    rcutoff: float
+        relative cutoff on small values. Default to 0 (no cutoff)
+    degen_ratio: float
+        ratio to keep degenerate values. Default to 1.0 (keep values exactly degenerate)
+
+    Returns
+    -------
+    block_cuts: integer ndarray
+        Number of values to keep in each block.
+    """
+    return numba_find_chi_largest(tuple(block_s), chi, rcutoff, degen_ratio)
+
+
+@numba.njit
+def numba_find_chi_largest(block_s, chi, rcutoff, degen_ratio):
+    block_max_vals = np.array([block_s[bi][0] for bi in range(len(block_s))])
+    cutoff = block_max_vals.max() * rcutoff
+    block_cuts = np.zeros(len(block_s), dtype=np.int64)
+    for kept in range(chi - 1):
+        bi = block_max_vals.argmax()
+        if block_max_vals[bi] < cutoff:
+            break
+        block_cuts[bi] += 1
+        if block_cuts[bi] < block_s[bi].size:
+            block_max_vals[bi] = block_s[bi][block_cuts[bi]]
+        else:
+            block_max_vals[bi] = -1.0  # in case cutoff = 0
+
+    # keep last multiplet
+    bi = block_max_vals.argmax()
+    cutoff = max(cutoff, degen_ratio * block_max_vals[bi])
+    while block_max_vals[bi] >= cutoff:
+        block_cuts[bi] += 1
+        if block_cuts[bi] < block_s[bi].size:
+            block_max_vals[bi] = block_s[bi][block_cuts[bi]]
+        else:
+            block_max_vals[bi] = -1.0
+        bi = block_max_vals.argmax()
+    return block_cuts
 
 
 def svd_truncate(

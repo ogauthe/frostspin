@@ -1,7 +1,5 @@
-"""
-Corner and halves contraction for CTMRG algorithm
-Library agnostic module, only calls __matmul__, reshape and transpose methods.
-"""
+import numpy as np
+import numba
 
 from groups.toolsU1 import combine_colors
 from groups.block_matrix_U1 import BlockMatrixU1
@@ -350,9 +348,7 @@ def contract_r_half(T1, C2, Au, T2u, Ad, T2d, T3, C3):
 # rows and as columns. To save memory, only 2 versions of a exsit, a_ul and a_ur. To
 # contract dr and dl corenrs, the transpose of a_ul and a_ur are used (same storage,
 # see ctm_environment).
-def contract_ul_corner_U1(
-    C1, T1, T4, a_ul, col_T1_r, col_T4_d, col_a_ul, col_a_r, col_a_d
-):
+def contract_ul_corner_U1(C1, T1, T4, a_ul, col_T1_r, col_T4_d, col_a_r, col_a_d):
     """
     Contract upper left corner using U(1) symmetry.
     """
@@ -363,7 +359,6 @@ def contract_ul_corner_U1(
         a_ul,
         col_T1_r,
         col_T4_d,
-        col_a_ul,
         col_a_r,
         col_a_d,
         return_blockwise=True,
@@ -371,9 +366,7 @@ def contract_ul_corner_U1(
     return ul
 
 
-def contract_ur_corner_U1(
-    T2, C2, a_ur, T1, col_T2_d, col_a_ur, col_a_d, col_a_l, col_T1_l
-):
+def contract_ur_corner_U1(T2, C2, a_ur, T1, col_T2_d, col_a_d, col_a_l, col_T1_l):
     """
     Contract upper right corner using U(1) symmetry.
     """
@@ -389,7 +382,6 @@ def contract_ur_corner_U1(
         a_ur,
         col_T2_d,
         col_T1_l,
-        col_a_ur,
         col_a_d,
         col_a_l,
         return_blockwise=True,
@@ -397,9 +389,7 @@ def contract_ur_corner_U1(
     return ur
 
 
-def contract_dr_corner_U1(
-    a_dr, T2, T3, C3, col_a_rd, col_a_u, col_a_l, col_T2_u, col_T3_l
-):
+def contract_dr_corner_U1(a_dr, T2, T3, C3, col_a_u, col_a_l, col_T2_u, col_T3_l):
     """
     Contract down right corner using U(1) symmetry.
     """
@@ -414,7 +404,6 @@ def contract_dr_corner_U1(
         a_dr,
         col_T2_u,
         col_T3_l,
-        col_a_rd,
         col_a_u,
         col_a_l,
         return_blockwise=True,
@@ -422,9 +411,7 @@ def contract_dr_corner_U1(
     return dr.T
 
 
-def contract_dl_corner_U1(
-    T4, a_dl, C4, T3, col_T4_u, col_a_dl, col_a_u, col_a_r, col_T3_r
-):
+def contract_dl_corner_U1(T4, a_dl, C4, T3, col_T4_u, col_a_u, col_a_r, col_T3_r):
     """
     Contract down left corner using U(1) symmetry.
     """
@@ -442,7 +429,6 @@ def contract_dl_corner_U1(
         a_dl,
         col_T3_r,
         col_T4_u,
-        col_a_dl,
         col_a_r,
         col_a_u,
         return_blockwise=True,
@@ -450,16 +436,54 @@ def contract_dl_corner_U1(
     return dl.T
 
 
+@numba.njit
+def swapaxes_reduce(ul, col_up_r, col_left_d, a_block_colors, a_col_indices):
+    # combine ul.swapaxes(1,2) and U(1) block reduction
+    # all the information on ul row_colors is already in a_block col_colors
+    col_colors = combine_colors(col_up_r, col_left_d)
+    col_sort = col_colors.argsort(kind="mergesort")
+    sorted_col_colors = col_colors[col_sort]
+    col_blocks = (
+        [0]
+        + list((sorted_col_colors[:-1] != sorted_col_colors[1:]).nonzero()[0] + 1)
+        + [col_colors.size]
+    )
+
+    blocks = []
+    block_colors = []
+    row_indices = []
+    col_indices = []
+    rbi, cbi, rbimax, cbimax = 0, 0, len(a_block_colors), len(col_blocks) - 1
+    d1 = col_up_r.size
+    d4 = col_left_d.size
+    d3 = ul.shape[1] // d4
+
+    while rbi < rbimax and cbi < cbimax:
+        if a_block_colors[rbi] == sorted_col_colors[col_blocks[cbi]]:
+            ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]].copy()
+            m = np.empty((a_col_indices[rbi].size, ci.size))
+            for i, r in enumerate(a_col_indices[rbi]):
+                r0, r1 = divmod(r, d3)
+                for j, c in enumerate(ci):
+                    c0, c1 = divmod(c, d4)
+                    m[i, j] = ul[r0 * d1 + c0, r1 * d4 + c1]
+
+            blocks.append(m)
+            row_indices.append(a_col_indices[rbi])
+            col_indices.append(ci)
+            block_colors.append(a_block_colors[rbi])
+            rbi += 1
+            cbi += 1
+        elif a_block_colors[rbi] < sorted_col_colors[col_blocks[cbi]]:
+            rbi += 1
+        else:
+            cbi += 1
+
+    return block_colors, blocks, row_indices, col_indices
+
+
 def add_a_blockU1(
-    up,
-    left,
-    a_block,
-    col_up_r,
-    col_left_d,
-    col_a_ul,
-    col_a_r,
-    col_a_d,
-    return_blockwise=False,
+    up, left, a_block, col_up_r, col_left_d, col_a_r, col_a_d, return_blockwise=False
 ):
     """
     Contract up and left then add blockwise a = AA* using U(1) symmetry.
@@ -479,8 +503,6 @@ def add_a_blockU1(
       up tensor right colors.
     col_left_d: (d4,) integer ndarray
       left tensor down colors.
-    col_a_ul: (d0 * d3,) integer ndarray
-      a_block column colors, corresponding to merged up and left legs.
     col_a_r: (d5,) integer ndarray
       a_block right colors
     col_a_d: (d6,) integer ndarray
@@ -514,23 +536,28 @@ def add_a_blockU1(
     #  left=1 -> 2
     #  |
     #  2 -> 3
-    ul = (
-        up.reshape(up.shape[0] * up.shape[1], up.shape[2])
-        @ left.reshape(left.shape[0], left.shape[1] * left.shape[2])
-    ).reshape(up.shape[0], up.shape[1], left.shape[1], left.shape[2])
-    ul = (
-        ul.swapaxes(1, 2)
-        .copy()
-        .reshape(up.shape[0] * left.shape[1], up.shape[1] * left.shape[2])
+    ul = up.reshape(up.shape[0] * up.shape[1], up.shape[2]) @ left.reshape(
+        left.shape[0], left.shape[1] * left.shape[2]
     )
+
+    # combine ul.swapaxes(1,2) and U(1) block reduction
     #  --------up-2
     #  |       ||
     #  |       0
     #  left=1
     #  |
     #  3
-    cc = combine_colors(col_up_r, col_left_d)
-    ul = BlockMatrixU1.from_dense(ul, col_a_ul, cc)
+    (block_colors, blocks, row_indices, col_indices) = swapaxes_reduce(
+        ul, col_up_r, col_left_d, a_block.block_colors, a_block.col_indices
+    )
+
+    ul = BlockMatrixU1(
+        (a_block.shape[1], col_up_r.size * col_left_d.size),
+        block_colors,
+        blocks,
+        row_indices,
+        col_indices,
+    )
     ul = a_block @ ul
     # reshape through dense casting. This is inefficient.
     #  -----up-2 -> 1
@@ -542,6 +569,7 @@ def add_a_blockU1(
     ul = ul.swapaxes(1, 2).reshape(
         col_a_r.size * up.shape[1], col_a_d.size * left.shape[2]
     )
+    ###########################################################################
     if return_blockwise:
         rc = combine_colors(col_a_r, col_up_r)
         cc = -combine_colors(col_a_d, col_left_d)

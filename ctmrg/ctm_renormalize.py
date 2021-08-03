@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.linalg as lg
 
-from misc_tools.svd_tools import svd_truncate, sparse_svd
+from misc_tools.svd_tools import find_chi_largest, svd_truncate, sparse_svd
 from ctmrg.ctm_contract import add_a_blockU1
 
 
@@ -72,35 +72,9 @@ def construct_projectors_U1(
         block_s[bi] = s
         block_v[bi] = v
 
-    # Once singular values are known, find chi largest.
-    # Assume number of blocks is small: block_max_val is never sorted and elements
-    # are compared at each iteration.
-    block_max_vals = np.array([s[0] for s in block_s])
-    cutoff = block_max_vals.max() * rcutoff
-    block_cuts = [0] * n_blocks
-    kept = 0
-    while kept < chi - 1:
-        bi = block_max_vals.argmax()
-        if block_max_vals[bi] < cutoff:
-            break
-        block_cuts[bi] += 1
-        kept += 1
-        if block_cuts[bi] < block_s[bi].size:
-            block_max_vals[bi] = block_s[bi][block_cuts[bi]]
-        else:
-            block_max_vals[bi] = -1.0  # in case cutoff = 0
-
-    # keep last multiplet
-    bi = block_max_vals.argmax()
-    cutoff = max(cutoff, degen_ratio * block_max_vals[bi])
-    while block_max_vals[bi] >= cutoff:
-        block_cuts[bi] += 1
-        kept += 1
-        if block_cuts[bi] < block_s[bi].size:
-            block_max_vals[bi] = block_s[bi][block_cuts[bi]]
-        else:
-            block_max_vals[bi] = -1.0
-        bi = block_max_vals.argmax()
+    # keep chi largest singular values + last multiplet
+    block_cuts = find_chi_largest(block_s, chi, rcutoff, degen_ratio)
+    kept = block_cuts.sum()
 
     # second loop: construct projectors
     P = np.zeros((corner2.shape[1], kept))
@@ -309,7 +283,7 @@ def renormalize_C1_left(C1, T1, Pt):
 ###############################################################################
 
 
-def renormalize_T1_U1(Pt, T1, a_ul, P, col_T1_r, col_Pt, col_a_ul, col_a_r, col_a_d):
+def renormalize_T1_U1(Pt, T1, a_ul, P, col_T1_r, col_Pt, col_a_r, col_a_d):
     """
     Renormalize edge T1 using projectors P and Pt with U(1) symmetry
     CPU: highly depends on symmetry, worst case chi**2*D**8
@@ -318,7 +292,7 @@ def renormalize_T1_U1(Pt, T1, a_ul, P, col_T1_r, col_Pt, col_a_ul, col_a_r, col_
     # T1 -> up, transpose due to add_a_blockU1 conventions
     left = Pt.reshape(-1, T1.shape[3], Pt.shape[1]).swapaxes(0, 1).copy()
     nT1 = T1.transpose(1, 2, 0, 3).reshape(T1.shape[1] ** 2, T1.shape[0], T1.shape[3])
-    nT1 = add_a_blockU1(nT1, left, a_ul, col_T1_r, col_Pt, col_a_ul, col_a_r, col_a_d)
+    nT1 = add_a_blockU1(nT1, left, a_ul, col_T1_r, col_Pt, col_a_r, col_a_d)
     #             -T1-0'
     #            / ||
     #       1'-Pt==AA=0
@@ -331,7 +305,7 @@ def renormalize_T1_U1(Pt, T1, a_ul, P, col_T1_r, col_Pt, col_a_ul, col_a_r, col_
     return nT1
 
 
-def renormalize_T2_U1(Pt, T2, a_ur, P, col_T2_d, col_Pt, col_a_ur, col_a_d, col_a_l):
+def renormalize_T2_U1(Pt, T2, a_ur, P, col_T2_d, col_Pt, col_a_d, col_a_l):
     """
     Renormalize edge T2 using projectors P and Pt with U(1) symmetry
     CPU: highly depends on symmetry, worst case chi**2*D**8
@@ -340,7 +314,7 @@ def renormalize_T2_U1(Pt, T2, a_ur, P, col_T2_d, col_Pt, col_a_ur, col_a_d, col_
     # T2 -> up
     left = Pt.reshape(-1, T2.shape[0], Pt.shape[1]).swapaxes(0, 1).copy()
     nT2 = T2.transpose(2, 3, 1, 0).reshape(T2.shape[2] ** 2, T2.shape[1], T2.shape[0])
-    nT2 = add_a_blockU1(nT2, left, a_ur, col_T2_d, col_Pt, col_a_ur, col_a_d, col_a_l)
+    nT2 = add_a_blockU1(nT2, left, a_ur, col_T2_d, col_Pt, col_a_d, col_a_l)
     #                 3
     #                 |
     #                Pt
@@ -355,7 +329,7 @@ def renormalize_T2_U1(Pt, T2, a_ur, P, col_T2_d, col_Pt, col_a_ur, col_a_d, col_
     return nT2
 
 
-def renormalize_T3_U1(Pt, T3, a_dl, P, col_T3_r, col_P, col_a_dl, col_a_u, col_a_r):
+def renormalize_T3_U1(Pt, T3, a_dl, P, col_T3_r, col_P, col_a_u, col_a_r):
     """
     Renormalize edge T3 using projectors P and Pt with U(1) symmetry
     CPU: highly depends on symmetry, worst case chi**2*D**8
@@ -373,7 +347,7 @@ def renormalize_T3_U1(Pt, T3, a_dl, P, col_T3_r, col_P, col_a_dl, col_a_u, col_a
     # T3 -> up
     left = P.reshape(-1, T3.shape[3], P.shape[1]).swapaxes(0, 1).copy()
     nT3 = T3.reshape(T3.shape[0] ** 2, T3.shape[2], T3.shape[3])
-    nT3 = add_a_blockU1(nT3, left, a_dl, col_T3_r, col_P, col_a_dl, col_a_r, col_a_u)
+    nT3 = add_a_blockU1(nT3, left, a_dl, col_T3_r, col_P, col_a_r, col_a_u)
     #               2
     #              ||
     #            //AA=0
@@ -386,7 +360,7 @@ def renormalize_T3_U1(Pt, T3, a_dl, P, col_T3_r, col_P, col_a_dl, col_a_u, col_a
     return nT3
 
 
-def renormalize_T4_U1(Pt, T4, a_ul, P, col_T4_d, col_P, col_a_ul, col_a_r, col_a_d):
+def renormalize_T4_U1(Pt, T4, a_ul, P, col_T4_d, col_P, col_a_r, col_a_d):
     """
     Renormalize edge T4 using projectors P and Pt with U(1) symmetry
     CPU: highly depends on symmetry, worst case chi**2*D**8
@@ -397,7 +371,7 @@ def renormalize_T4_U1(Pt, T4, a_ul, P, col_T4_d, col_P, col_a_ul, col_a_r, col_a
     # T4 -> left
     nT4 = P.reshape(-1, T4.shape[0], P.shape[1]).swapaxes(1, 2).copy()
     left = T4.reshape(T4.shape[0], T4.shape[1] ** 2, T4.shape[3])
-    nT4 = add_a_blockU1(nT4, left, a_ul, col_P, col_T4_d, col_a_ul, col_a_r, col_a_d)
+    nT4 = add_a_blockU1(nT4, left, a_ul, col_P, col_T4_d, col_a_r, col_a_d)
     #              1
     #              |
     #              P
