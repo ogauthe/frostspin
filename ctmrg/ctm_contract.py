@@ -6,6 +6,9 @@ Library agnostic module, only calls __matmul__, reshape and transpose methods.
 from groups.toolsU1 import combine_colors
 from groups.block_matrix_U1 import BlockMatrixU1
 
+import numpy as np
+import numba
+
 ###############################################################################
 #  construct 2x2 corners
 #  memory: peak at 2*a*d*chi**2*D**4
@@ -438,15 +441,54 @@ def contract_dl_corner_U1(T4, a_dl, C4, T3, col_T4_u, col_a_u, col_a_r, col_T3_r
     return dl.T
 
 
+@numba.njit
+def swapaxes_reduce(ul, col_up_r, col_left_d, a_block_colors, a_col_indices):
+    # combine ul.swapaxes(1,2) and U(1) block reduction
+    # all the information on ul row_colors is already in a_block col_colors
+    col_colors = combine_colors(col_up_r, col_left_d)
+    col_sort = col_colors.argsort(kind="mergesort")
+    sorted_col_colors = col_colors[col_sort]
+    col_blocks = (
+        [0]
+        + list((sorted_col_colors[:-1] != sorted_col_colors[1:]).nonzero()[0] + 1)
+        + [col_colors.size]
+    )
+
+    blocks = []
+    block_colors = []
+    row_indices = []
+    col_indices = []
+    rbi, cbi, rbimax, cbimax = 0, 0, len(a_block_colors), len(col_blocks) - 1
+    d1 = col_up_r.size
+    d4 = col_left_d.size
+    d3 = ul.shape[1] // d4
+
+    while rbi < rbimax and cbi < cbimax:
+        if a_block_colors[rbi] == sorted_col_colors[col_blocks[cbi]]:
+            ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]].copy()
+            m = np.empty((a_col_indices[rbi].size, ci.size))
+            for i, r in enumerate(a_col_indices[rbi]):
+                r0, r1 = divmod(r, d3)
+                for j, c in enumerate(ci):
+                    c0, c1 = divmod(c, d4)
+                    m[i, j] = ul[r0 * d1 + c0, r1 * d4 + c1]
+
+            blocks.append(m)
+            row_indices.append(a_col_indices[rbi])
+            col_indices.append(ci)
+            block_colors.append(a_block_colors[rbi])
+            rbi += 1
+            cbi += 1
+        elif a_block_colors[rbi] < sorted_col_colors[col_blocks[cbi]]:
+            rbi += 1
+        else:
+            cbi += 1
+
+    return block_colors, blocks, row_indices, col_indices
+
+
 def add_a_blockU1(
-    up,
-    left,
-    a_block,
-    col_up_r,
-    col_left_d,
-    col_a_r,
-    col_a_d,
-    return_blockwise=False,
+    up, left, a_block, col_up_r, col_left_d, col_a_r, col_a_d, return_blockwise=False
 ):
     """
     Contract up and left then add blockwise a = AA* using U(1) symmetry.
@@ -503,65 +545,25 @@ def add_a_blockU1(
         left.shape[0], left.shape[1] * left.shape[2]
     )
 
-    # combine ul.swapaxes(1,2), U(1) block reduction  and U(1) dot product with a_block
+    # combine ul.swapaxes(1,2) and U(1) block reduction
     #  --------up-2
     #  |       ||
     #  |       0
     #  left=1
     #  |
     #  3
-
-    # all the information on ul row_colors is already in a_block col_colors
-    col_colors = combine_colors(col_up_r, col_left_d)
-    col_sort = col_colors.argsort(kind="stable")
-    sorted_col_colors = col_colors[col_sort]
-    col_blocks = (
-        [0]
-        + list((sorted_col_colors[:-1] != sorted_col_colors[1:]).nonzero()[0] + 1)
-        + [col_colors.size]
+    (block_colors, blocks, row_indices, col_indices) = swapaxes_reduce(
+        ul, col_up_r, col_left_d, a_block.block_colors, a_block.col_indices
     )
 
-    blocks = []
-    block_colors = []
-    row_indices = []
-    col_indices = []
-    rbi, cbi, rbimax, cbimax = 0, 0, a_block.nblocks, len(col_blocks) - 1
-    d1 = col_up_r.size
-    d4 = col_left_d.size
-
-    while rbi < rbimax and cbi < cbimax:
-        if a_block.block_colors[rbi] == sorted_col_colors[col_blocks[cbi]]:
-            ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]].copy()
-            ri0, ri1 = divmod(a_block.col_indices[rbi], left.shape[1])
-            ci0, ci1 = divmod(ci, left.shape[2])
-            ri_swap = (ri0[:, None] * d1 + ci0).ravel()
-            ci_swap = (ri1[:, None] * d4 + ci1).ravel()
-            m = ul[ri_swap, ci_swap].reshape(ri0.size, ci.size)  # ul.swapaxes(1,2)
-            # m = np.empty((ri.size, ci.size))  << use numba?
-            # for i, r in enumerate(ri):
-            #    r0, r1 = divmod(r, d1)
-            #    for j, c in enumerate(ci):
-            #        c0, c1 = divmod(c, d2)
-            #        m[i,j] = t[r0, c0, r1, c1]
-
-            blocks.append(a_block.blocks[rbi] @ m)  # a_block @ ul
-            row_indices.append(a_block.row_indices[rbi])
-            col_indices.append(ci)
-            block_colors.append(a_block.block_colors[rbi])
-            rbi += 1
-            cbi += 1
-        elif a_block.block_colors[rbi] < sorted_col_colors[col_blocks[cbi]]:
-            rbi += 1
-        else:
-            cbi += 1
-
     ul = BlockMatrixU1(
-        (a_block.shape[0], col_colors.size),
+        (a_block.shape[1], col_up_r.size * col_left_d.size),
         block_colors,
         blocks,
         row_indices,
         col_indices,
     )
+    ul = a_block @ ul
     # reshape through dense casting. This is inefficient.
     #  -----up-2 -> 1
     #  |    ||
