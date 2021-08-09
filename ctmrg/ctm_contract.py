@@ -482,6 +482,19 @@ def swapaxes_reduce(ul, col_up_r, col_left_d, a_block_colors, a_col_indices):
     return block_colors, blocks, row_indices, col_indices
 
 
+@numba.njit
+def swapaxes_densify(ar, blocks, row_indices, col_indices):
+    d1 = ar.shape[2]
+    d2 = ar.shape[3]
+    for bi, b in enumerate(blocks):  # literal_unroll not needed *here*
+        for i, ri in enumerate(row_indices[bi]):
+            r0, r1 = divmod(ri, d1)
+            for j, cj in enumerate(col_indices[bi]):
+                c0, c1 = divmod(cj, d2)
+                ar[r0, c0, r1, c1] = b[i, j]
+    return ar
+
+
 def add_a_blockU1(
     up, left, a_block, col_up_r, col_left_d, col_a_r, col_a_d, return_blockwise=False
 ):
@@ -565,10 +578,9 @@ def add_a_blockU1(
     #  left=AA*=0
     #  |    ||
     #  3    1 -> 2
-    ul = ul.toarray().reshape(col_a_r.size, col_a_d.size, up.shape[1], left.shape[2])
-    ul = ul.swapaxes(1, 2).reshape(
-        col_a_r.size * up.shape[1], col_a_d.size * left.shape[2]
-    )
+    temp = np.zeros((col_a_r.size, up.shape[1], col_a_d.size, left.shape[2]))
+    swapaxes_densify(temp, ul.blocks, ul.row_indices, ul.col_indices)
+    ul = temp.reshape(col_a_r.size * up.shape[1], col_a_d.size * left.shape[2])
     ###########################################################################
     if return_blockwise:
         rc = combine_colors(col_a_r, col_up_r)
