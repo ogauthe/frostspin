@@ -482,16 +482,16 @@ def swapaxes_reduce(ul, col_up_r, col_left_d, a_block_colors, a_col_indices):
     return block_colors, blocks, row_indices, col_indices
 
 
-@numba.njit
+@numba.njit(parallel=True)
 def swapaxes_densify(ar, blocks, row_indices, col_indices):
     d1 = ar.shape[2]
     d2 = ar.shape[3]
-    for bi, b in enumerate(blocks):  # literal_unroll not needed *here*
-        for i, ri in enumerate(row_indices[bi]):
-            r0, r1 = divmod(ri, d1)
-            for j, cj in enumerate(col_indices[bi]):
-                c0, c1 = divmod(cj, d2)
-                ar[r0, c0, r1, c1] = b[i, j]
+    for bi in numba.prange(len(blocks)):
+        for i in numba.prange(len(row_indices[bi])):
+            r0, r1 = divmod(row_indices[bi][i], d1)
+            for j in numba.prange(len(col_indices[bi])):
+                c0, c1 = divmod(col_indices[bi][j], d2)
+                ar[r0, c0, r1, c1] = blocks[bi][i, j]
     return ar
 
 
