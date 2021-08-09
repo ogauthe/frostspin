@@ -484,12 +484,13 @@ def swapaxes_reduce(ul, col_up_r, col_left_d, a_block_colors, a_col_indices):
 
 @numba.njit(parallel=True)
 def swapaxes_densify(ar, blocks, row_indices, col_indices):
+    # we know from context blocks is a numba homogenous tuple => no literal_unroll
     d1 = ar.shape[2]
     d2 = ar.shape[3]
     for bi in numba.prange(len(blocks)):
-        for i in numba.prange(len(row_indices[bi])):
+        for i in numba.prange(row_indices[bi].size):
             r0, r1 = divmod(row_indices[bi][i], d1)
-            for j in numba.prange(len(col_indices[bi])):
+            for j in numba.prange(col_indices[bi].size):
                 c0, c1 = divmod(col_indices[bi][j], d2)
                 ar[r0, c0, r1, c1] = blocks[bi][i, j]
     return ar
