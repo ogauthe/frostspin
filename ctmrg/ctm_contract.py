@@ -1,13 +1,8 @@
-"""
-Corner and halves contraction for CTMRG algorithm
-Library agnostic module, only calls __matmul__, reshape and transpose methods.
-"""
+import numpy as np
+import numba
 
 from groups.toolsU1 import combine_colors
 from groups.block_matrix_U1 import BlockMatrixU1
-
-import numpy as np
-import numba
 
 ###############################################################################
 #  construct 2x2 corners

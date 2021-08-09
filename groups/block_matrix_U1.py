@@ -1,7 +1,6 @@
 import bisect
 
 import numpy as np
-import scipy.sparse as ssp
 import numba
 from numba import literal_unroll  # numba issue #5344
 
@@ -44,12 +43,12 @@ def reduce_matrix_to_blocks(M, row_colors, col_colors):
     row_blocks = (
         [0]
         + list((sorted_row_colors[:-1] != sorted_row_colors[1:]).nonzero()[0] + 1)
-        + [M.shape[0]]
+        + [row_colors.size]
     )
     col_blocks = (
         [0]
         + list((sorted_col_colors[:-1] != sorted_col_colors[1:]).nonzero()[0] + 1)
-        + [M.shape[1]]
+        + [col_colors.size]
     )
 
     blocks = []
@@ -256,82 +255,3 @@ class BlockMatrixU1(object):
                 i2 += 1
         sh = (self._shape[0], other._shape[1])
         return BlockMatrixU1(sh, block_colors, blocks, row_indices, col_indices)
-
-
-class BlockSparseMatrixU1(BlockMatrixU1):
-    """
-    Subclass where blocks are sparse matrices. May be useful to have well-separated
-    blocks, however if density is low full sparse matrices will probably be more
-    efficient.
-    """
-
-    @classmethod
-    def from_dense(cls, M, row_colors, col_colors):
-        """
-        Create a sparse block matrix from dense matrix M and U(1) quantum numbers for
-        rows and columns. Refer to BlockMatrixU1 method for full documentation.
-
-        Parameters
-        ----------
-        M : (m, n) sparse matrix
-            Matrix to decompose.
-        row_colors : (m,) integer ndarray
-            U(1) quantum numbers of the rows.
-        col_colors : (n,) integer ndarray
-            U(1) quantum numbers of the columns.
-
-        Returns
-        -------
-        out : BlockSparseMatrixU1
-        """
-        assert M.shape == (
-            row_colors.size,
-            col_colors.size,
-        ), "Colors do not match array"
-        # put everything inside jitted reduce_matrix_to_blocks function
-        row_sort = row_colors.argsort(kind="mergesort")
-        sorted_row_colors = row_colors[row_sort]
-        col_sort = col_colors.argsort(kind="mergesort")
-        sorted_col_colors = col_colors[col_sort]
-        row_blocks = (
-            [0]
-            + list((sorted_row_colors[:-1] != sorted_row_colors[1:]).nonzero()[0] + 1)
-            + [M.shape[0]]
-        )
-        col_blocks = (
-            [0]
-            + list((sorted_col_colors[:-1] != sorted_col_colors[1:]).nonzero()[0] + 1)
-            + [M.shape[1]]
-        )
-
-        blocks = []
-        block_colors = []
-        row_indices = []
-        col_indices = []
-        rbi, cbi, rbimax, cbimax = 0, 0, len(row_blocks) - 1, len(col_blocks) - 1
-        while rbi < rbimax and cbi < cbimax:
-            if sorted_row_colors[row_blocks[rbi]] == sorted_col_colors[col_blocks[cbi]]:
-                ri = row_sort[row_blocks[rbi] : row_blocks[rbi + 1]].copy()
-                ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]].copy()
-                row_indices.append(
-                    ri
-                )  # copy ri to own data and delete row_sort at exit
-                col_indices.append(ci)  # same for ci
-                m = ssp.csr_matrix(M[ri[:, None], ci])
-                blocks.append(m)
-                block_colors.append(sorted_row_colors[row_blocks[rbi]])
-                rbi += 1
-                cbi += 1
-            elif (
-                sorted_row_colors[row_blocks[rbi]] < sorted_col_colors[col_blocks[cbi]]
-            ):
-                rbi += 1
-            else:
-                cbi += 1
-        return cls(M.shape, block_colors, blocks, row_indices, col_indices)
-
-    def norm(self):
-        norm2 = 0.0
-        for b in self._blocks:
-            norm2 += np.linalg.norm(b.data) ** 2
-        return np.sqrt(norm2)
