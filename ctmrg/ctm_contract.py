@@ -437,14 +437,16 @@ def contract_dl_corner_U1(T4, a_dl, C4, T3, col_T4_u, col_a_u, col_a_r, col_T3_r
 
 
 @numba.njit(parallel=True)
-def fill_swapaxes(m, ul, row_indices, col_indices):
+def fill_swapaxes(ul, row_indices, col_indices):
     dr = ul.shape[2]
     dc = ul.shape[3]
+    m = np.empty((row_indices.size, col_indices.size))
     for i in numba.prange(row_indices.size):
         r0, r1 = divmod(row_indices[i], dr)
         for j in numba.prange(col_indices.size):
             c0, c1 = divmod(col_indices[j], dc)
             m[i, j] = ul[r0, c0, r1, c1]
+    return m
 
 
 @numba.njit
@@ -468,8 +470,7 @@ def swapaxes_reduce(ul, col_up_r, col_left_d, a_block_colors, a_col_indices):
     while rbi < rbimax and cbi < cbimax:
         if a_block_colors[rbi] == sorted_col_colors[col_blocks[cbi]]:
             ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]].copy()
-            m = np.empty((a_col_indices[rbi].size, ci.size))
-            fill_swapaxes(m, ul, a_col_indices[rbi], ci)  # parallel dedicated function
+            m = fill_swapaxes(ul, a_col_indices[rbi], ci)  # parallel
             blocks.append(m)
             row_indices.append(a_col_indices[rbi])
             col_indices.append(ci)

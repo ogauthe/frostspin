@@ -5,6 +5,15 @@ import numba
 from numba import literal_unroll  # numba issue #5344
 
 
+@numba.njit(parallel=True)
+def fill_U1_block(M, ri, ci):
+    m = np.empty((ri.size, ci.size), dtype=M.dtype)
+    for i in numba.prange(ri.size):
+        for j in numba.prange(ci.size):
+            m[i, j] = M[ri[i], ci[j]]
+    return m
+
+
 @numba.njit
 def reduce_matrix_to_blocks(M, row_colors, col_colors):
     """
@@ -62,11 +71,7 @@ def reduce_matrix_to_blocks(M, row_colors, col_colors):
             ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]].copy()
             row_indices.append(ri)  # copy ri to own data and delete row_sort at exit
             col_indices.append(ci)  # same for ci
-            m = np.empty((ri.size, ci.size), dtype=M.dtype)
-            for i, r in enumerate(ri):
-                for j, c in enumerate(ci):
-                    m[i, j] = M[r, c]
-
+            m = fill_U1_block(M, ri, ci)  # parallel
             blocks.append(m)
             block_colors.append(sorted_row_colors[row_blocks[rbi]])
             rbi += 1
