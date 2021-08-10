@@ -436,6 +436,17 @@ def contract_dl_corner_U1(T4, a_dl, C4, T3, col_T4_u, col_a_u, col_a_r, col_T3_r
     return dl.T
 
 
+@numba.njit(parallel=True)
+def fill_swapaxes(m, ul, row_indices, col_indices):
+    dr = ul.shape[2]
+    dc = ul.shape[3]
+    for i in numba.prange(row_indices.size):
+        r0, r1 = divmod(row_indices[i], dr)
+        for j in numba.prange(col_indices.size):
+            c0, c1 = divmod(col_indices[j], dc)
+            m[i, j] = ul[r0, c0, r1, c1]
+
+
 @numba.njit
 def swapaxes_reduce(ul, col_up_r, col_left_d, a_block_colors, a_col_indices):
     # combine ul.swapaxes(1,2) and U(1) block reduction
@@ -454,20 +465,11 @@ def swapaxes_reduce(ul, col_up_r, col_left_d, a_block_colors, a_col_indices):
     row_indices = []
     col_indices = []
     rbi, cbi, rbimax, cbimax = 0, 0, len(a_block_colors), len(col_blocks) - 1
-    d1 = col_up_r.size
-    d4 = col_left_d.size
-    d3 = ul.shape[1] // d4
-
     while rbi < rbimax and cbi < cbimax:
         if a_block_colors[rbi] == sorted_col_colors[col_blocks[cbi]]:
             ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]].copy()
             m = np.empty((a_col_indices[rbi].size, ci.size))
-            for i, r in enumerate(a_col_indices[rbi]):
-                r0, r1 = divmod(r, d3)
-                for j, c in enumerate(ci):
-                    c0, c1 = divmod(c, d4)
-                    m[i, j] = ul[r0 * d1 + c0, r1 * d4 + c1]
-
+            fill_swapaxes(m, ul, a_col_indices[rbi], ci)  # parallel dedicated function
             blocks.append(m)
             row_indices.append(a_col_indices[rbi])
             col_indices.append(ci)
@@ -550,9 +552,10 @@ def add_a_blockU1(
     #  left=1 -> 2
     #  |
     #  2 -> 3
-    ul = up.reshape(up.shape[0] * up.shape[1], up.shape[2]) @ left.reshape(
-        left.shape[0], left.shape[1] * left.shape[2]
-    )
+    ul = (
+        up.reshape(up.shape[0] * up.shape[1], up.shape[2])
+        @ left.reshape(left.shape[0], left.shape[1] * left.shape[2])
+    ).reshape(up.shape[0], up.shape[1], left.shape[1], left.shape[2])
 
     # combine ul.swapaxes(1,2) and U(1) block reduction
     #  --------up-2
