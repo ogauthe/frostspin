@@ -486,16 +486,15 @@ def swapaxes_reduce(ul, col_up_r, col_left_d, a_block_colors, a_col_indices):
 
 
 @numba.njit(parallel=True)
-def swapaxes_densify(d1, d2, d3, d4, blocks, row_indices, col_indices):
-    # optimized version for ul.toarray().swapaxes(1, 2).copy()
+def swapaxes_densify(ar, blocks, row_indices, col_indices):
     # we know from context blocks is a numba homogenous tuple => no literal_unroll
-    # cannot directly give shape as input: see numba issue #2625
-    ar = np.zeros((d1, d2, d3, d4))
+    d1 = ar.shape[2]
+    d2 = ar.shape[3]
     for bi in numba.prange(len(blocks)):
         for i in numba.prange(row_indices[bi].size):
-            r0, r1 = divmod(row_indices[bi][i], d3)
+            r0, r1 = divmod(row_indices[bi][i], d1)
             for j in numba.prange(col_indices[bi].size):
-                c0, c1 = divmod(col_indices[bi][j], d4)
+                c0, c1 = divmod(col_indices[bi][j], d2)
                 ar[r0, c0, r1, c1] = blocks[bi][i, j]
     return ar
 
@@ -578,22 +577,15 @@ def add_a_blockU1(
         col_indices,
     )
     ul = a_block @ ul
-    # reshape through dense casting. Fast enough with numba.
+    # reshape through dense casting. This is inefficient.
     #  -----up-2 -> 1
     #  |    ||
     #  left=AA*=0
     #  |    ||
     #  3    1 -> 2
-    ul = swapaxes_densify(
-        col_a_r.size,
-        up.shape[1],
-        col_a_d.size,
-        left.shape[2],
-        ul.blocks,
-        ul.row_indices,
-        ul.col_indices,
-    )
-    ul = ul.reshape(col_a_r.size * up.shape[1], col_a_d.size * left.shape[2])
+    temp = np.zeros((col_a_r.size, up.shape[1], col_a_d.size, left.shape[2]))
+    swapaxes_densify(temp, ul.blocks, ul.row_indices, ul.col_indices)
+    ul = temp.reshape(col_a_r.size * up.shape[1], col_a_d.size * left.shape[2])
     ###########################################################################
     if return_blockwise:
         rc = combine_colors(col_a_r, col_up_r)

@@ -84,28 +84,23 @@ def reduce_matrix_to_blocks(M, row_colors, col_colors):
 
 
 @numba.njit
-def heterogeneous_blocks_to_array(shape, blocks, row_indices, col_indices, dtype):
+def heterogeneous_blocks_to_array(ar, blocks, row_indices, col_indices):
     # tedious dealing wuth heterogeneous tuple: cannot parallelize, enum or getitem
-    ar = np.zeros(shape, dtype=dtype)
     bi = 0
     for b in literal_unroll(blocks):
         for i, ri in enumerate(row_indices[bi]):
             for j, cj in enumerate(col_indices[bi]):
                 ar[ri, cj] = b[i, j]
         bi += 1
-    return ar
 
 
 @numba.njit(parallel=True)
-def homogeneous_blocks_to_array(dim1, dim2, blocks, row_indices, col_indices):
+def homogeneous_blocks_to_array(ar, blocks, row_indices, col_indices):
     # when blocks is homogeneous, loops are simple and can be parallelized
-    # cannot directly give shape as input: see numba issue #2625
-    ar = np.zeros((dim1, dim2), dtype=blocks[0].dtype)
     for bi in numba.prange(len(blocks)):
         for i in numba.prange(row_indices[bi].size):
             for j in numba.prange(col_indices[bi].size):
                 ar[row_indices[bi][i], col_indices[bi][j]] = blocks[bi][i, j]
-    return ar
 
 
 class BlockMatrixU1(object):
@@ -236,21 +231,16 @@ class BlockMatrixU1(object):
         return min(c_contiguous) ^ max(c_contiguous)
 
     def toarray(self):  # numba wrapper
+        ar = np.zeros(self._shape)
         if self.is_heteregeneous():
-            return heterogeneous_blocks_to_array(
-                self._shape,
-                self._blocks,
-                self._row_indices,
-                self._col_indices,
-                self._dtype,
+            heterogeneous_blocks_to_array(
+                ar, self._blocks, self._row_indices, self._col_indices
             )
-        return homogeneous_blocks_to_array(
-            self._shape[0],
-            self._shape[1],
-            self._blocks,
-            self._row_indices,
-            self._col_indices,
-        )
+        else:
+            homogeneous_blocks_to_array(
+                ar, self._blocks, self._row_indices, self._col_indices
+            )
+        return ar
 
     def get_color_index(self, color):
         return bisect.bisect_left(self._block_colors, color)
