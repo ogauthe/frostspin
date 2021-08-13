@@ -68,31 +68,6 @@ class SymmetricTensor(object):
         blocks = tuple(b.copy() for b in self._blocks)
         return type(self)(self._axis_reps, self._n_leg_rows, blocks, self._block_irreps)
 
-    @property
-    def T(self):
-        # Transpose the matrix representation of the tensor, ie swap rows and columns
-        # and transpose diagonal blocks, without any data move or copy. Irreps need to
-        # be conjugate since row (bra) and columns (ket) are swapped. If this operation
-        # is non-trivial, specialization is required.
-
-        # other solution: have irreps object supporting < and conjugate
-        # then one can have
-        # block_irreps = self._block_irreps.conj()
-        # so = block_irreps.argsort()
-        # block_irreps = block_irreps[so]
-        # blocks = tuple(self._blocks[i].T for i in so)
-        # perm = tuple(range(ndim - n_leg_rows, ndim)) + tuple(range(ndim - n_leg_rows))
-        # axis_rep = self._axis_reps.conj()[perm]
-        # and no need for specialization  => too heavy for python
-        blocks = tuple(b.T for b in self._blocks)
-        axis_reps = tuple(
-            self._axis_reps[i]
-            for i in range(self._n_leg_rows - self._ndim, self._n_leg_rows)
-        )
-        return type(self)(
-            axis_reps, self._ndim - self._n_leg_rows, blocks, self._block_irreps
-        )
-
     def __add__(self, other):
         assert type(other) == type(self), "Mixing incompatible types"
         assert (
@@ -120,11 +95,31 @@ class SymmetricTensor(object):
         blocks = tuple(-b for b in self._blocks)
         return type(self)(self._axis_reps, self._n_leg_rows, blocks, self._block_irreps)
 
+    # symmetry-specific methods with fixed signature
     def toarray(self):
-        return NotImplemented  # symmetry dependant
+        return NotImplemented
 
-    def transpose(self, axes, n_leg_rows):
-        return NotImplemented  # symmetry dependant
+    @property
+    def T(self):
+        # Transpose the matrix representation of the tensor, ie swap rows and columns
+        # and transpose diagonal blocks, without any data move or copy. Irreps need to
+        # be conjugate since row (bra) and columns (ket) are swapped. This may change
+        # block order, which must stay sorted, so it is non-trivial. Since this is group
+        # dependent, it cannot be implemented as a generic.
+
+        # other solution: have irreps object supporting < and conjugate
+        # then one can have
+        # block_irreps = self._block_irreps.conj()
+        # so = block_irreps.argsort()
+        # block_irreps = block_irreps[so]
+        # blocks = tuple(self._blocks[i].T for i in so)
+        # perm = tuple(range(ndim - n_leg_rows, ndim)) + tuple(range(ndim - n_leg_rows))
+        # axis_rep = self._axis_reps.conj()[perm]
+        # and no need for specialization  => too heavy for python
+        return NotImplemented
+
+    def permutate(self, axes, n_leg_rows):  # signature != ndarray.transpose
+        return NotImplemented
 
     def __matmul__(self, other):
         # requires __lt__ to be defined for irreps
@@ -241,7 +236,7 @@ class AsymmetricTensor(SymmetricTensor):
     def toarray(self):
         return self._blocks[0].reshape(self._shape)
 
-    def transpose(self, axes, n_leg_rows):
+    def permutate(self, axes, n_leg_rows):
         new_shape = tuple(self._shape[i] for i in axes)
         new_matrix_shape = (
             np.prod(new_shape[: self._n_leg_rows]),
@@ -355,7 +350,7 @@ class U1_SymmetricTensor(AbelianSymmetricTensor):
             block_irreps,
         )
 
-    def transpose(self, axes, n_leg_rows):
+    def permutate(self, axes, n_leg_rows):
         # cast to dense to reshape.
         ar = self.toarray().transpose(axes)
         axis_reps = tuple(self._axis_reps[i] for i in axes)
