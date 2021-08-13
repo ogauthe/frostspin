@@ -7,6 +7,14 @@ from misc_tools.svd_tools import sparse_svd
 import AbelianRepresentation
 
 
+# choices are made to make code light and fast:
+# irreps are labelled by integers (non-simple groups need another class using lexsort)
+# axes are grouped into either row or colum axes to define block-diagonal matrices
+# coefficients are stored as dense blocks corresponding to irreps
+# blocks are always sorted according to irreps
+# blocks are tuple of contiguous F or C arrays (numba)
+
+
 class SymmetricTensor(object):
     """
     Generic base class to deal with symmetric tensors. Defines interface that can be
@@ -32,6 +40,7 @@ class SymmetricTensor(object):
         assert self._nblocks > 0
         assert 0 < n_leg_rows < self._ndim
         assert len(block_irreps) == self._nblocks
+        assert sorted(block_irreps) == list(block_irreps)
 
     @property
     def nblocks(self):
