@@ -58,13 +58,13 @@ class AbelianRepresentation(object):
         )
 
     # define interface for subclasses
+    def conjugate(self):  # conjugate representation
+        return NotImplemented
+
     def __add__(self, other):  # sum of 2 representations
         return NotImplemented
 
     def __mul__(self, other):  # product of 2 representations
-        return NotImplemented
-
-    def conjugate(self):  # conjugate representation
         return NotImplemented
 
     @classmethod  # product of several representation
