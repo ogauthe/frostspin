@@ -89,7 +89,9 @@ class SymmetricTensor(object):
         return type(self)(self._axis_reps, self._n_leg_rows, blocks, self._block_irreps)
 
     def __mul__(self, x):
-        return NotImplemented
+        assert np.isscalar(x) or x.size == 1
+        blocks = tuple(x * b for b in self._blocks)
+        return type(self)(self._axis_reps, self._n_leg_rows, blocks, self._block_irreps)
 
     def __rmul__(self, x):
         return self * x
@@ -112,27 +114,16 @@ class SymmetricTensor(object):
     def T(self):
         # Transpose the matrix representation of the tensor, ie swap rows and columns
         # and transpose diagonal blocks, without any data move or copy. Irreps need to
-        # be conjugate since row (bra) and columns (ket) are swapped. This may change
-        # block order, which must stay sorted, so it is non-trivial. Since this is group
-        # dependent, it cannot be implemented as a generic.
-
-        # other solution: have irreps object supporting < and conjugate
-        # then one can have
-        # block_irreps = self._block_irreps.conj()
-        # so = block_irreps.argsort()
-        # block_irreps = block_irreps[so]
-        # blocks = tuple(self._blocks[i].T for i in so)
-        # perm = tuple(range(ndim - n_leg_rows, ndim)) + tuple(range(ndim - n_leg_rows))
-        # axis_rep = self._axis_reps.conj()[perm]
-        # and no need for specialization  => too heavy for python
+        # be conjugate since row (bra) and columns (ket) are swapped. Since irreps are
+        # just integers, conjugation is not possible outside of Representation type.
+        # This operation is therefore group-specific and cannot be implemented here.
         return NotImplemented
 
     def permutate(self, axes, n_leg_rows):  # signature != ndarray.transpose
         return NotImplemented
 
     def __matmul__(self, other):
-        # requires __lt__ to be defined for irreps
-        # do not construct empty blocks: those will be missing
+        # do not construct empty blocks: those will be missing TODO: change this
         assert (
             self._axis_irreps[self._n_leg_rows :]
             == other._axis_irreps[: other._n_leg_rows]
@@ -164,6 +155,7 @@ class SymmetricTensor(object):
         Compute block-wise SVD of self and keep only cut largest singular values. Do not
         truncate if cut is not provided. Keep only values larger than rcutoff * max(sv).
         """
+        # TODO: use find_chi_largest from master
         block_u = [None] * self._nblocks
         block_s = [None] * self._nblocks
         block_v = [None] * self._nblocks
