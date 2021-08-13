@@ -10,7 +10,7 @@ class AbelianRepresentation(object):
     without defining a common Representation base class.
     """
 
-    _symmetry = NotImplemented
+    _symmetry = NotImplemented  # string to label symmetry group
 
     def __init__(self, degen, irreps):
         """
@@ -19,9 +19,9 @@ class AbelianRepresentation(object):
         Parameters
         ----------
         degen : integer array
-            Degeneracy of given irreps
+            Degeneracy of given irreps.
         irreps : integer array
-            Irreps of the symmetry groups are designed by integers.
+            Irreps of the symmetry group, labeled by integers.
         """
         assert degen.shape == irreps.shape == (degen.size,)
         assert degen.any()  # finite groups => easier to allow zeros
@@ -50,14 +50,25 @@ class AbelianRepresentation(object):
         return self._n_irr
 
     def __eq__(self, other):
-        assert self._symmetry == other._symmetry
-        return self._n_irr == other._n_irr and (self._degen == other._degen).all()
+        assert type(self) == type(other)
+        return (
+            self._n_irr == other._n_irr
+            and (self._irreps == other._irreps).all()
+            and (self._degen == other._degen).all()
+        )
 
-    def conjugate(self):
+    # define interface for subclasses
+    def __add__(self, other):  # sum of 2 representations
         return NotImplemented
 
-    @classmethod
-    def combine_irreps(cls, *irreps):
+    def __mul__(self, other):  # product of 2 representations
+        return NotImplemented
+
+    def conjugate(self):  # conjugate representation
+        return NotImplemented
+
+    @classmethod  # product of several representation
+    def combine_representations(cls, *reps):
         return NotImplemented
 
 
@@ -68,7 +79,7 @@ class FiniteGroupAbelianRepresentation(AbelianRepresentation):
     _irreps = NotImplemented  # class member
     _n_irr = NotImplemented  # class member
 
-    def __init__(self, degen, irreps=None):
+    def __init__(self, degen, irreps=None):  # keep irreps for parent compatibility
         assert np.issubdtype(degen.dtype, np.integer)
         assert irreps is None or (irreps == self._irreps).all()
         self._degen = degen
@@ -81,7 +92,7 @@ class FiniteGroupAbelianRepresentation(AbelianRepresentation):
 
 class AsymRepresentation(FiniteGroupAbelianRepresentation):
     _symmetry = "{e}"
-    _irreps = np.zeros(1, dtype=np.int8)
+    _irreps = np.zeros((1,), dtype=np.int8)
     _n_irr = 1
 
     def conjugate(self):
@@ -90,6 +101,10 @@ class AsymRepresentation(FiniteGroupAbelianRepresentation):
     def __mul__(self, other):
         assert other._symmetry == "{e}"
         return AsymRepresentation(self._degen * other._degen)
+
+    @classmethod
+    def combine_representations(cls, *reps):
+        return AsymRepresentation(np.product([rep._degen for rep in reps]))
 
 
 class Z2_Representation(FiniteGroupAbelianRepresentation):
