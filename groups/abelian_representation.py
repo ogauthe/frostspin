@@ -24,7 +24,7 @@ class AbelianRepresentation(object):
             Irreps of the symmetry groups are designed by integers.
         """
         assert degen.shape == irreps.shape == (degen.size,)
-        assert degen.all()
+        assert degen.any()  # finite groups => easier to allow zeros
         assert (irreps.argsort() == np.arange(irreps.size)).all()
         assert np.issubdtype(degen.dtype, np.integer)
         assert np.issubdtype(irreps.dtype, np.integer)
@@ -62,6 +62,8 @@ class AbelianRepresentation(object):
 
 
 class FiniteGroupAbelianRepresentation(AbelianRepresentation):
+    # for finite groups, keeping all irreps and allowing 0 as degen is much simpler.
+    # However, __init__ must keep its signature to be used in SymmetricTensor.
     _symmetry = NotImplemented
     _irreps = NotImplemented  # class member
     _n_irr = NotImplemented  # class member
@@ -91,8 +93,6 @@ class AsymRepresentation(FiniteGroupAbelianRepresentation):
 
 
 class Z2_Representation(FiniteGroupAbelianRepresentation):
-    # for finite groups, keeping all irreps and allowing 0 as degen is much simpler.
-    # However, __init__ must keep its signature to be used in SymmetricTensor.
     _symmetry = "Z2"
     _irreps = np.array([0, 1], dtype=np.int8)
     _n_irr = 2
