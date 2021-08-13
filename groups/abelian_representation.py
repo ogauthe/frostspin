@@ -135,11 +135,11 @@ class U1_Representation(AbelianRepresentation):
     def __mul__(self, other):
         irrmin = self._irreps[0] + other._irreps[0]
         irrmax = self._irreps[-1] + other._irreps[-1]
-        degen = np.zeros((irrmax - irrmin + 1,))
+        degen = np.zeros((irrmax - irrmin + 1,), dtype=int)
         for d1, irr1 in zip(self._degen, self._irreps):
             for d2, irr2 in zip(other._degen, other._irreps):
                 degen[irr1 + irr2 - irrmin] += d1 * d2
         irreps = degen.nonzero()[0]
         degen = np.ascontiguousarray(degen[irreps])
-        irreps += irrmin
+        irreps = (irreps + irrmin).astype(np.int8)
         return U1_Representation(degen, irreps)
