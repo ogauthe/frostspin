@@ -239,12 +239,8 @@ class AsymmetricTensor(SymmetricTensor):
         return self._blocks[0].reshape(self._shape)
 
     def permutate(self, axes, n_leg_rows):
-        assert sorted(axes) == list(range(self._ndim))
-        axis_reps = tuple(self._axis_reps[i] for i in axes)
-        sh = np.array([self._shape[i] for i in axes])
-        mat_sh = (sh[:n_leg_rows].prod(), sh[n_leg_rows:].prod())
-        block = self._blocks[0].reshape(self._shape).transpose(axes).reshape(mat_sh)
-        return AsymmetricTensor(axis_reps, n_leg_rows, (block,), self._blocks_irreps)
+        arr = self._blocks[0].reshape(self._shape).transpose(axes)
+        return AsymmetricTensor.from_dense(arr, n_leg_rows)
 
 
 class AbelianSymmetricTensor(SymmetricTensor):
