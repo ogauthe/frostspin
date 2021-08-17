@@ -1,4 +1,5 @@
-# import bisect
+import operator
+import functools
 
 import numpy as np
 
@@ -57,6 +58,9 @@ class AbelianRepresentation(object):
             and (self._degen == other._degen).all()
         )
 
+    def __repr__(self):
+        return " + ".join(f"{d}*{irr}" for (d, irr) in zip(self._degen, self._irreps))
+
     # define interface for subclasses
     def conjugate(self):  # conjugate representation
         return NotImplemented
@@ -68,8 +72,8 @@ class AbelianRepresentation(object):
         return NotImplemented
 
     @classmethod  # product of several representation
-    def combine_representations(cls, *reps):
-        return NotImplemented
+    def combine_representations(cls, *reps):  # naive implementation
+        return functools.reduce(operator.mul, reps)
 
 
 class FiniteGroupAbelianRepresentation(AbelianRepresentation):
@@ -104,7 +108,8 @@ class AsymRepresentation(FiniteGroupAbelianRepresentation):
 
     @classmethod
     def combine_representations(cls, *reps):
-        return AsymRepresentation(np.product([rep._degen for rep in reps]))
+        dim = functools.reduce(operator.mul, [r.dim for r in reps])
+        return AsymRepresentation(np.array([dim]))
 
 
 class Z2_Representation(FiniteGroupAbelianRepresentation):
