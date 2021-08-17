@@ -106,6 +106,16 @@ class SymmetricTensor(object):
         blocks = tuple(-b for b in self._blocks)
         return type(self)(self._axis_reps, self._n_leg_rows, blocks, self._block_irreps)
 
+    def get_row_representation(self):
+        return self._symmetry.combine_representations(
+            *self._axis_reps[: self._n_leg_rows]
+        )
+
+    def get_column_representation(self):
+        return self._symmetry.combine_representations(
+            *self._axis_reps[: self._n_leg_rows]
+        )
+
     # symmetry-specific methods with fixed signature
     def toarray(self):
         return NotImplemented
