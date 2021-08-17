@@ -153,7 +153,7 @@ class SymmetricTensor(object):
             else:
                 i2 += 1
 
-        block_irreps = tuple(self._block_irreps)
+        block_irreps = tuple(block_irreps)
         axis_reps = (
             self._axis_reps[: self._n_leg_rows]
             + other._axis_irreps[other._n_leg_rows :]
@@ -232,6 +232,10 @@ class SymmetricTensor(object):
 
 
 class AsymmetricTensor(SymmetricTensor):
+    """
+    Tensor with no symmetry, mostly for debug and benchmarks purposes.
+    """
+
     _symmetry = AsymRepresentation
     _blocks_irreps = (np.zeros((1,), dtype=np.int8),)
 
