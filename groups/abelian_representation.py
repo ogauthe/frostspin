@@ -3,6 +3,8 @@ import functools
 
 import numpy as np
 
+from groups.toolsU1 import combine_colors
+
 
 class AbelianRepresentation(object):
     """
@@ -61,6 +63,13 @@ class AbelianRepresentation(object):
     def __repr__(self):
         return " + ".join(f"{d}*{irr}" for (d, irr) in zip(self._degen, self._irreps))
 
+    def to_irreps_array(self):
+        irreps_array = np.empty((self._dim,), dtype=np.int8)
+        k = 0
+        for (d, irr) in zip(self._degen, self._irreps):
+            irreps_array[k, k + d] = irr
+        return irreps_array
+
     # define interface for subclasses
     def conjugate(self):  # conjugate representation
         return NotImplemented
@@ -71,9 +80,13 @@ class AbelianRepresentation(object):
     def __mul__(self, other):  # product of 2 representations
         return NotImplemented
 
-    @classmethod  # product of several representation
-    def combine_representations(cls, *reps):  # naive implementation
-        return functools.reduce(operator.mul, reps)
+    @classmethod
+    def combine_representations(cls, *reps):  # product of several representations
+        return functools.reduce(operator.mul, reps)  # naive implementation
+
+    @classmethod
+    def combine_irreps_array(cls, reps):
+        return NotImplemented
 
 
 class FiniteGroupAbelianRepresentation(AbelianRepresentation):
@@ -148,3 +161,8 @@ class U1_Representation(AbelianRepresentation):
         degen = np.ascontiguousarray(degen[irreps])
         irreps = (irreps + irrmin).astype(np.int8)
         return U1_Representation(degen, irreps)
+
+    @classmethod
+    def combine_irreps_array(cls, reps):
+        irreps_array = tuple(r.to_irreps_array() for r in reps)
+        return combine_colors(*irreps_array)
