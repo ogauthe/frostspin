@@ -1,7 +1,7 @@
-import bisect
-
 import numpy as np
 import scipy.linalg as lg
+import numba
+from numba import literal_unroll  # numba issue #5344
 
 from misc_tools.svd_tools import sparse_svd
 from groups.abelian_representation import AsymRepresentation, U1_Representation
@@ -115,6 +115,14 @@ class SymmetricTensor(object):
         return self._symmetry.combine_representations(
             *self._axis_reps[: self._n_leg_rows]
         )
+
+    def is_heteregeneous(self):
+        # blocks may be a numba heterogeneous tuple because a size 1 matrix stays
+        # C-contiguous after tranpose and will be cast to numba array(float64, 2d, C),
+        # while any larger matrix will be cast to array(float64, 2d, F).
+        # see https://github.com/numba/numba/issues/5967
+        c_contiguous = [b.flags.c_contiguous for b in self._blocks]
+        return min(c_contiguous) ^ max(c_contiguous)
 
     # symmetry-specific methods with fixed signature
     def toarray(self):
@@ -266,90 +274,115 @@ class AsymmetricTensor(SymmetricTensor):
         )
 
 
+@numba.njit(parallel=True)
+def fill_block(M, ri, ci):
+    m = np.empty((ri.size, ci.size), dtype=M.dtype)
+    for i in numba.prange(ri.size):
+        for j in numba.prange(ci.size):
+            m[i, j] = M[ri[i], ci[j]]
+    return m
+
+
+@numba.njit
+def numba_reduce_to_blocks(M, n_leg_rows, row_irreps, col_irreps):
+    row_sort = row_irreps.argsort(kind="mergesort")
+    sorted_row_irreps = row_irreps[row_sort]
+    col_sort = col_irreps.argsort(kind="mergesort")
+    sorted_col_irreps = col_irreps[col_sort]
+    row_blocks = (
+        [0]
+        + list((sorted_row_irreps[:-1] != sorted_row_irreps[1:]).nonzero()[0] + 1)
+        + [row_irreps.size]
+    )
+    col_blocks = (
+        [0]
+        + list((sorted_col_irreps[:-1] != sorted_col_irreps[1:]).nonzero()[0] + 1)
+        + [col_irreps.size]
+    )
+
+    blocks = []
+    block_irreps = []
+    rbi, cbi, rbimax, cbimax = 0, 0, len(row_blocks) - 1, len(col_blocks) - 1
+    while rbi < rbimax and cbi < cbimax:
+        if sorted_row_irreps[row_blocks[rbi]] == sorted_col_irreps[col_blocks[cbi]]:
+            ri = row_sort[row_blocks[rbi] : row_blocks[rbi + 1]]
+            ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]]
+            m = fill_block(M, ri, ci)  # parallel
+            blocks.append(m)
+            block_irreps.append(sorted_row_irreps[row_blocks[rbi]])
+            rbi += 1
+            cbi += 1
+        elif sorted_row_irreps[row_blocks[rbi]] < sorted_col_irreps[col_blocks[cbi]]:
+            rbi += 1
+        else:
+            cbi += 1
+    return blocks, block_irreps
+
+
+@numba.njit
+def heterogeneous_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irreps):
+    # tedious dealing with heterogeneous tuple: cannot parallelize, enum or getitem
+    bi = 0
+    for b in literal_unroll(blocks):
+        row_indices = (row_irreps == block_irreps[bi]).nonzero()[0]
+        col_indices = (col_irreps == block_irreps[bi]).nonzero()[0]
+        for i, ri in enumerate(row_indices[bi]):
+            for j, cj in enumerate(col_indices[bi]):
+                M[ri, cj] = b[i, j]
+        bi += 1
+
+
+@numba.njit(parallel=True)
+def homogeneous_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irreps):
+    # when blocks is homogeneous, loops are simple and can be parallelized
+    for bi in numba.prange(len(blocks)):
+        row_indices = (row_irreps == block_irreps[bi]).nonzero()[0]
+        col_indices = (col_irreps == block_irreps[bi]).nonzero()[0]
+        for i in numba.prange(row_indices[bi].size):
+            for j in numba.prange(col_indices[bi].size):
+                M[row_indices[bi][i], col_indices[bi][j]] = blocks[bi][i, j]
+
+
 class AbelianSymmetricTensor(SymmetricTensor):
     @classmethod
     def from_dense(cls, arr, axis_reps, n_leg_rows):
         assert arr.shape == tuple(rep.dim for rep in axis_reps)
-        mat_sh = (np.prod(arr.shape[:n_leg_rows]), np.prod(arr.shape[n_leg_rows:]))
-        row_irreps = cls._symmetry.combine_representations(*axis_reps[:n_leg_rows])
-        col_irreps = cls._symmetry.combine_representations(*axis_reps[n_leg_rows:])
-        row_sort = row_irreps.argsort(kind="mergesort")
-        sorted_row_irreps = row_irreps[row_sort]
-        col_sort = col_irreps.argsort(kind="mergesort")
-        sorted_col_irreps = col_irreps[col_sort]
-        row_blocks = (
-            [0]
-            + list((sorted_row_irreps[:-1] != sorted_row_irreps[1:]).nonzero()[0] + 1)
-            + [mat_sh[0]]
-        )
-        col_blocks = (
-            [0]
-            + list((sorted_col_irreps[:-1] != sorted_col_irreps[1:]).nonzero()[0] + 1)
-            + [mat_sh[1]]
-        )
+        # it is not possible to just combine representations on row and columns:
+        # we need information on color location, which is lost in combine with its
+        # automatic sort.
+        row_irreps = cls._symmetry.combine_irreps_array(*axis_reps[:n_leg_rows])
+        col_irreps = cls._symmetry.combine_irreps_array(*axis_reps[n_leg_rows:])
 
-        blocks = []
-        block_irreps = []
-        rbi, cbi, rbimax, cbimax = 0, 0, len(row_blocks) - 1, len(col_blocks) - 1
-        m = arr.reshape(mat_sh)
-        while rbi < rbimax and cbi < cbimax:
-            if sorted_row_irreps[row_blocks[rbi]] == sorted_col_irreps[col_blocks[cbi]]:
-                ri = row_sort[row_blocks[rbi] : row_blocks[rbi + 1]]
-                ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]]
-                blocks.append(np.ascontiguousarray(m[ri[:, None], ci]))
-                block_irreps.append(sorted_row_irreps[row_blocks[rbi]])
-                rbi += 1
-                cbi += 1
-            elif (
-                sorted_row_irreps[row_blocks[rbi]] < sorted_col_irreps[col_blocks[cbi]]
-            ):
-                rbi += 1
-            else:
-                cbi += 1
+        # requires copy if arr is not contiguous TODO test and avoid copy if not
+        M = arr.reshape(row_irreps.size, col_irreps.size)
+        blocks, block_irreps = numba_reduce_to_blocks(M, row_irreps, col_irreps)
         return cls(axis_reps, n_leg_rows, blocks, block_irreps)
 
-    def get_row_representation(self):
-        return self._symmetry.combine_representations(
+    def toarray(self):  # numba wrapper
+        row_irreps = self._symmetry.combine_irreps_array(
             *self._axis_reps[: self._n_leg_rows]
         )
-
-    def get_column_representation(self):
-        return self._symmetry.combine_representations(
-            *self._axis_reps[: self._n_leg_rows]
+        col_irreps = self._symmetry.combine_irreps_array(
+            *self._axis_reps[self._n_leg_rows :]
         )
+        M = np.zeros(self.matrix_shape)
+        if self.is_heteregeneous():  # TODO treat separatly size 1 + call homogeneous
+            heterogeneous_blocks_to_array(
+                M, self._blocks, self._block_irreps, row_irreps, col_irreps
+            )
+        else:
+            homogeneous_blocks_to_array(
+                M, self._blocks, self._block_irreps, row_irreps, col_irreps
+            )
+        return M.reshape(self._shape)
 
-    def toarray(self):
-        # cumbersome dealing with absent blocks
-        row_irreps = self._symmetry.combine_raw_irreps(
-            *(rep.irreps for rep in self._axis_reps[: self._n_leg_rows])
-        )
-        col_irreps = self._symmetry.combine_raw_irreps(
-            *(rep.irreps for rep in self._axis_reps[self._n_leg_rows :])
-        )
-        allowed_irreps = sorted(set(row_irreps).intersect(col_irreps))
-        ar = np.zeros(self.matrix_shape)
-        i, j = 0, 0
-        for irr in allowed_irreps:
-            k = bisect.bisect_left(self._block_irreps, irr)
-            if k < self._nblocks and self._block_irreps[k] == irr:
-                b = self._blocks[k]
-                assert b.shape[0] == (row_irreps == irr).sum()
-                assert b.shape[1] == (col_irreps == irr).sum()
-                ar[i : i + b.shape[0], j : j + b.shape[1]] = b
-                i += b.shape[0]
-                j += b.shape[1]
-            else:
-                i += (row_irreps == irr).sum()
-                j += (col_irreps == irr).sum()
-
-        row_perm = row_irreps.argsort(
-            kind="stable"
-        ).argsort()  # reverse from_dense permutation
-        col_perm = col_irreps.argsort(
-            kind="stable"
-        ).argsort()  # reverse from_dense permutation
-        ar = ar[row_perm[:, None], col_perm[:, None]]
-        return ar.reshape(self._shape)
+    def permutate(self, axes, n_leg_rows):
+        assert sorted(axes) == list(range(self.ndim))
+        # cast to dense to reshape, transpose to get non-contiguous, then call
+        # from_dense
+        a = self.toarray().transpose(axes)
+        axis_reps = tuple(self._axis_reps[i] for i in axes)
+        return type(self).from_dense(a, axis_reps, n_leg_rows)
 
 
 class U1_SymmetricTensor(AbelianSymmetricTensor):
@@ -357,8 +390,7 @@ class U1_SymmetricTensor(AbelianSymmetricTensor):
 
     @property
     def T(self):
-        # arrows on axes are swapped, meanning representations get conjugated
-        # Colors need to stay sorted for __matmul__, so reverse all block-related lists.
+        # U(1) conjugation = change irrep signs => reverse all tuples
         blocks = tuple(b.T for b in reversed(self._blocks))
         block_irreps = -self._block_irreps[::-1]
         axis_reps = tuple(
@@ -368,9 +400,3 @@ class U1_SymmetricTensor(AbelianSymmetricTensor):
         return U1_SymmetricTensor(
             axis_reps, self._ndim - self._n_leg_rows, blocks, block_irreps
         )
-
-    def permutate(self, axes, n_leg_rows):
-        # cast to dense to reshape.
-        ar = self.toarray().transpose(axes)
-        axis_reps = tuple(self._axis_reps[i] for i in axes)
-        return U1_SymmetricTensor.from_dense(ar, axis_reps, n_leg_rows)
