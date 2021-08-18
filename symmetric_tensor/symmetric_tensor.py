@@ -34,8 +34,8 @@ class SymmetricTensor(object):
         self._shape = tuple(rep.dim for rep in axis_reps)
         self._ndim = len(axis_reps)
         self._nblocks = len(blocks)
-        self._blocks = blocks  # tuple
-        self._block_irreps = block_irreps  # integer ndarray
+        self._blocks = tuple(blocks)
+        self._block_irreps = tuple(block_irreps)
         self._nnz = sum(b.size for b in blocks)
         assert self._nblocks > 0
         assert 0 < n_leg_rows < self._ndim
@@ -244,8 +244,10 @@ class AsymmetricTensor(SymmetricTensor):
     Tensor with no symmetry, mostly for debug and benchmarks purposes.
     """
 
+    # not a subclass of AbelianSymmetricTensor
+
     _symmetry = AsymRepresentation
-    _blocks_irreps = (np.zeros((1,), dtype=np.int8),)
+    _block_irreps = (np.zeros((1,), dtype=np.int8),)
 
     @classmethod
     def from_dense(cls, arr, n_leg_rows):
@@ -284,7 +286,7 @@ def fill_block(M, ri, ci):
 
 
 @numba.njit
-def numba_reduce_to_blocks(M, n_leg_rows, row_irreps, col_irreps):
+def numba_reduce_to_blocks(M, row_irreps, col_irreps):
     row_sort = row_irreps.argsort(kind="mergesort")
     sorted_row_irreps = row_irreps[row_sort]
     col_sort = col_irreps.argsort(kind="mergesort")
@@ -326,8 +328,8 @@ def heterogeneous_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irrep
     for b in literal_unroll(blocks):
         row_indices = (row_irreps == block_irreps[bi]).nonzero()[0]
         col_indices = (col_irreps == block_irreps[bi]).nonzero()[0]
-        for i, ri in enumerate(row_indices[bi]):
-            for j, cj in enumerate(col_indices[bi]):
+        for i, ri in enumerate(row_indices):
+            for j, cj in enumerate(col_indices):
                 M[ri, cj] = b[i, j]
         bi += 1
 
@@ -338,9 +340,9 @@ def homogeneous_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irreps)
     for bi in numba.prange(len(blocks)):
         row_indices = (row_irreps == block_irreps[bi]).nonzero()[0]
         col_indices = (col_irreps == block_irreps[bi]).nonzero()[0]
-        for i in numba.prange(row_indices[bi].size):
-            for j in numba.prange(col_indices[bi].size):
-                M[row_indices[bi][i], col_indices[bi][j]] = blocks[bi][i, j]
+        for i in numba.prange(row_indices.size):
+            for j in numba.prange(col_indices.size):
+                M[row_indices[i], col_indices[j]] = blocks[bi][i, j]
 
 
 class AbelianSymmetricTensor(SymmetricTensor):
@@ -365,7 +367,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
         col_irreps = self._symmetry.combine_irreps_array(
             *self._axis_reps[self._n_leg_rows :]
         )
-        M = np.zeros(self.matrix_shape)
+        M = np.zeros(self.matrix_shape, dtype=self.dtype)
         if self.is_heteregeneous():  # TODO treat separatly size 1 + call homogeneous
             heterogeneous_blocks_to_array(
                 M, self._blocks, self._block_irreps, row_irreps, col_irreps

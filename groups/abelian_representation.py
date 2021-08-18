@@ -67,7 +67,8 @@ class AbelianRepresentation(object):
         irreps_array = np.empty((self._dim,), dtype=np.int8)
         k = 0
         for (d, irr) in zip(self._degen, self._irreps):
-            irreps_array[k, k + d] = irr
+            irreps_array[k : k + d] = irr
+            k += d
         return irreps_array
 
     # define interface for subclasses
@@ -163,6 +164,6 @@ class U1_Representation(AbelianRepresentation):
         return U1_Representation(degen, irreps)
 
     @classmethod
-    def combine_irreps_array(cls, reps):
+    def combine_irreps_array(cls, *reps):
         irreps_array = tuple(r.to_irreps_array() for r in reps)
         return combine_colors(*irreps_array)
