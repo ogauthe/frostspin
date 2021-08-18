@@ -256,6 +256,15 @@ class AsymmetricTensor(SymmetricTensor):
         arr = self._blocks[0].reshape(self._shape).transpose(axes)
         return AsymmetricTensor.from_dense(arr, n_leg_rows)
 
+    @property
+    def T(self):
+        return AsymmetricTensor(
+            self._axis_reps[self._n_leg_rows :] + self._axis_reps[: self._n_leg_rows],
+            self._ndim - self._n_leg_rows,
+            (self._blocks[0].T,),
+            self._block_irreps,
+        )
+
 
 class AbelianSymmetricTensor(SymmetricTensor):
     @classmethod
