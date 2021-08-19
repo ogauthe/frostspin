@@ -4,7 +4,6 @@ import numba
 from numba import literal_unroll  # numba issue #5344
 
 from misc_tools.svd_tools import sparse_svd
-from groups.abelian_representation import AsymRepresentation, U1_Representation
 
 
 # choices are made to make code light and fast:
@@ -28,10 +27,27 @@ class SymmetricTensor(object):
 
     _symmetry = NotImplemented
 
+    # need to define those methods to deal with symmetries
+    @classmethod
+    def combine_representations(cls, *reps):
+        return NotImplemented
+
+    @classmethod
+    def conjugate_representation(cls, rep):
+        return NotImplemented
+
+    @classmethod
+    def init_representation(cls, degen, irreps):
+        return NotImplemented
+
+    @classmethod
+    def representation_dimension(cls, rep):
+        return NotImplemented
+
     def __init__(self, axis_reps, n_leg_rows, blocks, block_irreps):
-        self._axis_reps = axis_reps  # tuple
+        self._axis_reps = axis_reps  # tuple of representation
         self._n_leg_rows = n_leg_rows  # int
-        self._shape = tuple(rep.dim for rep in axis_reps)
+        self._shape = tuple(self.representation_dimension(rep) for rep in axis_reps)
         self._ndim = len(axis_reps)
         self._nblocks = len(blocks)
         self._blocks = tuple(blocks)
@@ -79,12 +95,8 @@ class SymmetricTensor(object):
 
     def __add__(self, other):
         assert type(other) == type(self), "Mixing incompatible types"
-        assert (
-            self._axis_reps == other._axis_reps
-        ), "SymmetricTensors have non-compatible axes"
-        assert (
-            self._n_row_legs == other._n_row_legs
-        ), "SymmetricTensors have non-compatible fusion trees"
+        assert self._shape == other._shape, "Mixing incompatible axes"
+        assert self._n_row_legs == other._n_row_legs, "Mixing incompatible fusion trees"
         blocks = tuple(b1 + b2 for (b1, b2) in zip(self._blocks, other._blocks))
         return type(self)(self._axis_reps, self._n_leg_rows, blocks, self._block_irreps)
 
@@ -107,14 +119,10 @@ class SymmetricTensor(object):
         return type(self)(self._axis_reps, self._n_leg_rows, blocks, self._block_irreps)
 
     def get_row_representation(self):
-        return self._symmetry.combine_representations(
-            *self._axis_reps[: self._n_leg_rows]
-        )
+        return self.combine_representations(*self._axis_reps[: self._n_leg_rows])
 
     def get_column_representation(self):
-        return self._symmetry.combine_representations(
-            *self._axis_reps[: self._n_leg_rows]
-        )
+        return self.combine_representations(*self._axis_reps[: self._n_leg_rows])
 
     def is_heteregeneous(self):
         # blocks may be a numba heterogeneous tuple because a size 1 matrix stays
@@ -245,19 +253,34 @@ class AsymmetricTensor(SymmetricTensor):
     """
 
     # not a subclass of AbelianSymmetricTensor
+    # representation is just an integer corresponding to the dimension
+    _symmetry = "{e}"
 
-    _symmetry = AsymRepresentation
-    _block_irreps = np.zeros((1,), dtype=np.int8)
+    @classmethod
+    def combine_representations(cls, *reps):
+        return np.prod([r for r in reps])
+
+    @classmethod
+    def conjugate_representation(cls, rep):
+        return rep
+
+    @classmethod
+    def init_representation(cls, degen, irreps):
+        return degen
+
+    @classmethod
+    def representation_dimension(cls, rep):
+        return rep
 
     @classmethod
     def from_dense(cls, arr, n_leg_rows):
-        axis_reps = tuple(AsymRepresentation(np.array([d])) for d in arr.shape)
+        axis_reps = np.array(arr.shape)
         matrix_shape = (
             np.prod(arr.shape[:n_leg_rows]),
             np.prod(arr.shape[n_leg_rows:]),
         )
         block = arr.reshape(matrix_shape)
-        return cls(axis_reps, n_leg_rows, (block,), cls._block_irreps)
+        return cls(axis_reps, n_leg_rows, (block,), np.zeros((1,), dtype=np.int8))
 
     def toarray(self):
         return self._blocks[0].reshape(self._shape)
@@ -348,14 +371,17 @@ def homogeneous_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irreps)
 
 class AbelianSymmetricTensor(SymmetricTensor):
     @classmethod
+    def representation_dimension(cls, rep):
+        return rep.shape[0]
+
+    @classmethod
     def from_dense(cls, arr, axis_reps, n_leg_rows):
-        assert arr.shape == tuple(rep.dim for rep in axis_reps)
-        # it is not possible to just combine representations on row and columns:
-        # we need information on color location, which is lost in combine with its
-        # automatic sort.
-        row_irreps = cls._symmetry.combine_irreps_array(*axis_reps[:n_leg_rows])
-        col_irreps = cls._symmetry.combine_irreps_array(
-            *(r.conjugate() for r in axis_reps[n_leg_rows:])
+        assert arr.shape == tuple(
+            cls.representation_dimension(rep) for rep in axis_reps
+        )
+        row_irreps = cls.combine_representations(*axis_reps[:n_leg_rows])
+        col_irreps = cls.combine_representations(
+            *(cls.conjugate_representation(r) for r in axis_reps[n_leg_rows:])
         )
 
         # requires copy if arr is not contiguous TODO test and avoid copy if not
@@ -363,12 +389,13 @@ class AbelianSymmetricTensor(SymmetricTensor):
         blocks, block_irreps = numba_reduce_to_blocks(M, row_irreps, col_irreps)
         return cls(axis_reps, n_leg_rows, blocks, block_irreps)
 
-    def toarray(self):  # numba wrapper
-        row_irreps = self._symmetry.combine_irreps_array(
-            *self._axis_reps[: self._n_leg_rows]
-        )
-        col_irreps = self._symmetry.combine_irreps_array(
-            *(r.conjugate() for r in self._axis_reps[self._n_leg_rows :])
+    def toarray(self):
+        row_irreps = self.combine_representations(*self._axis_reps[: self._n_leg_rows])
+        col_irreps = self.combine_representations(
+            *(
+                self.conjugate_representation(r)
+                for r in self._axis_reps[self._n_leg_rows :]
+            )
         )
         M = np.zeros(self.matrix_shape, dtype=self.dtype)
         if self.is_heteregeneous():  # TODO treat separatly size 1 + call homogeneous
@@ -389,17 +416,43 @@ class AbelianSymmetricTensor(SymmetricTensor):
         axis_reps = tuple(self._axis_reps[i] for i in axes)
         return type(self).from_dense(a, axis_reps, n_leg_rows)
 
-
-class U1_SymmetricTensor(AbelianSymmetricTensor):
-    _symmetry = U1_Representation
-
     @property
     def T(self):
-        # U(1) conjugation = change irrep signs => reverse all tuples
-        blocks = tuple(b.T for b in reversed(self._blocks))
-        block_irreps = -self._block_irreps[::-1]
         n_legs = self._ndim - self._n_leg_rows
-        axis_reps = tuple(
-            self._axis_reps[i].conjugate() for i in range(-n_legs, self._n_leg_rows)
-        )
-        return U1_SymmetricTensor(axis_reps, n_legs, blocks, block_irreps)
+        conj_irreps = self.conjugate_representation(self._block_irreps)
+        so = conj_irreps.argsort()
+        block_irreps = conj_irreps[so]
+        blocks = tuple(self._blocks[i].T for i in so)
+        axis_reps = tuple(self._axis_reps[i] for i in range(-n_legs, self._n_leg_rows))
+        return type(self)(axis_reps, n_legs, blocks, block_irreps)
+
+
+@numba.njit
+def numba_combine_U1(*reps):
+    combined = reps[0]
+    for r in reps[1:]:
+        combined = (combined.reshape(-1, 1) + r).ravel()
+    return combined
+
+
+class U1_SymmetricTensor(AbelianSymmetricTensor):
+    _symmetry = "U(1)"
+
+    @classmethod
+    def combine_representations(cls, *reps):
+        if len(reps) > 1:  # numba issues 7245
+            return numba_combine_U1(*reps)
+        return reps[0]
+
+    @classmethod
+    def conjugate_representation(cls, rep):
+        return -rep
+
+    @classmethod
+    def init_representation(cls, degen, irreps):
+        rep = np.empty((degen.sum(),), dtype=np.int8)
+        k = 0
+        for (d, irr) in zip(degen, irreps):
+            rep[k : k + d] = irr
+            k += d
+        return rep
