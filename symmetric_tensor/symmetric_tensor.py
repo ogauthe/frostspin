@@ -370,33 +370,42 @@ def homogeneous_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irreps)
 
 
 class AbelianSymmetricTensor(SymmetricTensor):
+    # representation is a np.int8 1D array (may change for product groups)
     @classmethod
     def representation_dimension(cls, rep):
         return rep.shape[0]
 
     @classmethod
-    def from_dense(cls, arr, axis_reps, n_leg_rows):
+    def init_representation(cls, degen, irreps):
+        rep = np.empty((degen.sum(),), dtype=np.int8)
+        k = 0
+        for (d, irr) in zip(degen, irreps):
+            rep[k : k + d] = irr
+            k += d
+        return rep
+
+    @classmethod
+    def from_dense(cls, arr, axis_reps, n_leg_rows, conjugate_columns=True):
         assert arr.shape == tuple(
             cls.representation_dimension(rep) for rep in axis_reps
         )
-        row_irreps = cls.combine_representations(*axis_reps[:n_leg_rows])
-        col_irreps = cls.combine_representations(
-            *(cls.conjugate_representation(r) for r in axis_reps[n_leg_rows:])
-        )
-
+        row_axis_reps = axis_reps[:n_leg_rows]
+        if conjugate_columns:
+            col_axis_reps = tuple(
+                cls.conjugate_representation(r) for r in axis_reps[n_leg_rows:]
+            )
+        else:
+            col_axis_reps = axis_reps[n_leg_rows:]
+        row_irreps = cls.combine_representations(*row_axis_reps)
+        col_irreps = cls.combine_representations(*col_axis_reps)
         # requires copy if arr is not contiguous TODO test and avoid copy if not
         M = arr.reshape(row_irreps.size, col_irreps.size)
         blocks, block_irreps = numba_reduce_to_blocks(M, row_irreps, col_irreps)
-        return cls(axis_reps, n_leg_rows, blocks, block_irreps)
+        return cls(row_axis_reps + col_axis_reps, n_leg_rows, blocks, block_irreps)
 
     def toarray(self):
         row_irreps = self.combine_representations(*self._axis_reps[: self._n_leg_rows])
-        col_irreps = self.combine_representations(
-            *(
-                self.conjugate_representation(r)
-                for r in self._axis_reps[self._n_leg_rows :]
-            )
-        )
+        col_irreps = self.combine_representations(*self._axis_reps[self._n_leg_rows :])
         M = np.zeros(self.matrix_shape, dtype=self.dtype)
         if self.is_heteregeneous():  # TODO treat separatly size 1 + call homogeneous
             heterogeneous_blocks_to_array(
@@ -411,10 +420,16 @@ class AbelianSymmetricTensor(SymmetricTensor):
     def permutate(self, axes, n_leg_rows):
         assert sorted(axes) == list(range(self.ndim))
         # cast to dense to reshape, transpose to get non-contiguous, then call
-        # from_dense
+        # from_dense TODO: from_dense currently makes copy
         a = self.toarray().transpose(axes)
-        axis_reps = tuple(self._axis_reps[i] for i in axes)
-        return type(self).from_dense(a, axis_reps, n_leg_rows)
+        axis_reps = []
+        for i, ax in enumerate(axes):
+            if (i < n_leg_rows) ^ (ax < self._n_leg_rows):
+                axis_reps.append(self.conjugate_representation(self._axis_reps[ax]))
+            else:
+                axis_reps.append(self._axis_reps[ax])
+        axis_reps = tuple(axis_reps)
+        return type(self).from_dense(a, axis_reps, n_leg_rows, conjugate_columns=False)
 
     @property
     def T(self):
@@ -423,7 +438,10 @@ class AbelianSymmetricTensor(SymmetricTensor):
         so = conj_irreps.argsort()
         block_irreps = conj_irreps[so]
         blocks = tuple(self._blocks[i].T for i in so)
-        axis_reps = tuple(self._axis_reps[i] for i in range(-n_legs, self._n_leg_rows))
+        axis_reps = tuple(
+            self.conjugate_representation(self._axis_reps[i])
+            for i in range(-n_legs, self._n_leg_rows)
+        )
         return type(self)(axis_reps, n_legs, blocks, block_irreps)
 
 
@@ -447,12 +465,3 @@ class U1_SymmetricTensor(AbelianSymmetricTensor):
     @classmethod
     def conjugate_representation(cls, rep):
         return -rep
-
-    @classmethod
-    def init_representation(cls, degen, irreps):
-        rep = np.empty((degen.sum(),), dtype=np.int8)
-        k = 0
-        for (d, irr) in zip(degen, irreps):
-            rep[k : k + d] = irr
-            k += d
-        return rep
