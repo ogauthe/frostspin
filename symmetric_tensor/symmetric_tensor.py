@@ -35,7 +35,7 @@ class SymmetricTensor(object):
         self._ndim = len(axis_reps)
         self._nblocks = len(blocks)
         self._blocks = tuple(blocks)
-        self._block_irreps = tuple(block_irreps)
+        self._block_irreps = block_irreps
         self._nnz = sum(b.size for b in blocks)
         assert self._nblocks > 0
         assert 0 < n_leg_rows < self._ndim
@@ -161,7 +161,7 @@ class SymmetricTensor(object):
             else:
                 i2 += 1
 
-        block_irreps = tuple(block_irreps)
+        block_irreps = np.array(block_irreps)
         axis_reps = (
             self._axis_reps[: self._n_leg_rows]
             + other._axis_irreps[other._n_leg_rows :]
@@ -247,7 +247,7 @@ class AsymmetricTensor(SymmetricTensor):
     # not a subclass of AbelianSymmetricTensor
 
     _symmetry = AsymRepresentation
-    _block_irreps = (np.zeros((1,), dtype=np.int8),)
+    _block_irreps = np.zeros((1,), dtype=np.int8)
 
     @classmethod
     def from_dense(cls, arr, n_leg_rows):
@@ -318,6 +318,7 @@ def numba_reduce_to_blocks(M, row_irreps, col_irreps):
             rbi += 1
         else:
             cbi += 1
+    block_irreps = np.array(block_irreps)
     return blocks, block_irreps
 
 
@@ -353,7 +354,9 @@ class AbelianSymmetricTensor(SymmetricTensor):
         # we need information on color location, which is lost in combine with its
         # automatic sort.
         row_irreps = cls._symmetry.combine_irreps_array(*axis_reps[:n_leg_rows])
-        col_irreps = cls._symmetry.combine_irreps_array(*axis_reps[n_leg_rows:])
+        col_irreps = cls._symmetry.combine_irreps_array(
+            *(r.conjugate() for r in axis_reps[n_leg_rows:])
+        )
 
         # requires copy if arr is not contiguous TODO test and avoid copy if not
         M = arr.reshape(row_irreps.size, col_irreps.size)
@@ -365,7 +368,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
             *self._axis_reps[: self._n_leg_rows]
         )
         col_irreps = self._symmetry.combine_irreps_array(
-            *self._axis_reps[self._n_leg_rows :]
+            *(r.conjugate() for r in self._axis_reps[self._n_leg_rows :])
         )
         M = np.zeros(self.matrix_shape, dtype=self.dtype)
         if self.is_heteregeneous():  # TODO treat separatly size 1 + call homogeneous
@@ -395,10 +398,8 @@ class U1_SymmetricTensor(AbelianSymmetricTensor):
         # U(1) conjugation = change irrep signs => reverse all tuples
         blocks = tuple(b.T for b in reversed(self._blocks))
         block_irreps = -self._block_irreps[::-1]
+        n_legs = self._ndim - self._n_leg_rows
         axis_reps = tuple(
-            self._axis_reps[i].conjugate()
-            for i in range(-self._ndim + self._n_leg_rows, self._n_leg_rows)
+            self._axis_reps[i].conjugate() for i in range(-n_legs, self._n_leg_rows)
         )
-        return U1_SymmetricTensor(
-            axis_reps, self._ndim - self._n_leg_rows, blocks, block_irreps
-        )
+        return U1_SymmetricTensor(axis_reps, n_legs, blocks, block_irreps)
