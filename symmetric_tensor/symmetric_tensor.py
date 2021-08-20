@@ -52,7 +52,7 @@ class SymmetricTensor(object):
         self._nblocks = len(blocks)
         self._blocks = tuple(blocks)
         self._block_irreps = block_irreps
-        self._n_coeff = sum(b.size for b in blocks)
+        self._ncoeff = sum(b.size for b in blocks)
         assert self._nblocks > 0
         assert 0 < n_leg_rows < self._ndim
         assert len(block_irreps) == self._nblocks
@@ -86,8 +86,8 @@ class SymmetricTensor(object):
         return self._n_leg_rows
 
     @property
-    def n_coeff(self):
-        return self._n_coeff
+    def ncoeff(self):
+        return self._ncoeff
 
     def copy(self):
         blocks = tuple(b.copy() for b in self._blocks)
