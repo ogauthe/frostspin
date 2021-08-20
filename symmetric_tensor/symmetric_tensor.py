@@ -273,7 +273,7 @@ class AsymmetricTensor(SymmetricTensor):
         return rep
 
     @classmethod
-    def from_dense(cls, arr, n_leg_rows):
+    def from_array(cls, arr, n_leg_rows):
         axis_reps = np.array(arr.shape)
         matrix_shape = (
             np.prod(arr.shape[:n_leg_rows]),
@@ -287,7 +287,7 @@ class AsymmetricTensor(SymmetricTensor):
 
     def permutate(self, axes, n_leg_rows):
         arr = self._blocks[0].reshape(self._shape).transpose(axes)
-        return AsymmetricTensor.from_dense(arr, n_leg_rows)
+        return AsymmetricTensor.from_array(arr, n_leg_rows)
 
     @property
     def T(self):
@@ -385,7 +385,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
         return rep
 
     @classmethod
-    def from_dense(cls, arr, axis_reps, n_leg_rows, conjugate_columns=True):
+    def from_array(cls, arr, axis_reps, n_leg_rows, conjugate_columns=True):
         assert arr.shape == tuple(
             cls.representation_dimension(rep) for rep in axis_reps
         )
@@ -420,7 +420,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
     def permutate(self, axes, n_leg_rows):
         assert sorted(axes) == list(range(self.ndim))
         # cast to dense to reshape, transpose to get non-contiguous, then call
-        # from_dense TODO: from_dense currently makes copy
+        # from_array TODO: from_array currently makes copy
         a = self.toarray().transpose(axes)
         axis_reps = []
         for i, ax in enumerate(axes):
@@ -429,7 +429,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
             else:
                 axis_reps.append(self._axis_reps[ax])
         axis_reps = tuple(axis_reps)
-        return type(self).from_dense(a, axis_reps, n_leg_rows, conjugate_columns=False)
+        return type(self).from_array(a, axis_reps, n_leg_rows, conjugate_columns=False)
 
     @property
     def T(self):
