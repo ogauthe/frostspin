@@ -69,7 +69,7 @@ class CTMRG(object):
     computation, it is mostly interface and tensor selection.
     """
 
-    def __init__(self, env, chi, cutoff, degen_ratio, window, verbosity):
+    def __init__(self, env, chi_setpoint, cutoff, degen_ratio, window, verbosity):
         """
         Constructor for totally asymmetric CTMRG algorithm. Consider using from_file or
         from_elementary_tensors methods instead of calling this one directly.
@@ -78,18 +78,18 @@ class CTMRG(object):
         ----------
         env: CTM_Environment
             Environment object, as construced by from_file or from_elementary_tensors.
-        chi : integer
-            Maximal corner dimension.
+        chi_setpoint : integer
+            Maximal corner dimension. This is a setpoint, actual corner dimension
+            may be smaller due to cutoff or slightly larger to keep multiplets.
         cutoff : float
             Singular value cutoff to improve stability.
         degen_ratio : float
             Used to define multiplets in projector singular values and truncate between
             two multiplets. Two consecutive (decreasing) values are considered
-            degenerate if 1 >= s[i+1]/s[i] >= degen_ratio > 0. Default is 1.0 (exact
-            degeneracies)
+            degenerate if 1 >= s[i+1]/s[i] >= degen_ratio > 0.
         window : int
-            In projector construction, compute chi + window singular values to preserve
-            multiplet structure.
+            In projector construction, compute chi_setpoint + window singular values
+            to preserve multiplet structure.
         verbosity : int
             Level of log verbosity.
         """
@@ -97,8 +97,7 @@ class CTMRG(object):
         if self.verbosity > 0:
             print(f"initalize CTMRG with verbosity = {self.verbosity}")
         self._env = env
-        self._Dmax = self._env.Dmax
-        self.chi = chi
+        self.chi_setpoint = chi_setpoint
         self.cutoff = cutoff
         self.window = window
         self.degen_ratio = degen_ratio
@@ -110,7 +109,14 @@ class CTMRG(object):
 
     @classmethod
     def from_elementary_tensors(
-        cls, tensors, tiling, chi, cutoff=0.0, degen_ratio=1.0, window=0, verbosity=0
+        cls,
+        tensors,
+        tiling,
+        chi_setpoint,
+        cutoff=0.0,
+        degen_ratio=1.0,
+        window=0,
+        verbosity=0,
     ):
         """
         Construct CTMRG from elementary tensors and tiling.
@@ -121,25 +127,13 @@ class CTMRG(object):
             Elementary tensors of unit cell, from left to right from top to bottom.
         tiling : string
             String defining the shape of the unit cell, typically "A" or "AB\nCD".
-        chi : integer
-            Maximal corner dimension. If degen_ratio is set, actual cut may be larger.
-        cutoff : float
-            Singular value cutoff to improve stability. Default is 0.0 (no cutoff)
-        degen_ratio : float
-            Used to define multiplets in projector singular values and truncate between
-            two multiplets. Two consecutive (decreasing) values are considered
-            degenerate if 1 >= s[i+1]/s[i] >= degen_ratio > 0. Default is 1.0 (exact
-            degeneracies)
-        window : int
-            In projector construction, compute chi + window singular values to preserve
-            multiplet structure. Default is 0.
-        verbosity : int
-            Level of log verbosity. Default is no log.
+
+        Refer to __init__ for the other parameters.
         """
         if verbosity > 0:
             print("Start CTMRG from scratch using elementary tensors")
         env = CTM_Environment.from_elementary_tensors(tensors, tiling)
-        return cls(env, chi, cutoff, degen_ratio, window, verbosity)
+        return cls(env, chi_setpoint, cutoff, degen_ratio, window, verbosity)
 
     @classmethod
     def from_file(cls, filename, verbosity=0):
@@ -155,7 +149,10 @@ class CTMRG(object):
         if verbosity > 0:
             print("Restart CTMRG from file", filename)
         with np.load(filename) as fin:
-            chi = fin["_CTM_chi"][()]
+            try:
+                chi_setpoint = fin["_CTM_chi_setpoint"][()]
+            except KeyError:  # old data format
+                chi_setpoint = fin["_CTM_chi"][()]
             try:
                 cutoff = fin["_CTM_cutoff"][()]
                 degen_ratio = fin["_CTM_degen_ratio"][()]
@@ -168,7 +165,7 @@ class CTMRG(object):
         # better to open and close savefile twice (here and in env) to have env __init__
         # outside of file opening block.
         env = CTM_Environment.from_file(filename)
-        return cls(env, chi, cutoff, degen_ratio, window, verbosity)
+        return cls(env, chi_setpoint, cutoff, degen_ratio, window, verbosity)
 
     def save_to_file(self, filename, additional_data={}):
         """
@@ -182,7 +179,7 @@ class CTMRG(object):
             Data to store together with environment data. Keys have to be string type.
         """
         data = {
-            "_CTM_chi": self.chi,
+            "_CTM_chi_setpoint": self.chi_setpoint,
             "_CTM_cutoff": self.cutoff,
             "_CTM_degen_ratio": self.degen_ratio,
             "_CTM_window": self.window,
@@ -214,13 +211,23 @@ class CTMRG(object):
 
     @property
     def Dmax(self):
-        return self._Dmax
+        return self._env.Dmax
+
+    @property
+    def chi_max(self):  # maximal corner dimension, may differ from chi_setpoint
+        return self._env.chi_max
+
+    def __repr__(self):
+        return f"asymmetric CTMRG with Dmax = {self.Dmax} and chi_max = {self.chi_max}"
 
     def __str__(self):
-        return (
-            f"asymmetric CTMRG with Dmax = {self._Dmax} and chi = {self.chi}\n"
-            f"cutoff = {self.cutoff}, degen_ratio = {self.degen_ratio}, window = "
-            f"{self.window}\nunit cell =\n{self._env.cell}"
+        return "\n".join(
+            (
+                repr(self),
+                f"chi_setpoint = {self.chi_setpoint}, cutoff = {self.cutoff}",
+                f"degen_ratio = {self.degen_ratio}, window = {self.window}",
+                f"unit cell =\n{self._env.cell}",
+            )
         )
 
     def restart_environment(self):
@@ -242,7 +249,6 @@ class CTMRG(object):
                 print("Restart with new tensors and new environment")
             tiling = "\n".join("".join(s) for s in self.cell)
             self._env = CTM_Environment.from_elementary_tensors(tensors, tiling)
-        self._Dmax = self._env.Dmax
         if self.verbosity > 0:
             print(self)
 
@@ -311,7 +317,7 @@ class CTMRG(object):
             #        L         R
             #        L-1     0-R
             P, Pt = construct_projectors(
-                R, Rt, self.chi, self.cutoff, self.degen_ratio, self.window
+                R, Rt, self.chi_setpoint, self.cutoff, self.degen_ratio, self.window
             )
             self._env.store_projectors(
                 x + 2, y, P, Pt
@@ -377,7 +383,7 @@ class CTMRG(object):
                 self._env.get_T2(x + 3, y + 1),
             )
             P, Pt = construct_projectors(
-                R, Rt, self.chi, self.cutoff, self.degen_ratio, self.window
+                R, Rt, self.chi_setpoint, self.cutoff, self.degen_ratio, self.window
             )
             self._env.store_projectors(x + 3, y + 2, P, Pt)
             del R, Rt
@@ -441,7 +447,7 @@ class CTMRG(object):
             )
 
             P, Pt = construct_projectors(
-                R, Rt, self.chi, self.cutoff, self.degen_ratio, self.window
+                R, Rt, self.chi_setpoint, self.cutoff, self.degen_ratio, self.window
             )
             self._env.store_projectors(x + 3, y + 3, P, Pt)
             del R, Rt
@@ -502,7 +508,7 @@ class CTMRG(object):
                 self._env.get_C3(x + 3, y + 3),
             )
             P, Pt = construct_projectors(
-                R, Rt, self.chi, self.cutoff, self.degen_ratio, self.window
+                R, Rt, self.chi_setpoint, self.cutoff, self.degen_ratio, self.window
             )
             self._env.store_projectors(x, y + 1, P, Pt)
             del R, Rt
@@ -684,27 +690,55 @@ class CTMRG(object):
             rdm_ur_cell.append(self.compute_rdm_diag_ur(x, y))
         return rdm_dr_cell, rdm_ur_cell
 
-    def compute_corr_length_h(self, y=0, v0=None, ncv=None, maxiter=1000, tol=0):
+    def compute_transfer_spectrum_h(
+        self, nval, y=0, v0=None, ncv=None, maxiter=1000, tol=0
+    ):
         """
-        Compute maximal horizontal correlation length in row between y and y+1.
+        Compute horizontal transfer matrix spectrum for row y.
         """
         T1s = []
         T3s = []
         for x in range(self.Lx):
             T1s.append(self._env.get_T1(x, y))
             T3s.append(self._env.get_T3(x, y + 1))
-        return observables.compute_corr_length(T1s, T3s)
+        return observables.compute_mps_transfer_spectrum(
+            T1s, T3s, nval, v0=v0, ncv=ncv, maxiter=maxiter, tol=tol
+        )
 
-    def compute_corr_length_v(self, x=0, v0=None, ncv=None, maxiter=1000, tol=0):
+    def compute_transfer_spectrum_v(
+        self, nval, x=0, v0=None, ncv=None, maxiter=1000, tol=0
+    ):
         """
-        Compute maximal vertical correlation length in column with between x and x+1.
+        Compute vertical transfer matrix spectrum for column x.
         """
         T2s = []
         T4s = []
         for y in range(self.Ly):
             T2s.append(self._env.get_T2(x + 1, y).transpose(1, 2, 3, 0))
             T4s.append(self._env.get_T4(x, y).transpose(1, 2, 3, 0))
-        return observables.compute_corr_length(T2s, T4s)
+        return observables.compute_mps_transfer_spectrum(
+            T2s, T4s, nval, v0=v0, ncv=ncv, maxiter=maxiter, tol=tol
+        )
+
+    def compute_corr_length_h(self, y=0, v0=None, ncv=None, maxiter=1000, tol=0):
+        """
+        Compute maximal horizontal correlation length in row between y and y+1.
+        """
+        _, v2 = self.compute_transfer_spectrum_h(
+            2, y, v0=v0, ncv=ncv, maxiter=maxiter, tol=tol
+        )
+        xi = -self.Lx / np.log(np.abs(v2))
+        return xi
+
+    def compute_corr_length_v(self, x=0, v0=None, ncv=None, maxiter=1000, tol=0):
+        """
+        Compute maximal vertical correlation length in column between x and x+1.
+        """
+        _, v2 = self.compute_transfer_spectrum_v(
+            2, x, v0=v0, ncv=ncv, maxiter=maxiter, tol=tol
+        )
+        xi = -self.Ly / np.log(np.abs(v2))
+        return xi
 
 
 class CTMRG_U1(CTMRG):
@@ -734,7 +768,7 @@ class CTMRG_U1(CTMRG):
         tensors,
         colors,
         tiling,
-        chi,
+        chi_setpoint,
         cutoff=0.0,
         degen_ratio=1.0,
         window=0,
@@ -752,8 +786,9 @@ class CTMRG_U1(CTMRG):
             Quantum numbers for elementary tensors.
         tiling : string
             String defining the shape of the unit cell, typically "A" or "AB\nCD".
-        chi : integer
-            Maximal corner dimension. Actual cut may be larger if multiplets are kept.
+        chi_setpoint : integer
+            Maximal corner dimension. This is a setpoint, actual corner dimension
+            may be smaller due to cutoff or slightly larger to keep multiplets.
         cutoff : float
             Singular value cutoff to improve stability. Default is 0.0 (no cutoff)
         degen_ratio : float
@@ -762,23 +797,22 @@ class CTMRG_U1(CTMRG):
             degenerate if 1 >= s[i+1]/s[i] >= degen_ratio > 0. Default is 1.0 (exact
             degeneracies)
         window : int
-            During projector construction, compute chi + window singular values in each
-            block to preserve multiplet structure inside a color block. Default is 0.
-            Can be kept at 0 if no multiplets are expected inside a color block (as for
-            SU(2)).
+            During projector construction, compute chi_setpoint + window singular values
+            in each block to preserve multiplet structure inside a color block. Default
+            is 0. Can be kept to 0 if no multiplets are expected inside a color block
+            (as for SU(2)).
         verbosity : int
             Level of log verbosity. Default is no log.
         """
         if verbosity > 0:
             print("Start CTMRG from scratch using elementary tensors")
         env = CTM_Environment.from_elementary_tensors(tensors, tiling, colors)
-        return cls(env, chi, cutoff, degen_ratio, window, verbosity)
+        return cls(env, chi_setpoint, cutoff, degen_ratio, window, verbosity)
 
-    def __str__(self):
+    def __repr__(self):
         return (
-            f"U(1) symmetric CTMRG with Dmax = {self._Dmax} and chi = {self.chi}\n"
-            f"cutoff = {self.cutoff}, degen_ratio = {self.degen_ratio}, window = "
-            f"{self.window}\nunit cell =\n{self._env.cell}"
+            f"U(1) symmetric CTMRG with Dmax = {self.Dmax} and chi_max = "
+            f"{self.chi_max}"
         )
 
     def set_tensors(self, tensors, colors, keep_env=True):
@@ -791,7 +825,6 @@ class CTMRG_U1(CTMRG):
                 print("Restart with new tensors and new environment")
             tiling = "\n".join("".join(s) for s in self.cell)
             self._env = CTM_Environment.from_elementary_tensors(tensors, tiling, colors)
-        self._Dmax = self._env.Dmax
         if self.verbosity > 0:
             print(self)
 
@@ -892,13 +925,12 @@ class CTMRG_U1(CTMRG):
         if dr is not None:
             return dr
         col_Adr = self._env.get_colors_A(x + 2, y + 2)
-        a_dr, _, col_col_rd = self._env.get_a_col_rd(x + 2, y + 2)
+        a_dr = self._env.get_a_rd(x + 2, y + 2)
         dr = contract_dr_corner_U1(
             a_dr,
             self._env.get_T2(x + 3, y + 2),
             self._env.get_T3(x + 2, y + 3),
             self._env.get_C3(x + 3, y + 3),
-            col_col_rd,
             combine_colors(col_Adr[2], -col_Adr[2]),
             combine_colors(col_Adr[5], -col_Adr[5]),
             self._env.get_color_T2_u(x + 3, y + 2),
@@ -917,14 +949,13 @@ class CTMRG_U1(CTMRG):
         if dl is not None:
             return dl
         col_Adl = self._env.get_colors_A(x + 1, y + 2)
-        a_dl, _, col_col_dl = self._env.get_a_col_dl(x + 1, y + 2)
+        a_dl = self._env.get_a_dl(x + 1, y + 2)
         dl = contract_dl_corner_U1(
             self._env.get_T4(x, y + 2),
             a_dl,
             self._env.get_C4(x, y + 3),
             self._env.get_T3(x + 1, y + 3),
             self._env.get_color_T4_u(x, y + 2),
-            col_col_dl,
             combine_colors(col_Adl[2], -col_Adl[2]),
             combine_colors(col_Adl[3], -col_Adl[3]),
             self._env.get_color_T3_r(x + 1, y + 3),
@@ -942,7 +973,7 @@ class CTMRG_U1(CTMRG):
         if ul is not None:
             return ul
         col_Aul = self._env.get_colors_A(x + 1, y + 1)
-        a_ul, _, col_col_ul = self._env.get_a_col_ul(x + 1, y + 1)
+        a_ul = self._env.get_a_ul(x + 1, y + 1)
         ul = contract_ul_corner_U1(
             self._env.get_C1(x, y),
             self._env.get_T1(x + 1, y),
@@ -950,7 +981,6 @@ class CTMRG_U1(CTMRG):
             a_ul,
             self._env.get_color_T1_r(x + 1, y),
             self._env.get_color_T4_d(x, y + 1),
-            col_col_ul,
             combine_colors(col_Aul[3], -col_Aul[3]),
             combine_colors(col_Aul[4], -col_Aul[4]),
         )
@@ -967,14 +997,13 @@ class CTMRG_U1(CTMRG):
         if ur is not None:
             return ur
         col_Aur = self._env.get_colors_A(x + 2, y + 1)
-        a_ur, _, col_col_ur = self._env.get_a_col_ur(x + 2, y + 1)
+        a_ur = self._env.get_a_ur(x + 2, y + 1)
         ur = contract_ur_corner_U1(
             self._env.get_T2(x + 3, y + 1),
             self._env.get_C2(x + 3, y),
             a_ur,
             self._env.get_T1(x + 2, y),
             self._env.get_color_T2_d(x + 3, y + 1),
-            col_col_ur,
             combine_colors(col_Aur[4], -col_Aur[4]),
             combine_colors(col_Aur[5], -col_Aur[5]),
             self._env.get_color_T1_l(x + 2, y),
@@ -1001,7 +1030,7 @@ class CTMRG_U1(CTMRG):
                 reduced_ur,
                 reduced_ul,
                 reduced_dl,
-                self.chi,
+                self.chi_setpoint,
                 self.cutoff,
                 self.degen_ratio,
                 self.window,
@@ -1022,7 +1051,7 @@ class CTMRG_U1(CTMRG):
             )
 
             col_Aul = self._env.get_colors_A(x, y + 1)
-            a_ul, _, col_a_ul = self._env.get_a_col_ul(x, y + 1)
+            a_ul = self._env.get_a_ul(x, y + 1)
             nT1 = renormalize_T1_U1(
                 Pt,
                 self._env.get_T1(x, y),
@@ -1030,7 +1059,6 @@ class CTMRG_U1(CTMRG):
                 P,
                 self._env.get_color_T1_r(x, y),
                 color_Pt,
-                col_a_ul,
                 combine_colors(col_Aul[3], -col_Aul[3]),
                 combine_colors(col_Aul[4], -col_Aul[4]),
             )
@@ -1068,7 +1096,7 @@ class CTMRG_U1(CTMRG):
                 reduced_dr,
                 reduced_ur,
                 reduced_ul,
-                self.chi,
+                self.chi_setpoint,
                 self.cutoff,
                 self.degen_ratio,
                 self.window,
@@ -1088,7 +1116,7 @@ class CTMRG_U1(CTMRG):
             )
 
             col_Aur = self._env.get_colors_A(x - 1, y)
-            a_ur, _, col_a_ur = self._env.get_a_col_ur(x - 1, y)
+            a_ur = self._env.get_a_ur(x - 1, y)
             nT2 = renormalize_T2_U1(
                 Pt,
                 self._env.get_T2(x, y),
@@ -1096,7 +1124,6 @@ class CTMRG_U1(CTMRG):
                 P,
                 self._env.get_color_T2_d(x, y),
                 color_Pt,
-                col_a_ur,
                 combine_colors(col_Aur[4], -col_Aur[4]),
                 combine_colors(col_Aur[5], -col_Aur[5]),
             )
@@ -1132,7 +1159,7 @@ class CTMRG_U1(CTMRG):
                 reduced_dl,
                 reduced_dr,
                 reduced_ur,
-                self.chi,
+                self.chi_setpoint,
                 self.cutoff,
                 self.degen_ratio,
                 self.window,
@@ -1152,7 +1179,7 @@ class CTMRG_U1(CTMRG):
             )
 
             col_Adl = self._env.get_colors_A(x, y - 1)
-            a_dl, _, col_a_dl = self._env.get_a_col_dl(x, y - 1)
+            a_dl = self._env.get_a_dl(x, y - 1)
             nT3 = renormalize_T3_U1(
                 Pt,
                 self._env.get_T3(x, y),
@@ -1160,7 +1187,6 @@ class CTMRG_U1(CTMRG):
                 P,
                 self._env.get_color_T3_r(x, y),
                 color_P,
-                col_a_dl,
                 combine_colors(col_Adl[2], -col_Adl[2]),
                 combine_colors(col_Adl[3], -col_Adl[3]),
             )
@@ -1196,7 +1222,7 @@ class CTMRG_U1(CTMRG):
                 reduced_ul,
                 reduced_dl,
                 reduced_dr,
-                self.chi,
+                self.chi_setpoint,
                 self.cutoff,
                 self.degen_ratio,
                 self.window,
@@ -1217,7 +1243,7 @@ class CTMRG_U1(CTMRG):
             )
 
             col_Aul = self._env.get_colors_A(x + 1, y)
-            a_ul, _, col_a_ul = self._env.get_a_col_ul(x + 1, y)
+            a_ul = self._env.get_a_ul(x + 1, y)
             nT4 = renormalize_T4_U1(
                 Pt,
                 self._env.get_T4(x, y),
@@ -1225,7 +1251,6 @@ class CTMRG_U1(CTMRG):
                 P,
                 self._env.get_color_T4_d(x, y),
                 color_P,
-                col_a_ul,
                 combine_colors(col_Aul[3], -col_Aul[3]),
                 combine_colors(col_Aul[4], -col_Aul[4]),
             )

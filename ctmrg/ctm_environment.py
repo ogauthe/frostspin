@@ -80,7 +80,7 @@ def _block_AAconj(A, col_A):
     a_ul = BlockMatrixU1.from_dense(a_ul, -c_rd, c_ul)
     a_ur = a.transpose(2, 6, 3, 7, 1, 5, 0, 4).reshape(c_dl.size, c_ur.size)
     a_ur = BlockMatrixU1.from_dense(a_ur, -c_dl, c_ur)
-    return a_ul, a_ur, c_ul, c_ur, c_rd, c_dl
+    return a_ul, a_ur
 
 
 def _color_correspondence(old_col, new_col):
@@ -175,6 +175,7 @@ class CTM_Environment(object):
 
         # 2) store tensors. They have to follow cell.flat order.
         self._neq_As = neq_As
+        self._Dmax = max(max(A.shape[2:]) for A in self._neq_As)
         self._neq_C1s = neq_C1s
         self._neq_T1s = neq_T1s
         self._neq_C2s = neq_C2s
@@ -216,16 +217,16 @@ class CTM_Environment(object):
             self._colors_C4_r = colors_C4_r
 
             # store blockwise A*A* to construct corners + colors (cannot tranpose lists)
-            self._a_col_ur = []
-            self._a_col_ul = []
-            self._a_col_rd = []
-            self._a_col_dl = []
+            self._a_ur = []
+            self._a_ul = []
+            self._a_rd = []
+            self._a_dl = []
             for A, col_A in zip(neq_As, colors_A):
-                a_ul, a_ur, col_ul, col_ur, col_rd, col_dl = _block_AAconj(A, col_A)
-                self._a_col_ur.append((a_ur, col_dl, col_ur))
-                self._a_col_ul.append((a_ul, col_rd, col_ul))
-                self._a_col_rd.append((a_ul.T, col_ul, col_rd))
-                self._a_col_dl.append((a_ur.T, col_ur, col_dl))
+                a_ul, a_ur = _block_AAconj(A, col_A)
+                self._a_ur.append(a_ur)
+                self._a_ul.append(a_ul)
+                self._a_rd.append(a_ul.T)
+                self._a_dl.append(a_ur.T)
         else:
             self._colors_A = [(default_color,) * 6] * self._Nneq
             self._colors_C1_r = [default_color] * self._Nneq
@@ -239,7 +240,14 @@ class CTM_Environment(object):
 
     @property
     def Dmax(self):
-        return max(max(A.shape[2:]) for A in self._neq_As)
+        return self._Dmax
+
+    @property
+    def chi_max(self):
+        return max(
+            max(C.shape)
+            for C in self._neq_C1s + self._neq_C2s + self._neq_C3s + self._neq_C4s
+        )
 
     def restart(self):
         """
@@ -528,11 +536,11 @@ class CTM_Environment(object):
                     col = (col[0], np.zeros(1, dtype=np.int8), *col[1:])
                 if tuple(len(c) for c in col) != A.shape:
                     raise ValueError("Colors do not match tensors")
-                a_ul, a_ur, col_ul, col_ur, col_rd, col_dl = _block_AAconj(A, col)
-                self._a_col_ur[i] = (a_ur, col_dl, col_ur)
-                self._a_col_ul[i] = (a_ul, col_rd, col_ul)
-                self._a_col_rd[i] = (a_ul.T, col_ul, col_rd)
-                self._a_col_dl[i] = (a_ur.T, col_ur, col_dl)
+                a_ul, a_ur = _block_AAconj(A, col)
+                self._a_ur[i] = a_ur
+                self._a_ul[i] = a_ul
+                self._a_rd[i] = a_ul.T
+                self._a_dl[i] = a_ur.T
             else:
                 col = (default_color,) * 6
             if (
@@ -622,6 +630,7 @@ class CTM_Environment(object):
         self._corners_ur = [None] * self._Nneq
         self._corners_dl = [None] * self._Nneq
         self._corners_dr = [None] * self._Nneq
+        self._Dmax = max(max(A.shape[2:]) for A in self._neq_As)
 
     @property
     def cell(self):
@@ -745,17 +754,17 @@ class CTM_Environment(object):
     def get_Pt(self, x, y):
         return self._neq_Pt[self._indices[x % self._Lx, y % self._Ly]]
 
-    def get_a_col_ul(self, x, y):
-        return self._a_col_ul[self._indices[x % self._Lx, y % self._Ly]]
+    def get_a_ul(self, x, y):
+        return self._a_ul[self._indices[x % self._Lx, y % self._Ly]]
 
-    def get_a_col_ur(self, x, y):
-        return self._a_col_ur[self._indices[x % self._Lx, y % self._Ly]]
+    def get_a_ur(self, x, y):
+        return self._a_ur[self._indices[x % self._Lx, y % self._Ly]]
 
-    def get_a_col_rd(self, x, y):
-        return self._a_col_rd[self._indices[x % self._Lx, y % self._Ly]]
+    def get_a_rd(self, x, y):
+        return self._a_rd[self._indices[x % self._Lx, y % self._Ly]]
 
-    def get_a_col_dl(self, x, y):
-        return self._a_col_dl[self._indices[x % self._Lx, y % self._Ly]]
+    def get_a_dl(self, x, y):
+        return self._a_dl[self._indices[x % self._Lx, y % self._Ly]]
 
     def get_corner_ul(self, x, y):
         return self._corners_ul[self._indices[x % self._Lx, y % self._Ly]]

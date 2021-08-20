@@ -1,11 +1,20 @@
 import bisect
 
 import numpy as np
-import scipy.sparse as ssp
-from numba import jit, literal_unroll
+import numba
+from numba import literal_unroll  # numba issue #5344
 
 
-@jit(nopython=True)
+@numba.njit(parallel=True)
+def fill_U1_block(M, ri, ci):
+    m = np.empty((ri.size, ci.size), dtype=M.dtype)
+    for i in numba.prange(ri.size):
+        for j in numba.prange(ci.size):
+            m[i, j] = M[ri[i], ci[j]]
+    return m
+
+
+@numba.njit
 def reduce_matrix_to_blocks(M, row_colors, col_colors):
     """
     Reduce a dense U(1) symmetric matrix into U(1) blocks.
@@ -43,12 +52,12 @@ def reduce_matrix_to_blocks(M, row_colors, col_colors):
     row_blocks = (
         [0]
         + list((sorted_row_colors[:-1] != sorted_row_colors[1:]).nonzero()[0] + 1)
-        + [M.shape[0]]
+        + [row_colors.size]
     )
     col_blocks = (
         [0]
         + list((sorted_col_colors[:-1] != sorted_col_colors[1:]).nonzero()[0] + 1)
-        + [M.shape[1]]
+        + [col_colors.size]
     )
 
     blocks = []
@@ -62,11 +71,7 @@ def reduce_matrix_to_blocks(M, row_colors, col_colors):
             ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]].copy()
             row_indices.append(ri)  # copy ri to own data and delete row_sort at exit
             col_indices.append(ci)  # same for ci
-            m = np.empty((ri.size, ci.size), dtype=M.dtype)
-            for i, r in enumerate(ri):
-                for j, c in enumerate(ci):
-                    m[i, j] = M[r, c]
-
+            m = fill_U1_block(M, ri, ci)  # parallel
             blocks.append(m)
             block_colors.append(sorted_row_colors[row_blocks[rbi]])
             rbi += 1
@@ -78,21 +83,24 @@ def reduce_matrix_to_blocks(M, row_colors, col_colors):
     return block_colors, blocks, row_indices, col_indices
 
 
-@jit(nopython=True)
-def blocks_to_array(shape, blocks, row_indices, col_indices):
-    ar = np.zeros(shape)
-    # blocks may be a numba heterogeneous tuple because a size 1 matrix stays
-    # C-contiguous after tranpose and will be cast to numba array(float64, 2d, C), while
-    # any larger matrix will be cast to array(float64, 2d, F).
-    # cannot enumerate on literal_unroll
-    # cannot getitem or zip heterogeneous tuple
-    k = 0
+@numba.njit
+def heterogeneous_blocks_to_array(ar, blocks, row_indices, col_indices):
+    # tedious dealing wuth heterogeneous tuple: cannot parallelize, enum or getitem
+    bi = 0
     for b in literal_unroll(blocks):
-        for i, ri in enumerate(row_indices[k]):
-            for j, cj in enumerate(col_indices[k]):
+        for i, ri in enumerate(row_indices[bi]):
+            for j, cj in enumerate(col_indices[bi]):
                 ar[ri, cj] = b[i, j]
-        k += 1
-    return ar
+        bi += 1
+
+
+@numba.njit(parallel=True)
+def homogeneous_blocks_to_array(ar, blocks, row_indices, col_indices):
+    # when blocks is homogeneous, loops are simple and can be parallelized
+    for bi in numba.prange(len(blocks)):
+        for i in numba.prange(row_indices[bi].size):
+            for j in numba.prange(col_indices[bi].size):
+                ar[row_indices[bi][i], col_indices[bi][j]] = blocks[bi][i, j]
 
 
 class BlockMatrixU1(object):
@@ -214,10 +222,25 @@ class BlockMatrixU1(object):
             tuple(ci.copy() for ci in self._col_indices),
         )
 
+    def is_heteregeneous(self):
+        # blocks may be a numba heterogeneous tuple because a size 1 matrix stays
+        # C-contiguous after tranpose and will be cast to numba array(float64, 2d, C),
+        # while any larger matrix will be cast to array(float64, 2d, F).
+        # see https://github.com/numba/numba/issues/5967
+        c_contiguous = [b.flags.c_contiguous for b in self._blocks]
+        return min(c_contiguous) ^ max(c_contiguous)
+
     def toarray(self):  # numba wrapper
-        return blocks_to_array(
-            self._shape, self._blocks, self._row_indices, self._col_indices
-        )
+        ar = np.zeros(self._shape)
+        if self.is_heteregeneous():
+            heterogeneous_blocks_to_array(
+                ar, self._blocks, self._row_indices, self._col_indices
+            )
+        else:
+            homogeneous_blocks_to_array(
+                ar, self._blocks, self._row_indices, self._col_indices
+            )
+        return ar
 
     def get_color_index(self, color):
         return bisect.bisect_left(self._block_colors, color)
@@ -255,82 +278,3 @@ class BlockMatrixU1(object):
                 i2 += 1
         sh = (self._shape[0], other._shape[1])
         return BlockMatrixU1(sh, block_colors, blocks, row_indices, col_indices)
-
-
-class BlockSparseMatrixU1(BlockMatrixU1):
-    """
-    Subclass where blocks are sparse matrices. May be useful to have well-separated
-    blocks, however if density is low full sparse matrices will probably be more
-    efficient.
-    """
-
-    @classmethod
-    def from_dense(cls, M, row_colors, col_colors):
-        """
-        Create a sparse block matrix from dense matrix M and U(1) quantum numbers for
-        rows and columns. Refer to BlockMatrixU1 method for full documentation.
-
-        Parameters
-        ----------
-        M : (m, n) sparse matrix
-            Matrix to decompose.
-        row_colors : (m,) integer ndarray
-            U(1) quantum numbers of the rows.
-        col_colors : (n,) integer ndarray
-            U(1) quantum numbers of the columns.
-
-        Returns
-        -------
-        out : BlockSparseMatrixU1
-        """
-        assert M.shape == (
-            row_colors.size,
-            col_colors.size,
-        ), "Colors do not match array"
-        # put everything inside jitted reduce_matrix_to_blocks function
-        row_sort = row_colors.argsort(kind="mergesort")
-        sorted_row_colors = row_colors[row_sort]
-        col_sort = col_colors.argsort(kind="mergesort")
-        sorted_col_colors = col_colors[col_sort]
-        row_blocks = (
-            [0]
-            + list((sorted_row_colors[:-1] != sorted_row_colors[1:]).nonzero()[0] + 1)
-            + [M.shape[0]]
-        )
-        col_blocks = (
-            [0]
-            + list((sorted_col_colors[:-1] != sorted_col_colors[1:]).nonzero()[0] + 1)
-            + [M.shape[1]]
-        )
-
-        blocks = []
-        block_colors = []
-        row_indices = []
-        col_indices = []
-        rbi, cbi, rbimax, cbimax = 0, 0, len(row_blocks) - 1, len(col_blocks) - 1
-        while rbi < rbimax and cbi < cbimax:
-            if sorted_row_colors[row_blocks[rbi]] == sorted_col_colors[col_blocks[cbi]]:
-                ri = row_sort[row_blocks[rbi] : row_blocks[rbi + 1]].copy()
-                ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]].copy()
-                row_indices.append(
-                    ri
-                )  # copy ri to own data and delete row_sort at exit
-                col_indices.append(ci)  # same for ci
-                m = ssp.csr_matrix(M[ri[:, None], ci])
-                blocks.append(m)
-                block_colors.append(sorted_row_colors[row_blocks[rbi]])
-                rbi += 1
-                cbi += 1
-            elif (
-                sorted_row_colors[row_blocks[rbi]] < sorted_col_colors[col_blocks[cbi]]
-            ):
-                rbi += 1
-            else:
-                cbi += 1
-        return cls(M.shape, block_colors, blocks, row_indices, col_indices)
-
-    def norm(self):
-        norm2 = 0.0
-        for b in self._blocks:
-            norm2 += np.linalg.norm(b.data) ** 2
-        return np.sqrt(norm2)

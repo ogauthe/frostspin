@@ -1,9 +1,62 @@
 import numpy as np
 import scipy.linalg as lg
-from scipy.sparse.linalg import eigsh  # use custom svds
-from scipy.sparse.linalg.interface import LinearOperator
+import scipy.sparse.linalg as slg
+import numba
 
 from groups.toolsU1 import default_color, svdU1
+
+
+def find_chi_largest(block_s, chi, rcutoff=0.0, degen_ratio=1.0):
+    """
+    Find chi largest values from a tuple of blockwise, decreasing singular values.
+    Assume number of blocks is small: block_max_val is never sorted and elements
+    are compared at each iteration.
+
+    Parameters
+    ----------
+    block_s: enum of 1D ndarray sorted by decreasing values
+        Sorted values by block
+    chi: int
+        number of values to keep
+    rcutoff: float
+        relative cutoff on small values. Default to 0 (no cutoff)
+    degen_ratio: float
+        ratio to keep degenerate values. Default to 1.0 (keep values exactly degenerate)
+
+    Returns
+    -------
+    block_cuts: integer ndarray
+        Number of values to keep in each block.
+    """
+    return numba_find_chi_largest(tuple(block_s), chi, rcutoff, degen_ratio)
+
+
+@numba.njit
+def numba_find_chi_largest(block_s, chi, rcutoff, degen_ratio):
+    block_max_vals = np.array([block_s[bi][0] for bi in range(len(block_s))])
+    cutoff = block_max_vals.max() * rcutoff
+    block_cuts = np.zeros(len(block_s), dtype=np.int64)
+    for kept in range(chi - 1):
+        bi = block_max_vals.argmax()
+        if block_max_vals[bi] < cutoff:
+            break
+        block_cuts[bi] += 1
+        if block_cuts[bi] < block_s[bi].size:
+            block_max_vals[bi] = block_s[bi][block_cuts[bi]]
+        else:
+            block_max_vals[bi] = -1.0  # in case cutoff = 0
+
+    # keep last multiplet
+    bi = block_max_vals.argmax()
+    cutoff = max(cutoff, degen_ratio * block_max_vals[bi])
+    while block_max_vals[bi] >= cutoff:
+        block_cuts[bi] += 1
+        if block_cuts[bi] < block_s[bi].size:
+            block_max_vals[bi] = block_s[bi][block_cuts[bi]]
+        else:
+            block_max_vals[bi] = -1.0
+        bi = block_max_vals.argmax()
+    return block_cuts
 
 
 def svd_truncate(
@@ -85,12 +138,10 @@ def svd_truncate(
     return U, s, V, colors
 
 
-def sparse_svd(
-    A, k=6, ncv=None, tol=0, v0=None, maxiter=None, return_singular_vectors=True
-):
+def sparse_svd(A, k=6, ncv=None, tol=0, maxiter=None, return_singular_vectors=True):
     # use custom svds adapted from scipy to remove small value cutoff
-    # remove some other unused features: impose which='LM' and solver='arpack'
-    # always sort values by decreasing order
+    # remove some other unused features: impose which='LM' and solver='arpack', do not
+    # allow fixed v0, always sort values by decreasing order
     # compute either no singular vectors or both U and V
     # ref: https://github.com/scipy/scipy/pull/11829
 
@@ -115,13 +166,21 @@ def sparse_svd(
     def matmat_XH_X(x):
         return XH_mat(X_matmat(x))
 
-    XH_X = LinearOperator(
+    XH_X = slg.LinearOperator(
         matvec=matvec_XH_X, dtype=A.dtype, matmat=matmat_XH_X, shape=(dmin, dmin)
     )
 
-    eigvals, eigvec = eigsh(
-        XH_X, k=k, tol=tol, maxiter=maxiter, ncv=ncv, which="LM", v0=v0
-    )
+    try:
+        eigvals, eigvec = slg.eigsh(
+            XH_X, k=k, tol=tol, maxiter=maxiter, ncv=ncv, which="LM"
+        )
+    except slg.ArpackNoConvergence as err:
+        print("ARPACK did not converge, use LOBPCG", err)
+        X = np.random.RandomState(52).randn(dmin, k)
+        eigvals, eigvec = slg.lobpcg(XH_X, X, tol=tol, maxiter=maxiter)
+
+    # improve stability following https://github.com/scipy/scipy/pull/11829
+    # matrices should be small enough to avoid convergence errors in lg.svd
     u = X_matmat(eigvec)
     if not return_singular_vectors:
         s = lg.svd(u, compute_uv=False, overwrite_a=True)

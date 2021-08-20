@@ -5,7 +5,7 @@ import functools
 import numpy as np
 import scipy.linalg as lg
 import scipy.sparse as ssp
-from numba import njit
+import numba
 
 from groups.su2_representation import SU2_Representation
 
@@ -34,15 +34,17 @@ def get_projector(in1, in2, max_irrep=np.inf):
                 sh = (irr1, d2, irr2, d2, irr3)
                 temp = np.zeros(sh)
                 temp[:, ar, :, ar] = p123
-                temp = ssp.coo_matrix(temp.reshape(irr1, d2 ** 2 * irr2 * irr3))
+                temp = temp.reshape(irr1, d2 ** 2 * irr2 * irr3)
+                row123, col123 = temp.nonzero()
+                data123 = temp[row123, col123]
                 shift1 = cs1[i1]
                 for d1 in range(in1.degen[i1]):
                     full_col = (
                         sl2 + np.arange(shift3[irr3], shift3[irr3] + d2 * irr3)
                     ).ravel()
-                    row.extend(shift1 + temp.row)
-                    col.extend(full_col[temp.col])
-                    data.extend(temp.data)
+                    row.extend(shift1 + row123)
+                    col.extend(full_col[col123])
+                    data.extend(data123)
                     shift3[irr3] += d2 * irr3
                     shift1 += irr1
     sh = (in1.dim, in2.dim * out.dim)  # contract 1st leg in chained
@@ -227,7 +229,7 @@ def construct_transpose_matrix(representations, n_bra_leg1, n_bra_leg2, swap):
     return iso
 
 
-@njit
+@numba.njit
 def blocks_from_raw_data(degen_in, irreps_in, degen_out, irreps_out, data):
     i1 = 0
     i2 = 0

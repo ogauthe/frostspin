@@ -1,5 +1,5 @@
 import numpy as np
-from numba import jit
+import numba
 
 # cannot use None as default color since -default_color or default_color[:l]
 # need not to crash.
@@ -44,7 +44,7 @@ def checkU1(T, colorsT, tol=1e-14):
     return None, 0
 
 
-@jit(nopython=True)
+@numba.njit
 def combine_colors(*colors):
     """
     Construct colors of merged tensor legs from every leg colors.
@@ -100,7 +100,7 @@ def eighU1(H, colors):
     return spec, basis, eigvec_colors
 
 
-@jit(nopython=True)
+@numba.njit
 def svdU1(M, row_colors, col_colors):
     """
     Singular value decomposition for a U(1) symmetric matrix M. Revert to standard svd

@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.linalg as lg
 
-from misc_tools.svd_tools import svd_truncate, sparse_svd
+from misc_tools.svd_tools import find_chi_largest, svd_truncate, sparse_svd
 from ctmrg.ctm_contract import add_a_blockU1
 
 
@@ -23,7 +23,7 @@ def construct_projectors(R, Rt, chi, cutoff, degen_ratio, window):
 
 
 def construct_projectors_U1(
-    corner1, corner2, corner3, corner4, chi, cutoff, degen_ratio, window
+    corner1, corner2, corner3, corner4, chi, rcutoff, degen_ratio, window
 ):
     # once corner are constructed, no reshape or transpose is done. Decompose corner in
     # U(1) sectors as soon as they are constructed, then construct halves and R @ Rt
@@ -31,56 +31,65 @@ def construct_projectors_U1(
     # There are 4 sets of colors, since 2 adjacent blocks share one. Interior indices
     # refer to indices of each color blocks between R and Rt, where projectors are
     # needed.
-    k = 0
-    max_k = sum(min(chi, m.shape[0]) for m in corner1.blocks)  # upper bound
-    P = np.zeros((corner2.shape[1], max_k))
-    Pt = np.zeros((corner2.shape[1], max_k))
-    S = np.empty(max_k)
-    colors = np.empty(max_k, dtype=np.int8)
-    shared = (
+    shared = sorted(
         set(corner1.block_colors)
         .intersection(corner2.block_colors)
         .intersection(corner3.block_colors)
         .intersection(corner4.block_colors)
     )
-    for c in shared:  # avoid svd_truncate to compute SVD on the fly
+    n_blocks = len(shared)
+
+    # first loop: compute SVD for all blocks
+    block_r, block_rt, block_u, block_s, block_v = [[None] * n_blocks for i in range(5)]
+
+    for bi, c in enumerate(shared):  # avoid svd_truncate to compute SVD on the fly
         m1 = corner1.blocks[corner1.get_color_index(c)]
-        i2 = corner2.get_color_index(c)
-        m2 = corner2.blocks[i2]
-        proj_indices = corner2.col_indices[i2]
+        m2 = corner2.blocks[corner2.get_color_index(c)]
         m3 = corner3.blocks[corner3.get_color_index(c)]
         m4 = corner4.blocks[corner4.get_color_index(c)]
 
-        r = m1 @ m2
-        rt = m3 @ m4
-        m = r @ rt
+        block_r[bi] = m1 @ m2
+        block_rt[bi] = m3 @ m4
+        m = block_r[bi] @ block_rt[bi]
         if min(m.shape) < 3 * chi:  # use full svd for small blocks
-            u, s, v = lg.svd(m, full_matrices=False, overwrite_a=True)
+            try:
+                u, s, v = lg.svd(m, full_matrices=False, overwrite_a=True)
+            except lg.LinAlgError as err:
+                print("Error in scipy dense SVD:", err)
+                m = block_r[bi] @ block_rt[bi]  # overwrite_a=True may have erased it
+                u, s, v = lg.svd(
+                    m,
+                    full_matrices=False,
+                    overwrite_a=True,
+                    check_finite=False,
+                    lapack_driver="gesvd",
+                )
         else:
             # for U(1) as SU(2) subgroup, no degen inside a color block
             u, s, v = sparse_svd(m, k=chi + window, maxiter=1000)
 
-        d = min(chi, s.size)  # may be smaller than chi
-        S[k : k + d] = s[:d]
+        block_u[bi] = u
+        block_s[bi] = s
+        block_v[bi] = v
+
+    # keep chi largest singular values + last multiplet
+    block_cuts = find_chi_largest(block_s, chi, rcutoff, degen_ratio)
+    kept = block_cuts.sum()
+
+    # second loop: construct projectors
+    P = np.zeros((corner2.shape[1], kept))
+    Pt = np.zeros((corner2.shape[1], kept))
+    colors = np.empty(kept, dtype=np.int8)
+    k = 0
+    for bi, c in enumerate(shared):
+        proj_indices = corner2.col_indices[corner2.get_color_index(c)]
+        d = block_cuts[bi]
+        s12 = 1.0 / np.sqrt(block_s[bi][:d])
+        P[proj_indices, k : k + d] = block_r[bi].T @ block_u[bi][:, :d].conj() * s12
+        Pt[proj_indices, k : k + d] = block_rt[bi] @ block_v[bi][:d].T.conj() * s12
         colors[k : k + d] = c
-        # not all blocks are used, the information which color sectors are used is
-        # only known here. Need it to find row indices for P and Pt.
-        P[proj_indices, k : k + d] = r.T @ u[:, :d].conj()
-        Pt[proj_indices, k : k + d] = rt @ v[:d].T.conj()
         k += d
 
-    # TODO: benchmark with heapq.nlargest(chi, range(k), lambda i: S[i])
-    s_sort = S[:k].argsort()[::-1]  # remove non-written values before sorting
-    S = S[s_sort]
-    cut = min(chi, (S > cutoff * S[0]).nonzero()[0][-1] + 1)
-    # cut between multiplets, defined as S[i+1]/S[i] >= degen_ratio (>= for ratio=1)
-    nnz = (S[cut:] <= degen_ratio * S[cut - 1 : -1]).nonzero()[0]
-    if nnz.size:
-        cut += nnz[0]
-    s12 = 1 / np.sqrt(S[:cut])
-    colors = colors[s_sort[:cut]]
-    P = P[:, s_sort[:cut]] * s12
-    Pt = Pt[:, s_sort[:cut]] * s12
     return P, Pt, colors
 
 
@@ -116,7 +125,7 @@ def renormalize_T(Pt, T, A, P):
         .reshape(Pt.shape[0], A.shape[2] ** 2 * P.shape[1])
     )
     nT = (Pt.T @ nT).reshape(Pt.shape[1], A.shape[2], A.shape[2], P.shape[1])
-    nT /= nT.max()
+    nT /= np.linalg.norm(nT, ord=np.inf)
     return nT
 
 
@@ -141,7 +150,7 @@ def renormalize_corner_P(C, T, P):
     #       \   |
     #        \3-|
     nC = nC @ P
-    nC /= nC.max()
+    nC /= np.linalg.norm(nC, ord=np.inf)
     return nC
 
 
@@ -166,7 +175,7 @@ def renormalize_corner_Pt(C, T, Pt):
     #  |   /
     #  |-3/
     nC = nC @ Pt
-    nC /= nC.max()
+    nC /= np.linalg.norm(nC, ord=np.inf)
     return nC
 
 
@@ -274,7 +283,7 @@ def renormalize_C1_left(C1, T1, Pt):
 ###############################################################################
 
 
-def renormalize_T1_U1(Pt, T1, a_ul, P, col_T1_r, col_Pt, col_a_ul, col_a_r, col_a_d):
+def renormalize_T1_U1(Pt, T1, a_ul, P, col_T1_r, col_Pt, col_a_r, col_a_d):
     """
     Renormalize edge T1 using projectors P and Pt with U(1) symmetry
     CPU: highly depends on symmetry, worst case chi**2*D**8
@@ -283,20 +292,20 @@ def renormalize_T1_U1(Pt, T1, a_ul, P, col_T1_r, col_Pt, col_a_ul, col_a_r, col_
     # T1 -> up, transpose due to add_a_blockU1 conventions
     left = Pt.reshape(-1, T1.shape[3], Pt.shape[1]).swapaxes(0, 1).copy()
     nT1 = T1.transpose(1, 2, 0, 3).reshape(T1.shape[1] ** 2, T1.shape[0], T1.shape[3])
-    nT1 = add_a_blockU1(nT1, left, a_ul, col_T1_r, col_Pt, col_a_ul, col_a_r, col_a_d)
+    nT1 = add_a_blockU1(nT1, left, a_ul, col_T1_r, col_Pt, col_a_r, col_a_d)
     #             -T1-0'
     #            / ||
     #       1'-Pt==AA=0
     #            \ ||
     #               1'
     nT1 = P.T @ nT1
-    nT1 /= nT1.max()
-    dim_d = round(float(np.sqrt(nT1.shape[1] // Pt.shape[1])))
+    nT1 /= np.linalg.norm(nT1, ord=np.inf)
+    dim_d = round(np.sqrt(nT1.shape[1] // Pt.shape[1]))
     nT1 = nT1.reshape(P.shape[1], dim_d, dim_d, Pt.shape[1])
     return nT1
 
 
-def renormalize_T2_U1(Pt, T2, a_ur, P, col_T2_d, col_Pt, col_a_ur, col_a_d, col_a_l):
+def renormalize_T2_U1(Pt, T2, a_ur, P, col_T2_d, col_Pt, col_a_d, col_a_l):
     """
     Renormalize edge T2 using projectors P and Pt with U(1) symmetry
     CPU: highly depends on symmetry, worst case chi**2*D**8
@@ -305,7 +314,7 @@ def renormalize_T2_U1(Pt, T2, a_ur, P, col_T2_d, col_Pt, col_a_ur, col_a_d, col_
     # T2 -> up
     left = Pt.reshape(-1, T2.shape[0], Pt.shape[1]).swapaxes(0, 1).copy()
     nT2 = T2.transpose(2, 3, 1, 0).reshape(T2.shape[2] ** 2, T2.shape[1], T2.shape[0])
-    nT2 = add_a_blockU1(nT2, left, a_ur, col_T2_d, col_Pt, col_a_ur, col_a_d, col_a_l)
+    nT2 = add_a_blockU1(nT2, left, a_ur, col_T2_d, col_Pt, col_a_d, col_a_l)
     #                 3
     #                 |
     #                Pt
@@ -314,13 +323,13 @@ def renormalize_T2_U1(Pt, T2, a_ur, P, col_T2_d, col_Pt, col_a_ur, col_a_d, col_
     #              \\  |
     #               0  1
     nT2 = P.T @ nT2
-    nT2 /= nT2.max()
-    dim_d = round(float(np.sqrt(nT2.shape[1] // Pt.shape[1])))
+    nT2 /= np.linalg.norm(nT2, ord=np.inf)
+    dim_d = round(np.sqrt(nT2.shape[1] // Pt.shape[1]))
     nT2 = nT2.reshape(P.shape[1], dim_d, dim_d, Pt.shape[1]).transpose(3, 0, 1, 2)
     return nT2
 
 
-def renormalize_T3_U1(Pt, T3, a_dl, P, col_T3_r, col_P, col_a_dl, col_a_u, col_a_r):
+def renormalize_T3_U1(Pt, T3, a_dl, P, col_T3_r, col_P, col_a_u, col_a_r):
     """
     Renormalize edge T3 using projectors P and Pt with U(1) symmetry
     CPU: highly depends on symmetry, worst case chi**2*D**8
@@ -338,20 +347,20 @@ def renormalize_T3_U1(Pt, T3, a_dl, P, col_T3_r, col_P, col_a_dl, col_a_u, col_a
     # T3 -> up
     left = P.reshape(-1, T3.shape[3], P.shape[1]).swapaxes(0, 1).copy()
     nT3 = T3.reshape(T3.shape[0] ** 2, T3.shape[2], T3.shape[3])
-    nT3 = add_a_blockU1(nT3, left, a_dl, col_T3_r, col_P, col_a_dl, col_a_r, col_a_u)
+    nT3 = add_a_blockU1(nT3, left, a_dl, col_T3_r, col_P, col_a_r, col_a_u)
     #               2
     #              ||
     #            //AA=0
     #         3-P  ||
     #            \-T3-1
     nT3 = Pt.T @ nT3
-    nT3 /= nT3.max()
-    dim_d = round(float(np.sqrt(nT3.shape[1] // P.shape[1])))
+    nT3 /= np.linalg.norm(nT3, ord=np.inf)
+    dim_d = round(np.sqrt(nT3.shape[1] // P.shape[1]))
     nT3 = nT3.reshape(Pt.shape[1], dim_d, dim_d, P.shape[1]).transpose(1, 2, 0, 3)
     return nT3
 
 
-def renormalize_T4_U1(Pt, T4, a_ul, P, col_T4_d, col_P, col_a_ul, col_a_r, col_a_d):
+def renormalize_T4_U1(Pt, T4, a_ul, P, col_T4_d, col_P, col_a_r, col_a_d):
     """
     Renormalize edge T4 using projectors P and Pt with U(1) symmetry
     CPU: highly depends on symmetry, worst case chi**2*D**8
@@ -362,7 +371,7 @@ def renormalize_T4_U1(Pt, T4, a_ul, P, col_T4_d, col_P, col_a_ul, col_a_r, col_a
     # T4 -> left
     nT4 = P.reshape(-1, T4.shape[0], P.shape[1]).swapaxes(1, 2).copy()
     left = T4.reshape(T4.shape[0], T4.shape[1] ** 2, T4.shape[3])
-    nT4 = add_a_blockU1(nT4, left, a_ul, col_P, col_T4_d, col_a_ul, col_a_r, col_a_d)
+    nT4 = add_a_blockU1(nT4, left, a_ul, col_P, col_T4_d, col_a_r, col_a_d)
     #              1
     #              |
     #              P
@@ -371,7 +380,7 @@ def renormalize_T4_U1(Pt, T4, a_ul, P, col_T4_d, col_P, col_a_ul, col_a_r, col_a
     #            \ ||
     #            3  2
     nT4 = nT4 @ Pt
-    nT4 /= nT4.max()
-    dim_d = round(float(np.sqrt(nT4.shape[0] // P.shape[1])))
+    nT4 /= np.linalg.norm(nT4, ord=np.inf)
+    dim_d = round(np.sqrt(nT4.shape[0] // P.shape[1]))
     nT4 = nT4.reshape(dim_d, dim_d, P.shape[1], Pt.shape[1]).transpose(2, 0, 1, 3)
     return nT4
