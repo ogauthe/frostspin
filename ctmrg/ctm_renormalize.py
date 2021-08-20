@@ -62,7 +62,7 @@ def construct_projectors_U1(
                     full_matrices=False,
                     overwrite_a=True,
                     check_finite=False,
-                    driver="gesvd",
+                    lapack_driver="gesvd",
                 )
         else:
             # for U(1) as SU(2) subgroup, no degen inside a color block
