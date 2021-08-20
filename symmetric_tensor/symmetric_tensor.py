@@ -150,10 +150,6 @@ class SymmetricTensor(object):
 
     def __matmul__(self, other):
         # do not construct empty blocks: those will be missing TODO: change this
-        assert (
-            self._axis_irreps[self._n_leg_rows :]
-            == other._axis_irreps[: other._n_leg_rows]
-        )
         i1 = 0
         i2 = 0
         blocks = []
