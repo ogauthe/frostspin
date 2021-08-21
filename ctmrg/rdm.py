@@ -1,10 +1,154 @@
-from ctmrg.ctm_contract import (
-    contract_ur_corner,
-    contract_dl_corner,
-    contract_open_corner,
-    contract_open_corner_mirror,
-)
+from ctmrg.ctm_contract import contract_ur_corner, contract_dl_corner
 from groups.block_matrix_U1 import BlockMatrixU1
+
+
+def contract_open_corner(C1, T1, T4, A):
+    ul = T1.transpose(1, 2, 0, 3).reshape(T1.shape[1] ** 2 * T1.shape[0], T1.shape[3])
+    ul = ul @ C1
+    ul = ul @ T4.reshape(T4.shape[0], T4.shape[1] ** 2 * T4.shape[3])
+    ul = ul.reshape(
+        T1.shape[1], T1.shape[2], T1.shape[0], T4.shape[1], T4.shape[2], T4.shape[3]
+    )
+
+    # |----2        |-----4
+    # |  ||         |   ||
+    # |  01    -->  |   02
+    # |=3,4         |=1,3
+    # 5             5
+    ul = (
+        ul.transpose(0, 3, 1, 4, 2, 5)
+        .copy()
+        .reshape(
+            T1.shape[1] * T4.shape[1],
+            T1.shape[2] * T4.shape[2] * T1.shape[0] * T4.shape[3],
+        )
+    )
+
+    temp = A.transpose(1, 0, 3, 4, 2, 5).reshape(
+        A.shape[1] * A.shape[0] * A.shape[3] * A.shape[4], A.shape[2] * A.shape[5]
+    )
+
+    #  C1----T1-4
+    #  |     ||
+    #  |     02
+    #  |   1 4
+    #  |    \|
+    #  T4-15-A-2
+    #  | \3  |\
+    #  5     3 0
+    ul = (temp @ ul).reshape(
+        A.shape[1],
+        A.shape[0] * A.shape[3] * A.shape[4],
+        T1.shape[2] * T4.shape[2],
+        T1.shape[0] * T4.shape[3],
+    )
+    ul = (
+        ul.swapaxes(1, 2)
+        .copy()
+        .reshape(
+            A.shape[1] * T1.shape[2] * T4.shape[2],
+            A.shape[0] * A.shape[3] * A.shape[4] * T1.shape[0] * T4.shape[3],
+        )
+    )  # memory 2*a*d*chi**2*D**4
+
+    #  C1----T1-6
+    #  |     ||
+    #  |     |1
+    #  |   3 |        0 4
+    #  |    \|         \|
+    #  T4----A-4      5-A*-1
+    #  | \2  |\         |\
+    #  7     5 0        2 3
+    temp = (
+        temp.reshape(
+            A.shape[1], A.shape[0] * A.shape[3] * A.shape[4], A.shape[2] * A.shape[5]
+        )
+        .swapaxes(0, 1)
+        .conj()
+        .copy()
+        .reshape(
+            A.shape[0] * A.shape[3] * A.shape[4], A.shape[1] * A.shape[2] * A.shape[5]
+        )
+    )
+    ul = temp @ ul
+    ul = ul.reshape(
+        A.shape[0],
+        A.shape[3],
+        A.shape[4],
+        A.shape[0],
+        A.shape[3],
+        A.shape[4],
+        T1.shape[0],
+        T4.shape[3],
+    ).transpose(3, 0, 4, 1, 6, 5, 2, 7)
+    # -----6          -----4
+    # |  || 3         |  || 0
+    # |  ||/          |  ||/
+    # |=====4,1  -->  |=====2,3  (no copy, non-contiguous array)
+    # |  ||\          |  ||\
+    # 7  52 0         7  56 1
+    return ul
+
+
+def contract_open_corner_mirror(T1, C2, A, T2):
+    ur = T2.transpose(0, 2, 3, 1).reshape(T2.shape[0], T2.shape[2] ** 2 * T2.shape[1])
+    ur = (C2 @ T1.reshape(T1.shape[0], T1.shape[1] ** 2 * T1.shape[3])).T @ ur
+    temp = (
+        A.transpose(1, 0, 4, 5, 2, 3)
+        .copy()
+        .reshape(
+            A.shape[1] * A.shape[0] * A.shape[4] * A.shape[5], A.shape[2] * A.shape[3]
+        )
+    )
+    ur = (
+        ur.reshape(
+            T1.shape[1], T1.shape[2], T1.shape[3], T2.shape[2], T2.shape[3], T2.shape[1]
+        )
+        .transpose(0, 3, 1, 4, 2, 5)
+        .copy()
+        .reshape(temp.shape[1], temp.shape[1] * T1.shape[3] * T2.shape[1])
+    )
+    ur = (temp @ ur).reshape(
+        A.shape[1],
+        A.shape[0] * A.shape[4] * A.shape[5],
+        temp.shape[1],
+        T1.shape[3] * T2.shape[1],
+    )
+    ur = (
+        ur.swapaxes(1, 2)
+        .copy()
+        .reshape(
+            A.shape[1] * temp.shape[1],
+            A.shape[0] * A.shape[4] * A.shape[5] * T1.shape[3] * T2.shape[1],
+        )
+    )
+    temp = (
+        temp.reshape(
+            A.shape[1], A.shape[0] * A.shape[4] * A.shape[5], A.shape[2] * A.shape[3]
+        )
+        .swapaxes(0, 1)
+        .conj()
+        .copy()
+        .reshape(A.shape[0] * A.shape[4] * A.shape[5], ur.shape[0])
+    )
+    ur = (temp @ ur).reshape(
+        A.shape[0],
+        A.shape[4],
+        A.shape[5],
+        A.shape[0],
+        A.shape[4],
+        A.shape[5],
+        T1.shape[3],
+        T2.shape[1],
+    )
+    ur = ur.transpose(3, 0, 5, 2, 6, 4, 1, 7)
+    #   4------
+    #    0 || |
+    #     \|| |
+    #  2,3====|
+    #     /|| |
+    #    1 56 7
+    return ur
 
 
 def rdm_1x2(C1, T1l, T1r, C2, T4, Al, Ar, T2, C4, T3l, T3r, C3):
