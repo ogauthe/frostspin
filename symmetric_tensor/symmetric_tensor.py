@@ -167,8 +167,7 @@ class SymmetricTensor(object):
 
         block_irreps = np.array(block_irreps)
         axis_reps = (
-            self._axis_reps[: self._n_leg_rows]
-            + other._axis_irreps[other._n_leg_rows :]
+            self._axis_reps[: self._n_leg_rows] + other._axis_reps[other._n_leg_rows :]
         )
         return type(self)(axis_reps, self._n_leg_rows, blocks, block_irreps)
 
@@ -251,6 +250,7 @@ class AsymmetricTensor(SymmetricTensor):
     # not a subclass of AbelianSymmetricTensor
     # representation is just an integer corresponding to the dimension
     _symmetry = "{e}"
+    _irrep = np.zeros((1,), dtype=np.int8)
 
     @classmethod
     def combine_representations(cls, *reps):
@@ -270,13 +270,12 @@ class AsymmetricTensor(SymmetricTensor):
 
     @classmethod
     def from_array(cls, arr, n_leg_rows):
-        axis_reps = np.array(arr.shape)
         matrix_shape = (
             np.prod(arr.shape[:n_leg_rows]),
             np.prod(arr.shape[n_leg_rows:]),
         )
         block = arr.reshape(matrix_shape)
-        return cls(axis_reps, n_leg_rows, (block,), np.zeros((1,), dtype=np.int8))
+        return cls(arr.shape, n_leg_rows, (block,), cls._irrep)
 
     def toarray(self):
         return self._blocks[0].reshape(self._shape)
@@ -291,7 +290,7 @@ class AsymmetricTensor(SymmetricTensor):
             self._axis_reps[self._n_leg_rows :] + self._axis_reps[: self._n_leg_rows],
             self._ndim - self._n_leg_rows,
             (self._blocks[0].T,),
-            self._block_irreps,
+            self._irrep,
         )
 
 
@@ -435,7 +434,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
     @property
     def T(self):
         n_legs = self._ndim - self._n_leg_rows
-        conj_irreps = self.conjugate_representation(self._block_irreps)
+        conj_irreps = self.conjugate_representation(self._block_irreps)  # abelian only
         so = conj_irreps.argsort()
         block_irreps = conj_irreps[so]
         blocks = tuple(self._blocks[i].T for i in so)
