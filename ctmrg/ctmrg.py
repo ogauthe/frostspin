@@ -33,6 +33,7 @@ from ctmrg.ctm_renormalize import (
     renormalize_C1_left,
 )
 from groups.toolsU1 import combine_colors, checkU1
+from symmetric_tensor.symmetric_tensor import AsymmetricTensor
 
 
 class CTMRG(object):
@@ -537,55 +538,40 @@ class CTMRG(object):
         if self.verbosity > 1:
             print("left move completed")
 
-    def compute_rdm1x1(self, x=0, y=0):
-        if self.verbosity > 1:
-            print(f"Compute rdm 1x1 with C1 coord = ({x},{y})")
-        return rdm.rdm_1x1(
-            self._env.get_C1(x, y),
-            self._env.get_T1(x + 1, y),
-            self._env.get_C2(x + 2, y),
-            self._env.get_T4(x, y + 1),
-            self._env.get_A(x + 1, y + 1),
-            self._env.get_T2(x + 2, y + 1),
-            self._env.get_C4(x, y + 2),
-            self._env.get_T3(x + 1, y + 2),
-            self._env.get_C3(x + 2, y + 2),
-        )
-
     def compute_rdm1x2(self, x=0, y=0):
         if self.verbosity > 1:
             print(f"Compute rdm 1x2 with C1 coord = ({x},{y})")
         return rdm.rdm_1x2(
-            self._env.get_C1(x, y),
-            self._env.get_T1(x + 1, y),
-            self._env.get_T1(x + 2, y),
-            self._env.get_C2(x + 3, y),
-            self._env.get_T4(x, y + 1),
-            self._env.get_A(x + 1, y + 1),
-            self._env.get_A(x + 2, y + 1),
-            self._env.get_T2(x + 3, y + 1),
-            self._env.get_C4(x, y + 2),
-            self._env.get_T3(x + 1, y + 2),
-            self._env.get_T3(x + 2, y + 2),
-            self._env.get_C3(x + 3, y + 2),
+            AsymmetricTensor.from_array(self._env.get_C1(x, y), 1),
+            AsymmetricTensor.from_array(self._env.get_T1(x + 1, y), 1),
+            AsymmetricTensor.from_array(self._env.get_T1(x + 2, y), 1),
+            AsymmetricTensor.from_array(self._env.get_C2(x + 3, y), 1),
+            AsymmetricTensor.from_array(self._env.get_T4(x, y + 1), 1),
+            AsymmetricTensor.from_array(self._env.get_A(x + 1, y + 1), 1),
+            AsymmetricTensor.from_array(self._env.get_A(x + 2, y + 1), 1),
+            AsymmetricTensor.from_array(self._env.get_T2(x + 3, y + 1), 1),
+            AsymmetricTensor.from_array(self._env.get_C4(x, y + 2), 1),
+            AsymmetricTensor.from_array(self._env.get_T3(x + 1, y + 2), 1),
+            AsymmetricTensor.from_array(self._env.get_T3(x + 2, y + 2), 1),
+            AsymmetricTensor.from_array(self._env.get_C3(x + 3, y + 2), 1),
         )
 
     def compute_rdm2x1(self, x=0, y=0):
         if self.verbosity > 1:
             print(f"Compute rdm 2x1 with C1 coord = ({x},{y})")
         return rdm.rdm_2x1(
-            self._env.get_C1(x, y),
-            self._env.get_T1(x + 1, y),
-            self._env.get_C2(x + 2, y),
-            self._env.get_T4(x, y + 1),
-            self._env.get_A(x + 1, y + 1),
-            self._env.get_T2(x + 2, y + 1),
-            self._env.get_T4(x, y + 2),
-            self._env.get_A(x + 1, y + 2),
-            self._env.get_T2(x + 2, y + 2),
-            self._env.get_C4(x, y + 3),
-            self._env.get_T3(x + 1, y + 3),
-            self._env.get_C3(x + 2, y + 3),
+            AsymmetricTensor.from_array(self._env.get_C1(x, y), 1),
+            AsymmetricTensor.from_array(self._env.get_T1(x + 1, y), 1),
+            AsymmetricTensor.from_array(self._env.get_C2(x + 2, y), 1),
+            AsymmetricTensor.from_array(self._env.get_T4(x, y + 1), 1),
+            AsymmetricTensor.from_array(self._env.get_A(x + 1, y + 1), 1),
+            AsymmetricTensor.from_array(self._env.get_T2(x + 2, y + 1), 1),
+            AsymmetricTensor.from_array(self._env.get_T4(x, y + 2), 1),
+            AsymmetricTensor.from_array(self._env.get_A(x + 1, y + 2), 1),
+            AsymmetricTensor.from_array(self._env.get_T2(x + 2, y + 2), 1),
+            AsymmetricTensor.from_array(self._env.get_C4(x, y + 3), 1),
+            AsymmetricTensor.from_array(self._env.get_T3(x + 1, y + 3), 1),
+            AsymmetricTensor.from_array(self._env.get_C3(x + 2, y + 3), 1),
         )
 
     def compute_rdm2x2(self, x=0, y=0):
