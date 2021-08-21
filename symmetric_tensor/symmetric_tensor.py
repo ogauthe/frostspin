@@ -145,7 +145,7 @@ class SymmetricTensor(object):
         # This operation is therefore group-specific and cannot be implemented here.
         return NotImplemented
 
-    def permutate(self, axes, n_leg_rows):  # signature != ndarray.transpose
+    def permutate(self, row_axes, col_axes):  # signature != ndarray.transpose
         return NotImplemented
 
     def __matmul__(self, other):
@@ -281,9 +281,9 @@ class AsymmetricTensor(SymmetricTensor):
     def toarray(self):
         return self._blocks[0].reshape(self._shape)
 
-    def permutate(self, axes, n_leg_rows):
-        arr = self._blocks[0].reshape(self._shape).transpose(axes)
-        return AsymmetricTensor.from_array(arr, n_leg_rows)
+    def permutate(self, row_axes, col_axes):
+        arr = self._blocks[0].reshape(self._shape).transpose(row_axes + col_axes)
+        return AsymmetricTensor.from_array(arr, len(row_axes))
 
     @property
     def T(self):
@@ -413,7 +413,12 @@ class AbelianSymmetricTensor(SymmetricTensor):
             )
         return M.reshape(self._shape)
 
-    def permutate(self, axes, n_leg_rows):
+    def permutate(self, row_axes, col_axes):
+        # it is more convenient to deal woth 1 tuple of axes and use 1 int to
+        # split it into rows and columns internally (is it?)
+        # but the interface is much simpler with 2 tuples.
+        axes = row_axes + col_axes
+        n_leg_rows = len(row_axes)
         assert sorted(axes) == list(range(self.ndim))
         # cast to dense to reshape, transpose to get non-contiguous, then call
         # from_array TODO: from_array currently makes copy
