@@ -148,6 +148,9 @@ class SymmetricTensor(object):
     def permutate(self, row_axes, col_axes):  # signature != ndarray.transpose
         return NotImplemented
 
+    def conjugate(self):
+        return NotImplemented
+
     def __matmul__(self, other):
         # do not construct empty blocks: those will be missing TODO: change this
         i1 = 0
@@ -292,6 +295,10 @@ class AsymmetricTensor(SymmetricTensor):
             (self._blocks[0].T,),
             self._irrep,
         )
+
+    def conjugate(self):
+        blocks = (self._blocks[0].conj(),)
+        return AsymmetricTensor(self._axis_reps, self._n_leg_rows, blocks, self._irrep)
 
 
 @numba.njit(parallel=True)
@@ -443,6 +450,14 @@ class AbelianSymmetricTensor(SymmetricTensor):
             for i in range(-n_legs, self._n_leg_rows)
         )
         return type(self)(axis_reps, n_legs, blocks, block_irreps)
+
+    def conjugate(self):
+        conj_irreps = self.conjugate_representation(self._block_irreps)  # abelian only
+        so = conj_irreps.argsort()
+        block_irreps = conj_irreps[so]
+        blocks = tuple(self._blocks[i].conj() for i in so)
+        axis_reps = tuple(self.conjugate_representation(r) for r in self._axis_reps)
+        return type(self)(axis_reps, self._n_leg_rows, blocks, block_irreps)
 
 
 @numba.njit
