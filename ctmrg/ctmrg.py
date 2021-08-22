@@ -33,7 +33,7 @@ from ctmrg.ctm_renormalize import (
     renormalize_C1_left,
 )
 from groups.toolsU1 import combine_colors, checkU1
-from symmetric_tensor.symmetric_tensor import AsymmetricTensor
+from symmetric_tensor.symmetric_tensor import AsymmetricTensor, U1_SymmetricTensor
 
 
 class CTMRG(object):
@@ -1252,6 +1252,127 @@ class CTMRG_U1(CTMRG):
         self._env.fix_renormalized_left()
         if self.verbosity > 1:
             print("left move completed")
+
+    def compute_rdm1x2(self, x=0, y=0):
+        if self.verbosity > 1:
+            print(f"Compute rdm 1x2 with C1 coord = ({x},{y})")
+        c1 = self._env.get_color_C1_r(x, y)
+        c2 = self._env.get_color_T1_r(x + 1, y)
+        c3 = self._env.get_color_C2_l(x + 3, y)
+        c4 = self._env.get_color_C1_d(x, y)
+        (cd, ca, c5, c9, c12, c8) = self._env.get_colors_A(x + 1, y + 1)
+        (_, _, c6, c10, c13, _) = self._env.get_colors_A(x + 2, y + 1)
+        c7 = self._env.get_color_C2_d(x + 3, y)
+        c11 = self._env.get_color_C4_u(x, y + 3)
+        c15 = self._env.get_color_C4_r(x, y + 3)
+        c16 = self._env.get_color_T3_r(x + 1, y + 3)
+        c14 = self._env.get_color_C3_u(x + 3, y + 3)
+        c17 = self._env.get_color_C3_l(x + 3, y + 3)
+
+        C1 = U1_SymmetricTensor.from_array(self._env.get_C1(x, y), (c1, c4), 1)
+        T1l = U1_SymmetricTensor.from_array(
+            self._env.get_T1(x + 1, y), (c2, -c5, c5, -c1), 1
+        )
+        T1r = U1_SymmetricTensor.from_array(
+            self._env.get_T1(x + 2, y), (-c3, -c6, c6, -c2), 1
+        )
+        C2 = U1_SymmetricTensor.from_array(self._env.get_C2(x + 3, y), (c7, c3), 1)
+        T4 = U1_SymmetricTensor.from_array(
+            self._env.get_T4(x, y + 1), (-c4, -c8, c8, -c11), 3
+        )
+        Al = U1_SymmetricTensor.from_array(
+            self._env.get_A(x + 1, y + 1), (cd, ca, c5, c9, c12, c8), 2
+        )
+        Ar = U1_SymmetricTensor.from_array(
+            self._env.get_A(x + 2, y + 1), (-cd, -ca, c6, c10, c13, -c9), 2
+        )
+        T2 = U1_SymmetricTensor.from_array(
+            self._env.get_T2(x + 3, y + 1), (-c7, -c14, -c10, c10), 2
+        )
+        C4 = U1_SymmetricTensor.from_array(self._env.get_C4(x, y + 2), (c11, c15), 1)
+        T3l = U1_SymmetricTensor.from_array(
+            self._env.get_T3(x + 1, y + 2), (-c12, c12, c16, -c15), 2
+        )
+        T3r = U1_SymmetricTensor.from_array(
+            self._env.get_T3(x + 2, y + 2), (-c13, c13, -c17, -c16), 2
+        )
+        C3 = U1_SymmetricTensor.from_array(
+            self._env.get_C3(x + 3, y + 2), (c14, c17), 1
+        )
+        assert (self._env.get_C1(x, y) == C1.toarray()).all()
+        assert (self._env.get_T1(x + 1, y) == T1l.toarray()).all()
+        assert (self._env.get_T1(x + 2, y) == T1r.toarray()).all()
+        assert (self._env.get_C2(x + 3, y) == C2.toarray()).all()
+        assert (self._env.get_T4(x, y + 1) == T4.toarray()).all()
+        assert (self._env.get_A(x + 1, y + 1) == Al.toarray()).all()
+        assert (self._env.get_A(x + 2, y + 1) == Ar.toarray()).all()
+        assert (self._env.get_T2(x + 3, y + 1) == T2.toarray()).all()
+        assert (self._env.get_C4(x, y + 2) == C4.toarray()).all()
+        assert (self._env.get_T3(x + 1, y + 2) == T3l.toarray()).all()
+        assert (self._env.get_T3(x + 2, y + 2) == T3r.toarray()).all()
+        assert (self._env.get_C3(x + 3, y + 2) == C3.toarray()).all()
+
+        return rdm.rdm_1x2(C1, T1l, T1r, C2, T4, Al, Ar, T2, C4, T3l, T3r, C3)
+
+    def compute_rdm2x1(self, x=0, y=0):
+        if self.verbosity > 1:
+            print(f"Compute rdm 2x1 with C1 coord = ({x},{y})")
+        c1 = self._env.get_color_C1_r(x, y)
+        c2 = self._env.get_color_C2_l(x + 2, y)
+        c3 = self._env.get_color_C1_d(x, y)
+        (cd, ca, c4, c7, c9, c6) = self._env.get_colors_A(x + 1, y + 1)
+        c5 = self._env.get_color_C2_d(x + 2, y)
+        c8 = self._env.get_color_T4_d(x, y + 1)
+        c10 = self._env.get_color_T2_d(x + 2, y + 1)
+        (_, _, _, c12, c14, c11) = self._env.get_colors_A(x + 1, y + 2)
+        c13 = self._env.get_color_C4_u(x, y + 3)
+        c15 = self._env.get_color_C3_u(x + 2, y + 3)
+        c16 = self._env.get_color_C4_r(x, y + 3)
+        c17 = self._env.get_color_C3_l(x + 2, y + 3)
+
+        C1 = U1_SymmetricTensor.from_array(self._env.get_C1(x, y), (c1, c3), 1)
+        T1 = U1_SymmetricTensor.from_array(
+            self._env.get_T1(x + 1, y), (-c2, -c4, c4, -c1), 1
+        )
+        C2 = U1_SymmetricTensor.from_array(self._env.get_C2(x + 2, y), (c5, c2), 1)
+        T4u = U1_SymmetricTensor.from_array(
+            self._env.get_T4(x, y + 1), (-c3, -c6, c6, c8), 3
+        )
+        Au = U1_SymmetricTensor.from_array(
+            self._env.get_A(x + 1, y + 1), (cd, ca, c4, c7, c9, c6), 2
+        )
+        T2u = U1_SymmetricTensor.from_array(
+            self._env.get_T2(x + 2, y + 1), (-c5, c10, -c7, c7), 2
+        )
+        T4d = U1_SymmetricTensor.from_array(
+            self._env.get_T4(x, y + 2), (-c8, -c11, c11, -c13), 3
+        )
+        Ad = U1_SymmetricTensor.from_array(
+            self._env.get_A(x + 1, y + 2), (-cd, -ca, -c9, c12, c14, c11), 2
+        )
+        T2d = U1_SymmetricTensor.from_array(
+            self._env.get_T2(x + 2, y + 2), (-c10, -c15, -c12, c12), 2
+        )
+        C4 = U1_SymmetricTensor.from_array(self._env.get_C4(x, y + 3), (c13, c16), 1)
+        T3 = U1_SymmetricTensor.from_array(
+            self._env.get_T3(x + 1, y + 3), (-c14, c14, -c17, -c16), 2
+        )
+        C3 = U1_SymmetricTensor.from_array(
+            self._env.get_C3(x + 2, y + 3), (c15, c17), 1
+        )
+        assert (self._env.get_C1(x, y) == C1.toarray()).all()
+        assert (self._env.get_T1(x + 1, y) == T1.toarray()).all()
+        assert (self._env.get_C2(x + 2, y) == C2.toarray()).all()
+        assert (self._env.get_T4(x, y + 1) == T4u.toarray()).all()
+        assert (self._env.get_A(x + 1, y + 1) == Au.toarray()).all()
+        assert (self._env.get_T2(x + 2, y + 1) == T2u.toarray()).all()
+        assert (self._env.get_T4(x, y + 2) == T4d.toarray()).all()
+        assert (self._env.get_A(x + 1, y + 2) == Ad.toarray()).all()
+        assert (self._env.get_T2(x + 2, y + 2) == T2d.toarray()).all()
+        assert (self._env.get_C4(x, y + 3) == C4.toarray()).all()
+        assert (self._env.get_T3(x + 1, y + 3) == T3.toarray()).all()
+        assert (self._env.get_C3(x + 2, y + 3) == C3.toarray()).all()
+        return rdm.rdm_2x1(C1, T1, C2, T4u, Au, T2u, T4d, Ad, T2d, C4, T3, C3)
 
     def compute_rdm_diag_dr(self, x=0, y=0):
         if self.verbosity > 1:
