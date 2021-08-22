@@ -1,7 +1,3 @@
-from ctmrg.ctm_contract import contract_ur_corner, contract_dl_corner
-from groups.block_matrix_U1 import BlockMatrixU1
-
-
 def contract_open_corner(C1, T1, T4, A):
     ul = T1.permutate((1, 2, 0), (3,))
     ul = ul @ C1
@@ -68,8 +64,8 @@ def contract_open_corner_mirror(T1, C2, A, T2):
 def rdm_1x2(C1, T1l, T1r, C2, T4, Al, Ar, T2, C4, T3l, T3r, C3):
     """
     Compute reduced density matrix for 2 sites in a row
-    CPU: chi**2*D**6*(a*d + a*d**2) + d**2*chi**3*D**4 = O(D**10)
-    Memory: 2*d**2*chi**2*D**4
+    asymmetric CPU: chi**2*D**6*(a*d + a*d**2) + d**2*chi**3*D**4 = O(D**10)
+    asymmetric memory: 2*d**2*chi**2*D**4
     """
     #
     #   C1-0     3-T1-0           3-T1-0       1-C2
@@ -110,9 +106,8 @@ def rdm_1x2(C1, T1l, T1r, C2, T4, Al, Ar, T2, C4, T3l, T3r, C3):
     rdm = left @ right.T
     del left, right
     rdm = rdm.toarray()
-    rdm = rdm.swapaxes(1, 2).reshape(
-        Al.shape[0] * Ar.shape[0], Al.shape[0] * Ar.shape[0]
-    )
+    rdm = rdm.swapaxes(1, 2)
+    rdm = rdm.reshape(Al.shape[0] * Ar.shape[0], Al.shape[0] * Ar.shape[0])
     rdm /= rdm.trace()
     return rdm
 
@@ -138,26 +133,7 @@ def rdm_2x1(C1, T1, C2, T4u, Au, T2u, T4d, Ad, T2d, C4, T3, C3):
     )
 
 
-def rdm_diag_dr(
-    C1,
-    T1l,
-    T1r,
-    C2,
-    T4u,
-    Aul,
-    Aur,
-    T2u,
-    T4d,
-    Adl,
-    Adr,
-    T2d,
-    C4,
-    T3l,
-    T3r,
-    C3,
-    ur=None,
-    dl=None,
-):
+def rdm_diag_dr(C1, T1l, ur, T4u, Aul, dl, Adr, T2d, T3r, C3):
     """
     -------
     |02|  |
@@ -166,59 +142,36 @@ def rdm_diag_dr(
     -------
     memory: 3*d**2*chi**2*D**4
     """
-    ul = contract_open_corner(C1, T1l, T4u, Aul).transpose(2, 3, 4, 0, 1, 5, 6, 7)
-    #  ------4          ------2
-    #  |  || 0          |  || 3
-    #  |  ||/           |  ||/
-    #  |==||=2,3    --> |==||=0,1
-    #  |  ||\           |  ||\
-    #  7  56 1          7  56 4
-    ul = ul.copy().reshape(
-        Aul.shape[3] ** 2 * T1l.shape[0] * Aul.shape[0] ** 2,
-        Aul.shape[4] ** 2 * T4u.shape[3],
-    )  # mem 2*d**2*chi**2*D**4
+    rdm = contract_open_corner(C1, T1l, T4u, Aul)
+    #  ------4
+    #  |  || 0
+    #  |  ||/
+    #  |==||=2,3
+    #  |  ||\
+    #  7  56 1
+    rdm = rdm @ dl  # mem (2*d**2+1)*chi**2*D**4
 
-    if dl is None:
-        dl = contract_dl_corner(T4d, Adl, C4, T3l).copy()
-        dl = dl.reshape(
-            Adl.shape[2] ** 2 * T4d.shape[0], Adl.shape[3] ** 2 * T3l.shape[2]
-        )
-    elif isinstance(dl, BlockMatrixU1):
-        dl = dl.toarray()
-    #     --0   1-
-    #   1\|      |
-    #  1'/|      0
-    #     2
-    #     0
-    #     |
-    #     -1
-    rdm = ul @ dl  # mem (2*d**2+1)*chi**2*D**4
-    rdm = rdm.reshape(Aul.shape[3] ** 2 * T1l.shape[0], Aul.shape[0] ** 2 * dl.shape[1])
-    del ul, dl
-    if ur is None:
-        ur = contract_ur_corner(T1r, C2, Aur, T2u).copy()
-        ur = ur.reshape(
-            Aur.shape[4] ** 2 * T2u.shape[1], Aur.shape[5] ** 2 * T1r.shape[3]
-        )
-    elif isinstance(ur, BlockMatrixU1):
-        ur = ur.toarray()
+    #  ------4
+    #  |  || 0
+    #  |  ||/
+    #  |==||=2,3
+    #  |  ||\
+    #  |  || 1
+    #  |  ||=5,6
+    #  ------7
+    rdm = rdm.permutate((2, 3, 4), (0, 1, 5, 6, 7))
     rdm = ur @ rdm  # mem (2*d**2+1)*chi**2*D**4
-    rdm = rdm.reshape(ur.shape[0], Aul.shape[0] ** 2, T3l.shape[2] * Adl.shape[3] ** 2)
-    del ur
+    rdm = rdm.permutate((3, 4), (0, 1, 2, 5, 6, 7))
     #   -----           -----
     #   |11 |   --->    |00 |
     #   |   0           |   1
     #   |--2            |--2
-    rdm = rdm.swapaxes(0, 1).reshape(
-        Aul.shape[0] ** 2,
-        T2u.shape[1] * Aur.shape[4] ** 2 * T3l.shape[2] * Adl.shape[3] ** 2,
-    )  # mem 2*d**2*chi**2*D**4
 
     dr = contract_open_corner_mirror(
-        T2d.transpose(1, 2, 3, 0),
+        T2d.permutate((1, 2, 3), (0,)),
         C3.T,
-        Adr.transpose(0, 1, 3, 4, 5, 2),
-        T3r.transpose(2, 3, 0, 1),
+        Adr.permutate((0, 1, 3, 4), (5, 2)),
+        T3r.permutate((2, 3), (0, 1)),
     )
     #     23   4
     #     || 0 |
@@ -227,36 +180,16 @@ def rdm_diag_dr(
     #     ||\  |             00|
     #     || 1 |          1'----
     #   7-------
-    dr = dr.reshape(Adr.shape[0] ** 2, rdm.shape[1])  # memory peak: 3*d**2*chi**2*D**4
+    dr = dr.permutate((0, 1), (2, 3, 4, 5, 6, 7))  # memory peak: 3*d**2*chi**2*D**4
     rdm = rdm @ dr.T
-    rdm = rdm.reshape(Aul.shape[0], Aul.shape[0], Adr.shape[0], Adr.shape[0])
-    rdm = rdm.swapaxes(1, 2).reshape(
-        Aul.shape[0] * Adr.shape[0], Aul.shape[0] * Adr.shape[0]
-    )
+    rdm = rdm.toarray()
+    rdm = rdm.swapaxes(1, 2)
+    rdm = rdm.reshape(Aul.shape[0] * Adr.shape[0], Aul.shape[0] * Adr.shape[0])
     rdm /= rdm.trace()
     return rdm
 
 
-def rdm_diag_ur(
-    C1,
-    T1l,
-    T1r,
-    C2,
-    T4u,
-    Aul,
-    Aur,
-    T2u,
-    T4d,
-    Adl,
-    Adr,
-    T2d,
-    C4,
-    T3l,
-    T3r,
-    C3,
-    ul=None,
-    dr_T=None,
-):
+def rdm_diag_ur(ul, T1r, C2, Aur, T2u, T4d, Adl, dr_T, C4, T3l):
     """
     -------
     |  |02│
@@ -270,27 +203,18 @@ def rdm_diag_ur(
     rdm = rdm_diag_dr(
         C4,
         T4d,
-        T4u,
-        C1,
-        T3l.transpose(3, 0, 1, 2),
-        Adl.transpose(0, 1, 5, 2, 3, 4),
-        Aul.transpose(0, 1, 5, 2, 3, 4),
-        T1l.transpose(3, 0, 1, 2),
-        T3r.transpose(3, 0, 1, 2),
-        Adr.transpose(0, 1, 5, 2, 3, 4),
-        Aur.transpose(0, 1, 5, 2, 3, 4),
-        T1r.transpose(3, 0, 1, 2),
-        C3.T,
-        T2d.transpose(2, 3, 0, 1),
-        T2u.transpose(2, 3, 0, 1),
+        ul,
+        T3l.permutate((3,), (0, 1, 2)),
+        Adl.permutate((0, 1), (5, 2, 3, 4)),
+        dr_T,  # transposed dr in input avoids to transpose it here
+        Aur.permutate((0, 1), (5, 2, 3, 4)),
+        T1r.permutate((3,), (0, 1, 2)),
+        T2u.permutate((2, 3, 0), (1,)),
         C2.T,
-        ur=ul,
-        dl=dr_T,  # transposed dr in input avoids to transpose it here
     )
     rdm = (
         rdm.reshape(Adl.shape[0], Aur.shape[0], Adl.shape[0], Aur.shape[0])
         .transpose(1, 0, 3, 2)
-        .copy()
         .reshape(Aur.shape[0] * Adl.shape[0], Aur.shape[0] * Adl.shape[0])
     )
     return rdm
