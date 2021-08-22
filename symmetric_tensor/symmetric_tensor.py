@@ -300,6 +300,9 @@ class AsymmetricTensor(SymmetricTensor):
         blocks = (self._blocks[0].conj(),)
         return AsymmetricTensor(self._axis_reps, self._n_leg_rows, blocks, self._irrep)
 
+    def norm(self):
+        return lg.norm(self._blocks[0])
+
 
 @numba.njit(parallel=True)
 def fill_block(M, ri, ci):
@@ -458,6 +461,9 @@ class AbelianSymmetricTensor(SymmetricTensor):
         blocks = tuple(self._blocks[i].conj() for i in so)
         axis_reps = tuple(self.conjugate_representation(r) for r in self._axis_reps)
         return type(self)(axis_reps, self._n_leg_rows, blocks, block_irreps)
+
+    def norm(self):
+        return np.sqrt(sum(lg.norm(b) ** 2 for b in self._blocks))
 
 
 @numba.njit
