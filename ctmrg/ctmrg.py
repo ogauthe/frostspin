@@ -1263,11 +1263,11 @@ class CTMRG_U1(CTMRG):
         (cd, ca, c5, c9, c12, c8) = self._env.get_colors_A(x + 1, y + 1)
         (_, _, c6, c10, c13, _) = self._env.get_colors_A(x + 2, y + 1)
         c7 = self._env.get_color_C2_d(x + 3, y)
-        c11 = self._env.get_color_C4_u(x, y + 3)
-        c15 = self._env.get_color_C4_r(x, y + 3)
-        c16 = self._env.get_color_T3_r(x + 1, y + 3)
-        c14 = self._env.get_color_C3_u(x + 3, y + 3)
-        c17 = self._env.get_color_C3_l(x + 3, y + 3)
+        c11 = self._env.get_color_C4_u(x, y + 2)
+        c15 = self._env.get_color_C4_r(x, y + 2)
+        c16 = self._env.get_color_T3_r(x + 1, y + 2)
+        c14 = self._env.get_color_C3_u(x + 3, y + 2)
+        c17 = self._env.get_color_C3_l(x + 3, y + 2)
 
         C1 = U1_SymmetricTensor.from_array(self._env.get_C1(x, y), (c1, c4), 1)
         T1l = U1_SymmetricTensor.from_array(
