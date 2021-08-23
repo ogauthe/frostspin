@@ -375,12 +375,11 @@ def homogeneous_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irreps)
 
 
 @numba.njit(parallel=True)
-def fill_transpose(aflat, row_indices, col_indices, strides):
-    m = np.empty((row_indices.shape[0], col_indices.shape[0]))
-    for i in numba.prange(row_indices.shape[0]):
-        for j in numba.prange(col_indices.shape[0]):
-            ind = (np.concatenate((row_indices[i], col_indices[j])) * strides).sum()
-            m[i, j] = aflat[ind]
+def fill_transpose(aflat, row_indices, col_indices):
+    m = np.empty((row_indices.size, col_indices.size), dtype=aflat.dtype)
+    for i in numba.prange(row_indices.size):
+        for j in numba.prange(col_indices.size):
+            m[i, j] = aflat[row_indices[i] + col_indices[j]]
     return m
 
 
@@ -393,10 +392,11 @@ def transpose_reduce(a, row_irreps, col_irreps, axes, n_leg_rows):
     for i in axes:
         shape.append(a.shape[i])
         strides.append(a.strides[i] // a.itemsize)
-    strides = np.array(strides)
-    rstrides = np.array([1] + shape[n_leg_rows - 1 : 0 : -1]).cumprod()[::-1].copy()
+    rstrides2 = np.array(strides[:n_leg_rows])
+    cstrides2 = np.array(strides[n_leg_rows:])
+    rstrides1 = np.array([1] + shape[n_leg_rows - 1 : 0 : -1]).cumprod()[::-1].copy()
     rmod = np.array(shape[:n_leg_rows])
-    cstrides = np.array([1] + shape[-1:n_leg_rows:-1]).cumprod()[::-1].copy()
+    cstrides1 = np.array([1] + shape[-1:n_leg_rows:-1]).cumprod()[::-1].copy()
     cmod = np.array(shape[n_leg_rows:])
 
     row_sort = row_irreps.argsort(kind="mergesort")
@@ -421,10 +421,10 @@ def transpose_reduce(a, row_irreps, col_irreps, axes, n_leg_rows):
     while rbi < rbimax and cbi < cbimax:
         if sorted_row_irreps[row_blocks[rbi]] == sorted_col_irreps[col_blocks[cbi]]:
             ri = row_sort[row_blocks[rbi] : row_blocks[rbi + 1]].reshape(-1, 1)
-            ri = ri // rstrides % rmod
+            ri = (ri // rstrides1 % rmod * rstrides2).sum(axis=1)
             ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]].reshape(-1, 1)
-            ci = ci // cstrides % cmod
-            m = fill_transpose(aflat, ri, ci, strides)  # parallel
+            ci = (ci // cstrides1 % cmod * cstrides2).sum(axis=1)
+            m = fill_transpose(aflat, ri, ci)  # parallel
             blocks.append(m)
             block_irreps.append(sorted_row_irreps[row_blocks[rbi]])
             rbi += 1
