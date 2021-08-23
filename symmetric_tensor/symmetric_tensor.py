@@ -374,6 +374,68 @@ def homogeneous_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irreps)
                 M[row_indices[i], col_indices[j]] = blocks[bi][i, j]
 
 
+@numba.njit(parallel=True)
+def fill_transpose(aflat, row_indices, col_indices, strides):
+    m = np.empty((row_indices.shape[0], col_indices.shape[0]))
+    for i in numba.prange(row_indices.shape[0]):
+        for j in numba.prange(col_indices.shape[0]):
+            ind = (np.concatenate((row_indices[i], col_indices[j])) * strides).sum()
+            m[i, j] = aflat[ind]
+    return m
+
+
+@numba.njit
+def transpose_reduce(a, row_irreps, col_irreps, axes, n_leg_rows):
+    # a is dense array *before* permutate
+    # row_irreps and col_irreps refer to irreps *after* permutate
+    shape = []  # new shape, after permutate
+    strides = []
+    for i in axes:
+        shape.append(a.shape[i])
+        strides.append(a.strides[i] // a.itemsize)
+    strides = np.array(strides)
+    rstrides = np.array([1] + shape[n_leg_rows - 1 : 0 : -1]).cumprod()[::-1].copy()
+    rmod = np.array(shape[:n_leg_rows])
+    cstrides = np.array([1] + shape[-1:n_leg_rows:-1]).cumprod()[::-1].copy()
+    cmod = np.array(shape[n_leg_rows:])
+
+    row_sort = row_irreps.argsort(kind="mergesort")
+    sorted_row_irreps = row_irreps[row_sort]
+    row_blocks = (
+        [0]
+        + list((sorted_row_irreps[:-1] != sorted_row_irreps[1:]).nonzero()[0] + 1)
+        + [row_irreps.size]
+    )
+    col_sort = col_irreps.argsort(kind="mergesort")
+    sorted_col_irreps = col_irreps[col_sort]
+    col_blocks = (
+        [0]
+        + list((sorted_col_irreps[:-1] != sorted_col_irreps[1:]).nonzero()[0] + 1)
+        + [col_irreps.size]
+    )
+
+    blocks = []
+    block_irreps = []
+    rbi, cbi, rbimax, cbimax = 0, 0, len(row_blocks) - 1, len(col_blocks) - 1
+    aflat = a.ravel()  # flattening is required due to numba issue #2771
+    while rbi < rbimax and cbi < cbimax:
+        if sorted_row_irreps[row_blocks[rbi]] == sorted_col_irreps[col_blocks[cbi]]:
+            ri = row_sort[row_blocks[rbi] : row_blocks[rbi + 1]].reshape(-1, 1)
+            ri = ri // rstrides % rmod
+            ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]].reshape(-1, 1)
+            ci = ci // cstrides % cmod
+            m = fill_transpose(aflat, ri, ci, strides)  # parallel
+            blocks.append(m)
+            block_irreps.append(sorted_row_irreps[row_blocks[rbi]])
+            rbi += 1
+            cbi += 1
+        elif sorted_row_irreps[row_blocks[rbi]] < sorted_col_irreps[col_blocks[cbi]]:
+            rbi += 1
+        else:
+            cbi += 1
+    return blocks, np.array(block_irreps)
+
+
 class AbelianSymmetricTensor(SymmetricTensor):
     # representation is a np.int8 1D array (may change for product groups)
     @classmethod
@@ -428,10 +490,10 @@ class AbelianSymmetricTensor(SymmetricTensor):
         # but the interface is much simpler with 2 tuples.
         axes = row_axes + col_axes
         n_leg_rows = len(row_axes)
-        assert sorted(axes) == list(range(self.ndim))
-        # cast to dense to reshape, transpose to get non-contiguous, then call
-        # from_array TODO: from_array currently makes copy
-        a = self.toarray().transpose(axes)
+        assert sorted(axes) == list(range(self._ndim))
+        if n_leg_rows == self._n_leg_rows and axes == tuple(range(self._ndim)):
+            return self
+
         axis_reps = []
         for i, ax in enumerate(axes):
             if (i < n_leg_rows) ^ (ax < self._n_leg_rows):
@@ -439,7 +501,13 @@ class AbelianSymmetricTensor(SymmetricTensor):
             else:
                 axis_reps.append(self._axis_reps[ax])
         axis_reps = tuple(axis_reps)
-        return type(self).from_array(a, axis_reps, n_leg_rows, conjugate_columns=False)
+        row_irreps = self.combine_representations(*axis_reps[:n_leg_rows])
+        col_irreps = self.combine_representations(*axis_reps[n_leg_rows:])
+        a = self.toarray()  # hard to avoid cast to dense
+        blocks, block_irreps = transpose_reduce(
+            a, row_irreps, col_irreps, axes, n_leg_rows
+        )
+        return type(self)(axis_reps, n_leg_rows, blocks, block_irreps)
 
     @property
     def T(self):
