@@ -304,31 +304,6 @@ class AsymmetricTensor(SymmetricTensor):
         return lg.norm(self._blocks[0])
 
 
-@numba.njit
-def numba_get_indices(irreps, kept_irreps=None):
-    """
-    Construct blocks of indices belonging to the same irrep
-    """
-    # kept_irreps *need* to exist in irreps, else the result will be wrong.
-    sort = irreps.argsort(kind="mergesort")
-    sorted_irreps = irreps[sort]
-    k = 0
-    indices = []
-    block_irreps = [sorted_irreps[0]]
-    for i in range(1, irreps.size):
-        if sorted_irreps[i] != sorted_irreps[i - 1]:
-            block_irreps.append(sorted_irreps[i])
-            indices.append(sort[k:i])
-            k = i
-    indices.append(sort[k : irreps.size])
-    if kept_irreps is not None:
-        filt = np.searchsorted(block_irreps, kept_irreps)
-        indices = [indices[i] for i in filt]
-        block_irreps = [block_irreps[i] for i in filt]
-    block_irreps = np.array(block_irreps)
-    return indices, block_irreps
-
-
 @numba.njit(parallel=True)
 def fill_block(M, ri, ci):
     m = np.empty((ri.size, ci.size), dtype=M.dtype)
@@ -340,19 +315,34 @@ def fill_block(M, ri, ci):
 
 @numba.njit
 def numba_reduce_to_blocks(M, row_irreps, col_irreps):
-    row_indices, r_irreps = numba_get_indices(row_irreps)
-    col_indices, c_irreps = numba_get_indices(col_irreps)
+    row_sort = row_irreps.argsort(kind="mergesort")
+    sorted_row_irreps = row_irreps[row_sort]
+    col_sort = col_irreps.argsort(kind="mergesort")
+    sorted_col_irreps = col_irreps[col_sort]
+    row_blocks = (
+        [0]
+        + list((sorted_row_irreps[:-1] != sorted_row_irreps[1:]).nonzero()[0] + 1)
+        + [row_irreps.size]
+    )
+    col_blocks = (
+        [0]
+        + list((sorted_col_irreps[:-1] != sorted_col_irreps[1:]).nonzero()[0] + 1)
+        + [col_irreps.size]
+    )
+
     blocks = []
     block_irreps = []
-    rbi, cbi, rbimax, cbimax = 0, 0, r_irreps.size, c_irreps.size
+    rbi, cbi, rbimax, cbimax = 0, 0, len(row_blocks) - 1, len(col_blocks) - 1
     while rbi < rbimax and cbi < cbimax:
-        if r_irreps[rbi] == c_irreps[cbi]:
-            m = fill_block(M, row_indices[rbi], col_indices[cbi])  # parallel
+        if sorted_row_irreps[row_blocks[rbi]] == sorted_col_irreps[col_blocks[cbi]]:
+            ri = row_sort[row_blocks[rbi] : row_blocks[rbi + 1]]
+            ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]]
+            m = fill_block(M, ri, ci)  # parallel
             blocks.append(m)
-            block_irreps.append(r_irreps[rbi])
+            block_irreps.append(sorted_row_irreps[row_blocks[rbi]])
             rbi += 1
             cbi += 1
-        elif r_irreps[rbi] < c_irreps[cbi]:
+        elif sorted_row_irreps[row_blocks[rbi]] < sorted_col_irreps[col_blocks[cbi]]:
             rbi += 1
         else:
             cbi += 1
@@ -360,28 +350,28 @@ def numba_reduce_to_blocks(M, row_irreps, col_irreps):
     return blocks, block_irreps
 
 
+@numba.njit
+def heterogeneous_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irreps):
+    # tedious dealing with heterogeneous tuple: cannot parallelize, enum or getitem
+    bi = 0
+    for b in literal_unroll(blocks):
+        row_indices = (row_irreps == block_irreps[bi]).nonzero()[0]
+        col_indices = (col_irreps == block_irreps[bi]).nonzero()[0]
+        for i, ri in enumerate(row_indices):
+            for j, cj in enumerate(col_indices):
+                M[ri, cj] = b[i, j]
+        bi += 1
+
+
 @numba.njit(parallel=True)
 def homogeneous_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irreps):
     # when blocks is homogeneous, loops are simple and can be parallelized
-    row_indices, _ = numba_get_indices(row_irreps, block_irreps)
-    col_indices, _ = numba_get_indices(col_irreps, block_irreps)
     for bi in numba.prange(len(blocks)):
-        for i in numba.prange(row_indices[bi].size):
-            for j in numba.prange(col_indices[bi].size):
-                M[row_indices[bi][i], col_indices[bi][j]] = blocks[bi][i, j]
-
-
-@numba.njit(parallel=True)
-def heterogeneous_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irreps):
-    # tedious dealing with heterogeneous tuple: cannot parallelize, enum or getitem
-    row_indices, _ = numba_get_indices(row_irreps, block_irreps)
-    col_indices, _ = numba_get_indices(col_irreps, block_irreps)
-    bi = 0
-    for b in literal_unroll(blocks):
-        for i in numba.prange(row_indices[bi].size):
-            for j in numba.prange(col_indices[bi].size):
-                M[row_indices[bi][i], col_indices[bi][j]] = b[i, j]
-        bi += 1
+        row_indices = (row_irreps == block_irreps[bi]).nonzero()[0]
+        col_indices = (col_irreps == block_irreps[bi]).nonzero()[0]
+        for i in numba.prange(row_indices.size):
+            for j in numba.prange(col_indices.size):
+                M[row_indices[i], col_indices[j]] = blocks[bi][i, j]
 
 
 @numba.njit(parallel=True)
@@ -409,26 +399,37 @@ def transpose_reduce(a, row_irreps, col_irreps, axes, n_leg_rows):
     cstrides1 = np.array([1] + shape[-1:n_leg_rows:-1]).cumprod()[::-1].copy()
     cmod = np.array(shape[n_leg_rows:])
 
-    row_indices, r_irreps = numba_get_indices(row_irreps)
-    col_indices, c_irreps = numba_get_indices(col_irreps)
+    row_sort = row_irreps.argsort(kind="mergesort")
+    sorted_row_irreps = row_irreps[row_sort]
+    row_blocks = (
+        [0]
+        + list((sorted_row_irreps[:-1] != sorted_row_irreps[1:]).nonzero()[0] + 1)
+        + [row_irreps.size]
+    )
+    col_sort = col_irreps.argsort(kind="mergesort")
+    sorted_col_irreps = col_irreps[col_sort]
+    col_blocks = (
+        [0]
+        + list((sorted_col_irreps[:-1] != sorted_col_irreps[1:]).nonzero()[0] + 1)
+        + [col_irreps.size]
+    )
+
     blocks = []
     block_irreps = []
-    rbi, cbi, rbimax, cbimax = 0, 0, r_irreps.size, c_irreps.size
+    rbi, cbi, rbimax, cbimax = 0, 0, len(row_blocks) - 1, len(col_blocks) - 1
     aflat = a.ravel()  # flattening is required due to numba issue #2771
     while rbi < rbimax and cbi < cbimax:
-        if r_irreps[rbi] == c_irreps[cbi]:
-            ri = (row_indices[rbi].reshape(-1, 1) // rstrides1 % rmod * rstrides2).sum(
-                axis=1
-            )
-            ci = (col_indices[cbi].reshape(-1, 1) // cstrides1 % cmod * cstrides2).sum(
-                axis=1
-            )
+        if sorted_row_irreps[row_blocks[rbi]] == sorted_col_irreps[col_blocks[cbi]]:
+            ri = row_sort[row_blocks[rbi] : row_blocks[rbi + 1]].reshape(-1, 1)
+            ri = (ri // rstrides1 % rmod * rstrides2).sum(axis=1)
+            ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]].reshape(-1, 1)
+            ci = (ci // cstrides1 % cmod * cstrides2).sum(axis=1)
             m = fill_transpose(aflat, ri, ci)  # parallel
             blocks.append(m)
-            block_irreps.append(r_irreps[rbi])
+            block_irreps.append(sorted_row_irreps[row_blocks[rbi]])
             rbi += 1
             cbi += 1
-        elif r_irreps[rbi] < c_irreps[cbi]:
+        elif sorted_row_irreps[row_blocks[rbi]] < sorted_col_irreps[col_blocks[cbi]]:
             rbi += 1
         else:
             cbi += 1
@@ -464,8 +465,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
             col_axis_reps = axis_reps[n_leg_rows:]
         row_irreps = cls.combine_representations(*row_axis_reps)
         col_irreps = cls.combine_representations(*col_axis_reps)
-        # requires copy if arr is not contiguous. Cannot be avoided since cannot create
-        # tuple of indices in numba (issue #2771)
+        # requires copy if arr is not contiguous TODO test and avoid copy if not
         M = arr.reshape(row_irreps.size, col_irreps.size)
         blocks, block_irreps = numba_reduce_to_blocks(M, row_irreps, col_irreps)
         return cls(row_axis_reps + col_axis_reps, n_leg_rows, blocks, block_irreps)
