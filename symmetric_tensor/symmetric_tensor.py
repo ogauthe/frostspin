@@ -312,21 +312,16 @@ def numba_get_indices(irreps, kept_irreps=None):
     # kept_irreps *need* to exist in irreps, else the result will be wrong.
     sort = irreps.argsort(kind="mergesort")
     sorted_irreps = irreps[sort]
-    k = 0
-    indices = []
+    block_indices = [0]
     block_irreps = [sorted_irreps[0]]
     for i in range(1, irreps.size):
         if sorted_irreps[i] != sorted_irreps[i - 1]:
             block_irreps.append(sorted_irreps[i])
-            indices.append(sort[k:i])
-            k = i
-    indices.append(sort[k : irreps.size])
-    if kept_irreps is not None:
-        filt = np.searchsorted(block_irreps, kept_irreps)
-        indices = [indices[i] for i in filt]
-        block_irreps = [block_irreps[i] for i in filt]
+            block_indices.append(i)
+    block_indices.append(irreps.size)
+    block_indices = np.array(block_indices)
     block_irreps = np.array(block_irreps)
-    return indices, block_irreps
+    return sort, block_indices, block_irreps
 
 
 @numba.njit(parallel=True)
@@ -340,14 +335,16 @@ def fill_block(M, ri, ci):
 
 @numba.njit
 def numba_reduce_to_blocks(M, row_irreps, col_irreps):
-    row_indices, r_irreps = numba_get_indices(row_irreps)
-    col_indices, c_irreps = numba_get_indices(col_irreps)
+    row_sort, row_block_indices, r_irreps = numba_get_indices(row_irreps)
+    col_sort, col_block_indices, c_irreps = numba_get_indices(col_irreps)
     blocks = []
     block_irreps = []
     rbi, cbi, rbimax, cbimax = 0, 0, r_irreps.size, c_irreps.size
     while rbi < rbimax and cbi < cbimax:
         if r_irreps[rbi] == c_irreps[cbi]:
-            m = fill_block(M, row_indices[rbi], col_indices[cbi])  # parallel
+            ri = row_sort[row_block_indices[rbi] : row_block_indices[rbi + 1]]
+            ci = col_sort[col_block_indices[cbi] : col_block_indices[cbi + 1]]
+            m = fill_block(M, ri, ci)  # parallel
             blocks.append(m)
             block_irreps.append(r_irreps[rbi])
             rbi += 1
@@ -363,24 +360,32 @@ def numba_reduce_to_blocks(M, row_irreps, col_irreps):
 @numba.njit(parallel=True)
 def homogeneous_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irreps):
     # when blocks is homogeneous, loops are simple and can be parallelized
-    row_indices, _ = numba_get_indices(row_irreps, block_irreps)
-    col_indices, _ = numba_get_indices(col_irreps, block_irreps)
+    row_sort, row_block_indices, r_irreps = numba_get_indices(row_irreps)
+    col_sort, col_block_indices, c_irreps = numba_get_indices(col_irreps)
     for bi in numba.prange(len(blocks)):
-        for i in numba.prange(row_indices[bi].size):
-            for j in numba.prange(col_indices[bi].size):
-                M[row_indices[bi][i], col_indices[bi][j]] = blocks[bi][i, j]
+        rbi = np.searchsorted(r_irreps, block_irreps[bi])
+        row_indices = row_sort[row_block_indices[rbi] : row_block_indices[rbi + 1]]
+        cbi = np.searchsorted(c_irreps, block_irreps[bi])
+        col_indices = col_sort[col_block_indices[cbi] : col_block_indices[cbi + 1]]
+        for i in numba.prange(row_indices.size):
+            for j in numba.prange(col_indices.size):
+                M[row_indices[i], col_indices[j]] = blocks[bi][i, j]
 
 
 @numba.njit(parallel=True)
 def heterogeneous_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irreps):
     # tedious dealing with heterogeneous tuple: cannot parallelize, enum or getitem
-    row_indices, _ = numba_get_indices(row_irreps, block_irreps)
-    col_indices, _ = numba_get_indices(col_irreps, block_irreps)
+    row_sort, row_block_indices, r_irreps = numba_get_indices(row_irreps)
+    col_sort, col_block_indices, c_irreps = numba_get_indices(col_irreps)
     bi = 0
     for b in literal_unroll(blocks):
-        for i in numba.prange(row_indices[bi].size):
-            for j in numba.prange(col_indices[bi].size):
-                M[row_indices[bi][i], col_indices[bi][j]] = b[i, j]
+        rbi = np.searchsorted(r_irreps, block_irreps[bi])
+        row_indices = row_sort[row_block_indices[rbi] : row_block_indices[rbi + 1]]
+        cbi = np.searchsorted(c_irreps, block_irreps[bi])
+        col_indices = col_sort[col_block_indices[cbi] : col_block_indices[cbi + 1]]
+        for i in numba.prange(row_indices.size):
+            for j in numba.prange(col_indices.size):
+                M[row_indices[i], col_indices[j]] = b[i, j]
         bi += 1
 
 
@@ -409,20 +414,21 @@ def transpose_reduce(a, row_irreps, col_irreps, axes, n_leg_rows):
     cstrides1 = np.array([1] + shape[-1:n_leg_rows:-1]).cumprod()[::-1].copy()
     cmod = np.array(shape[n_leg_rows:])
 
-    row_indices, r_irreps = numba_get_indices(row_irreps)
-    col_indices, c_irreps = numba_get_indices(col_irreps)
+    row_sort, row_block_indices, r_irreps = numba_get_indices(row_irreps)
+    col_sort, col_block_indices, c_irreps = numba_get_indices(col_irreps)
     blocks = []
     block_irreps = []
-    rbi, cbi, rbimax, cbimax = 0, 0, r_irreps.size, c_irreps.size
+    rbi = 0
+    cbi = 0
+    rbimax = row_block_indices.size - 1
+    cbimax = col_block_indices.size - 1
     aflat = a.ravel()  # flattening is required due to numba issue #2771
     while rbi < rbimax and cbi < cbimax:
         if r_irreps[rbi] == c_irreps[cbi]:
-            ri = (row_indices[rbi].reshape(-1, 1) // rstrides1 % rmod * rstrides2).sum(
-                axis=1
-            )
-            ci = (col_indices[cbi].reshape(-1, 1) // cstrides1 % cmod * cstrides2).sum(
-                axis=1
-            )
+            ri = row_sort[row_block_indices[rbi] : row_block_indices[rbi + 1]]
+            ri = (ri.reshape(-1, 1) // rstrides1 % rmod * rstrides2).sum(axis=1)
+            ci = col_sort[col_block_indices[cbi] : col_block_indices[cbi + 1]]
+            ci = (ci.reshape(-1, 1) // cstrides1 % cmod * cstrides2).sum(axis=1)
             m = fill_transpose(aflat, ri, ci)  # parallel
             blocks.append(m)
             block_irreps.append(r_irreps[rbi])
