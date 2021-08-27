@@ -318,7 +318,7 @@ def numba_get_indices(irreps, kept_irreps=None):
     for i in range(1, irreps.size):
         if sorted_irreps[i] != sorted_irreps[i - 1]:
             block_irreps.append(sorted_irreps[i])
-            indices.append(sort[k:i])
+            indices.append(sort[k:i].copy())
             k = i
     indices.append(sort[k : irreps.size])
     if kept_irreps is not None:
@@ -361,10 +361,8 @@ def numba_reduce_to_blocks(M, row_irreps, col_irreps):
 
 
 @numba.njit(parallel=True)
-def homogeneous_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irreps):
+def homogeneous_blocks_to_array(M, blocks, row_indices, col_indices):
     # when blocks is homogeneous, loops are simple and can be parallelized
-    row_indices, _ = numba_get_indices(row_irreps, block_irreps)
-    col_indices, _ = numba_get_indices(col_irreps, block_irreps)
     for bi in numba.prange(len(blocks)):
         for i in numba.prange(row_indices[bi].size):
             for j in numba.prange(col_indices[bi].size):
@@ -372,14 +370,12 @@ def homogeneous_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irreps)
 
 
 @numba.njit(parallel=True)
-def heterogeneous_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irreps):
+def heterogeneous_blocks_to_array(M, blocks, row_indices, col_indices):
     # tedious dealing with heterogeneous tuple: cannot parallelize, enum or getitem
-    row_indices, _ = numba_get_indices(row_irreps, block_irreps)
-    col_indices, _ = numba_get_indices(col_irreps, block_irreps)
     bi = 0
     for b in literal_unroll(blocks):
-        for i in numba.prange(row_indices[bi].size):
-            for j in numba.prange(col_indices[bi].size):
+        for j in numba.prange(col_indices[bi].size):  # F-order
+            for i in numba.prange(row_indices[bi].size):
                 M[row_indices[bi][i], col_indices[bi][j]] = b[i, j]
         bi += 1
 
@@ -473,15 +469,13 @@ class AbelianSymmetricTensor(SymmetricTensor):
     def toarray(self):
         row_irreps = self.combine_representations(*self._axis_reps[: self._n_leg_rows])
         col_irreps = self.combine_representations(*self._axis_reps[self._n_leg_rows :])
+        row_indices, _ = numba_get_indices(row_irreps, self._block_irreps)
+        col_indices, _ = numba_get_indices(col_irreps, self._block_irreps)
         M = np.zeros(self.matrix_shape, dtype=self.dtype)
         if self.is_heteregeneous():  # TODO treat separatly size 1 + call homogeneous
-            heterogeneous_blocks_to_array(
-                M, self._blocks, self._block_irreps, row_irreps, col_irreps
-            )
+            heterogeneous_blocks_to_array(M, self._blocks, row_indices, col_indices)
         else:
-            homogeneous_blocks_to_array(
-                M, self._blocks, self._block_irreps, row_irreps, col_irreps
-            )
+            homogeneous_blocks_to_array(M, self._blocks, row_indices, col_indices)
         return M.reshape(self._shape)
 
     def permutate(self, row_axes, col_axes):
