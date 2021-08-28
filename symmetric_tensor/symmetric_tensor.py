@@ -2,6 +2,7 @@ import numpy as np
 import scipy.linalg as lg
 import numba
 from numba import literal_unroll  # numba issue #5344
+from numba.typed import List
 
 from misc_tools.svd_tools import sparse_svd
 
@@ -351,12 +352,30 @@ def heterogeneous_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irrep
 @numba.njit(parallel=True)
 def homogeneous_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irreps):
     # when blocks is homogeneous, loops are simple and can be parallelized
+
+    # loop once only to get indices by irrep
+    irr0 = block_irreps[0]
+    irrmax = block_irreps[-1]
+    row_irrep_indices = List()
+    col_irrep_indices = List()
+    for i in range(irrmax - irr0 + 1):
+        row_irrep_indices.append(List.empty_list(numba.i8))
+        col_irrep_indices.append(List.empty_list(numba.i8))
+
+    for i, irr in enumerate(row_irreps):  # cannot parallelize
+        if irr0 <= irr <= irrmax:  # row_irreps min and max are not known
+            row_irrep_indices[irr - irr0].append(i)
+    row_irrep_indices = [row_irrep_indices[irr - irr0] for irr in block_irreps]
+
+    for i, irr in enumerate(col_irreps):  # cannot parallelize
+        if irr0 <= irr <= irrmax:
+            col_irrep_indices[irr - irr0].append(i)
+    col_irrep_indices = [col_irrep_indices[irr - irr0] for irr in block_irreps]
+
     for bi in numba.prange(len(blocks)):
-        row_indices = (row_irreps == block_irreps[bi]).nonzero()[0]
-        col_indices = (col_irreps == block_irreps[bi]).nonzero()[0]
-        for i in numba.prange(row_indices.size):
-            for j in numba.prange(col_indices.size):
-                M[row_indices[i], col_indices[j]] = blocks[bi][i, j]
+        for i in numba.prange(len(row_irrep_indices[bi])):
+            for j in numba.prange(len(col_irrep_indices[bi])):
+                M[row_irrep_indices[bi][i], col_irrep_indices[bi][j]] = blocks[bi][i, j]
 
 
 @numba.njit(parallel=True)
