@@ -89,6 +89,18 @@ class SymmetricTensor(object):
     def ncoeff(self):
         return self._ncoeff
 
+    @property
+    def blocks(self):
+        return self._blocks
+
+    @property
+    def block_irreps(self):
+        return self._block_irreps
+
+    @property
+    def axis_reps(self):
+        return self._axis_resp
+
     def copy(self):
         blocks = tuple(b.copy() for b in self._blocks)
         return type(self)(self._axis_reps, self._n_leg_rows, blocks, self._block_irreps)
