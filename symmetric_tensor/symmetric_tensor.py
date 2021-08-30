@@ -27,6 +27,10 @@ class SymmetricTensor(object):
 
     _symmetry = NotImplemented
 
+    @property
+    def symmetry(self):
+        return self._symmetry
+
     # need to define those methods to deal with symmetries
     @classmethod
     def combine_representations(cls, *reps):
