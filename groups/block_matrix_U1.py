@@ -171,6 +171,23 @@ class BlockMatrixU1(object):
         )
         return cls(M.shape, block_colors, blocks, row_indices, col_indices)
 
+    @classmethod
+    def from_symmetric_tensor(cls, st):
+        # U1_SymmetricTensor will replace BlockMatrixU1 everywhere, ease-up transition
+        shape = st.matrix_shape
+        block_colors = st.block_irreps
+        blocks = st.blocks
+        row_colors = st.combine_colors(st.axis_reps[: st.n_leg_rows])
+        col_colors = st.combine_colors(st.axis_reps[st.n_leg_rows :])
+        row_indices = []
+        col_indices = []
+        for c in block_colors:
+            row_indices.append((row_colors == c).nonzero()[0])
+            col_indices.append((col_colors == c).nonzero()[0])
+        mat = cls(shape, block_colors, blocks, row_indices, col_indices)
+        assert (mat.toarray() == st.toarray()).all()
+        return mat
+
     @property
     def shape(self):
         return self._shape
