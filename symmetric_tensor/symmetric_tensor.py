@@ -103,7 +103,7 @@ class SymmetricTensor(object):
 
     @property
     def axis_reps(self):
-        return self._axis_resp
+        return self._axis_reps
 
     def copy(self):
         blocks = tuple(b.copy() for b in self._blocks)
