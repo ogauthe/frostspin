@@ -22,34 +22,31 @@ def construct_projectors(R, Rt, chi, cutoff, degen_ratio, window):
     return P, Pt
 
 
-def construct_projectors_U1(
+def construct_projectors_abelian(
     corner1, corner2, corner3, corner4, chi, rcutoff, degen_ratio, window
 ):
-    # once corner are constructed, no reshape or transpose is done. Decompose corner in
-    # U(1) sectors as soon as they are constructed, then construct halves and R @ Rt
-    # blockwise only. SVD and projectors can also be computed blockwise in same loop.
-    # There are 4 sets of colors, since 2 adjacent blocks share one. Interior indices
-    # refer to indices of each color blocks between R and Rt, where projectors are
-    # needed.
-    shared = sorted(
-        set(corner1.block_colors)
-        .intersection(corner2.block_colors)
-        .intersection(corner3.block_colors)
-        .intersection(corner4.block_colors)
+    # corners are already SymmetricTensors with blockwise structure. Construct halves
+    # and R @ Rt directly blockwise, bypass svd method to factorize loops.
+    # There are 4 sets of irreps, since 2 adjacent blocks share one.
+    shared = np.array(
+        sorted(
+            set(corner1.block_irreps)
+            .intersection(corner2.block_irreps)
+            .intersection(corner3.block_irreps)
+            .intersection(corner4.block_irreps)
+        )
     )
-    n_blocks = len(shared)
+    n_blocks = shared.size
+    ind1 = corner1.block_irreps.searchsorted(shared)
+    ind2 = corner2.block_irreps.searchsorted(shared)
+    ind3 = corner3.block_irreps.searchsorted(shared)
+    ind4 = corner4.block_irreps.searchsorted(shared)
 
     # first loop: compute SVD for all blocks
     block_r, block_rt, block_u, block_s, block_v = [[None] * n_blocks for i in range(5)]
-
-    for bi, c in enumerate(shared):  # avoid svd_truncate to compute SVD on the fly
-        m1 = corner1.blocks[corner1.get_color_index(c)]
-        m2 = corner2.blocks[corner2.get_color_index(c)]
-        m3 = corner3.blocks[corner3.get_color_index(c)]
-        m4 = corner4.blocks[corner4.get_color_index(c)]
-
-        block_r[bi] = m1 @ m2
-        block_rt[bi] = m3 @ m4
+    for bi in range(n_blocks):  # compute SVD on the fly
+        block_r[bi] = corner1.blocks[ind1[bi]] @ corner2.blocks[ind2[bi]]
+        block_rt[bi] = corner3.blocks[ind3[bi]] @ corner4.blocks[ind4[bi]]
         m = block_r[bi] @ block_rt[bi]
         if min(m.shape) < 3 * chi:  # use full svd for small blocks
             try:
@@ -65,7 +62,6 @@ def construct_projectors_U1(
                     lapack_driver="gesvd",
                 )
         else:
-            # for U(1) as SU(2) subgroup, no degen inside a color block
             u, s, v = sparse_svd(m, k=chi + window, maxiter=1000)
 
         block_u[bi] = u
@@ -74,23 +70,24 @@ def construct_projectors_U1(
 
     # keep chi largest singular values + last multiplet
     block_cuts = find_chi_largest(block_s, chi, rcutoff, degen_ratio)
-    kept = block_cuts.sum()
 
     # second loop: construct projectors
-    P = np.zeros((corner2.shape[1], kept))
-    Pt = np.zeros((corner2.shape[1], kept))
-    colors = np.empty(kept, dtype=np.int8)
-    k = 0
-    for bi, c in enumerate(shared):
-        proj_indices = corner2.col_indices[corner2.get_color_index(c)]
+    p_blocks = []
+    pt_blocks = []
+    block_irreps = []
+    for bi in range(n_blocks):
         d = block_cuts[bi]
-        s12 = 1.0 / np.sqrt(block_s[bi][:d])
-        P[proj_indices, k : k + d] = block_r[bi].T @ block_u[bi][:, :d].conj() * s12
-        Pt[proj_indices, k : k + d] = block_rt[bi] @ block_v[bi][:d].T.conj() * s12
-        colors[k : k + d] = c
-        k += d
+        if d:
+            s12 = 1.0 / np.sqrt(block_s[bi][:d])
+            p_blocks.append(block_r[bi].T @ block_u[bi][:, :d].conj() * s12)
+            pt_blocks.append(block_rt[bi] @ block_v[bi][:d].T.conj() * s12)
+            block_irreps.append(shared[bi])
 
-    return P, Pt, colors
+    block_irreps = np.array(block_irreps, dtype=np.int8)
+    reps = corner3.axis_reps[:3] + (corner1.init_representation(block_cuts, shared),)
+    P = type(corner3)(reps, 3, p_blocks, block_irreps)
+    Pt = type(corner3)(reps, 3, pt_blocks, block_irreps)
+    return P, Pt
 
 
 ###############################################################################
