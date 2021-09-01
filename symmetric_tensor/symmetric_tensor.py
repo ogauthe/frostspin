@@ -116,6 +116,13 @@ class SymmetricTensor(object):
         blocks = tuple(b1 + b2 for (b1, b2) in zip(self._blocks, other._blocks))
         return type(self)(self._axis_reps, self._n_leg_rows, blocks, self._block_irreps)
 
+    def __sub__(self, other):
+        assert type(other) == type(self), "Mixing incompatible types"
+        assert self._shape == other._shape, "Mixing incompatible axes"
+        assert self._n_row_legs == other._n_row_legs, "Mixing incompatible fusion trees"
+        blocks = tuple(b1 - b2 for (b1, b2) in zip(self._blocks, other._blocks))
+        return type(self)(self._axis_reps, self._n_leg_rows, blocks, self._block_irreps)
+
     def __mul__(self, x):
         assert np.isscalar(x) or x.size == 1
         blocks = tuple(x * b for b in self._blocks)
@@ -133,6 +140,14 @@ class SymmetricTensor(object):
     def __neg__(self):
         blocks = tuple(-b for b in self._blocks)
         return type(self)(self._axis_reps, self._n_leg_rows, blocks, self._block_irreps)
+
+    def __imul__(self, x):
+        for b in self._blocks:
+            b *= x
+
+    def __itruediv__(self, x):
+        for b in self._blocks:
+            b /= x
 
     def get_row_representation(self):
         return self.combine_representations(*self._axis_reps[: self._n_leg_rows])
