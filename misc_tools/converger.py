@@ -56,41 +56,48 @@ class Converger(object):
 
     def reset(self):
         self._niter = 0
+        self._value = None
+        self._last_value = None
         self._delta_list = []
+        self._total_time = 0.0
 
-    def converge(self, tol=1e-8, warmup=0, shift=5, stuck=0.99, maxiter=2147483647):
+    def warmup(self, warmup_iter):
+        if self.verbosity > 0:
+            print(f"Converge for warmup = {warmup_iter} iterations")
+
+        t0 = time.time() - self._total_time
+        for i in range(warmup_iter):
+            self.iterate()
+            if self.verbosity > 1:
+                print(f"i = {self._niter}, t = {time.time()-t0:.1f}")
+
+        self._total_time = time.time() - t0
+        if self.verbosity > 0:
+            print(f"{warmup_iter} warmup iterations finished.")
+
+    def converge(self, tol, shift=5, stuck=0.99, maxiter=2147483647):
         """
         Converge process. Convergence is reached if delta = distance(value, last_value)
-        gets smaller than tol. Convergence fails if maxiter is reached or if the ratio
+        gets smaller than tol. Convergence fails if niter > maxiter or if the ratio
         delta / delta(shift iterations before) > stuck.
 
         Parameters
         ----------
         tol : float
             Tolerance to estimate convergence occurred.
-        warmup : int
-            Number of warmup iteration before any convergence check.
         shift : int
             Number of iterations between current delta and delta used to test if stuck.
         stuck : float
             Value to consider process is stuck.
         maxiter : int
-            Maximal number of iteration. Default is 2**31 - 1.
+            Maximal number of iteration. Default is 2**31 - 1. Note that maxiter is
+            is compared to niter, which includes warmup iterations.
         """
         if self.verbosity > 0:
-            print(f"Converge with tol = {tol}, warmup = {warmup}, maxiter = {maxiter}")
+            print(f"Converge up to tol = {tol}")
+            print(f"{maxiter - self._niter} iterations left before reaching maxiter.")
 
-        t0 = time.time()
-        for i in range(warmup):
-            self.iterate()
-            if self.verbosity > 1:
-                print(f"i = {self._niter}, t = {time.time()-t0:.1f}")
-
-        if self.verbosity > 0:
-            print(f"{warmup} warmup iterations finished.")
-            print(f"{maxiter - warmup} iterations left before reaching maxiter.")
-
-        shift_warm = shift + warmup
+        t0 = time.time() - self._total_time
         self._value = self.get_value()
         while 1:
             self.iterate()
@@ -99,9 +106,8 @@ class Converger(object):
             delta = self._distance(self._last_value, self.value)
             self._delta_list.append(delta)
             if self.verbosity > 1:
-                print(
-                    f"i = {self._niter}, t = {time.time()-t0:.1f}, delta = {delta:.3e}"
-                )
+                t = time.time() - t0
+                print(f"i = {self._niter}, t = {t:.1f}, delta = {delta:.3e}")
             if delta < tol:
                 msg = "Convergence succeded!"
                 break
@@ -111,7 +117,10 @@ class Converger(object):
                     "convergence!"
                 )
                 break
-            if self._niter > shift_warm and delta / self._delta_list[-shift] > stuck:
+            if (
+                len(self._delta_list) > shift
+                and delta / self._delta_list[-shift] > stuck
+            ):
                 msg = "Convergence failed: delta has stabilized higher than tol!"
                 break
 
