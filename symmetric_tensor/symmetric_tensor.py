@@ -194,6 +194,12 @@ class SymmetricTensor(object):
 
     def __matmul__(self, other):
         # do not construct empty blocks: those will be missing TODO: change this
+        assert self._shape[self._n_leg_rows :] == other._shape[: other._n_leg_rows]
+        assert all(
+            np.asanyarray(r1 == r2).all()
+            for (r1, r2) in zip(self._axis_reps[self._n_leg_rows :], other._axis_reps)
+        )
+
         i1 = 0
         i2 = 0
         blocks = []
