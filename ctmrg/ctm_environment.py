@@ -3,6 +3,46 @@ import numpy as np
 from symmetric_tensor.symmetric_tensor import AsymmetricTensor, U1_SymmetricTensor
 
 
+def _initialize_env(A):
+    #
+    #   C1-0  3-T1-0  1-C2            0
+    #   |       ||       |             \ 2
+    #   1       12       0              \|
+    #                                  5-A-3
+    #   0       0        0               |\
+    #   |       |        |               4 1
+    #   T4=1  3-a--1  2=T2
+    #   |  2    |     3  |
+    #   3       2        1
+    #
+    #   0       01       0
+    #   |       ||       |
+    #   C4-1  3-T3-2  1-C3
+    #
+    a = (
+        np.tensordot(A, A.conj(), ((0, 1), (0, 1)))
+        .transpose(0, 4, 1, 5, 2, 6, 3, 7)
+        .copy()
+    )
+    C1 = np.einsum("aacdefgg->cdef", a).reshape(A.shape[3] ** 2, A.shape[4] ** 2)
+    T1 = np.einsum("aacdefgh->cdefgh", a).reshape(
+        A.shape[3] ** 2, A.shape[4], A.shape[4], A.shape[5] ** 2
+    )
+    C2 = np.einsum("aaccefgh->efgh", a).reshape(A.shape[4] ** 2, A.shape[5] ** 2)
+    T2 = np.einsum("abccefgh->abefgh", a).reshape(
+        A.shape[2] ** 2, A.shape[4] ** 2, A.shape[5], A.shape[5]
+    )
+    C3 = np.einsum("abcceegh->abgh", a).reshape(A.shape[2] ** 2, A.shape[5] ** 2)
+    T3 = np.einsum("abcdeegh->abcdgh", a).reshape(
+        A.shape[2], A.shape[2], A.shape[3] ** 2, A.shape[5] ** 2
+    )
+    C4 = np.einsum("abcdeegg->abcd", a).reshape(A.shape[2] ** 2, A.shape[3] ** 2)
+    T4 = np.einsum("abcdefgg->abcdef", a).reshape(
+        A.shape[2] ** 2, A.shape[3], A.shape[3], A.shape[4] ** 2
+    )
+    return C1, T1, C2, T4, T2, C4, T3, C3
+
+
 def _block_AAconj(A):
     """
     Construct U1_SymmetricTensor versions of double layer tensor a = A-A* that can be
@@ -13,17 +53,17 @@ def _block_AAconj(A):
     To be able to use a_ur and a_ul in the same function, unconventional leg order is
     required in a_ur. Here, we use 4-legs tensor to specify leg ordering, but as
     U1_SymmetricTensor matrices legs 0 and 1 are merged, so are legs 2 and 3.
-        45                       67
-        ||                       ||
-    67=a_ul=01               23=a_ur=45
-        ||                       ||
-        23                       01
+       2                       3
+       ||                      ||
+    3=a_ul=0                1=a_ur=2
+       ||                      ||
+        1                       0
 
-        23                       01
-        ||                       ||
-    67=a_dl=01 = a_ur.T       23=a_dr=45 = a_ul.T
-        ||                       ||
-        45                       67
+       1                       0
+       ||                      ||
+    3=a_dl=0 = a_ur.T       1=a_dr=2 = a_ul.T
+       ||                      ||
+        2                       3
     """
     a = A.H @ A
     # a_ul used to contract corner_ul: u and l legs are *last* for a_ul @ TT
@@ -157,72 +197,16 @@ class CTM_Environment(object):
         self._neq_T3s = []
         self._neq_C4s = []
         self._neq_T4s = []
-
-        for i in range(self._Nneq):
-            a = self._a_ul[i]
-            a0 = a.toarray()  # cast to dense to trace
-            sh = (a.shape[0], a.shape[2], a.shape[4], a.shape[6])
-
-            C1d = np.einsum("abcdeegg->abcd", a0).reshape(sh[0] ** 2, sh[1] ** 2)
-            T1d = np.einsum("abcdeegh->abcdgh", a0)
-            T1d = T1d.reshape(sh[0] ** 2, sh[1], sh[1], sh[3] ** 2)
-
-            C2d = np.einsum("aacdeegh->cdgh", a0).reshape(sh[1] ** 2, sh[3] ** 2)
-            T2d = np.einsum("aacdefgh->efcdgh", a0)
-            T2d = T2d.reshape(sh[2] ** 2, sh[1] ** 2, sh[3], sh[3])
-
-            C3d = np.einsum("aaccefgh->efgh", a0).reshape(sh[2] ** 2, sh[3] ** 2)
-            T3d = np.einsum("abccefgh->efabgh", a0)
-            T3d = T1d.reshape(sh[2], sh[2], sh[0] ** 2, sh[3] ** 2)
-
-            C4d = np.einsum("abccefgg->efab", a0).reshape(sh[2] ** 2, sh[0] ** 2)
-            T4d = np.einsum("abcdefgg->efabcd", a0)
-            T4d = T1d.reshape(sh[2] ** 2, sh[0], sh[0], sh[1] ** 2)
-
-            if self._symmetry == "{e}":
-                C1 = AsymmetricTensor.from_array(C1d, 1)
-                T1 = AsymmetricTensor.from_array(T1d, 3)
-                C2 = AsymmetricTensor.from_array(C2d, 1)
-                T2 = AsymmetricTensor.from_array(T2d, 2)
-                C3 = AsymmetricTensor.from_array(C3d, 1)
-                T3 = AsymmetricTensor.from_array(T3d, 3)
-                C4 = AsymmetricTensor.from_array(C4d, 1)
-                T4 = AsymmetricTensor.from_array(T4d, 3)
-
-            elif self._symmetry == "U(1)":
-                c0 = a.axis_reps[0]
-                c1 = a.axis_reps[2]
-                c2 = a.axis_reps[5]  # conjugate twice
-                c3 = a.axis_reps[7]  # conjugate twice
-                c00 = a.combine_representations(c0, -c0)
-                c11 = a.combine_representations(c1, -c1)
-                c22 = a.combine_representations(c2, -c2)
-                c33 = a.combine_representations(c3, -c3)
-                C1 = U1_SymmetricTensor.from_array(C1d, (c00, c11), 1)
-                T1 = U1_SymmetricTensor.from_array(T1d, (c00, c1, -c1, c33), 3)
-                C2 = U1_SymmetricTensor.from_array(C2d, (c11, c33), 1)
-                T2 = U1_SymmetricTensor.from_array(T2d, (c22, c11, c3, -c3), 3)
-                C3 = U1_SymmetricTensor.from_array(C3d, (c22, c33), 1)
-                T3 = U1_SymmetricTensor.from_array(T3d, (c2, -c2, c00, c33), 3)
-                C4 = U1_SymmetricTensor.from_array(C4d, (c22, c00), 1)
-                T4 = U1_SymmetricTensor.from_array(T4d, (c22, c0, -c0, c11), 3)
-
-            assert (C1d == C1.toarray()).all()
-            assert (T1d == T1.toarray()).all()
-            assert (C2d == C2.toarray()).all()
-            assert (T2d == T2.toarray()).all()
-            assert (C3d == C3.toarray()).all()
-            assert (T3d == T3.toarray()).all()
-            assert (C4d == C4.toarray()).all()
-            assert (T4d == T4.toarray()).all()
-            self._neq_C1s.append(C1)
-            self._neq_T1s.append(T1)
-            self._neq_C2s.append(C2)
-            self._neq_T2s.append(T2)
-            self._neq_C3s.append(C3)
-            self._neq_T3s.append(T3)
-            self._neq_C4s.append(C4)
-            self._neq_T4s.append(T4)
+        for i, A in enumerate(self._neq_As):
+            C1, T1, C2, T4, T2, C4, T3, C3 = _initialize_env(A)
+            self._neq_C1s[i].append(C1)
+            self._neq_T1s[i].append(T1)
+            self._neq_C2s[i].append(C2)
+            self._neq_T2s[i].append(T2)
+            self._neq_C3s[i].append(C3)
+            self._neq_T3s[i].append(T3)
+            self._neq_C4s[i].append(C4)
+            self._neq_T4s[i].append(T4)
 
         self._corners_ul = [None] * self._Nneq
         self._corners_ur = [None] * self._Nneq
