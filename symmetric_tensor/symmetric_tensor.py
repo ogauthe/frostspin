@@ -155,7 +155,7 @@ class SymmetricTensor(object):
     def get_column_representation(self):
         return self.combine_representations(*self._axis_reps[: self._n_leg_rows])
 
-    def is_heteregeneous(self):
+    def is_heterogeneous(self):
         # blocks may be a numba heterogeneous tuple because a size 1 matrix stays
         # C-contiguous after tranpose and will be cast to numba array(float64, 2d, C),
         # while any larger matrix will be cast to array(float64, 2d, F).
@@ -492,7 +492,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
         row_irreps = self.combine_representations(*self._axis_reps[: self._n_leg_rows])
         col_irreps = self.combine_representations(*self._axis_reps[self._n_leg_rows :])
         M = np.zeros(self.matrix_shape, dtype=self.dtype)
-        if self.is_heteregeneous():  # TODO treat separatly size 1 + call homogeneous
+        if self.is_heterogeneous():  # TODO treat separatly size 1 + call homogeneous
             heterogeneous_blocks_to_array(
                 M, self._blocks, self._block_irreps, row_irreps, col_irreps
             )
