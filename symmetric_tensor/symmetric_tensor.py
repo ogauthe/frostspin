@@ -153,7 +153,7 @@ class SymmetricTensor(object):
         return self.combine_representations(*self._axis_reps[: self._n_leg_rows])
 
     def get_column_representation(self):
-        return self.combine_representations(*self._axis_reps[: self._n_leg_rows])
+        return self.combine_representations(*self._axis_reps[self._n_leg_rows :])
 
     def is_heterogeneous(self):
         # blocks may be a numba heterogeneous tuple because a size 1 matrix stays
