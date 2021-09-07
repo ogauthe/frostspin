@@ -506,11 +506,22 @@ class AbelianSymmetricTensor(SymmetricTensor):
         # it is more convenient to deal woth 1 tuple of axes and use 1 int to
         # split it into rows and columns internally (is it?)
         # but the interface is much simpler with 2 tuples.
-        axes = row_axes + col_axes
+        axes = tuple(row_axes) + tuple(col_axes)
         n_leg_rows = len(row_axes)
-        assert sorted(axes) == list(range(self._ndim))
-        if n_leg_rows == self._n_leg_rows and axes == tuple(range(self._ndim)):
+        t = tuple(range(self._ndim))
+        assert sorted(axes) == list(t)
+        if n_leg_rows == self._n_leg_rows and axes == t:
             return self
+
+        if (
+            n_leg_rows == self._ndim - self._n_leg_rows
+            and axes == t[self._n_leg_rows :] + t[: self._n_leg_rows]
+        ):
+            return self.T
+
+        if self.is_heterogeneous():
+            axesT = tuple((ax - self._n_leg_rows) % self._ndim for ax in axes)
+            return self.T.permutate(axesT[:n_leg_rows], axesT[n_leg_rows:])
 
         axis_reps = []
         for i, ax in enumerate(axes):
