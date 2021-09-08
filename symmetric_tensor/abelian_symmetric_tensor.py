@@ -292,6 +292,10 @@ class AbelianSymmetricTensor(SymmetricTensor):
         # using flatiter on non-contiguous is too slow, no other way
         M = arr.reshape(row_irreps.size, col_irreps.size)
         blocks, block_irreps = numba_reduce_to_blocks(M, row_irreps, col_irreps)
+        assert (
+            abs(1.0 - np.sqrt(sum(lg.norm(b) ** 2 for b in blocks)) / lg.norm(arr))
+            < 1e-13
+        )
         return cls(row_axis_reps + col_axis_reps, n_leg_rows, blocks, block_irreps)
 
     def toarray(self):
