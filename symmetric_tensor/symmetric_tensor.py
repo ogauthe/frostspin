@@ -165,17 +165,39 @@ class SymmetricTensor(object):
     def toarray(self):
         return NotImplemented
 
+    def norm(self):
+        """
+        Tensor Frobenius norm.
+        """
+        return NotImplemented
+
     @property
     def T(self):
+        """
+        Matrix transpose operation, swapping rows and columns. Internal structure and
+        and leg merging are not affected: each block is just transposed. Block irreps
+        are conjugate, which may change block order.
+        """
         # Transpose the matrix representation of the tensor, ie swap rows and columns
         # and transpose diagonal blocks, without any data move or copy. Irreps need to
         # be conjugate since row (bra) and columns (ket) are swapped. Since irreps are
-        # just integers, conjugation is not possible outside of Representation type.
-        # This operation is therefore group-specific and cannot be implemented here.
+        # just integers, conjugation is group-specific and cannot be implemented here.
+        return NotImplemented
+
+    def conjugate(self):
+        """
+        Complex conjugate operation. Block values are conjugate, block_irreps are also
+        conjugate according to group rules. Internal structure is not affected, however
+        block order may change.
+        """
         return NotImplemented
 
     @property
     def H(self):
+        """
+        Hermitian conjugate operation, swapping rows and columns and conjugating blocks.
+        block_irreps and block order are not affected.
+        """
         # block_irreps are conjugate both in T and conj: no change
         nlr = self._ndim - self._n_leg_rows
         blocks = tuple(b.T.conj() for b in self._blocks)
@@ -183,12 +205,16 @@ class SymmetricTensor(object):
         return type(self)(axis_reps, nlr, blocks, self._block_irreps)
 
     def permutate(self, row_axes, col_axes):  # signature != ndarray.transpose
-        return NotImplemented
-
-    def conjugate(self):
+        """
+        Permutate axes, changing tensor structure.
+        """
         return NotImplemented
 
     def __matmul__(self, other):
+        """
+        Tensor dot operation between two tensors with compatible internal structure.
+        Left hand term column axes all are contracted with right hand term row axes.
+        """
         # do not construct empty blocks: those will be missing TODO: change this
         assert self._shape[self._n_leg_rows :] == other._shape[: other._n_leg_rows]
         assert all(
