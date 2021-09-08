@@ -177,12 +177,10 @@ class SymmetricTensor(object):
     @property
     def H(self):
         # block_irreps are conjugate both in T and conj: no change
-        n_legs = self._ndim - self._n_leg_rows
+        nlr = self._ndim - self._n_leg_rows
         blocks = tuple(b.T.conj() for b in self._blocks)
-        axis_reps = (
-            self._axis_reps[self._n_leg_rows :] + self._axis_reps[: self._n_leg_rows]
-        )
-        return type(self)(axis_reps, n_legs, blocks, self._block_irreps)
+        axis_reps = tuple(self._axis_reps[i] for i in range(-nlr, self._n_leg_rows))
+        return type(self)(axis_reps, nlr, blocks, self._block_irreps)
 
     def permutate(self, row_axes, col_axes):  # signature != ndarray.transpose
         return NotImplemented
