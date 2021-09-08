@@ -256,10 +256,14 @@ def numba_abelian_transpose(
 
 
 class AbelianSymmetricTensor(SymmetricTensor):
-    # representation is a np.int8 1D array (may change for product groups)
+    """
+    Efficient storage and manipulation for a tensor with abelian symmetry. Irreps
+    are labelled as int8 integers, representations are 1D ndarray with np.int9 dtype.
+    """
+
     @classmethod
     def representation_dimension(cls, rep):
-        return rep.shape[0]
+        return rep.size
 
     @classmethod
     def init_representation(cls, degen, irreps):
@@ -284,7 +288,8 @@ class AbelianSymmetricTensor(SymmetricTensor):
             col_axis_reps = axis_reps[n_leg_rows:]
         row_irreps = cls.combine_representations(*row_axis_reps)
         col_irreps = cls.combine_representations(*col_axis_reps)
-        # requires copy if arr is not contiguous TODO test and avoid copy if not
+        # requires copy if arr is not contiguous
+        # using flatiter on non-contiguous is too slow, no other way
         M = arr.reshape(row_irreps.size, col_irreps.size)
         blocks, block_irreps = numba_reduce_to_blocks(M, row_irreps, col_irreps)
         return cls(row_axis_reps + col_axis_reps, n_leg_rows, blocks, block_irreps)
