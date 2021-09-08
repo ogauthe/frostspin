@@ -33,7 +33,8 @@ from ctmrg.ctm_renormalize import (
     renormalize_C1_left,
 )
 from groups.toolsU1 import combine_colors, checkU1
-from symmetric_tensor.symmetric_tensor import AsymmetricTensor, U1_SymmetricTensor
+from symmetric_tensor.asymmetric_tensor import AsymmetricTensor
+from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
 
 
 class CTMRG(object):
