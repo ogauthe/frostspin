@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.linalg as lg
 
-from misc_tools.svd_tools import find_chi_largest, svd_truncate, sparse_svd
+from misc_tools.svd_tools import numba_find_chi_largest, svd_truncate, sparse_svd
 from ctmrg.ctm_contract import add_a_blockU1
 
 
@@ -74,7 +74,8 @@ def construct_projectors_U1(
         block_v[bi] = v
 
     # keep chi largest singular values + last multiplet
-    block_cuts = find_chi_largest(block_s, chi, rcutoff, degen_ratio)
+    block_s = tuple(block_s)
+    block_cuts = numba_find_chi_largest(block_s, chi, rcutoff, degen_ratio)
     kept = block_cuts.sum()
 
     # second loop: construct projectors
