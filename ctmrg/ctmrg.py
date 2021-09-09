@@ -896,9 +896,9 @@ class CTMRG_U1(CTMRG):
 
     def construct_reduced_dr(self, x, y):
         """
-        Return down right corner reduced to U(1) blocks as a BlockMatrixU1. Check _env
-        to find an already computed corner, if it does not exist construct it and store
-        it in _env.
+        Return down right corner reduced to U(1) blocks as a U1_SymmetricTensor. Check
+        _env to find an already computed corner, if it does not exist construct it and
+        store it in _env.
 
         Unusual leg ordering: reduced corners are constructed to be contracted as
         ul-01-ur
@@ -926,9 +926,9 @@ class CTMRG_U1(CTMRG):
 
     def construct_reduced_dl(self, x, y):
         """
-        Return down left corner reduced to U(1) blocks as a BlockMatrixU1. Check _env
-        to find an already computed corner, if it does not exist construct it and store
-        it in _env.
+        Return down left corner reduced to U(1) blocks as a U1_SymmetricTensor. Check
+        _env to find an already computed corner, if it does not exist construct it and
+        store it in _env.
         """
         dl = self._env.get_corner_dl(x, y)
         if dl is not None:
@@ -947,9 +947,9 @@ class CTMRG_U1(CTMRG):
 
     def construct_reduced_ul(self, x, y):
         """
-        Return upper left corner reduced to U(1) blocks as a BlockMatrixU1. Check _env
-        to find an already computed corner, if it does not exist construct it and store
-        it in _env.
+        Return upper left corner reduced to U(1) blocks as a U1_SymmetricTensor. Check
+        _env to find an already computed corner, if it does not exist construct it and
+        store it in _env.
         """
         ul = self._env.get_corner_ul(x, y)
         if ul is not None:
@@ -968,9 +968,9 @@ class CTMRG_U1(CTMRG):
 
     def construct_reduced_ur(self, x, y):
         """
-        Return upper right corner reduced to U(1) blocks as a BlockMatrixU1. Check _env
-        to find an already computed corner, if it does not exist construct it and store
-        it in _env.
+        Return upper right corner reduced to U(1) blocks as a U1_SymmetricTensor. Check
+        _env to find an already computed corner, if it does not exist construct it and
+        store it in _env.
         """
         ur = self._env.get_corner_ur(x, y)
         if ur is not None:

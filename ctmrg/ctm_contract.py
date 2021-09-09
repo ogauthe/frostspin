@@ -191,7 +191,7 @@ def contract_r_half(T1, C2, Au, T2u, Ad, T2d, T3, C3):
 
 
 # Function add_a_conj takes double layer tensor a = A-A* as input in the form of a
-# BlockMatrixU1, with merged bra and ket legs *and* legs merged in two directions as
+# SymmetricTensor, with merged bra and ket legs *and* legs merged in two directions as
 # rows and as columns. To save memory, only 2 versions of a exsit, a_ul and a_ur. To
 # contract dr and dl corenrs, the transpose of a_ul and a_ur are used (same storage,
 # see ctm_environment).
