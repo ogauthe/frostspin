@@ -7,7 +7,7 @@ from symmetric_tensor.symmetric_tensor import SymmetricTensor
 
 
 @numba.njit(parallel=True)
-def fill_block(M, ri, ci):
+def _numba_fill_block(M, ri, ci):
     m = np.empty((ri.size, ci.size), dtype=M.dtype)
     for i in numba.prange(ri.size):
         for j in numba.prange(ci.size):
@@ -16,7 +16,7 @@ def fill_block(M, ri, ci):
 
 
 @numba.njit
-def numba_reduce_to_blocks(M, row_irreps, col_irreps):
+def _numba_reduce_to_blocks(M, row_irreps, col_irreps):
     row_sort = row_irreps.argsort(kind="mergesort")
     sorted_row_irreps = row_irreps[row_sort]
     row_blocks = (
@@ -33,7 +33,7 @@ def numba_reduce_to_blocks(M, row_irreps, col_irreps):
         ci = (col_irreps == sorted_row_irreps[row_blocks[rbi]]).nonzero()[0]
         if ci.size:
             ri = row_sort[row_blocks[rbi] : row_blocks[rbi + 1]]
-            m = fill_block(M, ri, ci)  # parallel
+            m = _numba_fill_block(M, ri, ci)  # parallel
             blocks.append(m)
             block_irreps.append(sorted_row_irreps[row_blocks[rbi]])
     block_irreps = np.array(block_irreps)
@@ -41,7 +41,7 @@ def numba_reduce_to_blocks(M, row_irreps, col_irreps):
 
 
 @numba.njit
-def heterogeneous_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irreps):
+def _numba_to_array_heterogeneous(M, blocks, block_irreps, row_irreps, col_irreps):
     # tedious dealing with heterogeneous tuple: cannot parallelize, enum or getitem
     bi = 0
     for b in literal_unroll(blocks):
@@ -54,7 +54,7 @@ def heterogeneous_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irrep
 
 
 @numba.njit(parallel=True)
-def homogeneous_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irreps):
+def _numba_to_array_homogeneous(M, blocks, block_irreps, row_irreps, col_irreps):
     # when blocks is homogeneous, loops are simple and can be parallelized
     for bi in numba.prange(len(blocks)):
         row_indices = (row_irreps == block_irreps[bi]).nonzero()[0]
@@ -64,17 +64,8 @@ def homogeneous_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irreps)
                 M[row_indices[i], col_indices[j]] = blocks[bi][i, j]
 
 
-@numba.njit(parallel=True)
-def fill_transpose(aflat, row_indices, col_indices):
-    m = np.empty((row_indices.size, col_indices.size), dtype=aflat.dtype)
-    for i in numba.prange(row_indices.size):
-        for j in numba.prange(col_indices.size):
-            m[i, j] = aflat[row_indices[i] + col_indices[j]]
-    return m
-
-
 @numba.njit
-def numba_get_indices(irreps):
+def _numba_get_indices(irreps):
     unique_irreps = [irreps[0]]  # crash if irreps.size = 0. Should not happen.
     irrep_count = [0]
     block_indices = np.empty(irreps.shape, dtype=np.int64)
@@ -120,7 +111,7 @@ def get_indices(irreps):
 
 
 @numba.njit(parallel=True)
-def numba_abelian_transpose(
+def _numba_abelian_transpose(
     old_shape,
     old_blocks,
     old_block_irreps,
@@ -210,7 +201,7 @@ def numba_abelian_transpose(
         row_irrep_count,
         block_rows,
         new_row_block_indices,
-    ) = numba_get_indices(new_row_irreps)
+    ) = _numba_get_indices(new_row_irreps)
     block_cols = np.empty((new_col_irreps.size,), dtype=np.int64)
     new_blocks = [np.zeros((0, 0)) for i in range(unique_row_irreps.size)]
 
@@ -291,7 +282,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
         # requires copy if arr is not contiguous
         # using flatiter on non-contiguous is too slow, no other way
         M = arr.reshape(row_irreps.size, col_irreps.size)
-        blocks, block_irreps = numba_reduce_to_blocks(M, row_irreps, col_irreps)
+        blocks, block_irreps = _numba_reduce_to_blocks(M, row_irreps, col_irreps)
         assert (
             abs(1.0 - np.sqrt(sum(lg.norm(b) ** 2 for b in blocks)) / lg.norm(arr))
             < 1e-13
@@ -303,11 +294,11 @@ class AbelianSymmetricTensor(SymmetricTensor):
         col_irreps = self.combine_representations(*self._axis_reps[self._n_leg_rows :])
         M = np.zeros(self.matrix_shape, dtype=self.dtype)
         if self.is_heterogeneous():  # TODO treat separatly size 1 + call homogeneous
-            heterogeneous_blocks_to_array(
+            _numba_to_array_heterogeneous(
                 M, self._blocks, self._block_irreps, row_irreps, col_irreps
             )
         else:
-            homogeneous_blocks_to_array(
+            _numba_to_array_homogeneous(
                 M, self._blocks, self._block_irreps, row_irreps, col_irreps
             )
         return M.reshape(self._shape)
@@ -344,7 +335,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
         old_col_irreps = self.get_column_representation()
         new_row_irreps = self.combine_representations(*axis_reps[:n_leg_rows])
         new_col_irreps = self.combine_representations(*axis_reps[n_leg_rows:])
-        blocks, block_irreps = numba_abelian_transpose(
+        blocks, block_irreps = _numba_abelian_transpose(
             np.array(self._shape),
             self._blocks,
             self._block_irreps,
