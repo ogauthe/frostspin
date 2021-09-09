@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.linalg as lg
 
-from misc_tools.svd_tools import sparse_svd
+from misc_tools.svd_tools import sparse_svd, numba_find_chi_largest
 
 
 # choices are made to make code light and fast:
@@ -243,72 +243,52 @@ class SymmetricTensor(object):
         )
         return type(self)(axis_reps, self._n_leg_rows, blocks, block_irreps)
 
-    def svd(self, cut=np.inf, rcutoff=0.0):
+    def svd(self, cut=None, window=0, rcutoff=0.0, degen_ratio=1.0):
         """
         Compute block-wise SVD of self and keep only cut largest singular values. Do not
         truncate if cut is not provided. Keep only values larger than rcutoff * max(sv).
         """
-        # TODO: use find_chi_largest from master
-        block_u = [None] * self._nblocks
-        block_s = [None] * self._nblocks
-        block_v = [None] * self._nblocks
-        block_max_vals = np.empty(self._nblocks)
+        full = cut is None
+        raw_u = [None] * self._nblocks
+        raw_s = [None] * self._nblocks
+        raw_v = [None] * self._nblocks
         for bi, b in enumerate(self._blocks):
-            if min(b.shape) < 3 * cut:  # dense svd for small blocks
+            if full or min(b.shape) < 3 * cut:  # dense svd for small blocks
                 try:
-                    block_u[bi], block_s[bi], block_v[bi] = lg.svd(
-                        b, full_matrices=False, check_finite=False
-                    )
+                    u, s, v = lg.svd(b, full_matrices=False, check_finite=False)
                 except lg.LinAlgError as err:
                     print("Error in scipy dense SVD:", err)
-                    block_u[bi], block_s[bi], block_v[bi] = lg.svd(
+                    u, s, v = lg.svd(
                         b, full_matrices=False, check_finite=False, driver="gesvd"
                     )
             else:
-                block_u[bi], block_s[bi], block_v[bi] = sparse_svd(b, k=cut)
-            block_max_vals[bi] = block_s[bi][0]
+                u, s, v = sparse_svd(b, k=cut + window)
+            raw_u[bi] = u
+            raw_s[bi] = s
+            raw_v[bi] = v
 
-        cutoff = block_max_vals.max() * rcutoff  # cannot be set before 1st loop
-        block_cuts = [0] * self._nblocks
-        if cut == np.inf:
-            if rcutoff > 0.0:  # remove values smaller than cutoff
-                for bi, bs in enumerate(block_s):
-                    keep = (bs > cutoff).nonzero()[0]
-                    if keep.size:
-                        block_cuts[bi] = keep[-1] + 1
-            else:
-                block_cuts = [b.size for b in block_s]
-        else:  # Assume number of blocks is small, block_max_val is never sorted
-            k = 0  # and elements are compared at each iteration
-            while k < cut:
-                bi = block_max_vals.argmax()
-                if block_max_vals[bi] < cutoff:
-                    break
-                block_cuts[bi] += 1
-                if block_cuts[bi] < block_s[bi].size:
-                    block_max_vals[bi] = block_s[bi][block_cuts[bi]]
-                else:
-                    block_max_vals[bi] = -1.0  # in case cutoff = 0
-                k += 1
+        if full:
+            cutoff = rcutoff * max(s[0] for s in raw_s)
+            block_cuts = np.array([(s > cutoff).sum() for s in raw_s])
+        else:
+            raw_s = tuple(raw_s)
+            block_cuts = numba_find_chi_largest(raw_s, cut, rcutoff, degen_ratio)
 
-        s = []
-        mid_irreps = []
-        for bi in reversed(range(self._nblocks)):  # reversed to del
-            if block_cuts[bi]:
-                block_u[bi] = block_u[bi][:, : block_cuts[bi]]
-                s.extend(block_s[bi][: block_cuts[bi]][::-1])
-                block_v[bi] = block_v[bi][: block_cuts[bi]]
-                mid_irreps.append(self._block_irreps[bi])
-            else:  # do not keep empty matrices
-                del block_u[bi]
-                del block_v[bi]
+        block_irreps = []
+        u_blocks = []
+        s_values = []
+        v_blocks = []
+        for bi, c in enumerate(block_cuts):
+            if c:
+                block_irreps.append(self._block_irreps[bi])
+                u_blocks.append(np.ascontiguousarray(raw_u[bi][:, :c]))
+                s_values.append(raw_s[bi][:c])
+                v_blocks.append(raw_v[bi][:c])
 
-        mid_irreps = tuple(mid_irreps[::-1])
-        mid_rep = self._symmetry(block_cuts, mid_irreps)
+        block_irreps = np.array(block_irreps)
+        mid_rep = self.init_representation(block_cuts, block_irreps)
         rep_u = self._axis_reps[: self._n_leg_rows] + (mid_rep,)
         rep_v = (mid_rep,) + self._axis_reps[self._n_leg_rows :]
-
-        U = type(self)(rep_u, self._n_leg_rows, block_u, mid_rep.irreps)
-        V = type(self)(rep_v, 1, block_v, mid_rep.irreps)
-        s = np.array(s[::-1])  # cancel reversed in truncation loop
-        return U, s, V
+        U = type(self)(rep_u, self._n_leg_rows, u_blocks, block_irreps)
+        V = type(self)(rep_v, 1, v_blocks, block_irreps)
+        return U, s_values, block_irreps, V
