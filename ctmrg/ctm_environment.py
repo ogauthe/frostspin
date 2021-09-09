@@ -1,7 +1,7 @@
 import numpy as np
 
 from groups.toolsU1 import default_color, combine_colors
-from groups.block_matrix_U1 import BlockMatrixU1
+from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
 
 
 def _initialize_env(A):
@@ -46,40 +46,36 @@ def _initialize_env(A):
 
 def _block_AAconj(A, col_A):
     """
-    Construct BlockMatrixU1 versions of double layer tensor a = A-A* that can be used in
-    add_a_blockU1. a is a matrix with merged bra and ket legs *and* legs merged in two
-    directions as rows and as columns. One version for each corner is needed, so we have
-    a_ul, a_ur, a_dl and a_dr. However to save memory, a_dl and a_dr can be defined as
-    a_ur.T and a_dl. and use same memory storage.
+    Construct U1_SymmetricTensor versions of double layer tensor a = A-A* that can be
+    used in add_a_blockU1. a is a matrix with merged bra and ket legs *and* legs merged
+    in two directions as rows and as columns. One version for each corner is needed, so
+    we have a_ul, a_ur, a_dl and a_dr. However to save memory, a_dl and a_dr can be
+    defined as a_ur.T and a_dl.T and use same memory storage.
     To be able to use a_ur and a_ul in the same function, unconventional leg order is
     required in a_ur. Here, we use 4-legs tensor to specify leg ordering, but as
-    BlockMatrixU1 matrices legs 0 and 1 are merged, so are legs 2 and 3.
-       2                       3
-       ||                      ||
-    3=a_ul=0                1=a_ur=2
-       ||                      ||
-        1                       0
+    U1_SymmetricTensor matrices legs 0 and 1 are merged, so are legs 2 and 3.
+        45                       67
+        ||                       ||
+    67=a_ul=01               23=a_ur=45
+        ||                       ||
+        23                       01
 
-       1                       0
-       ||                      ||
-    3=a_dl=0 = a_ur.T       1=a_dr=2 = a_ul.T
-       ||                      ||
-        2                       3
+        23                       01
+        ||                       ||
+    67=a_dl=01 = a_ur.T       23=a_dr=45 = a_ul.T
+        ||                       ||
+        45                       67
     """
-    a = np.tensordot(A, A.conj(), ((0, 1), (0, 1)))
-    col_u = combine_colors(col_A[2], -col_A[2])
-    col_r = combine_colors(col_A[3], -col_A[3])
-    col_d = combine_colors(col_A[4], -col_A[4])
-    col_l = combine_colors(col_A[5], -col_A[5])
-    c_ul = combine_colors(col_u, col_l)
-    c_ur = combine_colors(col_r, col_u)  # swap u and r to use ul function
-    c_rd = combine_colors(col_r, col_d)
-    c_dl = combine_colors(col_d, col_l)
+    A_U1 = U1_SymmetricTensor.from_array(A, col_A, 2)
+    a = A_U1.H @ A_U1
+    assert (
+        np.linalg.norm(np.tensordot(A.conj(), A, ((0, 1), (0, 1))) - a.toarray())
+        / a.norm()
+        < 1e-14
+    )
     # a_ul used to contract corner_ul: u and l legs are *last* for a_ul @ TT
-    a_ul = a.transpose(1, 5, 2, 6, 0, 4, 3, 7).reshape(c_rd.size, c_ul.size)
-    a_ul = BlockMatrixU1.from_dense(a_ul, -c_rd, c_ul)
-    a_ur = a.transpose(2, 6, 3, 7, 1, 5, 0, 4).reshape(c_dl.size, c_ur.size)
-    a_ur = BlockMatrixU1.from_dense(a_ur, -c_dl, c_ur)
+    a_ul = a.permutate((1, 5, 2, 6), (0, 4, 3, 7))
+    a_ur = a.permutate((2, 6, 3, 7), (1, 5, 0, 4))
     return a_ul, a_ur
 
 
