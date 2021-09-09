@@ -1,7 +1,7 @@
 import numpy as np
 
 from groups.toolsU1 import default_color, combine_colors
-from groups.block_matrix_U1 import BlockMatrixU1
+from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
 
 
 def _initialize_env(A):
@@ -46,41 +46,64 @@ def _initialize_env(A):
 
 def _block_AAconj(A, col_A):
     """
-    Construct BlockMatrixU1 versions of double layer tensor a = A-A* that can be used in
-    add_a_blockU1. a is a matrix with merged bra and ket legs *and* legs merged in two
-    directions as rows and as columns. One version for each corner is needed, so we have
-    a_ul, a_ur, a_dl and a_dr. However to save memory, a_dl and a_dr can be defined as
-    a_ur.T and a_dl. and use same memory storage.
+    Construct U1_SymmetricTensor versions of double layer tensor a = A-A* that can be
+    used in add_a_blockU1. a is a matrix with merged bra and ket legs *and* legs merged
+    in two directions as rows and as columns. One version for each corner is needed, so
+    we have a_ul, a_ur, a_dl and a_dr. However to save memory, a_dl and a_dr can be
+    defined as a_ur.T and a_dl.T and use same memory storage.
     To be able to use a_ur and a_ul in the same function, unconventional leg order is
     required in a_ur. Here, we use 4-legs tensor to specify leg ordering, but as
-    BlockMatrixU1 matrices legs 0 and 1 are merged, so are legs 2 and 3.
-       2                       3
-       ||                      ||
-    3=a_ul=0                1=a_ur=2
-       ||                      ||
-        1                       0
+    U1_SymmetricTensor matrices legs 0 and 1 are merged, so are legs 2 and 3.
+        45                       67
+        ||                       ||
+    67=a_ul=01               23=a_ur=45
+        ||                       ||
+        23                       01
 
-       1                       0
-       ||                      ||
-    3=a_dl=0 = a_ur.T       1=a_dr=2 = a_ul.T
-       ||                      ||
-        2                       3
+        23                       01
+        ||                       ||
+    67=a_dl=01 = a_ur.T       23=a_dr=45 = a_ul.T
+        ||                       ||
+        45                       67
     """
-    a = np.tensordot(A, A.conj(), ((0, 1), (0, 1)))
-    col_u = combine_colors(col_A[2], -col_A[2])
-    col_r = combine_colors(col_A[3], -col_A[3])
-    col_d = combine_colors(col_A[4], -col_A[4])
-    col_l = combine_colors(col_A[5], -col_A[5])
-    c_ul = combine_colors(col_u, col_l)
-    c_ur = combine_colors(col_r, col_u)  # swap u and r to use ul function
-    c_rd = combine_colors(col_r, col_d)
-    c_dl = combine_colors(col_d, col_l)
+    A_U1 = U1_SymmetricTensor.from_array(A, col_A, 2)
+    a = A_U1.H @ A_U1
+    assert (
+        np.linalg.norm(np.tensordot(A.conj(), A, ((0, 1), (0, 1))) - a.toarray())
+        / a.norm()
+        < 1e-14
+    )
     # a_ul used to contract corner_ul: u and l legs are *last* for a_ul @ TT
-    a_ul = a.transpose(1, 5, 2, 6, 0, 4, 3, 7).reshape(c_rd.size, c_ul.size)
-    a_ul = BlockMatrixU1.from_dense(a_ul, -c_rd, c_ul)
-    a_ur = a.transpose(2, 6, 3, 7, 1, 5, 0, 4).reshape(c_dl.size, c_ur.size)
-    a_ur = BlockMatrixU1.from_dense(a_ur, -c_dl, c_ur)
-    return a_ul, a_ur
+    a_ul = a.permutate((1, 5, 2, 6), (0, 4, 3, 7))
+    a_rd = a_ul.T
+
+    # dirty fix: define row_irreps and col_irreps to mimic BlockMatrixU1
+    row_irreps = a_ul.get_row_representation()
+    col_irreps = a_ul.get_column_representation()
+    row_indices = []
+    col_indices = []
+    for c in a_ul.block_irreps:
+        row_indices.append((row_irreps == c).nonzero()[0])
+        col_indices.append((col_irreps == c).nonzero()[0])
+    a_ul.row_indices = tuple(row_indices)
+    a_ul.col_indices = tuple(col_indices)
+    a_rd.row_indices = tuple(ind for ind in reversed(col_indices))
+    a_rd.col_indices = tuple(ind for ind in reversed(row_indices))
+
+    a_ur = a.permutate((2, 6, 3, 7), (1, 5, 0, 4))
+    a_dl = a_ur.T
+    row_irreps = a_ur.get_row_representation()
+    col_irreps = a_ur.get_column_representation()
+    row_indices = []
+    col_indices = []
+    for c in a_ur.block_irreps:
+        row_indices.append((row_irreps == c).nonzero()[0])
+        col_indices.append((col_irreps == c).nonzero()[0])
+    a_ur.row_indices = tuple(row_indices)
+    a_ur.col_indices = tuple(col_indices)
+    a_dl.row_indices = tuple(ind for ind in reversed(col_indices))
+    a_dl.col_indices = tuple(ind for ind in reversed(row_indices))
+    return a_ul, a_ur, a_rd, a_dl
 
 
 def _color_correspondence(old_col, new_col):
@@ -222,11 +245,12 @@ class CTM_Environment(object):
             self._a_rd = []
             self._a_dl = []
             for A, col_A in zip(neq_As, colors_A):
-                a_ul, a_ur = _block_AAconj(A, col_A)
+                a_ul, a_ur, a_rd, a_dl = _block_AAconj(A, col_A)
                 self._a_ur.append(a_ur)
                 self._a_ul.append(a_ul)
-                self._a_rd.append(a_ul.T)
-                self._a_dl.append(a_ur.T)
+                self._a_rd.append(a_rd)
+                self._a_dl.append(a_dl)
+
         else:
             self._colors_A = [(default_color,) * 6] * self._Nneq
             self._colors_C1_r = [default_color] * self._Nneq
@@ -536,11 +560,11 @@ class CTM_Environment(object):
                     col = (col[0], np.zeros(1, dtype=np.int8), *col[1:])
                 if tuple(len(c) for c in col) != A.shape:
                     raise ValueError("Colors do not match tensors")
-                a_ul, a_ur = _block_AAconj(A, col)
+                a_ul, a_ur, a_rd, a_dl = _block_AAconj(A, col)
                 self._a_ur[i] = a_ur
                 self._a_ul[i] = a_ul
-                self._a_rd[i] = a_ul.T
-                self._a_dl[i] = a_ur.T
+                self._a_rd[i] = a_rd
+                self._a_dl[i] = a_dl
             else:
                 col = (default_color,) * 6
             if (

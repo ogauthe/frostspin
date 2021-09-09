@@ -32,7 +32,7 @@ from ctmrg.ctm_renormalize import (
     renormalize_T4_U1,
     renormalize_C1_left,
 )
-from groups.toolsU1 import combine_colors, checkU1
+from groups.toolsU1 import checkU1
 from symmetric_tensor.asymmetric_tensor import AsymmetricTensor
 from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
 
@@ -895,9 +895,9 @@ class CTMRG_U1(CTMRG):
 
     def construct_reduced_dr(self, x, y):
         """
-        Return down right corner reduced to U(1) blocks as a BlockMatrixU1. Check _env
-        to find an already computed corner, if it does not exist construct it and store
-        it in _env.
+        Return down right corner reduced to U(1) blocks as a U1_SymmetricTensor. Check
+        _env to find an already computed corner, if it does not exist construct it and
+        store it in _env.
 
         Unusual leg ordering: reduced corners are constructed to be contracted as
         ul-01-ur
@@ -911,15 +911,12 @@ class CTMRG_U1(CTMRG):
         dr = self._env.get_corner_dr(x, y)
         if dr is not None:
             return dr
-        col_Adr = self._env.get_colors_A(x + 2, y + 2)
         a_dr = self._env.get_a_rd(x + 2, y + 2)
         dr = contract_dr_corner_U1(
             a_dr,
             self._env.get_T2(x + 3, y + 2),
             self._env.get_T3(x + 2, y + 3),
             self._env.get_C3(x + 3, y + 3),
-            combine_colors(col_Adr[2], -col_Adr[2]),
-            combine_colors(col_Adr[5], -col_Adr[5]),
             self._env.get_color_T2_u(x + 3, y + 2),
             self._env.get_color_T3_l(x + 2, y + 3),
         )
@@ -928,14 +925,13 @@ class CTMRG_U1(CTMRG):
 
     def construct_reduced_dl(self, x, y):
         """
-        Return down left corner reduced to U(1) blocks as a BlockMatrixU1. Check _env
-        to find an already computed corner, if it does not exist construct it and store
-        it in _env.
+        Return down left corner reduced to U(1) blocks as a U1_SymmetricTensor. Check
+        _env to find an already computed corner, if it does not exist construct it and
+        store it in _env.
         """
         dl = self._env.get_corner_dl(x, y)
         if dl is not None:
             return dl
-        col_Adl = self._env.get_colors_A(x + 1, y + 2)
         a_dl = self._env.get_a_dl(x + 1, y + 2)
         dl = contract_dl_corner_U1(
             self._env.get_T4(x, y + 2),
@@ -943,8 +939,6 @@ class CTMRG_U1(CTMRG):
             self._env.get_C4(x, y + 3),
             self._env.get_T3(x + 1, y + 3),
             self._env.get_color_T4_u(x, y + 2),
-            combine_colors(col_Adl[2], -col_Adl[2]),
-            combine_colors(col_Adl[3], -col_Adl[3]),
             self._env.get_color_T3_r(x + 1, y + 3),
         )
         self._env.set_corner_dl(x, y, dl)
@@ -952,14 +946,13 @@ class CTMRG_U1(CTMRG):
 
     def construct_reduced_ul(self, x, y):
         """
-        Return upper left corner reduced to U(1) blocks as a BlockMatrixU1. Check _env
-        to find an already computed corner, if it does not exist construct it and store
-        it in _env.
+        Return upper left corner reduced to U(1) blocks as a U1_SymmetricTensor. Check
+        _env to find an already computed corner, if it does not exist construct it and
+        store it in _env.
         """
         ul = self._env.get_corner_ul(x, y)
         if ul is not None:
             return ul
-        col_Aul = self._env.get_colors_A(x + 1, y + 1)
         a_ul = self._env.get_a_ul(x + 1, y + 1)
         ul = contract_ul_corner_U1(
             self._env.get_C1(x, y),
@@ -968,22 +961,19 @@ class CTMRG_U1(CTMRG):
             a_ul,
             self._env.get_color_T1_r(x + 1, y),
             self._env.get_color_T4_d(x, y + 1),
-            combine_colors(col_Aul[3], -col_Aul[3]),
-            combine_colors(col_Aul[4], -col_Aul[4]),
         )
         self._env.set_corner_ul(x, y, ul)
         return ul
 
     def construct_reduced_ur(self, x, y):
         """
-        Return upper right corner reduced to U(1) blocks as a BlockMatrixU1. Check _env
-        to find an already computed corner, if it does not exist construct it and store
-        it in _env.
+        Return upper right corner reduced to U(1) blocks as a U1_SymmetricTensor. Check
+        _env to find an already computed corner, if it does not exist construct it and
+        store it in _env.
         """
         ur = self._env.get_corner_ur(x, y)
         if ur is not None:
             return ur
-        col_Aur = self._env.get_colors_A(x + 2, y + 1)
         a_ur = self._env.get_a_ur(x + 2, y + 1)
         ur = contract_ur_corner_U1(
             self._env.get_T2(x + 3, y + 1),
@@ -991,8 +981,6 @@ class CTMRG_U1(CTMRG):
             a_ur,
             self._env.get_T1(x + 2, y),
             self._env.get_color_T2_d(x + 3, y + 1),
-            combine_colors(col_Aur[4], -col_Aur[4]),
-            combine_colors(col_Aur[5], -col_Aur[5]),
             self._env.get_color_T1_l(x + 2, y),
         )
         self._env.set_corner_ur(x, y, ur)
@@ -1037,7 +1025,6 @@ class CTMRG_U1(CTMRG):
                 self._env.get_C1(x, y), self._env.get_T4(x, y + 1), P
             )
 
-            col_Aul = self._env.get_colors_A(x, y + 1)
             a_ul = self._env.get_a_ul(x, y + 1)
             nT1 = renormalize_T1_U1(
                 Pt,
@@ -1046,8 +1033,6 @@ class CTMRG_U1(CTMRG):
                 P,
                 self._env.get_color_T1_r(x, y),
                 color_Pt,
-                combine_colors(col_Aul[3], -col_Aul[3]),
-                combine_colors(col_Aul[4], -col_Aul[4]),
             )
 
             nC2 = renormalize_C2_up(
@@ -1102,7 +1087,6 @@ class CTMRG_U1(CTMRG):
                 self._env.get_C2(x, y), self._env.get_T1(x - 1, y), P
             )
 
-            col_Aur = self._env.get_colors_A(x - 1, y)
             a_ur = self._env.get_a_ur(x - 1, y)
             nT2 = renormalize_T2_U1(
                 Pt,
@@ -1111,8 +1095,6 @@ class CTMRG_U1(CTMRG):
                 P,
                 self._env.get_color_T2_d(x, y),
                 color_Pt,
-                combine_colors(col_Aur[4], -col_Aur[4]),
-                combine_colors(col_Aur[5], -col_Aur[5]),
             )
 
             nC3 = renormalize_C3_right(
@@ -1165,7 +1147,6 @@ class CTMRG_U1(CTMRG):
                 self._env.get_C3(x, y), self._env.get_T2(x, y - 1), P
             )
 
-            col_Adl = self._env.get_colors_A(x, y - 1)
             a_dl = self._env.get_a_dl(x, y - 1)
             nT3 = renormalize_T3_U1(
                 Pt,
@@ -1174,8 +1155,6 @@ class CTMRG_U1(CTMRG):
                 P,
                 self._env.get_color_T3_r(x, y),
                 color_P,
-                combine_colors(col_Adl[2], -col_Adl[2]),
-                combine_colors(col_Adl[3], -col_Adl[3]),
             )
 
             nC4 = renormalize_C4_down(
@@ -1229,7 +1208,6 @@ class CTMRG_U1(CTMRG):
                 self._env.get_C4(x, y), self._env.get_T3(x + 1, y), P
             )
 
-            col_Aul = self._env.get_colors_A(x + 1, y)
             a_ul = self._env.get_a_ul(x + 1, y)
             nT4 = renormalize_T4_U1(
                 Pt,
@@ -1238,8 +1216,6 @@ class CTMRG_U1(CTMRG):
                 P,
                 self._env.get_color_T4_d(x, y),
                 color_P,
-                combine_colors(col_Aul[3], -col_Aul[3]),
-                combine_colors(col_Aul[4], -col_Aul[4]),
             )
 
             nC1 = renormalize_C1_left(
@@ -1394,36 +1370,30 @@ class CTMRG_U1(CTMRG):
         c23 = self._env.get_color_T3_r(x + 1, y + 3)
         c24 = self._env.get_color_C3_l(x + 3, y + 3)
 
-        ur0 = self.construct_reduced_ur(x, y)
-        ur_axes = (c13, -c13, c14, c9, -c9, c2)
-        ur = U1_SymmetricTensor(ur_axes, 3, ur0._blocks, ur0._block_colors)
-        dl0 = self.construct_reduced_dl(x, y)
-        dl_axes = (-c12, c12, -c11, -c16, c16, -c23)
-        dl = U1_SymmetricTensor(dl_axes, 3, dl0._blocks, dl0._block_colors)
-        assert (dl.toarray() == dl0.toarray().reshape(dl.shape)).all()
-        assert (ur.toarray() == ur0.toarray().reshape(ur.shape)).all()
+        ur = self.construct_reduced_ur(x, y)
+        dl = self.construct_reduced_dl(x, y)
 
-        C1 = U1_SymmetricTensor.from_array(self._env.get_C1(x, y), (c1, c4), 1)
+        C1 = U1_SymmetricTensor.from_array(self._env.get_C1(x, y), (-c1, -c4), 1)
         T1l = U1_SymmetricTensor.from_array(
-            self._env.get_T1(x + 1, y), (c2, -c5, c5, -c1), 1
+            self._env.get_T1(x + 1, y), (-c2, c5, -c5, c1), 1
         )
         T4u = U1_SymmetricTensor.from_array(
-            self._env.get_T4(x, y + 1), (-c4, -c8, c8, c11), 3
+            self._env.get_T4(x, y + 1), (c4, c8, -c8, -c11), 3
         )
         Aul = U1_SymmetricTensor.from_array(
-            self._env.get_A(x + 1, y + 1), (cd, ca, c5, c9, c12, c8), 2
+            self._env.get_A(x + 1, y + 1), (-cd, -ca, -c5, -c9, -c12, -c8), 2
         )
         Adr = U1_SymmetricTensor.from_array(
-            self._env.get_A(x + 2, y + 2), (cd, ca, -c13, c17, c20, -c16), 2
+            self._env.get_A(x + 2, y + 2), (-cd, -ca, c13, -c17, -c20, c16), 2
         )
         T2d = U1_SymmetricTensor.from_array(
-            self._env.get_T2(x + 3, y + 2), (-c14, -c21, -c17, c17), 2
+            self._env.get_T2(x + 3, y + 2), (c14, c21, c17, -c17), 2
         )
         T3r = U1_SymmetricTensor.from_array(
-            self._env.get_T3(x + 2, y + 3), (-c20, c20, -c24, -c23), 2
+            self._env.get_T3(x + 2, y + 3), (c20, -c20, c24, c23), 2
         )
         C3 = U1_SymmetricTensor.from_array(
-            self._env.get_C3(x + 3, y + 3), (c21, c24), 1
+            self._env.get_C3(x + 3, y + 3), (-c21, -c24), 1
         )
         assert (C1.toarray() == self._env.get_C1(x, y)).all()
         assert (T1l.toarray() == self._env.get_T1(x + 1, y)).all()
@@ -1456,35 +1426,29 @@ class CTMRG_U1(CTMRG):
         c22 = self._env.get_color_C4_r(x, y + 3)
         c23 = self._env.get_color_T3_r(x + 1, y + 3)
 
-        ul0 = self.construct_reduced_ul(x, y)
-        ul_axes = (c9, -c9, c2, -c12, c12, -c11)
-        ul = U1_SymmetricTensor(ul_axes, 3, ul0._blocks, ul0._block_colors)
-        dr0 = self.construct_reduced_dr(x, y)  # stupid dr convention
-        dr_axes = dr_axes = (-c16, c16, -c23, c13, -c13, c14)
-        dr = U1_SymmetricTensor(dr_axes, 3, dr0._blocks, dr0._block_colors)
-        assert (dr.toarray() == dr0.toarray().reshape(dr.shape)).all()
-        assert (ul.toarray() == ul0.toarray().reshape(ul.shape)).all()
+        ul = self.construct_reduced_ul(x, y)
+        dr = self.construct_reduced_dr(x, y)  # stupid dr convention
 
         T1r = U1_SymmetricTensor.from_array(
-            self._env.get_T1(x + 2, y), (-c3, -c6, c6, -c2), 1
+            self._env.get_T1(x + 2, y), (c3, c6, -c6, c2), 1
         )
-        C2 = U1_SymmetricTensor.from_array(self._env.get_C2(x + 3, y), (c7, c3), 1)
+        C2 = U1_SymmetricTensor.from_array(self._env.get_C2(x + 3, y), (-c7, -c3), 1)
         Aur = U1_SymmetricTensor.from_array(
-            self._env.get_A(x + 2, y + 1), (-cd, -ca, c6, c10, c13, -c9), 2
+            self._env.get_A(x + 2, y + 1), (cd, ca, -c6, -c10, -c13, c9), 2
         )
         T2u = U1_SymmetricTensor.from_array(
-            self._env.get_T2(x + 3, y + 1), (-c7, c14, -c10, c10), 2
+            self._env.get_T2(x + 3, y + 1), (c7, -c14, c10, -c10), 2
         )
 
         T4d = U1_SymmetricTensor.from_array(
-            self._env.get_T4(x, y + 2), (-c11, -c15, c15, -c18), 3
+            self._env.get_T4(x, y + 2), (c11, c15, -c15, c18), 3
         )
         Adl = U1_SymmetricTensor.from_array(
-            self._env.get_A(x + 1, y + 2), (-cd, -ca, -c12, c16, c19, c15), 2
+            self._env.get_A(x + 1, y + 2), (cd, ca, c12, -c16, -c19, -c15), 2
         )
-        C4 = U1_SymmetricTensor.from_array(self._env.get_C4(x, y + 3), (c18, c22), 1)
+        C4 = U1_SymmetricTensor.from_array(self._env.get_C4(x, y + 3), (-c18, -c22), 1)
         T3l = U1_SymmetricTensor.from_array(
-            self._env.get_T3(x + 1, y + 3), (-c19, c19, c23, -c22), 2
+            self._env.get_T3(x + 1, y + 3), (c19, -c19, -c23, c22), 2
         )
         assert (T1r.toarray() == self._env.get_T1(x + 2, y)).all()
         assert (C2.toarray() == self._env.get_C2(x + 3, y)).all()

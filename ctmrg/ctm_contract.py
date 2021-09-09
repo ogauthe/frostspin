@@ -1,8 +1,7 @@
 import numpy as np
 import numba
 
-from groups.toolsU1 import combine_colors
-from groups.block_matrix_U1 import BlockMatrixU1
+from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
 
 ###############################################################################
 #  construct 2x2 corners
@@ -195,11 +194,11 @@ def contract_r_half(T1, C2, Au, T2u, Ad, T2d, T3, C3):
 
 
 # Function add_a_conj takes double layer tensor a = A-A* as input in the form of a
-# BlockMatrixU1, with merged bra and ket legs *and* legs merged in two directions as
+# SymmetricTensor, with merged bra and ket legs *and* legs merged in two directions as
 # rows and as columns. To save memory, only 2 versions of a exsit, a_ul and a_ur. To
 # contract dr and dl corenrs, the transpose of a_ul and a_ur are used (same storage,
 # see ctm_environment).
-def contract_ul_corner_U1(C1, T1, T4, a_ul, col_T1_r, col_T4_d, col_a_r, col_a_d):
+def contract_ul_corner_U1(C1, T1, T4, a_ul, col_T1_r, col_T4_d):
     """
     Contract upper left corner using U(1) symmetry.
     """
@@ -210,14 +209,12 @@ def contract_ul_corner_U1(C1, T1, T4, a_ul, col_T1_r, col_T4_d, col_a_r, col_a_d
         a_ul,
         col_T1_r,
         col_T4_d,
-        col_a_r,
-        col_a_d,
         return_blockwise=True,
     )
     return ul
 
 
-def contract_ur_corner_U1(T2, C2, a_ur, T1, col_T2_d, col_a_d, col_a_l, col_T1_l):
+def contract_ur_corner_U1(T2, C2, a_ur, T1, col_T2_d, col_T1_l):
     """
     Contract upper right corner using U(1) symmetry.
     """
@@ -233,14 +230,12 @@ def contract_ur_corner_U1(T2, C2, a_ur, T1, col_T2_d, col_a_d, col_a_l, col_T1_l
         a_ur,
         col_T2_d,
         col_T1_l,
-        col_a_d,
-        col_a_l,
         return_blockwise=True,
     )
     return ur
 
 
-def contract_dr_corner_U1(a_dr, T2, T3, C3, col_a_u, col_a_l, col_T2_u, col_T3_l):
+def contract_dr_corner_U1(a_dr, T2, T3, C3, col_T2_u, col_T3_l):
     """
     Contract down right corner using U(1) symmetry.
     """
@@ -255,14 +250,12 @@ def contract_dr_corner_U1(a_dr, T2, T3, C3, col_a_u, col_a_l, col_T2_u, col_T3_l
         a_dr,
         col_T2_u,
         col_T3_l,
-        col_a_u,
-        col_a_l,
         return_blockwise=True,
     )
     return dr.T
 
 
-def contract_dl_corner_U1(T4, a_dl, C4, T3, col_T4_u, col_a_u, col_a_r, col_T3_r):
+def contract_dl_corner_U1(T4, a_dl, C4, T3, col_T4_u, col_T3_r):
     """
     Contract down left corner using U(1) symmetry.
     """
@@ -280,8 +273,6 @@ def contract_dl_corner_U1(T4, a_dl, C4, T3, col_T4_u, col_a_u, col_a_r, col_T3_r
         a_dl,
         col_T3_r,
         col_T4_u,
-        col_a_r,
-        col_a_u,
         return_blockwise=True,
     )
     return dl.T
@@ -301,39 +292,37 @@ def fill_swapaxes(ul, row_indices, col_indices):
 
 
 @numba.njit
-def swapaxes_reduce(ul, col_up_r, col_left_d, a_block_colors, a_col_indices):
+def swapaxes_reduce(ul, col_up_r, col_left_d, a_block_irreps, a_col_indices):
     # combine ul.swapaxes(1,2) and U(1) block reduction
-    # all the information on ul row_colors is already in a_block col_colors
-    col_colors = combine_colors(col_up_r, col_left_d)
-    col_sort = col_colors.argsort(kind="mergesort")
-    sorted_col_colors = col_colors[col_sort]
+    # all the information on ul row_irreps is already in a_block col_irreps
+    col_irreps = (col_up_r.reshape(-1, 1) + col_left_d).ravel()
+    col_sort = col_irreps.argsort(kind="mergesort")
+    sorted_col_irreps = col_irreps[col_sort]
     col_blocks = (
         [0]
-        + list((sorted_col_colors[:-1] != sorted_col_colors[1:]).nonzero()[0] + 1)
-        + [col_colors.size]
+        + list((sorted_col_irreps[:-1] != sorted_col_irreps[1:]).nonzero()[0] + 1)
+        + [col_irreps.size]
     )
 
     blocks = []
-    block_colors = []
-    row_indices = []
+    block_irreps = []
     col_indices = []
-    rbi, cbi, rbimax, cbimax = 0, 0, len(a_block_colors), len(col_blocks) - 1
+    rbi, cbi, rbimax, cbimax = 0, 0, len(a_block_irreps), len(col_blocks) - 1
     while rbi < rbimax and cbi < cbimax:
-        if a_block_colors[rbi] == sorted_col_colors[col_blocks[cbi]]:
+        if a_block_irreps[rbi] == sorted_col_irreps[col_blocks[cbi]]:
             ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]].copy()
             m = fill_swapaxes(ul, a_col_indices[rbi], ci)  # parallel
             blocks.append(m)
-            row_indices.append(a_col_indices[rbi])
             col_indices.append(ci)
-            block_colors.append(a_block_colors[rbi])
+            block_irreps.append(a_block_irreps[rbi])
             rbi += 1
             cbi += 1
-        elif a_block_colors[rbi] < sorted_col_colors[col_blocks[cbi]]:
+        elif a_block_irreps[rbi] < sorted_col_irreps[col_blocks[cbi]]:
             rbi += 1
         else:
             cbi += 1
 
-    return block_colors, blocks, row_indices, col_indices
+    return block_irreps, blocks, col_indices
 
 
 @numba.njit(parallel=True)
@@ -350,9 +339,7 @@ def swapaxes_densify(ar, blocks, row_indices, col_indices):
     return ar
 
 
-def add_a_blockU1(
-    up, left, a_block, col_up_r, col_left_d, col_a_r, col_a_d, return_blockwise=False
-):
+def add_a_blockU1(up, left, a_block, col_up_r, col_left_d, return_blockwise=False):
     """
     Contract up and left then add blockwise a = AA* using U(1) symmetry.
     Use this function in both contract_corner_U1 and renormalize_T_U1.
@@ -360,28 +347,25 @@ def add_a_blockU1(
     Parameters
     ----------
     up: (d0, d1, d2) ndarray
-      Tensor on the upper side of AA*. Bra and ket legs are merged and leg conventions
-      differ from standard clockwise order, see notes.
+        Tensor on the upper side of AA*. Bra and ket legs are merged and leg conventions
+        differ from standard clockwise order, see notes.
     left: (d2, d3, d4) ndarray
-      Tensor on the right side of AA*. Common leg ordering, merged bra and ket legs.
-    a_block: (d5 * d6, d0 * d3) BlockMatrixU1
-      Contracted A-A* as a BlockMatrixU1, with right and down legs merged as rows and up
-      and left merged as columns.
+        Tensor on the right side of AA*. Common leg ordering, merged bra and ket legs.
+    a_block: (d5 * d6, d0 * d3) U1_SymmetricTensor
+        Contracted A-A* as a U1_SymmetricTensor, with right and down legs merged as rows
+        and up and left merged as columns.
     col_up_r: (d1,) integer ndarray
-      up tensor right colors.
+        up tensor right irreps.
     col_left_d: (d4,) integer ndarray
-      left tensor down colors.
-    col_a_r: (d5,) integer ndarray
-      a_block right colors
-    col_a_d: (d6,) integer ndarray
-      a_block down colors
+        left tensor down irreps.
     return_blockwise: bool, optional
-      Whether to cast the result into BlockMatrixU1.
+        Whether to cast the result to array.
 
     Returns
     -------
-    ul: BlockMatrixU1 / ndarray depending on return_blockwise, shape (d5 * d1, d6 * d4)
-      Contracted tensor network.
+    ul: U1_SymmetricTensor / ndarray depending on return_blockwise, shape
+        (d5 * d1, d6 * d4)
+        Contracted tensor network.
 
     Notes
     -----
@@ -390,56 +374,67 @@ def add_a_blockU1(
     function, which may require a copy. To avoid an additional copy here, legs are
     assumed to be in convenient order for contraction. This makes no change for left
     tensor but requires a swap of 0 (right) and 1 (down) axes for up tensor.
-     0        2-up-1              2
-     |          ||                ||
-     left=1     0               3=AA*=0
-     |                            ||
-     2                             1
+     0          3-up-2              45
+     |            ||                ||
+     left=1,2     01             67=AA*=0,1
+     |                              ||
+     3                              23
     """
-    #  --------up-1
+    #  --------up-2
     #  |       ||
-    #  2       0
+    #  2       01
     #  0
     #  |
-    #  left=1 -> 2
+    #  left=1,2 -> 3,4
     #  |
-    #  2 -> 3
+    #  3 -> 5
     ul = (
         up.reshape(up.shape[0] * up.shape[1], up.shape[2])
         @ left.reshape(left.shape[0], left.shape[1] * left.shape[2])
     ).reshape(up.shape[0], up.shape[1], left.shape[1], left.shape[2])
 
-    # combine ul.swapaxes(1,2) and U(1) block reduction
-    #  --------up-2
-    #  |       ||
-    #  |       0
-    #  left=1
-    #  |
-    #  3
-    (block_colors, blocks, row_indices, col_indices) = swapaxes_reduce(
-        ul, col_up_r, col_left_d, a_block.block_colors, a_block.col_indices
+    (block_irreps, blocks, col_indices) = swapaxes_reduce(
+        ul, col_up_r, col_left_d, a_block.block_irreps, a_block.col_indices
     )
 
-    ul = BlockMatrixU1(
-        (a_block.shape[1], col_up_r.size * col_left_d.size),
-        block_colors,
-        blocks,
-        row_indices,
-        col_indices,
+    rep_ul = (
+        a_block.axis_reps[4],
+        a_block.axis_reps[5],
+        a_block.axis_reps[6],
+        a_block.axis_reps[7],
+        -col_up_r,
+        -col_left_d,
     )
+    ul = U1_SymmetricTensor(rep_ul, 4, blocks, block_irreps)
+
+    #  --------up-4
+    #  |       ||
+    #  |       01
+    #  left=2,3
+    #  |
+    #  5
     ul = a_block @ ul
-    # reshape through dense casting. This is inefficient.
+
+    # reshape through dense casting, faster than permutate
     #  -----up-2 -> 1
     #  |    ||
     #  left=AA*=0
     #  |    ||
     #  3    1 -> 2
-    temp = np.zeros((col_a_r.size, up.shape[1], col_a_d.size, left.shape[2]))
-    swapaxes_densify(temp, ul.blocks, ul.row_indices, ul.col_indices)
-    ul = temp.reshape(col_a_r.size * up.shape[1], col_a_d.size * left.shape[2])
-    ###########################################################################
+
+    sh = tuple(ul.shape[i] for i in (0, 1, 4, 2, 3, 5))
+    temp = np.zeros((sh[0] * sh[1], sh[2], sh[3] * sh[4], sh[5]))
+    swapaxes_densify(temp, ul.blocks, a_block.row_indices, tuple(col_indices))
+    del ul
+
     if return_blockwise:
-        rc = combine_colors(col_a_r, col_up_r)
-        cc = -combine_colors(col_a_d, col_left_d)
-        ul = BlockMatrixU1.from_dense(ul, rc, cc)
-    return ul
+        rep_ul = (
+            a_block.axis_reps[0],
+            a_block.axis_reps[1],
+            -col_up_r,
+            a_block.axis_reps[2],
+            a_block.axis_reps[3],
+            -col_left_d,
+        )
+        return U1_SymmetricTensor.from_array(temp.reshape(sh), rep_ul, 3)
+    return temp.reshape(sh[0] * sh[1] * sh[2], sh[3] * sh[4] * sh[5])
