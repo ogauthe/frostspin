@@ -279,31 +279,31 @@ def contract_dl_corner_U1(T4, a_dl, C4, T3, col_T4_u, col_T3_r):
 
 
 @numba.njit(parallel=True)
-def fill_swapaxes(ul, row_indices, col_indices):
-    dr = ul.shape[2]
-    dc = ul.shape[3]
-    m = np.empty((row_indices.size, col_indices.size))
-    for i in numba.prange(row_indices.size):
-        r0, r1 = divmod(row_indices[i], dr)
-        for j in numba.prange(col_indices.size):
-            c0, c1 = divmod(col_indices[j], dc)
-            m[i, j] = ul[r0, c0, r1, c1]
-    return m
-
-
-@numba.njit
 def swapaxes_reduce(ul, col_irreps, a_block_irreps, a_col_irreps):
     # combine ul.swapaxes(1,2) and U(1) block reduction
     # all the information on ul row_irreps is already in a_block col_irreps
-    blocks = []
-    block_irreps = []
-    for irr in a_block_irreps:
-        ci = (col_irreps == irr).nonzero()[0]
+    blocks = [np.zeros((0, 0)) for bi in range(a_block_irreps.size)]
+    dr = ul.shape[2]
+    dc = ul.shape[3]
+    for bi in numba.prange(a_block_irreps.size):
+        ci = (col_irreps == a_block_irreps[bi]).nonzero()[0]
         if ci.size:
-            ri = (a_col_irreps == irr).nonzero()[0]
-            m = fill_swapaxes(ul, ri, ci)  # parallel
-            blocks.append(m)
-            block_irreps.append(irr)
+            ri = (a_col_irreps == a_block_irreps[bi]).nonzero()[0]
+            m = np.empty((ri.size, ci.size))
+            for i in numba.prange(ri.size):
+                r0, r1 = divmod(ri[i], dr)
+                for j in numba.prange(ci.size):
+                    c0, c1 = divmod(ci[j], dc)
+                    m[i, j] = ul[r0, c0, r1, c1]
+            blocks[bi] = m
+
+    non_empty_blocks = []
+    block_irreps = []
+    for bi, b in enumerate(blocks):
+        if b.size:
+            non_empty_blocks.append(b)
+            block_irreps.append(a_block_irreps[bi])
+    block_irreps = np.array(block_irreps)
     return blocks, block_irreps
 
 
