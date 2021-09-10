@@ -86,19 +86,20 @@ def _numba_get_indices(irreps):
     return unique_irreps, irrep_count, block_indices, irrep_blocks
 
 
-def get_indices(irreps):
-    perm = irreps.argsort(kind="stable")
+@numba.njit  # jit to inline in abelian_tranpose
+def _numpy_get_indices(irreps):
+    perm = irreps.argsort(kind="mergesort")
     sorted_irreps = irreps[perm]
-    block_bounds = [
-        0,
-        *((sorted_irreps[:-1] != sorted_irreps[1:]).nonzero()[0] + 1),
-        irreps.size,
-    ]
+    block_bounds = (
+        [0]
+        + list((sorted_irreps[:-1] != sorted_irreps[1:]).nonzero()[0] + 1)
+        + [irreps.size]
+    )
     n = len(block_bounds) - 1
     unique_irreps = np.empty((n,), dtype=np.int8)
-    irrep_count = np.empty((n,), dtype=int)
-    block_indices = np.empty(irreps.shape, dtype=int)
-    irrep_blocks = np.empty(irreps.shape, dtype=int)
+    irrep_count = np.empty((n,), dtype=np.int64)
+    block_indices = np.empty(irreps.shape, dtype=np.int64)
+    irrep_blocks = np.empty(irreps.shape, dtype=np.int64)
     for i in range(n):
         unique_irreps[i] = sorted_irreps[block_bounds[i]]
         irrep_count[i] = block_bounds[i + 1] - block_bounds[i]
@@ -201,7 +202,7 @@ def _numba_abelian_transpose(
         row_irrep_count,
         block_rows,
         new_row_block_indices,
-    ) = _numba_get_indices(new_row_irreps)
+    ) = _numpy_get_indices(new_row_irreps)
     block_cols = np.empty((new_col_irreps.size,), dtype=np.int64)
     new_blocks = [np.zeros((0, 0)) for i in range(unique_row_irreps.size)]
 
@@ -237,7 +238,7 @@ def _numba_abelian_transpose(
     # 5) drop empty blocks, we do not need new_row_block_indices anymore
     blocks = []
     block_irreps = []
-    for i in unique_row_irreps.argsort():  # numba_get_indices returns unsorted
+    for i in range(unique_row_irreps.size):
         if new_blocks[i].size:
             blocks.append(new_blocks[i])
             block_irreps.append(unique_row_irreps[i])
