@@ -1,3 +1,6 @@
+import numpy as np
+import numba
+
 from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
 
 ###############################################################################
@@ -275,6 +278,35 @@ def contract_dl_corner_U1(T4, a_dl, C4, T3, col_T4_u, col_T3_r):
     return dl.T
 
 
+@numba.njit(parallel=True)
+def fill_swapaxes(ul, row_indices, col_indices):
+    dr = ul.shape[2]
+    dc = ul.shape[3]
+    m = np.empty((row_indices.size, col_indices.size))
+    for i in numba.prange(row_indices.size):
+        r0, r1 = divmod(row_indices[i], dr)
+        for j in numba.prange(col_indices.size):
+            c0, c1 = divmod(col_indices[j], dc)
+            m[i, j] = ul[r0, c0, r1, c1]
+    return m
+
+
+@numba.njit
+def swapaxes_reduce(ul, col_irreps, a_block_irreps, a_col_irreps):
+    # combine ul.swapaxes(1,2) and U(1) block reduction
+    # all the information on ul row_irreps is already in a_block col_irreps
+    blocks = []
+    block_irreps = []
+    for irr in a_block_irreps:
+        ci = (col_irreps == irr).nonzero()[0]
+        if ci.size:
+            ri = (a_col_irreps == irr).nonzero()[0]
+            m = fill_swapaxes(ul, ri, ci)  # parallel
+            blocks.append(m)
+            block_irreps.append(irr)
+    return blocks, block_irreps
+
+
 def add_a_blockU1(up, left, a_block, col_up_r, col_left_d, return_blockwise=False):
     """
     Contract up and left then add blockwise a = AA* using U(1) symmetry.
@@ -291,9 +323,9 @@ def add_a_blockU1(up, left, a_block, col_up_r, col_left_d, return_blockwise=Fals
         Contracted A-A* as a U1_SymmetricTensor, with right and down legs merged as rows
         and up and left merged as columns.
     col_up_r: (d1,) integer ndarray
-        up tensor right colors.
+        up tensor right irreps.
     col_left_d: (d4,) integer ndarray
-        left tensor down colors.
+        left tensor down irreps.
     return_blockwise: bool, optional
         Whether to cast the result to array.
 
@@ -324,6 +356,17 @@ def add_a_blockU1(up, left, a_block, col_up_r, col_left_d, return_blockwise=Fals
     #  left=1,2 -> 3,4
     #  |
     #  3 -> 5
+    ul = (
+        up.reshape(up.shape[0] * up.shape[1], up.shape[2])
+        @ left.reshape(left.shape[0], left.shape[1] * left.shape[2])
+    ).reshape(up.shape[0], up.shape[1], left.shape[1], left.shape[2])
+
+    row_irreps = a_block.get_column_representation()
+    col_irreps = a_block.combine_representations(col_up_r, col_left_d)
+    blocks, block_irreps = swapaxes_reduce(
+        ul, col_irreps, a_block.block_irreps, row_irreps
+    )
+
     rep_ul = (
         a_block.axis_reps[4],
         a_block.axis_reps[5],
@@ -332,11 +375,8 @@ def add_a_blockU1(up, left, a_block, col_up_r, col_left_d, return_blockwise=Fals
         a_block.axis_reps[7],
         -col_left_d,
     )
-    ul = (
-        up.reshape(up.shape[0] * up.shape[1], up.shape[2])
-        @ left.reshape(left.shape[0], left.shape[1] * left.shape[2])
-    ).reshape(tuple(rep.size for rep in rep_ul))
-    ul = U1_SymmetricTensor.from_array(ul, rep_ul, 2)
+    sh = tuple(a.size for a in rep_ul)
+    ul = U1_SymmetricTensor.from_array(ul.reshape(sh), rep_ul, 2)
 
     #  --------up-4
     #  |       ||
