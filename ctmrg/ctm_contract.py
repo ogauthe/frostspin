@@ -279,32 +279,19 @@ def contract_dl_corner_U1(T4, a_dl, C4, T3, col_T4_u, col_T3_r):
 
 
 @numba.njit(parallel=True)
-def swapaxes_reduce(ul, col_irreps, a_block_irreps, a_col_irreps):
-    # combine ul.swapaxes(1,2) and U(1) block reduction
-    # all the information on ul row_irreps is already in a_block col_irreps
-    blocks = [np.zeros((0, 0)) for bi in range(a_block_irreps.size)]
-    dr = ul.shape[2]
-    dc = ul.shape[3]
-    for bi in numba.prange(a_block_irreps.size):
-        ci = (col_irreps == a_block_irreps[bi]).nonzero()[0]
-        if ci.size:
-            ri = (a_col_irreps == a_block_irreps[bi]).nonzero()[0]
-            m = np.empty((ri.size, ci.size))
-            for i in numba.prange(ri.size):
-                r0, r1 = divmod(ri[i], dr)
-                for j in numba.prange(ci.size):
-                    c0, c1 = divmod(ci[j], dc)
-                    m[i, j] = ul[r0, c0, r1, c1]
-            blocks[bi] = m
-
-    non_empty_blocks = []
-    block_irreps = []
-    for bi, b in enumerate(blocks):
-        if b.size:
-            non_empty_blocks.append(b)
-            block_irreps.append(a_block_irreps[bi])
-    block_irreps = np.array(block_irreps)
-    return blocks, block_irreps
+def swapaxes_densify(ar, blocks, block_irreps, row_irreps, col_irreps):
+    # we know from context blocks is a numba homogenous tuple => no literal_unroll
+    d1 = ar.shape[2]
+    d2 = ar.shape[3]
+    for bi in numba.prange(block_irreps.size):
+        ri = (row_irreps == block_irreps[bi]).nonzero()[0]
+        ci = (col_irreps == block_irreps[bi]).nonzero()[0]
+        for i in numba.prange(ri.size):
+            r0, r1 = divmod(ri[i], d1)
+            for j in numba.prange(ci.size):
+                c0, c1 = divmod(ci[j], d2)
+                ar[r0, c0, r1, c1] = blocks[bi][i, j]
+    return ar
 
 
 def add_a_blockU1(up, left, a_block, col_up_r, col_left_d, return_blockwise=False):
@@ -356,17 +343,6 @@ def add_a_blockU1(up, left, a_block, col_up_r, col_left_d, return_blockwise=Fals
     #  left=1,2 -> 3,4
     #  |
     #  3 -> 5
-    ul = (
-        up.reshape(up.shape[0] * up.shape[1], up.shape[2])
-        @ left.reshape(left.shape[0], left.shape[1] * left.shape[2])
-    ).reshape(up.shape[0], up.shape[1], left.shape[1], left.shape[2])
-
-    row_irreps = a_block.get_column_representation()
-    col_irreps = a_block.combine_representations(col_up_r, col_left_d)
-    blocks, block_irreps = swapaxes_reduce(
-        ul, col_irreps, a_block.block_irreps, row_irreps
-    )
-
     rep_ul = (
         a_block.axis_reps[4],
         a_block.axis_reps[5],
@@ -375,8 +351,11 @@ def add_a_blockU1(up, left, a_block, col_up_r, col_left_d, return_blockwise=Fals
         a_block.axis_reps[7],
         -col_left_d,
     )
-    sh = tuple(a.size for a in rep_ul)
-    ul = U1_SymmetricTensor.from_array(ul.reshape(sh), rep_ul, 2)
+    ul = (
+        up.reshape(up.shape[0] * up.shape[1], up.shape[2])
+        @ left.reshape(left.shape[0], left.shape[1] * left.shape[2])
+    ).reshape(tuple(rep.size for rep in rep_ul))
+    ul = U1_SymmetricTensor.from_array(ul, rep_ul, 2)
 
     #  --------up-4
     #  |       ||
@@ -386,13 +365,32 @@ def add_a_blockU1(up, left, a_block, col_up_r, col_left_d, return_blockwise=Fals
     #  5
     ul = ul.permutate((0, 1, 3, 4), (2, 5))
     ul = a_block @ ul
-    #  -----up-4 -> 2
+
+    # reshape through dense casting, faster than permutate
+    #  -----up-2 -> 1
     #  |    ||
-    #  left=AA*=0,1
+    #  left=AA*=0
     #  |    ||
-    #  5    23 -> 3,4
-    ul = ul.permutate((0, 1, 4), (2, 3, 5))
+    #  3    1 -> 2
+    sh = tuple(ul.shape[i] for i in (0, 1, 4, 2, 3, 5))
+    temp = np.zeros((sh[0] * sh[1], sh[2], sh[3] * sh[4], sh[5]))
+    swapaxes_densify(
+        temp,
+        ul.blocks,
+        ul.block_irreps,
+        ul.get_row_representation(),
+        ul.get_column_representation(),
+    )
+    del ul
 
     if return_blockwise:
-        return ul
-    return ul.toarray().reshape(ul.matrix_shape)
+        rep_ul = (
+            a_block.axis_reps[0],
+            a_block.axis_reps[1],
+            -col_up_r,
+            a_block.axis_reps[2],
+            a_block.axis_reps[3],
+            -col_left_d,
+        )
+        return U1_SymmetricTensor.from_array(temp.reshape(sh), rep_ul, 3)
+    return temp.reshape(sh[0] * sh[1] * sh[2], sh[3] * sh[4] * sh[5])
