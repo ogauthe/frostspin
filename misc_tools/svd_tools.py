@@ -6,7 +6,7 @@ import numba
 from groups.toolsU1 import default_color, svdU1
 
 
-@numba.njit(cache=True)
+@numba.njit
 def numba_find_chi_largest(block_s, chi, rcutoff=0.0, degen_ratio=1.0):
     """
     Find chi largest values from a tuple of blockwise, decreasing singular values.

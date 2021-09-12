@@ -6,7 +6,7 @@ from numba import literal_unroll  # numba issue #5344
 from symmetric_tensor.symmetric_tensor import SymmetricTensor
 
 
-@numba.njit(parallel=True, cache=True)
+@numba.njit(parallel=True)
 def _numba_fill_block(M, ri, ci):
     m = np.empty((ri.size, ci.size), dtype=M.dtype)
     for i in numba.prange(ri.size):
@@ -15,7 +15,7 @@ def _numba_fill_block(M, ri, ci):
     return m
 
 
-@numba.njit(cache=True)
+@numba.njit
 def _numba_reduce_to_blocks(M, row_irreps, col_irreps):
     row_sort = row_irreps.argsort(kind="mergesort")
     sorted_row_irreps = row_irreps[row_sort]
@@ -40,7 +40,7 @@ def _numba_reduce_to_blocks(M, row_irreps, col_irreps):
     return blocks, block_irreps
 
 
-@numba.njit(cache=True)
+@numba.njit
 def _numba_to_array_heterogeneous(M, blocks, block_irreps, row_irreps, col_irreps):
     # tedious dealing with heterogeneous tuple: cannot parallelize, enum or getitem
     bi = 0
@@ -53,7 +53,7 @@ def _numba_to_array_heterogeneous(M, blocks, block_irreps, row_irreps, col_irrep
         bi += 1
 
 
-@numba.njit(parallel=True, cache=True)
+@numba.njit(parallel=True)
 def _numba_to_array_homogeneous(M, blocks, block_irreps, row_irreps, col_irreps):
     # when blocks is homogeneous, loops are simple and can be parallelized
     for bi in numba.prange(len(blocks)):
@@ -64,7 +64,7 @@ def _numba_to_array_homogeneous(M, blocks, block_irreps, row_irreps, col_irreps)
                 M[row_indices[i], col_indices[j]] = blocks[bi][i, j]
 
 
-@numba.njit(cache=True)
+@numba.njit
 def _numba_get_indices(irreps):
     unique_irreps = [irreps[0]]  # crash if irreps.size = 0. Should not happen.
     irrep_count = [0]
@@ -86,7 +86,7 @@ def _numba_get_indices(irreps):
     return unique_irreps, irrep_count, block_indices, irrep_blocks
 
 
-@numba.njit(cache=True)  # jit to inline in abelian_tranpose
+@numba.njit  # jit to inline in abelian_tranpose
 def _numpy_get_indices(irreps):
     perm = irreps.argsort(kind="mergesort")
     sorted_irreps = irreps[perm]
@@ -111,7 +111,7 @@ def _numpy_get_indices(irreps):
     return unique_irreps, irrep_count, block_indices, irrep_blocks
 
 
-@numba.njit(parallel=True, cache=True)
+@numba.njit(parallel=True)
 def _numba_abelian_transpose(
     old_shape,
     old_blocks,

@@ -3,7 +3,7 @@ import numba
 from symmetric_tensor.abelian_symmetric_tensor import AbelianSymmetricTensor
 
 
-@numba.njit(cache=True)
+@numba.njit
 def _numba_combine_U1(*reps):
     combined = reps[0]
     for r in reps[1:]:
