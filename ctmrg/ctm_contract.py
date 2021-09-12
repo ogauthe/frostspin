@@ -278,7 +278,7 @@ def contract_dl_corner_U1(T4, a_dl, C4, T3, col_T4_u, col_T3_r):
     return dl.T
 
 
-@numba.njit(parallel=True)
+@numba.njit(parallel=True, cache=True)
 def swapaxes_densify(ar, blocks, block_irreps, row_irreps, col_irreps):
     # we know from context blocks is a numba homogenous tuple => no literal_unroll
     d1 = ar.shape[2]

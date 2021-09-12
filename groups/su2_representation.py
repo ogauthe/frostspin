@@ -87,7 +87,7 @@ def su2_irrep_generators(s):
     return gen
 
 
-@numba.njit  # numba product of 2 SU(2) representations
+@numba.njit(cache=True)  # numba product of 2 SU(2) representations
 def product_degen(degen1, irreps1, degen2, irreps2):
     degen = np.zeros(irreps1[-1] + irreps2[-1] - 1, dtype=np.int64)
     for (d1, irr1) in zip(degen1, irreps1):

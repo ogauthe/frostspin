@@ -44,7 +44,7 @@ def checkU1(T, colorsT, tol=1e-14):
     return None, 0
 
 
-@numba.njit
+@numba.njit(cache=True)
 def combine_colors(*colors):
     """
     Construct colors of merged tensor legs from every leg colors.
@@ -100,7 +100,7 @@ def eighU1(H, colors):
     return spec, basis, eigvec_colors
 
 
-@numba.njit
+@numba.njit(cache=True)
 def svdU1(M, row_colors, col_colors):
     """
     Singular value decomposition for a U(1) symmetric matrix M. Revert to standard svd
