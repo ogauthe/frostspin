@@ -251,9 +251,6 @@ class CTM_Environment(object):
                 self._a_rd.append(a_rd)
                 self._a_dl.append(a_dl)
 
-            print(a_ul.row_indices)
-            print(a_ul.col_indices)
-
         else:
             self._colors_A = [(default_color,) * 6] * self._Nneq
             self._colors_C1_r = [default_color] * self._Nneq
