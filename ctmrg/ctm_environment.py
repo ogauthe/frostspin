@@ -75,8 +75,35 @@ def _block_AAconj(A, col_A):
     )
     # a_ul used to contract corner_ul: u and l legs are *last* for a_ul @ TT
     a_ul = a.permutate((1, 5, 2, 6), (0, 4, 3, 7))
+    a_rd = a_ul.T
+
+    # dirty fix: define row_irreps and col_irreps to mimic BlockMatrixU1
+    row_irreps = a_ul.get_row_representation()
+    col_irreps = a_ul.get_column_representation()
+    row_indices = []
+    col_indices = []
+    for c in a_ul.block_irreps:
+        row_indices.append((row_irreps == c).nonzero()[0])
+        col_indices.append((col_irreps == c).nonzero()[0])
+    a_ul.row_indices = tuple(row_indices)
+    a_ul.col_indices = tuple(col_indices)
+    a_rd.row_indices = tuple(ind for ind in reversed(col_indices))
+    a_rd.col_indices = tuple(ind for ind in reversed(row_indices))
+
     a_ur = a.permutate((2, 6, 3, 7), (1, 5, 0, 4))
-    return a_ul, a_ur
+    a_dl = a_ur.T
+    row_irreps = a_ur.get_row_representation()
+    col_irreps = a_ur.get_column_representation()
+    row_indices = []
+    col_indices = []
+    for c in a_ur.block_irreps:
+        row_indices.append((row_irreps == c).nonzero()[0])
+        col_indices.append((col_irreps == c).nonzero()[0])
+    a_ur.row_indices = tuple(row_indices)
+    a_ur.col_indices = tuple(col_indices)
+    a_dl.row_indices = tuple(ind for ind in reversed(col_indices))
+    a_dl.col_indices = tuple(ind for ind in reversed(row_indices))
+    return a_ul, a_ur, a_rd, a_dl
 
 
 def _color_correspondence(old_col, new_col):
@@ -218,11 +245,15 @@ class CTM_Environment(object):
             self._a_rd = []
             self._a_dl = []
             for A, col_A in zip(neq_As, colors_A):
-                a_ul, a_ur = _block_AAconj(A, col_A)
+                a_ul, a_ur, a_rd, a_dl = _block_AAconj(A, col_A)
                 self._a_ur.append(a_ur)
                 self._a_ul.append(a_ul)
-                self._a_rd.append(a_ul.T)
-                self._a_dl.append(a_ur.T)
+                self._a_rd.append(a_rd)
+                self._a_dl.append(a_dl)
+
+            print(a_ul.row_indices)
+            print(a_ul.col_indices)
+
         else:
             self._colors_A = [(default_color,) * 6] * self._Nneq
             self._colors_C1_r = [default_color] * self._Nneq
@@ -532,11 +563,11 @@ class CTM_Environment(object):
                     col = (col[0], np.zeros(1, dtype=np.int8), *col[1:])
                 if tuple(len(c) for c in col) != A.shape:
                     raise ValueError("Colors do not match tensors")
-                a_ul, a_ur = _block_AAconj(A, col)
+                a_ul, a_ur, a_rd, a_dl = _block_AAconj(A, col)
                 self._a_ur[i] = a_ur
                 self._a_ul[i] = a_ul
-                self._a_rd[i] = a_ul.T
-                self._a_dl[i] = a_ur.T
+                self._a_rd[i] = a_rd
+                self._a_dl[i] = a_dl
             else:
                 col = (default_color,) * 6
             if (

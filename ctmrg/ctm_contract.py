@@ -279,17 +279,62 @@ def contract_dl_corner_U1(T4, a_dl, C4, T3, col_T4_u, col_T3_r):
 
 
 @numba.njit(parallel=True)
-def swapaxes_densify(ar, blocks, block_irreps, row_irreps, col_irreps):
+def fill_swapaxes(ul, row_indices, col_indices):
+    dr = ul.shape[2]
+    dc = ul.shape[3]
+    m = np.empty((row_indices.size, col_indices.size))
+    for i in numba.prange(row_indices.size):
+        r0, r1 = divmod(row_indices[i], dr)
+        for j in numba.prange(col_indices.size):
+            c0, c1 = divmod(col_indices[j], dc)
+            m[i, j] = ul[r0, c0, r1, c1]
+    return m
+
+
+@numba.njit
+def swapaxes_reduce(ul, col_up_r, col_left_d, a_block_irreps, a_col_indices):
+    # combine ul.swapaxes(1,2) and U(1) block reduction
+    # all the information on ul row_irreps is already in a_block col_irreps
+    col_irreps = (col_up_r.reshape(-1, 1) + col_left_d).ravel()
+    col_sort = col_irreps.argsort(kind="mergesort")
+    sorted_col_irreps = col_irreps[col_sort]
+    col_blocks = (
+        [0]
+        + list((sorted_col_irreps[:-1] != sorted_col_irreps[1:]).nonzero()[0] + 1)
+        + [col_irreps.size]
+    )
+
+    blocks = []
+    block_irreps = []
+    col_indices = []
+    rbi, cbi, rbimax, cbimax = 0, 0, len(a_block_irreps), len(col_blocks) - 1
+    while rbi < rbimax and cbi < cbimax:
+        if a_block_irreps[rbi] == sorted_col_irreps[col_blocks[cbi]]:
+            ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]].copy()
+            m = fill_swapaxes(ul, a_col_indices[rbi], ci)  # parallel
+            blocks.append(m)
+            col_indices.append(ci)
+            block_irreps.append(a_block_irreps[rbi])
+            rbi += 1
+            cbi += 1
+        elif a_block_irreps[rbi] < sorted_col_irreps[col_blocks[cbi]]:
+            rbi += 1
+        else:
+            cbi += 1
+
+    return block_irreps, blocks, col_indices
+
+
+@numba.njit(parallel=True)
+def swapaxes_densify(ar, blocks, row_indices, col_indices):
     # we know from context blocks is a numba homogenous tuple => no literal_unroll
     d1 = ar.shape[2]
     d2 = ar.shape[3]
-    for bi in numba.prange(block_irreps.size):
-        ri = (row_irreps == block_irreps[bi]).nonzero()[0]
-        ci = (col_irreps == block_irreps[bi]).nonzero()[0]
-        for i in numba.prange(ri.size):
-            r0, r1 = divmod(ri[i], d1)
-            for j in numba.prange(ci.size):
-                c0, c1 = divmod(ci[j], d2)
+    for bi in numba.prange(len(blocks)):
+        for i in numba.prange(row_indices[bi].size):
+            r0, r1 = divmod(row_indices[bi][i], d1)
+            for j in numba.prange(col_indices[bi].size):
+                c0, c1 = divmod(col_indices[bi][j], d2)
                 ar[r0, c0, r1, c1] = blocks[bi][i, j]
     return ar
 
@@ -343,19 +388,24 @@ def add_a_blockU1(up, left, a_block, col_up_r, col_left_d, return_blockwise=Fals
     #  left=1,2 -> 3,4
     #  |
     #  3 -> 5
-    rep_ul = (
-        a_block.axis_reps[4],
-        a_block.axis_reps[5],
-        -col_up_r,
-        a_block.axis_reps[6],
-        a_block.axis_reps[7],
-        -col_left_d,
-    )
     ul = (
         up.reshape(up.shape[0] * up.shape[1], up.shape[2])
         @ left.reshape(left.shape[0], left.shape[1] * left.shape[2])
-    ).reshape(tuple(rep.size for rep in rep_ul))
-    ul = U1_SymmetricTensor.from_array(ul, rep_ul, 2)
+    ).reshape(up.shape[0], up.shape[1], left.shape[1], left.shape[2])
+
+    (block_irreps, blocks, col_indices) = swapaxes_reduce(
+        ul, col_up_r, col_left_d, a_block.block_irreps, a_block.col_indices
+    )
+
+    rep_ul = (
+        a_block.axis_reps[4],
+        a_block.axis_reps[5],
+        a_block.axis_reps[6],
+        a_block.axis_reps[7],
+        -col_up_r,
+        -col_left_d,
+    )
+    ul = U1_SymmetricTensor(rep_ul, 4, blocks, block_irreps)
 
     #  --------up-4
     #  |       ||
@@ -363,7 +413,6 @@ def add_a_blockU1(up, left, a_block, col_up_r, col_left_d, return_blockwise=Fals
     #  left=2,3
     #  |
     #  5
-    ul = ul.permutate((0, 1, 3, 4), (2, 5))
     ul = a_block @ ul
 
     # reshape through dense casting, faster than permutate
@@ -372,15 +421,10 @@ def add_a_blockU1(up, left, a_block, col_up_r, col_left_d, return_blockwise=Fals
     #  left=AA*=0
     #  |    ||
     #  3    1 -> 2
+
     sh = tuple(ul.shape[i] for i in (0, 1, 4, 2, 3, 5))
     temp = np.zeros((sh[0] * sh[1], sh[2], sh[3] * sh[4], sh[5]))
-    swapaxes_densify(
-        temp,
-        ul.blocks,
-        ul.block_irreps,
-        ul.get_row_representation(),
-        ul.get_column_representation(),
-    )
+    swapaxes_densify(temp, ul.blocks, a_block.row_indices, tuple(col_indices))
     del ul
 
     if return_blockwise:
