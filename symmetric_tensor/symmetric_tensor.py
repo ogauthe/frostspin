@@ -111,14 +111,56 @@ class SymmetricTensor(object):
         assert type(other) == type(self), "Mixing incompatible types"
         assert self._shape == other._shape, "Mixing incompatible axes"
         assert self._n_row_legs == other._n_row_legs, "Mixing incompatible fusion trees"
-        blocks = tuple(b1 + b2 for (b1, b2) in zip(self._blocks, other._blocks))
-        return type(self)(self._axis_reps, self._n_leg_rows, blocks, self._block_irreps)
+
+        # need to take into account possibly missing block in self or other
+        blocks = []
+        block_irreps = []
+        i1, i2 = 0, 0
+        while i1 < self._nblocks and i2 < other._nblocks:
+            if self._block_irreps[i1] == other._block_irreps[i2]:
+                blocks.append(self._blocks[i1] + other._blocks[i2])
+                block_irreps.append(self._block_irreps[i1])
+                i1 += 1
+                i2 += 1
+            elif self._block_irreps[i1] < other._block_irreps[i2]:
+                blocks.append(self._blocks[i1].copy())  # no data sharing
+                block_irreps.append(self._block_irreps[i1])
+                i1 += 1
+            else:
+                blocks.append(other._blocks[i2].copy())  # no data sharing
+                block_irreps.append(other._block_irreps[i2])
+                i2 += 1
+
+        blocks = tuple(blocks)
+        block_irreps = np.array(block_irreps)
+        return type(self)(self._axis_reps, self._n_leg_rows, blocks, block_irreps)
 
     def __sub__(self, other):
         assert type(other) == type(self), "Mixing incompatible types"
         assert self._shape == other._shape, "Mixing incompatible axes"
         assert self._n_row_legs == other._n_row_legs, "Mixing incompatible fusion trees"
-        blocks = tuple(b1 - b2 for (b1, b2) in zip(self._blocks, other._blocks))
+
+        # need to take into account possibly missing block in self or other
+        blocks = []
+        block_irreps = []
+        i1, i2 = 0, 0
+        while i1 < self._nblocks and i2 < other._nblocks:
+            if self._block_irreps[i1] == other._block_irreps[i2]:
+                blocks.append(self._blocks[i1] - other._blocks[i2])
+                block_irreps.append(self._block_irreps[i1])
+                i1 += 1
+                i2 += 1
+            elif self._block_irreps[i1] < other._block_irreps[i2]:
+                blocks.append(self._blocks[i1].copy())  # no data sharing
+                block_irreps.append(self._block_irreps[i1])
+                i1 += 1
+            else:
+                blocks.append(-other._blocks[i2])
+                block_irreps.append(other._block_irreps[i2])
+                i2 += 1
+
+        blocks = tuple(blocks)
+        block_irreps = np.array(block_irreps)
         return type(self)(self._axis_reps, self._n_leg_rows, blocks, self._block_irreps)
 
     def __mul__(self, x):
