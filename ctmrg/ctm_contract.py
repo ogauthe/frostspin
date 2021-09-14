@@ -292,36 +292,20 @@ def fill_swapaxes(ul, row_indices, col_indices):
 
 
 @numba.njit
-def swapaxes_reduce(ul, col_up_r, col_left_d, a_block_irreps, a_col_indices):
+def swapaxes_reduce(ul, col_irreps, a_block_irreps, a_col_indices):
     # combine ul.swapaxes(1,2) and U(1) block reduction
     # all the information on ul row_irreps is already in a_block col_irreps
-    col_irreps = (col_up_r.reshape(-1, 1) + col_left_d).ravel()
-    col_sort = col_irreps.argsort(kind="mergesort")
-    sorted_col_irreps = col_irreps[col_sort]
-    col_blocks = (
-        [0]
-        + list((sorted_col_irreps[:-1] != sorted_col_irreps[1:]).nonzero()[0] + 1)
-        + [col_irreps.size]
-    )
-
     blocks = []
     block_irreps = []
     col_indices = []
-    rbi, cbi, rbimax, cbimax = 0, 0, len(a_block_irreps), len(col_blocks) - 1
-    while rbi < rbimax and cbi < cbimax:
-        if a_block_irreps[rbi] == sorted_col_irreps[col_blocks[cbi]]:
-            ci = col_sort[col_blocks[cbi] : col_blocks[cbi + 1]].copy()
-            m = fill_swapaxes(ul, a_col_indices[rbi], ci)  # parallel
+    for bi, irr in enumerate(a_block_irreps):
+        ci = np.ascontiguousarray((col_irreps == irr).nonzero()[0])
+        if ci.size:
+            m = fill_swapaxes(ul, a_col_indices[bi], ci)  # parallel
             blocks.append(m)
+            block_irreps.append(irr)
             col_indices.append(ci)
-            block_irreps.append(a_block_irreps[rbi])
-            rbi += 1
-            cbi += 1
-        elif a_block_irreps[rbi] < sorted_col_irreps[col_blocks[cbi]]:
-            rbi += 1
-        else:
-            cbi += 1
-
+    block_irreps = np.array(block_irreps)
     return block_irreps, blocks, col_indices
 
 
@@ -393,8 +377,9 @@ def add_a_blockU1(up, left, a_block, col_up_r, col_left_d, return_blockwise=Fals
         @ left.reshape(left.shape[0], left.shape[1] * left.shape[2])
     ).reshape(up.shape[0], up.shape[1], left.shape[1], left.shape[2])
 
+    col_irreps = a_block.combine_representations(col_up_r, col_left_d)
     (block_irreps, blocks, col_indices) = swapaxes_reduce(
-        ul, col_up_r, col_left_d, a_block.block_irreps, a_block.col_indices
+        ul, col_irreps, a_block.block_irreps, a_block.col_indices
     )
 
     rep_ul = (
