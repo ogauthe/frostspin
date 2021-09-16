@@ -298,15 +298,17 @@ def swapaxes_reduce(ul, col_irreps, a_block_irreps, a_col_indices):
     blocks = []
     block_irreps = []
     col_indices = []
+    a_block_indices = []  # remember which a_row_indices block appear
     for bi, irr in enumerate(a_block_irreps):
         ci = np.ascontiguousarray((col_irreps == irr).nonzero()[0])
         if ci.size:
             m = fill_swapaxes(ul, a_col_indices[bi], ci)  # parallel
             blocks.append(m)
             block_irreps.append(irr)
+            a_block_indices.append(bi)
             col_indices.append(ci)
     block_irreps = np.array(block_irreps)
-    return block_irreps, blocks, col_indices
+    return block_irreps, blocks, a_block_indices, col_indices
 
 
 @numba.njit(parallel=True)
@@ -378,7 +380,7 @@ def add_a_blockU1(up, left, a_block, col_up_r, col_left_d, return_blockwise=Fals
     ).reshape(up.shape[0], up.shape[1], left.shape[1], left.shape[2])
 
     col_irreps = a_block.combine_representations(col_up_r, col_left_d)
-    (block_irreps, blocks, col_indices) = swapaxes_reduce(
+    (block_irreps, blocks, a_block_indices, col_indices) = swapaxes_reduce(
         ul, col_irreps, a_block.block_irreps, a_block.col_indices
     )
 
@@ -409,7 +411,8 @@ def add_a_blockU1(up, left, a_block, col_up_r, col_left_d, return_blockwise=Fals
 
     sh = tuple(ul.shape[i] for i in (0, 1, 4, 2, 3, 5))
     temp = np.zeros((sh[0] * sh[1], sh[2], sh[3] * sh[4], sh[5]))
-    swapaxes_densify(temp, ul.blocks, a_block.row_indices, tuple(col_indices))
+    row_indices = tuple(a_block.row_indices[bi] for bi in a_block_indices)
+    swapaxes_densify(temp, ul.blocks, row_indices, tuple(col_indices))
     del ul
 
     if return_blockwise:
