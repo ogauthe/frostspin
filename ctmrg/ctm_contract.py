@@ -1,6 +1,3 @@
-import numpy as np
-import numba
-
 from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
 
 ###############################################################################
@@ -278,53 +275,6 @@ def contract_dl_corner_U1(T4, a_dl, C4, T3, col_T4_u, col_T3_r):
     return dl.T
 
 
-@numba.njit(parallel=True)
-def fill_swapaxes(ul, row_indices, col_indices):
-    dr = ul.shape[2]
-    dc = ul.shape[3]
-    m = np.empty((row_indices.size, col_indices.size))
-    for i in numba.prange(row_indices.size):
-        r0, r1 = divmod(row_indices[i], dr)
-        for j in numba.prange(col_indices.size):
-            c0, c1 = divmod(col_indices[j], dc)
-            m[i, j] = ul[r0, c0, r1, c1]
-    return m
-
-
-@numba.njit
-def swapaxes_reduce(ul, col_irreps, a_block_irreps, a_col_indices):
-    # combine ul.swapaxes(1,2) and U(1) block reduction
-    # all the information on ul row_irreps is already in a_block col_irreps
-    blocks = []
-    block_irreps = []
-    col_indices = []
-    a_block_indices = []  # remember which a_row_indices block appear
-    for bi, irr in enumerate(a_block_irreps):
-        ci = np.ascontiguousarray((col_irreps == irr).nonzero()[0])
-        if ci.size:
-            m = fill_swapaxes(ul, a_col_indices[bi], ci)  # parallel
-            blocks.append(m)
-            block_irreps.append(irr)
-            a_block_indices.append(bi)
-            col_indices.append(ci)
-    block_irreps = np.array(block_irreps)
-    return block_irreps, blocks, a_block_indices, col_indices
-
-
-@numba.njit(parallel=True)
-def swapaxes_densify(ar, blocks, row_indices, col_indices):
-    # we know from context blocks is a numba homogenous tuple => no literal_unroll
-    d1 = ar.shape[2]
-    d2 = ar.shape[3]
-    for bi in numba.prange(len(blocks)):
-        for i in numba.prange(row_indices[bi].size):
-            r0, r1 = divmod(row_indices[bi][i], d1)
-            for j in numba.prange(col_indices[bi].size):
-                c0, c1 = divmod(col_indices[bi][j], d2)
-                ar[r0, c0, r1, c1] = blocks[bi][i, j]
-    return ar
-
-
 def add_a_blockU1(up, left, a_block, col_up_r, col_left_d, return_blockwise=False):
     """
     Contract up and left then add blockwise a = AA* using U(1) symmetry.
@@ -374,25 +324,19 @@ def add_a_blockU1(up, left, a_block, col_up_r, col_left_d, return_blockwise=Fals
     #  left=1,2 -> 3,4
     #  |
     #  3 -> 5
-    ul = (
-        up.reshape(up.shape[0] * up.shape[1], up.shape[2])
-        @ left.reshape(left.shape[0], left.shape[1] * left.shape[2])
-    ).reshape(up.shape[0], up.shape[1], left.shape[1], left.shape[2])
-
-    col_irreps = a_block.combine_representations(col_up_r, col_left_d)
-    (block_irreps, blocks, a_block_indices, col_indices) = swapaxes_reduce(
-        ul, col_irreps, a_block.block_irreps, a_block.col_indices
-    )
-
     rep_ul = (
         a_block.axis_reps[4],
         a_block.axis_reps[5],
+        -col_up_r,
         a_block.axis_reps[6],
         a_block.axis_reps[7],
-        -col_up_r,
         -col_left_d,
     )
-    ul = U1_SymmetricTensor(rep_ul, 4, blocks, block_irreps)
+    ul = (
+        up.reshape(up.shape[0] * up.shape[1], up.shape[2])
+        @ left.reshape(left.shape[0], left.shape[1] * left.shape[2])
+    ).reshape(tuple(rep.size for rep in rep_ul))
+    ul = U1_SymmetricTensor.from_array(ul, rep_ul, 2)
 
     #  --------up-4
     #  |       ||
@@ -400,29 +344,15 @@ def add_a_blockU1(up, left, a_block, col_up_r, col_left_d, return_blockwise=Fals
     #  left=2,3
     #  |
     #  5
+    ul = ul.permutate((0, 1, 3, 4), (2, 5))
     ul = a_block @ ul
-
-    # reshape through dense casting, faster than permutate
-    #  -----up-2 -> 1
+    #  -----up-4 -> 2
     #  |    ||
-    #  left=AA*=0
+    #  left=AA*=0,1
     #  |    ||
-    #  3    1 -> 2
-
-    sh = tuple(ul.shape[i] for i in (0, 1, 4, 2, 3, 5))
-    temp = np.zeros((sh[0] * sh[1], sh[2], sh[3] * sh[4], sh[5]))
-    row_indices = tuple(a_block.row_indices[bi] for bi in a_block_indices)
-    swapaxes_densify(temp, ul.blocks, row_indices, tuple(col_indices))
-    del ul
+    #  5    23 -> 3,4
+    ul = ul.permutate((0, 1, 4), (2, 3, 5))
 
     if return_blockwise:
-        rep_ul = (
-            a_block.axis_reps[0],
-            a_block.axis_reps[1],
-            -col_up_r,
-            a_block.axis_reps[2],
-            a_block.axis_reps[3],
-            -col_left_d,
-        )
-        return U1_SymmetricTensor.from_array(temp.reshape(sh), rep_ul, 3)
-    return temp.reshape(sh[0] * sh[1] * sh[2], sh[3] * sh[4] * sh[5])
+        return ul
+    return ul.toarray().reshape(ul.matrix_shape)
