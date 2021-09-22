@@ -1,17 +1,16 @@
 import numpy as np
 
-from groups.toolsU1 import default_color, combine_colors
 from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
 
 
-def _initialize_env(A):
+def _initialize_env(a):
     #
-    #   C1-0  3-T1-0  1-C2            0
-    #   |       ||       |             \ 2
-    #   1       12       0              \|
-    #                                  5-A-3
-    #   0       0        0               |\
-    #   |       |        |               4 1
+    #   C1-0  3-T1-0  1-C2
+    #   |       ||       |                45
+    #   1       12       0                ||
+    #                                 6,7=AA=0,1
+    #   0       0        0                ||
+    #   |       |        |                23
     #   T4=1  3-a--1  2=T2
     #   |  2    |     3  |
     #   3       2        1
@@ -20,31 +19,40 @@ def _initialize_env(A):
     #   |       ||       |
     #   C4-1  3-T3-2  1-C3
     #
-    a = (
-        np.tensordot(A, A.conj(), ((0, 1), (0, 1)))
-        .transpose(0, 4, 1, 5, 2, 6, 3, 7)
-        .copy()
-    )
-    C1 = np.einsum("aacdefgg->cdef", a).reshape(A.shape[3] ** 2, A.shape[4] ** 2)
-    T1 = np.einsum("aacdefgh->cdefgh", a).reshape(
-        A.shape[3] ** 2, A.shape[4], A.shape[4], A.shape[5] ** 2
-    )
-    C2 = np.einsum("aaccefgh->efgh", a).reshape(A.shape[4] ** 2, A.shape[5] ** 2)
-    T2 = np.einsum("abccefgh->abefgh", a).reshape(
-        A.shape[2] ** 2, A.shape[4] ** 2, A.shape[5], A.shape[5]
-    )
-    C3 = np.einsum("abcceegh->abgh", a).reshape(A.shape[2] ** 2, A.shape[5] ** 2)
-    T3 = np.einsum("abcdeegh->abcdgh", a).reshape(
-        A.shape[2], A.shape[2], A.shape[3] ** 2, A.shape[5] ** 2
-    )
-    C4 = np.einsum("abcdeegg->abcd", a).reshape(A.shape[2] ** 2, A.shape[3] ** 2)
-    T4 = np.einsum("abcdefgg->abcdef", a).reshape(
-        A.shape[2] ** 2, A.shape[3], A.shape[3], A.shape[4] ** 2
-    )
-    return C1, T1, C2, T4, T2, C4, T3, C3
+    at = a.toarray()
+    axes = a.axis_reps[:4]
+    axes = axes + tuple(a.conjugate_representation(r) for r in a.axis_reps[4:])
+    d0, d1, d2, d3, d4, d5, d6, d7 = a.shape
+    c01 = a.combine_representations(axes[0], axes[1])
+    c23 = a.combine_representations(axes[2], axes[3])
+    c45 = a.combine_representations(axes[4], axes[5])
+    c67 = a.combine_representations(axes[6], axes[7])
+
+    C1 = np.einsum("abcdeegg->abcd", at).reshape(d0 * d1, d2 * d3)
+    C1 = type(a).from_array(C1, (c01, c23), 1)
+    T1 = np.einsum("abcdeegh->abcdgh", at).reshape(d0 * d1, d2, d3, d6 * d7)
+    T1 = type(a).from_array(T1, (c01, axes[2], axes[3], c67), 1)
+
+    C2 = np.einsum("aacdeegh->cdgh", at).reshape(d2 * d3, d6 * d7)
+    C2 = type(a).from_array(C2, (c23, c67), 1)
+    T2 = np.einsum("aacdefgh->efcdgh", at).reshape(d4 * d5, d2 * d3, d6, d7)
+    T2 = type(a).from_array(T2, (c45, c23, axes[6], axes[7]), 1)
+
+    C3 = np.einsum("aaccefgh->efgh", at).reshape(d4 * d5, d6 * d7)
+    C3 = type(a).from_array(C3, (c45, c67), 1)
+    T3 = np.einsum("abccefgh->efabgh", at)
+    T3 = T3.reshape(d4, d5, d0 * d1, d6 * d7)
+    T3 = type(a).from_array(T3, (axes[4], axes[5], c01, c67), 3)
+
+    C4 = np.einsum("abccefgg->efab", at).reshape(d4 * d5, d0 * d1)
+    C4 = type(a).from_array(C4, (c45, c01), 1)
+    T4 = np.einsum("abcdefgg->efabcd", at)
+    T4 = T4.reshape(d4 * d5, d0, d1, d2 * d3)
+    T4 = type(a).from_array(T4, (c45, axes[0], axes[1], c23), 1)
+    return C1, T1, C2, T2, C3, T3, C4, T4
 
 
-def _block_AAconj(A, col_A):
+def _block_AAconj(A):
     """
     Construct U1_SymmetricTensor versions of double layer tensor a = A-A* that can be
     used in add_a_blockU1. a is a matrix with merged bra and ket legs *and* legs merged
@@ -66,64 +74,14 @@ def _block_AAconj(A, col_A):
         ||                       ||
         45                       67
     """
-    A_U1 = U1_SymmetricTensor.from_array(A, col_A, 2)
-    a = A_U1.H @ A_U1
-    assert (
-        np.linalg.norm(np.tensordot(A.conj(), A, ((0, 1), (0, 1))) - a.toarray())
-        / a.norm()
-        < 1e-14
-    )
+    a = A.H @ A
     # a_ul used to contract corner_ul: u and l legs are *last* for a_ul @ TT
     a_ul = a.permutate((1, 5, 2, 6), (0, 4, 3, 7))
     a_rd = a_ul.T
 
-    # dirty fix: define row_irreps and col_irreps to mimic BlockMatrixU1
-    row_irreps = a_ul.get_row_representation()
-    col_irreps = a_ul.get_column_representation()
-    row_indices = []
-    col_indices = []
-    for c in a_ul.block_irreps:
-        row_indices.append((row_irreps == c).nonzero()[0])
-        col_indices.append((col_irreps == c).nonzero()[0])
-    a_ul.row_indices = tuple(row_indices)
-    a_ul.col_indices = tuple(col_indices)
-    a_rd.row_indices = tuple(ind for ind in reversed(col_indices))
-    a_rd.col_indices = tuple(ind for ind in reversed(row_indices))
-
     a_ur = a.permutate((2, 6, 3, 7), (1, 5, 0, 4))
     a_dl = a_ur.T
-    row_irreps = a_ur.get_row_representation()
-    col_irreps = a_ur.get_column_representation()
-    row_indices = []
-    col_indices = []
-    for c in a_ur.block_irreps:
-        row_indices.append((row_irreps == c).nonzero()[0])
-        col_indices.append((col_irreps == c).nonzero()[0])
-    a_ur.row_indices = tuple(row_indices)
-    a_ur.col_indices = tuple(col_indices)
-    a_dl.row_indices = tuple(ind for ind in reversed(col_indices))
-    a_dl.col_indices = tuple(ind for ind in reversed(row_indices))
     return a_ul, a_ur, a_rd, a_dl
-
-
-def _color_correspondence(old_col, new_col):
-    """
-    Find correspondances between old and new set of colors on a given axis. Return same
-    size arrays with same color structure.
-    """
-    old_rows = []
-    new_rows = []
-    for c in set(new_col):
-        oldrc = (old_col == c).nonzero()[0]
-        newrc = (new_col == c).nonzero()[0]
-        old_rows += list(oldrc[: len(newrc)])
-        new_rows += list(newrc[: len(oldrc)])
-    old_rows = np.array(old_rows)
-    new_rows = np.array(new_rows)
-    s = old_rows.argsort(kind="stable")  # minimal disruption
-    old_rows = old_rows[s]  # != range(d) if some rows are removed
-    new_rows = new_rows[s]  # this is a bit tedious, but optimises copy
-    return old_rows, new_rows
 
 
 class CTM_Environment(object):
@@ -143,41 +101,24 @@ class CTM_Environment(object):
         neq_T3s,
         neq_C4s,
         neq_T4s,
-        colors_A=None,
-        colors_C1_r=None,
-        colors_C1_d=None,
-        colors_C2_d=None,
-        colors_C2_l=None,
-        colors_C3_u=None,
-        colors_C3_l=None,
-        colors_C4_u=None,
-        colors_C4_r=None,
+        neq_a_ul,
+        neq_a_ur,
+        neq_a_rd,
+        neq_a_dl,
     ):
         """
         Initialize environment tensors. Consider calling from_elementary_tensors
         or from_file instead of directly calling this function.
         """
+        # this function makes no input validation, needs to be done before
 
-        # 1 Define indices and neq_coords from cell
+        # 1) Define indices and neq_coords from cell
         # construct list of unique letters sorted according to appearance order in cell
         # (may be different from lexicographic order)
         seen = set()
         seen_add = seen.add
         letters = [c for c in cell.flat if not (c in seen or seen_add(c))]
-
         self._Nneq = len(letters)
-        assert (
-            self._Nneq
-            == len(neq_As)
-            == len(neq_C1s)
-            == len(neq_T1s)
-            == len(neq_C2s)
-            == len(neq_T2s)
-            == len(neq_C3s)
-            == len(neq_T3s)
-            == len(neq_C4s)
-            == len(neq_T4s)
-        )
 
         # [row,col] indices are transposed from (x,y) coordinates but (x,y) is natural
         # to specify positions, so we need to transpose indices here to get simple CTMRG
@@ -199,6 +140,7 @@ class CTM_Environment(object):
         # 2) store tensors. They have to follow cell.flat order.
         self._neq_As = neq_As
         self._Dmax = max(max(A.shape[2:]) for A in self._neq_As)
+
         self._neq_C1s = neq_C1s
         self._neq_T1s = neq_T1s
         self._neq_C2s = neq_C2s
@@ -208,59 +150,17 @@ class CTM_Environment(object):
         self._neq_C4s = neq_C4s
         self._neq_T4s = neq_T4s
 
+        self._a_ur = neq_a_ur
+        self._a_ul = neq_a_ul
+        self._a_rd = neq_a_rd
+        self._a_dl = neq_a_dl
+
         # 3) initialize temp arrays
         self._corners_ul = [None] * self._Nneq
         self._corners_ur = [None] * self._Nneq
         self._corners_dl = [None] * self._Nneq
         self._corners_dr = [None] * self._Nneq
         self._reset_temp_lists()
-
-        # 4) if colors are provided, store them, else define them as default_colors
-        if not (colors_A is None or sum(sum(c.size for c in t) for t in colors_A) == 0):
-            assert (
-                self._Nneq
-                == len(colors_A)
-                == len(colors_C1_r)
-                == len(colors_C1_d)
-                == len(colors_C2_d)
-                == len(colors_C2_l)
-                == len(colors_C3_u)
-                == len(colors_C3_l)
-                == len(colors_C4_u)
-                == len(colors_C4_r)
-            )
-            self._colors_A = colors_A
-            self._colors_C1_r = colors_C1_r
-            self._colors_C1_d = colors_C1_d
-            self._colors_C2_d = colors_C2_d
-            self._colors_C2_l = colors_C2_l
-            self._colors_C3_u = colors_C3_u
-            self._colors_C3_l = colors_C3_l
-            self._colors_C4_u = colors_C4_u
-            self._colors_C4_r = colors_C4_r
-
-            # store blockwise A*A* to construct corners + colors (cannot tranpose lists)
-            self._a_ur = []
-            self._a_ul = []
-            self._a_rd = []
-            self._a_dl = []
-            for A, col_A in zip(neq_As, colors_A):
-                a_ul, a_ur, a_rd, a_dl = _block_AAconj(A, col_A)
-                self._a_ur.append(a_ur)
-                self._a_ul.append(a_ul)
-                self._a_rd.append(a_rd)
-                self._a_dl.append(a_dl)
-
-        else:
-            self._colors_A = [(default_color,) * 6] * self._Nneq
-            self._colors_C1_r = [default_color] * self._Nneq
-            self._colors_C1_d = [default_color] * self._Nneq
-            self._colors_C2_d = [default_color] * self._Nneq
-            self._colors_C2_l = [default_color] * self._Nneq
-            self._colors_C3_u = [default_color] * self._Nneq
-            self._colors_C3_l = [default_color] * self._Nneq
-            self._colors_C4_u = [default_color] * self._Nneq
-            self._colors_C4_r = [default_color] * self._Nneq
 
     @property
     def Dmax(self):
@@ -278,8 +178,8 @@ class CTM_Environment(object):
         Erase current environment tensors C and T and restart them from elementary
         tensors.
         """
-        for i, A in enumerate(self._neq_As):
-            C1, T1, C2, T4, T2, C4, T3, C3 = _initialize_env(A)
+        for i, a in enumerate(self._a_ul):
+            C1, T1, C2, T2, C3, T3, C4, T4 = _initialize_env(a)
             self._neq_C1s[i] = C1
             self._neq_T1s[i] = T1
             self._neq_C2s[i] = C2
@@ -289,21 +189,6 @@ class CTM_Environment(object):
             self._neq_C4s[i] = C4
             self._neq_T4s[i] = T4
 
-        if self._colors_A[0][0].size:
-            for i, colA in enumerate(self._colors_A):
-                c2 = combine_colors(colA[2], -colA[2])
-                c3 = combine_colors(colA[3], -colA[3])
-                c4 = combine_colors(colA[4], -colA[4])
-                c5 = combine_colors(colA[5], -colA[5])
-                self._colors_C1_r[i] = c3
-                self._colors_C1_d[i] = c4
-                self._colors_C2_d[i] = c4
-                self._colors_C2_l[i] = c5
-                self._colors_C3_u[i] = c2
-                self._colors_C3_l[i] = c5
-                self._colors_C4_u[i] = c2
-                self._colors_C4_r[i] = c3
-
         self._corners_ul = [None] * self._Nneq
         self._corners_ur = [None] * self._Nneq
         self._corners_dl = [None] * self._Nneq
@@ -311,7 +196,7 @@ class CTM_Environment(object):
         self._reset_temp_lists()
 
     @classmethod
-    def from_elementary_tensors(cls, tensors, tiling, colors=None):
+    def from_elementary_tensors(cls, tensors, tiling, colors):
         """
         Construct CTM_Environment from elementary tensors according to tiling.
 
@@ -334,28 +219,26 @@ class CTM_Environment(object):
         Nneq = len(set(cell.flat))
         if len(tensors) != Nneq:
             raise ValueError("Tensor number do not match tiling")
+        if len(colors) != Nneq:
+            raise ValueError("Representation number do not match tiling")
 
         # store tensors according to cell.flat order
         neq_As = []
-        neq_C1s = []
-        neq_T1s = []
-        neq_C2s = []
-        neq_T2s = []
-        neq_C3s = []
-        neq_T3s = []
-        neq_C4s = []
-        neq_T4s = []
-
-        for A0 in tensors:
-            A = np.ascontiguousarray(A0)
-            if A.ndim == 5:  # if no ancilla, add 1
-                A = A.reshape(
-                    A.shape[0], 1, A.shape[1], A.shape[2], A.shape[3], A.shape[4]
-                )
-            if A.ndim != 6:
-                raise ValueError("Elementary tensor must be of rank 5 or 6")
-            C1, T1, C2, T4, T2, C4, T3, C3 = _initialize_env(A)
+        neq_C1s, neq_C2s, neq_C3s, neq_C4s = [[] for i in range(4)]
+        neq_T1s, neq_T2s, neq_T3s, neq_T4s = [[] for i in range(4)]
+        neq_a_ur, neq_a_ul, neq_a_rd, neq_a_dl = [[] for i in range(4)]
+        for A0, col_A in zip(tensors, colors):
+            if A0.ndim != 6:
+                raise ValueError("Elementary tensor must be of rank 6")
+            A = U1_SymmetricTensor.from_array(A0, col_A, 2)
+            a_ul, a_ur, a_rd, a_dl = _block_AAconj(A)
             neq_As.append(A)
+            neq_a_ur.append(a_ur)
+            neq_a_ul.append(a_ul)
+            neq_a_rd.append(a_rd)
+            neq_a_dl.append(a_dl)
+
+            C1, T1, C2, T2, C3, T3, C4, T4 = _initialize_env(a_ul)
             neq_C1s.append(C1)
             neq_T1s.append(T1)
             neq_C2s.append(C2)
@@ -365,49 +248,6 @@ class CTM_Environment(object):
             neq_C4s.append(C4)
             neq_T4s.append(T4)
 
-        if colors is None or sum(sum(c.size for c in t) for t in colors) == 0:
-            return cls(  # sum(sum deals with default_color as input
-                cell,
-                neq_As,
-                neq_C1s,
-                neq_T1s,
-                neq_C2s,
-                neq_T2s,
-                neq_C3s,
-                neq_T3s,
-                neq_C4s,
-                neq_T4s,
-            )
-        if len(colors) != Nneq:
-            raise ValueError("Color number do not match tensors")
-        colors_A = []
-        # more convenient to store separetly row and column colors of corners
-        colors_C1_r = []
-        colors_C1_d = []
-        colors_C2_d = []
-        colors_C2_l = []
-        colors_C3_u = []
-        colors_C3_l = []
-        colors_C4_u = []
-        colors_C4_r = []
-        for A, colA in zip(tensors, colors):
-            if tuple(len(c) for c in colA) != A.shape:
-                raise ValueError("Colors do not match tensors")
-            if len(colA) == 5:  # add empty ancilla
-                colA = (colA[0], np.zeros(1, dtype=np.int8), *colA[1:])
-            c2 = combine_colors(colA[2], -colA[2])
-            c3 = combine_colors(colA[3], -colA[3])
-            c4 = combine_colors(colA[4], -colA[4])
-            c5 = combine_colors(colA[5], -colA[5])
-            colors_A.append(colA)
-            colors_C1_r.append(c3)
-            colors_C1_d.append(c4)
-            colors_C2_d.append(c4)
-            colors_C2_l.append(c5)
-            colors_C3_u.append(c2)
-            colors_C3_l.append(c5)
-            colors_C4_u.append(c2)
-            colors_C4_r.append(c3)
         return cls(
             cell,
             neq_As,
@@ -419,15 +259,10 @@ class CTM_Environment(object):
             neq_T3s,
             neq_C4s,
             neq_T4s,
-            colors_A,
-            colors_C1_r,
-            colors_C1_d,
-            colors_C2_d,
-            colors_C2_l,
-            colors_C3_u,
-            colors_C3_l,
-            colors_C4_u,
-            colors_C4_r,
+            neq_a_ul,
+            neq_a_ur,
+            neq_a_rd,
+            neq_a_dl,
         )
 
     def get_data_to_save(self):
@@ -439,25 +274,25 @@ class CTM_Environment(object):
         data = {"_CTM_cell": self._cell}
 
         for i in range(self._Nneq):
-            data[f"_CTM_A_{i}"] = self._neq_As[i]
-            data[f"_CTM_C1_{i}"] = self._neq_C1s[i]
-            data[f"_CTM_T1_{i}"] = self._neq_T1s[i]
-            data[f"_CTM_C2_{i}"] = self._neq_C2s[i]
-            data[f"_CTM_T2_{i}"] = self._neq_T2s[i]
-            data[f"_CTM_C3_{i}"] = self._neq_C3s[i]
-            data[f"_CTM_T3_{i}"] = self._neq_T3s[i]
-            data[f"_CTM_C4_{i}"] = self._neq_C4s[i]
-            data[f"_CTM_T4_{i}"] = self._neq_T4s[i]
-            data[f"_CTM_colors_C1_r_{i}"] = self._colors_C1_r[i]
-            data[f"_CTM_colors_C1_d_{i}"] = self._colors_C1_d[i]
-            data[f"_CTM_colors_C2_d_{i}"] = self._colors_C2_d[i]
-            data[f"_CTM_colors_C2_l_{i}"] = self._colors_C2_l[i]
-            data[f"_CTM_colors_C3_u_{i}"] = self._colors_C3_u[i]
-            data[f"_CTM_colors_C3_l_{i}"] = self._colors_C3_l[i]
-            data[f"_CTM_colors_C4_u_{i}"] = self._colors_C4_u[i]
-            data[f"_CTM_colors_C4_r_{i}"] = self._colors_C4_r[i]
+            data[f"_CTM_A_{i}"] = self._neq_As[i].toarray()
+            data[f"_CTM_C1_{i}"] = self._neq_C1s[i].toarray()
+            data[f"_CTM_T1_{i}"] = self._neq_T1s[i].toarray()
+            data[f"_CTM_C2_{i}"] = self._neq_C2s[i].toarray()
+            data[f"_CTM_T2_{i}"] = self._neq_T2s[i].toarray()
+            data[f"_CTM_C3_{i}"] = self._neq_C3s[i].toarray()
+            data[f"_CTM_T3_{i}"] = self._neq_T3s[i].toarray()
+            data[f"_CTM_C4_{i}"] = self._neq_C4s[i].toarray()
+            data[f"_CTM_T4_{i}"] = self._neq_T4s[i].toarray()
+            data[f"_CTM_colors_C1_r_{i}"] = self._neq_C1s[i].axis_reps[0]
+            data[f"_CTM_colors_C1_d_{i}"] = -self._neq_C1s[i].axis_reps[1]
+            data[f"_CTM_colors_C2_d_{i}"] = self._neq_C2s[i].axis_reps[0]
+            data[f"_CTM_colors_C2_l_{i}"] = -self._neq_C2s[i].axis_reps[1]
+            data[f"_CTM_colors_C3_u_{i}"] = self._neq_C3s[i].axis_reps[0]
+            data[f"_CTM_colors_C3_l_{i}"] = -self._neq_C3s[i].axis_reps[1]
+            data[f"_CTM_colors_C4_u_{i}"] = self._neq_C4s[i].axis_reps[0]
+            data[f"_CTM_colors_C4_r_{i}"] = -self._neq_C4s[i].axis_reps[1]
             for leg in range(6):
-                data[f"_CTM_colors_A_{i}_{leg}"] = self._colors_A[i][leg]
+                data[f"_CTM_colors_A_{i}_{leg}"] = self._neq_As[i].axis_reps[leg]
 
         return data
 
@@ -466,52 +301,59 @@ class CTM_Environment(object):
         """
         Construct CTM_Environment from save file.
         """
+
+        neq_As = []
+        neq_C1s, neq_C2s, neq_C3s, neq_C4s = [[] for i in range(4)]
+        neq_T1s, neq_T2s, neq_T3s, neq_T4s = [[] for i in range(4)]
+        r1r, r1d, r2d, r2l, r3u, r3l, r4u, r4r = [[] for i in range(8)]
         with np.load(filename) as data:
             cell = data["_CTM_cell"]
             Nneq = len(set(cell.flat))
 
-            neq_As = [None] * Nneq
-            neq_C1s = [None] * Nneq
-            neq_T1s = [None] * Nneq
-            neq_C2s = [None] * Nneq
-            neq_T2s = [None] * Nneq
-            neq_C3s = [None] * Nneq
-            neq_T3s = [None] * Nneq
-            neq_C4s = [None] * Nneq
-            neq_T4s = [None] * Nneq
-
-            # colors are always defined and stored, even if they are default_color
-            colors_A = [None] * Nneq
-            colors_C1_r = [None] * Nneq
-            colors_C1_d = [None] * Nneq
-            colors_C2_d = [None] * Nneq
-            colors_C2_l = [None] * Nneq
-            colors_C3_u = [None] * Nneq
-            colors_C3_l = [None] * Nneq
-            colors_C4_u = [None] * Nneq
-            colors_C4_r = [None] * Nneq
-
             for i in range(Nneq):
-                neq_As[i] = data[f"_CTM_A_{i}"]
-                neq_C1s[i] = data[f"_CTM_C1_{i}"]
-                neq_T1s[i] = data[f"_CTM_T1_{i}"]
-                neq_C2s[i] = data[f"_CTM_C2_{i}"]
-                neq_T2s[i] = data[f"_CTM_T2_{i}"]
-                neq_C3s[i] = data[f"_CTM_C3_{i}"]
-                neq_T3s[i] = data[f"_CTM_T3_{i}"]
-                neq_C4s[i] = data[f"_CTM_C4_{i}"]
-                neq_T4s[i] = data[f"_CTM_T4_{i}"]
-                colors_A[i] = tuple(
-                    data[f"_CTM_colors_A_{i}_{leg}"] for leg in range(6)
-                )
-                colors_C1_r[i] = data[f"_CTM_colors_C1_r_{i}"]
-                colors_C1_d[i] = data[f"_CTM_colors_C1_d_{i}"]
-                colors_C2_d[i] = data[f"_CTM_colors_C2_d_{i}"]
-                colors_C2_l[i] = data[f"_CTM_colors_C2_l_{i}"]
-                colors_C3_u[i] = data[f"_CTM_colors_C3_u_{i}"]
-                colors_C3_l[i] = data[f"_CTM_colors_C3_l_{i}"]
-                colors_C4_u[i] = data[f"_CTM_colors_C4_u_{i}"]
-                colors_C4_r[i] = data[f"_CTM_colors_C4_r_{i}"]
+                neq_As.append(data[f"_CTM_A_{i}"])
+                neq_C1s.append(data[f"_CTM_C1_{i}"])
+                neq_C2s.append(data[f"_CTM_C2_{i}"])
+                neq_C3s.append(data[f"_CTM_C3_{i}"])
+                neq_C4s.append(data[f"_CTM_C4_{i}"])
+                neq_T1s.append(data[f"_CTM_T1_{i}"])
+                neq_T2s.append(data[f"_CTM_T2_{i}"])
+                neq_T3s.append(data[f"_CTM_T3_{i}"])
+                neq_T4s.append(data[f"_CTM_T4_{i}"])
+                r1r.append(data[f"_CTM_colors_C1_r_{i}"])
+                r1d.append(data[f"_CTM_colors_C1_d_{i}"])
+                r2d.append(data[f"_CTM_colors_C2_d_{i}"])
+                r2l.append(data[f"_CTM_colors_C2_l_{i}"])
+                r3u.append(data[f"_CTM_colors_C3_u_{i}"])
+                r3l.append(data[f"_CTM_colors_C3_l_{i}"])
+                r4u.append(data[f"_CTM_colors_C4_u_{i}"])
+                r4r.append(data[f"_CTM_colors_C4_r_{i}"])
+                reps_A = tuple(data[f"_CTM_colors_A_{i}_{leg}"] for leg in range(6))
+
+        # call from array after closing file
+        neq_a_ul, neq_a_ur, neq_a_rd, neq_a_dl = [[None] * Nneq for i in range(4)]
+        for i in range(Nneq):
+            neq_As[i] = U1_SymmetricTensor.from_array(neq_As[i], reps_A[i], 2)
+
+            neq_C1s[i] = U1_SymmetricTensor.from_array(neq_C1s[i], (r1r[i], r1d[i]), 1)
+            repsT1 = (-r2l[i], -reps_A[i][2], reps_A[i][2], -r1r[i])
+            neq_T1s[i] = U1_SymmetricTensor.from_array(neq_T1s[i], repsT1, 1)
+
+            neq_C2s[i] = U1_SymmetricTensor.from_array(neq_C2s[i], (r2d[i], r2l[i]), 1)
+            repsT2 = (-r2d[i], -reps_A[i][3], reps_A[i][3], -r3u[i])
+            neq_T2s[i] = U1_SymmetricTensor.from_array(neq_T2s[i], repsT2, 1)
+
+            neq_C3s[i] = U1_SymmetricTensor.from_array(neq_C3s[i], (r3u[i], r3l[i]), 1)
+            repsT3 = (-reps_A[i][4], reps_A[i][4], -r3l[i], -r4r[i])
+            neq_T3s[i] = U1_SymmetricTensor.from_array(neq_T3s[i], repsT3, 3)
+
+            neq_C4s[i] = U1_SymmetricTensor.from_array(neq_C4s[i], (r4u[i], r4r[i]), 1)
+            repsT4 = (-r1d[i], -reps_A[i][5], reps_A[i][5], -r4u[i])
+            neq_T4s[i] = U1_SymmetricTensor.from_array(neq_T4s[i], repsT4, 1)
+
+            neq_a_ul[i], neq_a_ur[i], neq_a_rd[i], neq_a_dl[i] = _block_AAconj(
+                neq_As[i]
+            )
 
         return cls(
             cell,
@@ -524,137 +366,46 @@ class CTM_Environment(object):
             neq_T3s,
             neq_C4s,
             neq_T4s,
-            colors_A,
-            colors_C1_r,
-            colors_C1_d,
-            colors_C2_d,
-            colors_C2_l,
-            colors_C3_u,
-            colors_C3_l,
-            colors_C4_u,
-            colors_C4_r,
+            neq_a_ul,
+            neq_a_ur,
+            neq_a_rd,
+            neq_a_dl,
         )
 
-    def set_tensors(self, tensors, colors=None):
+    def set_tensors(self, tensors, colors):
+        """
+        Set new elementary tensors while keeping environment tensors.
+        """
         if self._Nneq != len(tensors):
             raise ValueError("Incompatible cell and tensors")
-        if colors is not None and sum(sum(c.size for c in t) for t in colors):
-            colorized = True
-            if self._Nneq != len(colors):
-                raise ValueError("Incompatible cell and colors")
-        else:
-            colorized = False
-        for i, A in enumerate(tensors):  # or self._neq_coords?
-            A = np.ascontiguousarray(A)
-            if A.ndim == 5:  # if no ancilla, add 1
-                A = A.reshape(
-                    A.shape[0], 1, A.shape[1], A.shape[2], A.shape[3], A.shape[4]
-                )
-            if A.ndim != 6:
-                raise ValueError("Elementary tensor must be of rank 5 or 6")
-            oldA = self._neq_As[i]
-            oldcol = self._colors_A[i]
-            if colorized:
-                col = colors[i]
-                if len(col) == 5:
-                    col = (col[0], np.zeros(1, dtype=np.int8), *col[1:])
-                if tuple(len(c) for c in col) != A.shape:
-                    raise ValueError("Colors do not match tensors")
-                a_ul, a_ur, a_rd, a_dl = _block_AAconj(A, col)
-                self._a_ur[i] = a_ur
-                self._a_ul[i] = a_ul
-                self._a_rd[i] = a_rd
-                self._a_dl[i] = a_dl
-            else:
-                col = (default_color,) * 6
-            if (
-                A.shape[0] != oldA.shape[0]
-                or A.shape[1] != oldA.shape[1]
-                or (col[0] != oldcol[0]).any()
-                or (col[1] != oldcol[1]).any()
+        if self._Nneq != len(colors):
+            raise ValueError("Incompatible cell and representations")
+
+        restart_env = False
+        for i, A0 in enumerate(tensors):
+            if A0.shape != self._neq_As[i].shape:
+                raise ValueError("Try to set elementary tensor with incorrect shape")
+            A = U1_SymmetricTensor.from_array(A0, colors[i], 2)
+            if not all(
+                (r1 == r2).all() for r1, r2 in zip(colors[i], self._neq_As[i].axis_reps)
             ):
-                # not a problem for the code, but physically meaningless
-                raise ValueError(
-                    "Physical and ancilla dimensions and colors cannot change"
-                )
+                restart_env = True
 
-            # when the shape of a tensor (or its quantum numbers) changes, we still
-            # would like to keep the environment. This is still possible: A legs were
-            # obtained from some an SVD then truncated, ie some singular value was put
-            # to 0 (either in former or current A). Just add a row of zero corresponding
-            # to this 0 singular value in the tensor that misses it and dimensions
-            # match. In case of U(1) symmetry, this is the same but sector wise.
+            a_ul, a_ur, a_rd, a_dl = _block_AAconj(A)
+            self._a_ur[i] = a_ur
+            self._a_ul[i] = a_ul
+            self._a_rd[i] = a_rd
+            self._a_dl[i] = a_dl
 
-            x, y = self._neq_coords[i]
-            # up axis
-            if A.shape[2] != oldA.shape[2] or (oldcol[2] != col[2]).any():
-                j = self._indices[x % self._Lx, (y - 1) % self._Ly]
-                oldT1 = self._neq_T1s[j]
-                newT1 = np.zeros(
-                    (oldT1.shape[0], A.shape[2], A.shape[2], oldT1.shape[3])
-                )
-                if oldcol[2].size:  # colorwise copy
-                    old_rows, new_rows = _color_correspondence(
-                        oldcol[2], col[2]
-                    )  # put copy outside of color loop
-                else:  # colors are not provided
-                    old_rows = slice(0, oldA.shape[2])
-                    new_rows = slice(0, A.shape[2])
-                newT1[:, new_rows, new_rows] = oldT1[:, old_rows, old_rows]
-                self._neq_T1s[j] = newT1
+        if restart_env:
+            print("*** WARNING *** restart environment from scratch")
 
-            # right axis
-            if A.shape[3] != oldA.shape[3] or (oldcol[3] != col[3]).any():
-                j = self._indices[(x + 1) % self._Lx, y % self._Ly]
-                oldT2 = self._neq_T2s[j]
-                newT2 = np.zeros(
-                    (oldT2.shape[0], oldT2.shape[1], A.shape[3], A.shape[3])
-                )
-                if oldcol[3].size:  # colorwise copy
-                    old_rows, new_rows = _color_correspondence(oldcol[3], col[3])
-                else:  # colors are not provided
-                    old_rows = slice(0, oldA.shape[3])
-                    new_rows = slice(0, A.shape[3])
-                newT2[:, :, new_rows, new_rows] = oldT2[:, :, old_rows, old_rows]
-                self._neq_T2s[j] = newT2
-
-            if A.shape[4] != oldA.shape[4] or (oldcol[4] != col[4]).any():
-                j = self._indices[x % self._Lx, (y + 1) % self._Ly]
-                oldT3 = self._neq_T3s[j]
-                newT3 = np.zeros(
-                    (A.shape[4], A.shape[4], oldT3.shape[2], oldT3.shape[3])
-                )
-                if oldcol[4].size:  # colorwise copy
-                    old_rows, new_rows = _color_correspondence(oldcol[4], col[4])
-                else:  # colors are not provided
-                    old_rows = slice(0, oldA.shape[4])
-                    new_rows = slice(0, A.shape[4])
-                newT3[new_rows, new_rows] = oldT3[old_rows, old_rows]
-                self._neq_T3s[j] = newT3
-
-            if A.shape[5] != oldA.shape[5] or (oldcol[5] != col[5]).any():
-                j = self._indices[(x - 1) % self._Lx, y % self._Ly]
-                oldT4 = self._neq_T4s[j]
-                newT4 = np.zeros(
-                    (oldT4.shape[0], A.shape[5], A.shape[5], oldT4.shape[3])
-                )
-                if oldcol[5].size:  # colorwise copy
-                    old_rows, new_rows = _color_correspondence(oldcol[5], col[5])
-                else:  # colors are not provided
-                    old_rows = slice(0, oldA.shape[5])
-                    new_rows = slice(0, A.shape[5])
-                newT4[:, new_rows, new_rows] = oldT4[:, old_rows, old_rows]
-                self._neq_T4s[j] = newT4
-
-            self._neq_As[i] = A
-            self._colors_A[i] = col
-
-        # reset all corners C-T // T-A since A changed
-        self._corners_ul = [None] * self._Nneq
-        self._corners_ur = [None] * self._Nneq
-        self._corners_dl = [None] * self._Nneq
-        self._corners_dr = [None] * self._Nneq
-        self._Dmax = max(max(A.shape[2:]) for A in self._neq_As)
+        else:  # reset all corners C-T // T-A since A changed
+            self._corners_ul = [None] * self._Nneq
+            self._corners_ur = [None] * self._Nneq
+            self._corners_dl = [None] * self._Nneq
+            self._corners_dr = [None] * self._Nneq
+            self._Dmax = max(max(A.shape[2:]) for A in self._neq_As)
 
     @property
     def cell(self):
@@ -682,98 +433,32 @@ class CTM_Environment(object):
     def get_A(self, x, y):
         return self._neq_As[self._indices[x % self._Lx, y % self._Ly]]
 
-    def get_colors_A(self, x, y):
-        return self._colors_A[self._indices[x % self._Lx, y % self._Ly]]
-
     def get_C1(self, x, y):
         return self._neq_C1s[self._indices[x % self._Lx, y % self._Ly]]
-
-    def get_color_C1_r(self, x, y):
-        return self._colors_C1_r[self._indices[x % self._Lx, y % self._Ly]]
-
-    def get_color_C1_d(self, x, y):
-        return self._colors_C1_d[self._indices[x % self._Lx, y % self._Ly]]
 
     def get_T1(self, x, y):
         return self._neq_T1s[self._indices[x % self._Lx, y % self._Ly]]
 
-    def get_color_T1_r(self, x, y):
-        return -self._colors_C2_l[self._indices[(x + 1) % self._Lx, y % self._Ly]]
-
-    def get_color_T1_d(self, x, y):
-        return -self._colors_A[self._indices[x % self._Lx, (y + 1) % self._Ly]][2]
-
-    def get_color_T1_l(self, x, y):
-        return -self._colors_C1_r[self._indices[(x - 1) % self._Lx, y % self._Ly]]
-
     def get_C2(self, x, y):
         return self._neq_C2s[self._indices[x % self._Lx, y % self._Ly]]
-
-    def get_color_C2_d(self, x, y):
-        return self._colors_C2_d[self._indices[x % self._Lx, y % self._Ly]]
-
-    def get_color_C2_l(self, x, y):
-        return self._colors_C2_l[self._indices[x % self._Lx, y % self._Ly]]
 
     def get_T2(self, x, y):
         return self._neq_T2s[self._indices[x % self._Lx, y % self._Ly]]
 
-    def get_color_T2_u(self, x, y):
-        return -self._colors_C2_d[self._indices[x % self._Lx, (y - 1) % self._Ly]]
-
-    def get_color_T2_d(self, x, y):
-        return -self._colors_C3_u[self._indices[x % self._Lx, (y + 1) % self._Ly]]
-
-    def get_color_T2_l(self, x, y):
-        return -self._colors_A[self._indices[(x - 1) % self._Lx, y % self._Ly]][3]
-
     def get_C3(self, x, y):
         return self._neq_C3s[self._indices[x % self._Lx, y % self._Ly]]
-
-    def get_color_C3_u(self, x, y):
-        return self._colors_C3_u[self._indices[x % self._Lx, y % self._Ly]]
-
-    def get_color_C3_l(self, x, y):
-        return self._colors_C3_l[self._indices[x % self._Lx, y % self._Ly]]
 
     def get_T3(self, x, y):
         return self._neq_T3s[self._indices[x % self._Lx, y % self._Ly]]
 
-    def get_color_T3_u(self, x, y):
-        return -self._colors_A[self._indices[x % self._Lx, (y - 1) % self._Ly]][4]
-
-    def get_color_T3_r(self, x, y):
-        return -self._colors_C3_l[self._indices[(x + 1) % self._Lx, y % self._Ly]]
-
-    def get_color_T3_l(self, x, y):
-        return -self._colors_C4_r[self._indices[(x - 1) % self._Lx, y % self._Ly]]
-
     def get_C4(self, x, y):
         return self._neq_C4s[self._indices[x % self._Lx, y % self._Ly]]
-
-    def get_color_C4_u(self, x, y):
-        return self._colors_C4_u[self._indices[x % self._Lx, y % self._Ly]]
-
-    def get_color_C4_r(self, x, y):
-        return self._colors_C4_r[self._indices[x % self._Lx, y % self._Ly]]
 
     def get_T4(self, x, y):
         return self._neq_T4s[self._indices[x % self._Lx, y % self._Ly]]
 
-    def get_color_T4_u(self, x, y):
-        return -self._colors_C1_d[self._indices[x % self._Lx, (y - 1) % self._Ly]]
-
-    def get_color_T4_r(self, x, y):
-        return -self._colors_A[self._indices[(x + 1) % self._Lx, y % self._Ly]][5]
-
-    def get_color_T4_d(self, x, y):
-        return -self._colors_C4_u[self._indices[x % self._Lx, (y + 1) % self._Ly]]
-
     def get_P(self, x, y):
         return self._neq_P[self._indices[x % self._Lx, y % self._Ly]]
-
-    def get_color_P(self, x, y):
-        return self._colors_P[self._indices[x % self._Lx, y % self._Ly]]
 
     def get_Pt(self, x, y):
         return self._neq_Pt[self._indices[x % self._Lx, y % self._Ly]]
@@ -814,21 +499,16 @@ class CTM_Environment(object):
     def set_corner_dr(self, x, y, dr):
         self._corners_dr[self._indices[x % self._Lx, y % self._Ly]] = dr
 
-    def store_projectors(self, x, y, P, Pt, color_P=default_color):
+    def store_projectors(self, x, y, P, Pt):
         j = self._indices[x % self._Lx, y % self._Ly]
         self._neq_P[j] = P
         self._neq_Pt[j] = Pt
-        self._colors_P[j] = color_P
 
-    def store_renormalized_tensors(
-        self, x, y, nCX, nT, nCY, color_P=default_color, color_Pt=default_color
-    ):
+    def store_renormalized_tensors(self, x, y, nCX, nT, nCY):
         j = self._indices[x % self._Lx, y % self._Ly]
         self._nCX[j] = nCX
         self._nT[j] = nT
         self._nCY[j] = nCY
-        self._colors_CX[j] = color_P
-        self._colors_CY[j] = color_Pt
 
     def _reset_temp_lists(self):
         # reset is needed because no list copy occurs
@@ -837,16 +517,11 @@ class CTM_Environment(object):
         self._nCX = [None] * self._Nneq
         self._nT = [None] * self._Nneq
         self._nCY = [None] * self._Nneq
-        self._colors_P = [None] * self._Nneq
-        self._colors_CX = [None] * self._Nneq
-        self._colors_CY = [None] * self._Nneq
 
     def fix_renormalized_up(self):
         self._neq_C1s = self._nCX
         self._neq_T1s = self._nT
         self._neq_C2s = self._nCY
-        self._colors_C1_r = self._colors_CX
-        self._colors_C2_l = self._colors_CY
         self._corners_ul = [None] * self._Nneq
         self._corners_ur = [None] * self._Nneq
         self._reset_temp_lists()
@@ -855,8 +530,6 @@ class CTM_Environment(object):
         self._neq_C2s = self._nCX
         self._neq_T2s = self._nT
         self._neq_C3s = self._nCY
-        self._colors_C2_d = self._colors_CX
-        self._colors_C3_u = self._colors_CY
         self._corners_ur = [None] * self._Nneq
         self._corners_dr = [None] * self._Nneq
         self._reset_temp_lists()
@@ -865,8 +538,6 @@ class CTM_Environment(object):
         self._neq_C3s = self._nCX
         self._neq_T3s = self._nT
         self._neq_C4s = self._nCY
-        self._colors_C3_l = self._colors_CX
-        self._colors_C4_r = self._colors_CY
         self._corners_dr = [None] * self._Nneq
         self._corners_dl = [None] * self._Nneq
         self._reset_temp_lists()
@@ -875,8 +546,6 @@ class CTM_Environment(object):
         self._neq_C4s = self._nCX
         self._neq_T4s = self._nT
         self._neq_C1s = self._nCY
-        self._colors_C4_u = self._colors_CX
-        self._colors_C1_d = self._colors_CY
         self._corners_dl = [None] * self._Nneq
         self._corners_ul = [None] * self._Nneq
         self._reset_temp_lists()

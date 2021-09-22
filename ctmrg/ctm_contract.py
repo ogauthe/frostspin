@@ -1,5 +1,3 @@
-from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
-
 ###############################################################################
 #  construct 2x2 corners
 #  memory: peak at 2*a*d*chi**2*D**4
@@ -195,44 +193,30 @@ def contract_r_half(T1, C2, Au, T2u, Ad, T2d, T3, C3):
 # rows and as columns. To save memory, only 2 versions of a exsit, a_ul and a_ur. To
 # contract dr and dl corenrs, the transpose of a_ul and a_ur are used (same storage,
 # see ctm_environment).
-def contract_ul_corner_U1(C1, T1, T4, a_ul, col_T1_r, col_T4_d):
+def contract_ul_corner_U1(C1, T1, T4, a_ul):
     """
     Contract upper left corner using U(1) symmetry.
     """
-    ul = C1 @ T4.reshape(T4.shape[0], T4.shape[1] ** 2 * T4.shape[3])
-    ul = add_a_blockU1(
-        T1.transpose(1, 2, 0, 3).reshape(T1.shape[1] ** 2, T1.shape[0], T1.shape[3]),
-        ul.reshape(C1.shape[0], T4.shape[1] ** 2, T4.shape[3]),
-        a_ul,
-        col_T1_r,
-        col_T4_d,
-        return_blockwise=True,
-    )
+    ul = C1 @ T4.permutate((0,), (1, 2, 3))
+    ul = add_a_blockU1(T1.permutate((1, 2, 0), (3,)), ul, a_ul)
     return ul
 
 
-def contract_ur_corner_U1(T2, C2, a_ur, T1, col_T2_d, col_T1_l):
+def contract_ur_corner_U1(T2, C2, a_ur, T1):
     """
     Contract upper right corner using U(1) symmetry.
     """
-    ur = C2 @ T1.reshape(T1.shape[0], T1.shape[1] ** 2 * T1.shape[3])
+    ur = C2 @ T1.permutate((0,), (1, 2, 3))
     # a_ur has swapped up and right legs:
     #  3
     # 1 2
     #  0
     # + need to swap T2 legs according to add_a_blockU1 conventions
-    ur = add_a_blockU1(
-        T2.transpose(2, 3, 1, 0).reshape(T2.shape[2] ** 2, T2.shape[1], T2.shape[0]),
-        ur.reshape(C2.shape[0], T1.shape[1] ** 2, T1.shape[3]),
-        a_ur,
-        col_T2_d,
-        col_T1_l,
-        return_blockwise=True,
-    )
+    ur = add_a_blockU1(T2.permutate((2, 3, 1), (0,)), ur, a_ur)
     return ur
 
 
-def contract_dr_corner_U1(a_dr, T2, T3, C3, col_T2_u, col_T3_l):
+def contract_dr_corner_U1(a_dr, T2, T3, C3):
     """
     Contract down right corner using U(1) symmetry.
     """
@@ -240,23 +224,17 @@ def contract_dr_corner_U1(a_dr, T2, T3, C3, col_T2_u, col_T3_l):
     # to get a corner with convient leg ordering, a swap is made between T2 and T3, ie
     # add_a_blockU1 is used from the other side of the mirror (instead of a simple
     # rotation from dr to ul). T2 becomes up and T3 becomes left.
-    dr = C3 @ T3.transpose(2, 0, 1, 3).reshape(C3.shape[1], -1)
-    dr = add_a_blockU1(
-        T2.transpose(2, 3, 0, 1).reshape(T2.shape[2] ** 2, T2.shape[0], T2.shape[1]),
-        dr.reshape(C3.shape[0], T3.shape[0] ** 2, T3.shape[3]),
-        a_dr,
-        col_T2_u,
-        col_T3_l,
-        return_blockwise=True,
-    )
+    up = T2.permutate((2, 3, 0), (1,))
+    left = C3 @ T3.permutate((2,), (0, 1, 3))
+    dr = add_a_blockU1(up, left, a_dr)
     return dr.T
 
 
-def contract_dl_corner_U1(T4, a_dl, C4, T3, col_T4_u, col_T3_r):
+def contract_dl_corner_U1(T4, a_dl, C4, T3):
     """
     Contract down left corner using U(1) symmetry.
     """
-    dl = T3.reshape(-1, C4.shape[1]) @ C4.T
+    dl = T3.permutate((0, 1, 2), (3,)) @ C4.T
     # a_dl = a_ur.T has swapped up and right legs:
     #  1
     # 3 0
@@ -264,18 +242,13 @@ def contract_dl_corner_U1(T4, a_dl, C4, T3, col_T4_u, col_T3_r):
     # to get a corner with convient leg ordering, a swap is made between T3 and T4, ie
     # add_a_blockU1 is used from the other side of the mirror (instead of a simple
     # rotation from dl to ul). T4 stays left and T3 becomes up.
-    dl = add_a_blockU1(
-        dl.reshape(T3.shape[0] ** 2, T3.shape[2], C4.shape[0]),
-        T4.swapaxes(0, 3).reshape(T4.shape[3], T4.shape[1] ** 2, T4.shape[0]),
-        a_dl,
-        col_T3_r,
-        col_T4_u,
-        return_blockwise=True,
-    )
+
+    left = T4.permutate((3,), (1, 2, 0))
+    dl = add_a_blockU1(dl, left, a_dl)
     return dl.T
 
 
-def add_a_blockU1(up, left, a_block, col_up_r, col_left_d, return_blockwise=False):
+def add_a_blockU1(up, left, a_block):
     """
     Contract up and left then add blockwise a = AA* using U(1) symmetry.
     Use this function in both contract_corner_U1 and renormalize_T_U1.
@@ -290,17 +263,10 @@ def add_a_blockU1(up, left, a_block, col_up_r, col_left_d, return_blockwise=Fals
     a_block: (d5 * d6, d0 * d3) U1_SymmetricTensor
         Contracted A-A* as a U1_SymmetricTensor, with right and down legs merged as rows
         and up and left merged as columns.
-    col_up_r: (d1,) integer ndarray
-        up tensor right irreps.
-    col_left_d: (d4,) integer ndarray
-        left tensor down irreps.
-    return_blockwise: bool, optional
-        Whether to cast the result to array.
 
     Returns
     -------
-    ul: U1_SymmetricTensor / ndarray depending on return_blockwise, shape
-        (d5 * d1, d6 * d4)
+    ul: U1_SymmetricTensor, shape (d5 * d1, d6 * d4)
         Contracted tensor network.
 
     Notes
@@ -324,20 +290,7 @@ def add_a_blockU1(up, left, a_block, col_up_r, col_left_d, return_blockwise=Fals
     #  left=1,2 -> 3,4
     #  |
     #  3 -> 5
-    rep_ul = (
-        a_block.axis_reps[4],
-        a_block.axis_reps[5],
-        -col_up_r,
-        a_block.axis_reps[6],
-        a_block.axis_reps[7],
-        -col_left_d,
-    )
-    ul = (
-        up.reshape(up.shape[0] * up.shape[1], up.shape[2])
-        @ left.reshape(left.shape[0], left.shape[1] * left.shape[2])
-    ).reshape(tuple(rep.size for rep in rep_ul))
-    ul = U1_SymmetricTensor.from_array(ul, rep_ul, 2)
-
+    ul = up @ left
     #  --------up-4
     #  |       ||
     #  |       01
@@ -352,7 +305,4 @@ def add_a_blockU1(up, left, a_block, col_up_r, col_left_d, return_blockwise=Fals
     #  |    ||
     #  5    23 -> 3,4
     ul = ul.permutate((0, 1, 4), (2, 3, 5))
-
-    if return_blockwise:
-        return ul
-    return ul.toarray().reshape(ul.matrix_shape)
+    return ul
