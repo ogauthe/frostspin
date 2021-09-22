@@ -184,10 +184,12 @@ class SymmetricTensor(object):
     def __imul__(self, x):
         for b in self._blocks:
             b *= x
+        return self
 
     def __itruediv__(self, x):
         for b in self._blocks:
             b /= x
+        return self
 
     def get_row_representation(self):
         return self.combine_representations(*self._axis_reps[: self._n_leg_rows])
