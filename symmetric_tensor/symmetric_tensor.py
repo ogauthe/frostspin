@@ -59,6 +59,7 @@ class SymmetricTensor(object):
         assert 0 < n_leg_rows < self._ndim
         assert len(block_irreps) == self._nblocks
         assert sorted(block_irreps) == list(block_irreps)
+        assert self.check_blocks_fit_representations()
 
     @property
     def nblocks(self):
