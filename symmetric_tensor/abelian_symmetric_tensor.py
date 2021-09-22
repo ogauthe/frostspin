@@ -266,6 +266,16 @@ class AbelianSymmetricTensor(SymmetricTensor):
             k += d
         return rep
 
+    def check_blocks_fit_representations(self):
+        row_rep = self.get_row_representation()
+        col_rep = self.get_column_representation()
+        for bi in range(self._nblocks):
+            nr = (row_rep == self._block_irreps[bi]).sum()
+            nc = (col_rep == self._block_irreps[bi]).sum()
+            if self._blocks[bi].shape != (nr, nc):
+                return False
+        return True
+
     @classmethod
     def from_array(cls, arr, axis_reps, n_leg_rows, conjugate_columns=True):
         assert arr.shape == tuple(
