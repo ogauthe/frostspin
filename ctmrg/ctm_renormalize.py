@@ -31,7 +31,7 @@ def construct_projectors_abelian(
     U, s, V = M.svd(cut=chi, window=window, rcutoff=rcutoff, degen_ratio=degen_ratio)
 
     for bi, sbi in enumerate(s):
-        s12 = 1 / np.sqrt(sbi)
+        s12 = 1.0 / np.sqrt(sbi)
         U.blocks[bi][:] *= s12
         V.blocks[bi][:] *= s12[:, None]
 
