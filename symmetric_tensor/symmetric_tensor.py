@@ -111,7 +111,7 @@ class SymmetricTensor(object):
     def __add__(self, other):
         assert type(other) == type(self), "Mixing incompatible types"
         assert self._shape == other._shape, "Mixing incompatible axes"
-        assert self._n_row_legs == other._n_row_legs, "Mixing incompatible fusion trees"
+        assert self._n_leg_rows == other._n_leg_rows, "Mixing incompatible fusion trees"
 
         # need to take into account possibly missing block in self or other
         blocks = []
@@ -139,7 +139,7 @@ class SymmetricTensor(object):
     def __sub__(self, other):
         assert type(other) == type(self), "Mixing incompatible types"
         assert self._shape == other._shape, "Mixing incompatible axes"
-        assert self._n_row_legs == other._n_row_legs, "Mixing incompatible fusion trees"
+        assert self._n_leg_rows == other._n_leg_rows, "Mixing incompatible fusion trees"
 
         # need to take into account possibly missing block in self or other
         blocks = []
