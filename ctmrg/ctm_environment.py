@@ -376,23 +376,26 @@ class CTM_Environment(object):
         """
         Set new elementary tensors while keeping environment tensors.
         """
-        if self._Nneq != len(tensors):
+        if len(tensors) != self._Nneq:
             raise ValueError("Incompatible cell and tensors")
-        if self._Nneq != len(colors):
+        if len(colors) != self._Nneq:
             raise ValueError("Incompatible cell and representations")
 
         restart_env = False
         for i, A0 in enumerate(tensors):
-            if A0.shape != self._neq_As[i].shape:
-                raise ValueError("Try to set elementary tensor with incorrect shape")
+            if A0.ndim != 6:
+                raise ValueError("Elementary tensor must be of rank 6")
             A = U1_SymmetricTensor.from_array(A0, colors[i], 2)
-            self._neq_As[i] = A
-            if not all(
-                (r1 == r2).all() for r1, r2 in zip(colors[i], self._neq_As[i].axis_reps)
-            ):
-                restart_env = True
+            # permutation of irreps inside an abelian representation are allowed: irrep
+            # blocks will not be affected.
+            # However if some sector size changes, cannot keep env: restart from scratch
+            # use lists to catch total dimension change
+            for r1, r2 in zip(A.axis_reps, self._neq_As[i].axis_reps):
+                if sorted(r1) != sorted(r2):
+                    restart_env = True
 
             a_ul, a_ur, a_rd, a_dl = _block_AAconj(A)
+            self._neq_As[i] = A
             self._a_ur[i] = a_ur
             self._a_ul[i] = a_ul
             self._a_rd[i] = a_rd
