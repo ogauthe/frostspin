@@ -386,6 +386,7 @@ class CTM_Environment(object):
             if A0.shape != self._neq_As[i].shape:
                 raise ValueError("Try to set elementary tensor with incorrect shape")
             A = U1_SymmetricTensor.from_array(A0, colors[i], 2)
+            self._neq_As[i] = A
             if not all(
                 (r1 == r2).all() for r1, r2 in zip(colors[i], self._neq_As[i].axis_reps)
             ):
@@ -399,6 +400,7 @@ class CTM_Environment(object):
 
         if restart_env:
             print("*** WARNING *** restart environment from scratch")
+            self.restart()
 
         else:  # reset all corners C-T // T-A since A changed
             self._corners_ul = [None] * self._Nneq
