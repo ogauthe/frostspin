@@ -1,8 +1,7 @@
 import numpy as np
-import scipy.linalg as lg
 
-from misc_tools.svd_tools import numba_find_chi_largest, svd_truncate, sparse_svd
 from ctmrg.ctm_contract import add_a_blockU1
+from misc_tools.svd_tools import svd_truncate
 
 
 def construct_projectors(R, Rt, chi, cutoff, degen_ratio, window):
@@ -25,72 +24,19 @@ def construct_projectors(R, Rt, chi, cutoff, degen_ratio, window):
 def construct_projectors_abelian(
     corner1, corner2, corner3, corner4, chi, rcutoff, degen_ratio, window
 ):
-    # corners are already SymmetricTensors with blockwise structure. Construct halves
-    # and R @ Rt directly blockwise, bypass svd method to factorize loops.
-    # There are 4 sets of irreps, since 2 adjacent blocks share one.
-    shared = np.array(
-        sorted(
-            set(corner1.block_irreps)
-            .intersection(corner2.block_irreps)
-            .intersection(corner3.block_irreps)
-            .intersection(corner4.block_irreps)
-        )
-    )
-    n_blocks = shared.size
-    ind1 = corner1.block_irreps.searchsorted(shared)
-    ind2 = corner2.block_irreps.searchsorted(shared)
-    ind3 = corner3.block_irreps.searchsorted(shared)
-    ind4 = corner4.block_irreps.searchsorted(shared)
 
-    # first loop: compute SVD for all blocks
-    block_r, block_rt, block_u, block_s, block_v = [[None] * n_blocks for i in range(5)]
+    R = corner1 @ corner2
+    Rt = corner3 @ corner4
+    M = R @ Rt
+    U, s, V = M.svd(cut=chi, window=window, rcutoff=rcutoff, degen_ratio=degen_ratio)
 
-    for bi in range(n_blocks):  # avoid svd_truncate to compute SVD on the fly
-        block_r[bi] = corner1.blocks[ind1[bi]] @ corner2.blocks[ind2[bi]]
-        block_rt[bi] = corner3.blocks[ind3[bi]] @ corner4.blocks[ind4[bi]]
-        m = block_r[bi] @ block_rt[bi]
-        if min(m.shape) < 3 * chi:  # use full svd for small blocks
-            try:
-                u, s, v = lg.svd(m, full_matrices=False, overwrite_a=True)
-            except lg.LinAlgError as err:
-                print("Error in scipy dense SVD:", err)
-                m = block_r[bi] @ block_rt[bi]  # overwrite_a=True may have erased it
-                u, s, v = lg.svd(
-                    m,
-                    full_matrices=False,
-                    overwrite_a=True,
-                    check_finite=False,
-                    lapack_driver="gesvd",
-                )
-        else:
-            u, s, v = sparse_svd(m, k=chi + window, maxiter=1000)
+    for bi, sbi in enumerate(s):
+        s12 = 1 / np.sqrt(sbi)
+        U.blocks[bi][:] *= s12
+        V.blocks[bi][:] *= s12[:, None]
 
-        block_u[bi] = u
-        block_s[bi] = s
-        block_v[bi] = v
-
-    # keep chi largest singular values + last multiplet
-    block_s = tuple(block_s)
-    block_cuts = numba_find_chi_largest(block_s, chi, rcutoff, degen_ratio)
-
-    # second loop: construct projectors
-    p_blocks = []
-    pt_blocks = []
-    block_irreps = []
-    for bi in range(n_blocks):
-        d = block_cuts[bi]
-        if d:
-            s12 = 1.0 / np.sqrt(block_s[bi][:d])
-            p_blocks.append(block_r[bi].T @ block_u[bi][:, :d].conj() * s12)
-            pt_blocks.append(block_rt[bi] @ block_v[bi][:d].T.conj() * s12)
-            block_irreps.append(shared[bi])
-
-    block_irreps = np.array(block_irreps, dtype=np.int8)
-    reps = tuple(corner2.conjugate_representation(r) for r in corner2.axis_reps[3:])
-    reps = reps + (corner2.init_representation(block_cuts, shared),)
-    P = type(corner2)(reps, 3, p_blocks, block_irreps)
-    reps = tuple(corner2.conjugate_representation(r) for r in reps)
-    Pt = type(corner2)(reps, 3, pt_blocks, block_irreps)
+    P = R.T @ U.conjugate()
+    Pt = Rt @ V.H
     return P, Pt
 
 

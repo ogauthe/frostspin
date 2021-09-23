@@ -74,7 +74,7 @@ def _block_AAconj(A):
         ||                       ||
         45                       67
     """
-    a = A.H @ A
+    a = A.T @ A.conjugate()
     # a_ul used to contract corner_ul: u and l legs are *last* for a_ul @ TT
     a_ul = a.permutate((1, 5, 2, 6), (0, 4, 3, 7))
     a_rd = a_ul.T
