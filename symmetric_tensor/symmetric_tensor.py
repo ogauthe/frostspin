@@ -319,21 +319,20 @@ class SymmetricTensor(object):
             raw_s = tuple(raw_s)
             block_cuts = numba_find_chi_largest(raw_s, cut, rcutoff, degen_ratio)
 
-        block_irreps = []
         u_blocks = []
         s_values = []
         v_blocks = []
-        for bi, c in enumerate(block_cuts):
-            if c:
-                block_irreps.append(self._block_irreps[bi])
-                u_blocks.append(np.ascontiguousarray(raw_u[bi][:, :c]))
-                s_values.append(raw_s[bi][:c])
-                v_blocks.append(raw_v[bi][:c])
+        non_empty = block_cuts.nonzero()[0]
+        for bi in non_empty:
+            cut = block_cuts[bi]
+            u_blocks.append(np.ascontiguousarray(raw_u[bi][:, :cut]))
+            s_values.append(raw_s[bi][:cut])
+            v_blocks.append(raw_v[bi][:cut])
 
-        block_irreps = np.array(block_irreps)
-        mid_rep = self.init_representation(block_cuts, block_irreps)
+        block_irreps = self._block_irreps[non_empty]
+        mid_rep = self.init_representation(block_cuts[non_empty], block_irreps)
         rep_u = self._axis_reps[: self._n_leg_rows] + (mid_rep,)
         rep_v = (mid_rep,) + self._axis_reps[self._n_leg_rows :]
         U = type(self)(rep_u, self._n_leg_rows, u_blocks, block_irreps)
         V = type(self)(rep_v, 1, v_blocks, block_irreps)
-        return U, s_values, block_irreps, V
+        return U, s_values, V
