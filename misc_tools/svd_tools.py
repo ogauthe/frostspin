@@ -148,25 +148,22 @@ def sparse_svd(A, k=6, ncv=None, tol=0, maxiter=None, return_singular_vectors=Tr
     n, m = A.shape
     dmin = min(m, n)
 
-    if k <= 0 or k >= dmin:
-        raise ValueError("k must be between 1 and min(A.shape), k=%d" % k)
+    if k < 1 or k >= dmin:
+        raise ValueError("k must be between 1 and min(A.shape)")
     if n > m:
-        X_dot = X_matmat = A.dot
-        XH_dot = XH_mat = A.T.conj().dot
+        X_dot = A.dot
+        XH_dot = A.T.conj().dot
         transpose = False
     else:
-        XH_dot = XH_mat = A.dot
-        X_dot = X_matmat = A.T.conj().dot
+        X_dot = A.T.conj().dot
+        XH_dot = A.dot
         transpose = True
 
-    def matvec_XH_X(x):
+    def dot_XH_X(x):
         return XH_dot(X_dot(x))
 
-    def matmat_XH_X(x):
-        return XH_mat(X_matmat(x))
-
     XH_X = slg.LinearOperator(
-        matvec=matvec_XH_X, dtype=A.dtype, matmat=matmat_XH_X, shape=(dmin, dmin)
+        matvec=dot_XH_X, matmat=dot_XH_X, shape=(dmin, dmin), dtype=A.dtype
     )
 
     try:
@@ -174,13 +171,13 @@ def sparse_svd(A, k=6, ncv=None, tol=0, maxiter=None, return_singular_vectors=Tr
             XH_X, k=k, tol=tol, maxiter=maxiter, ncv=ncv, which="LM"
         )
     except slg.ArpackNoConvergence as err:
-        print("ARPACK did not converge, use LOBPCG", err)
+        print("*** WARNING *** ARPACK did not converge, use LOBPCG", err)
         X = np.random.RandomState(52).randn(dmin, k)
         eigvals, eigvec = slg.lobpcg(XH_X, X, tol=tol, maxiter=maxiter)
 
     # improve stability following https://github.com/scipy/scipy/pull/11829
     # matrices should be small enough to avoid convergence errors in lg.svd
-    u = X_matmat(eigvec)
+    u = X_dot(eigvec)
     if not return_singular_vectors:
         s = lg.svd(u, compute_uv=False, overwrite_a=True)
         return s
