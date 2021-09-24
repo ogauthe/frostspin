@@ -155,8 +155,8 @@ def sparse_svd(A, k=6, ncv=None, tol=0, maxiter=None, return_singular_vectors=Tr
         XH_dot = A.T.conj().dot
         transpose = False
     else:
-        XH_dot = A.dot
         X_dot = A.T.conj().dot
+        XH_dot = A.dot
         transpose = True
 
     def dot_XH_X(x):
@@ -177,7 +177,7 @@ def sparse_svd(A, k=6, ncv=None, tol=0, maxiter=None, return_singular_vectors=Tr
 
     # improve stability following https://github.com/scipy/scipy/pull/11829
     # matrices should be small enough to avoid convergence errors in lg.svd
-    u = dot_XH_X(eigvec)
+    u = X_dot(eigvec)
     if not return_singular_vectors:
         s = lg.svd(u, compute_uv=False, overwrite_a=True)
         return s
