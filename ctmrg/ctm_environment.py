@@ -60,8 +60,8 @@ def _block_AAconj(A):
     we have a_ul, a_ur, a_dl and a_dr. However to save memory, a_dl and a_dr can be
     defined as a_ur.T and a_dl.T and use same memory storage.
     To be able to use a_ur and a_ul in the same function, unconventional leg order is
-    required in a_ur. Here, we use 4-legs tensor to specify leg ordering, but as
-    U1_SymmetricTensor matrices legs 0 and 1 are merged, so are legs 2 and 3.
+    required in a_ur.
+
         45                       67
         ||                       ||
     67=a_ul=01               23=a_ur=45
@@ -74,12 +74,12 @@ def _block_AAconj(A):
         ||                       ||
         45                       67
     """
-    a = A.T @ A.conjugate()
-    # a_ul used to contract corner_ul: u and l legs are *last* for a_ul @ TT
-    a_ul = a.permutate((1, 5, 2, 6), (0, 4, 3, 7))
+    # optimize dot(A,A*) using A.H, then put conjugate version as 2nd layer in permutate
+    a_ul = A.H @ A
+    a_ul = a_ul.permutate((5, 1, 6, 2), (4, 0, 7, 3))
     a_rd = a_ul.T
 
-    a_ur = a.permutate((2, 6, 3, 7), (1, 5, 0, 4))
+    a_ur = a_ul.permutate((2, 3, 6, 7), (0, 1, 4, 5))
     a_dl = a_ur.T
     return a_ul, a_ur, a_rd, a_dl
 
