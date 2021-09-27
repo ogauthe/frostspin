@@ -33,6 +33,22 @@ def random_U1_tensor(axis_reps, rng=None):
     return t0
 
 
+def eq_st(st1, st2):
+    if type(st1) != type(st2):
+        return False
+    if st1.shape != st2.shape:
+        return False
+    if st1.nblocks != st2.nblocks:
+        return False
+    for ax in range(st1.ndim):
+        if not np.asarray(st1.axis_reps[ax] == st2.axis_reps[ax]).all():
+            return False
+    for bi in range(st1.nblocks):
+        if not (st1.blocks[bi] == st2.blocks[bi]).all():
+            return False
+    return True
+
+
 # Consider random tensors with each bond having a different representation of different
 # size. CTMRG will crash if any mismatch appears in leg contractions.
 rng = np.random.default_rng(42)
@@ -54,6 +70,19 @@ tensors = (A0, B0)
 colors = (axesA, axesB)
 chi = 20
 ctm = CTMRG_U1.from_elementary_tensors(tensors, colors, tiling, chi, verbosity=100)
+
+ctm.save_to_file("data_test_ctmrg.npz")
+ctm2 = CTMRG_U1.from_file("data_test_ctmrg.npz")
+for (x, y) in ctm.neq_coords:
+    assert eq_st(ctm._env.get_A(x, y), ctm2._env.get_A(x, y))
+    assert eq_st(ctm._env.get_C1(x, y), ctm2._env.get_C1(x, y))
+    assert eq_st(ctm._env.get_C2(x, y), ctm2._env.get_C2(x, y))
+    assert eq_st(ctm._env.get_C3(x, y), ctm2._env.get_C3(x, y))
+    assert eq_st(ctm._env.get_C4(x, y), ctm2._env.get_C4(x, y))
+    assert eq_st(ctm._env.get_T1(x, y), ctm2._env.get_T1(x, y))
+    assert eq_st(ctm._env.get_T2(x, y), ctm2._env.get_T2(x, y))
+    assert eq_st(ctm._env.get_T3(x, y), ctm2._env.get_T3(x, y))
+    assert eq_st(ctm._env.get_T4(x, y), ctm2._env.get_T4(x, y))
 
 # check rdm before iterating: due to random tensors they do not stay hermitian
 rdm2x1_cell, rdm1x2_cell = ctm.compute_rdm_1st_neighbor_cell()
