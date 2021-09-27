@@ -752,7 +752,7 @@ class CTMRG_U1(CTMRG):
     def from_elementary_tensors(
         cls,
         tensors,
-        colors,
+        representations,
         tiling,
         chi_setpoint,
         cutoff=0.0,
@@ -768,8 +768,8 @@ class CTMRG_U1(CTMRG):
         ----------
         tensors : enumerable of tensors
             Elementary tensors of unit cell, from left to right from top to bottom.
-        colors : enumerable of enumerable of integer arrays matching tensors.
-            Quantum numbers for elementary tensors.
+        representations: enumerable of tuple of representation matching tensors.
+            Representation for each tensors axis.
         tiling : string
             String defining the shape of the unit cell, typically "A" or "AB\nCD".
         chi_setpoint : integer
@@ -784,15 +784,16 @@ class CTMRG_U1(CTMRG):
             degeneracies)
         window : int
             During projector construction, compute chi_setpoint + window singular values
-            in each block to preserve multiplet structure inside a color block. Default
-            is 0. Can be kept to 0 if no multiplets are expected inside a color block
-            (as for SU(2)).
+            in each irrep block to preserve global multiplet structure. Required if
+            implemented symmetry is smaller than physial symmetry. Default is 0. Can be
+            kept to 0 if no degeneracies exist within a given irrep block (e.g. U(1) as
+            SU(2) subgroup).
         verbosity : int
             Level of log verbosity. Default is no log.
         """
         if verbosity > 0:
             print("Start CTMRG from scratch using elementary tensors")
-        env = CTM_Environment.from_elementary_tensors(tensors, tiling, colors)
+        env = CTM_Environment.from_elementary_tensors(tiling, tensors, representations)
         return cls(env, chi_setpoint, cutoff, degen_ratio, window, verbosity)
 
     def __repr__(self):
@@ -801,16 +802,13 @@ class CTMRG_U1(CTMRG):
             f"{self.chi_max}"
         )
 
-    def set_tensors(self, tensors, colors, keep_env=True):
-        if keep_env:
-            if self.verbosity > 0:
-                print("set new tensors")
-            self._env.set_tensors(tensors, colors)
-        else:  # restart from scratch
-            if self.verbosity > 0:
-                print("Restart with new tensors and new environment")
-            tiling = "\n".join("".join(s) for s in self.cell)
-            self._env = CTM_Environment.from_elementary_tensors(tensors, tiling, colors)
+    def set_tensors(self, tensors, representations):
+        """
+        Set new elementary tensors while keeping current environment if possible.
+        """
+        if self.verbosity > 0:
+            print("set new tensors")
+        self._env.set_tensors(tensors, representations)
         if self.verbosity > 0:
             print(self)
 
@@ -947,7 +945,7 @@ class CTMRG_U1(CTMRG):
         # 3) store renormalized tensors in the environment
         # renormalization reads C1[x,y] but writes C1[x,y+1]
         # => need to compute every renormalized tensors before storing any of them
-        self._env.fix_renormalized_up()  # also removes corners ul and ur
+        self._env.set_renormalized_tensors_up()  # also removes corners ul and ur
         if self.verbosity > 1:
             print("up move completed")
 
@@ -996,7 +994,7 @@ class CTMRG_U1(CTMRG):
             self._env.store_renormalized_tensors(x - 1, y, nC2, nT2, nC3)
 
         # 3) store renormalized tensors in the environment
-        self._env.fix_renormalized_right()
+        self._env.set_renormalized_tensors_right()
         if self.verbosity > 1:
             print("right move completed")
 
@@ -1045,7 +1043,7 @@ class CTMRG_U1(CTMRG):
             self._env.store_renormalized_tensors(x, y - 1, nC3, nT3, nC4)
 
         # 3) store renormalized tensors in the environment
-        self._env.fix_renormalized_down()
+        self._env.set_renormalized_tensors_down()
         if self.verbosity > 1:
             print("down move completed")
 
@@ -1095,7 +1093,7 @@ class CTMRG_U1(CTMRG):
             self._env.store_renormalized_tensors(x + 1, y, nC4, nT4, nC1)
 
         # 3) store renormalized tensors in the environment
-        self._env.fix_renormalized_left()
+        self._env.set_renormalized_tensors_left()
         if self.verbosity > 1:
             print("left move completed")
 
