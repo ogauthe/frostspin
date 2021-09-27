@@ -1,6 +1,6 @@
 import numpy as np
 
-from ctmrg.ctm_contract import add_a_blockU1
+from ctmrg.ctm_contract import add_a_bilayer
 from misc_tools.svd_tools import svd_truncate
 
 
@@ -238,10 +238,10 @@ def renormalize_T1_U1(Pt, T1, a_ul, P):
     CPU: highly depends on symmetry, worst case chi**2*D**8
     """
     # Pt -> left, need swapaxes
-    # T1 -> up, transpose due to add_a_blockU1 conventions
+    # T1 -> up, transpose due to add_a_bilayer conventions
     nT1 = T1.permutate((1, 2, 0), (3,))
     left = Pt.permutate((2,), (0, 1, 3))
-    nT1 = add_a_blockU1(nT1, left, a_ul)
+    nT1 = add_a_bilayer(nT1, left, a_ul)
     #             -T1-0'
     #            / ||
     #       1'-Pt==AA=0
@@ -261,7 +261,7 @@ def renormalize_T2_U1(Pt, T2, a_ur, P):
     # T2 -> up
     nT2 = T2.permutate((2, 3, 1), (0,))
     left = Pt.permutate((2,), (0, 1, 3))
-    nT2 = add_a_blockU1(nT2, left, a_ur)
+    nT2 = add_a_bilayer(nT2, left, a_ur)
     #                 3
     #                 |
     #                Pt
@@ -293,7 +293,7 @@ def renormalize_T3_U1(Pt, T3, a_dl, P):
     # T3 -> up
     nT3 = T3.permutate((0, 1, 2), (3,))
     left = P.permutate((2,), (0, 1, 3))
-    nT3 = add_a_blockU1(nT3, left, a_dl)
+    nT3 = add_a_bilayer(nT3, left, a_dl)
     #               2
     #              ||
     #            //AA=0
@@ -316,7 +316,7 @@ def renormalize_T4_U1(Pt, T4, a_ul, P):
     # T4 -> left
     nT4 = P.permutate((0, 1, 3), (2,))
     left = T4.permutate((0,), (1, 2, 3))
-    nT4 = add_a_blockU1(nT4, left, a_ul)
+    nT4 = add_a_bilayer(nT4, left, a_ul)
     #              1
     #              |
     #              P
