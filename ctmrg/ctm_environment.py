@@ -3,52 +3,64 @@ import numpy as np
 from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
 
 
-def _initialize_env(a):
+def _initialize_env(A):
     #
-    #   C1-0  3-T1-0  1-C2
-    #   |       ||       |                45
-    #   1       12       0                ||
-    #                                 6,7=AA=0,1
-    #   0       0        0                ||
-    #   |       |        |                23
-    #   T4=1  3-a--1  2=T2
-    #   |  2    |     3  |
-    #   3       2        1
+    #   C1-0   3-T1-0   1-C2
+    #   |        ||        |
+    #   1        12        0
     #
-    #   0       01       0
-    #   |       ||       |
-    #   C4-1  3-T3-2  1-C3
+    #   0       0 2        0
+    #   |        \|        |
+    #   T4=1   5--a--3  2=T2
+    #   |  2     /|     3  |
+    #   3       1 4        1
     #
-    at = a.toarray()
-    axes = a.axis_reps[:4]
-    axes = axes + tuple(a.conjugate_representation(r) for r in a.axis_reps[4:])
-    d0, d1, d2, d3, d4, d5, d6, d7 = a.shape
-    c01 = a.combine_representations(axes[0], axes[1])
-    c23 = a.combine_representations(axes[2], axes[3])
-    c45 = a.combine_representations(axes[4], axes[5])
-    c67 = a.combine_representations(axes[6], axes[7])
+    #   0        01        0
+    #   |        ||        |
+    #   C4-1   3-T3-2   1-C3
 
-    C1 = np.einsum("abcdeegg->abcd", at).reshape(d0 * d1, d2 * d3)
-    C1 = type(a).from_array(C1, (c01, c23), 1)
-    T1 = np.einsum("abcdeegh->abcdgh", at).reshape(d0 * d1, d2, d3, d6 * d7)
-    T1 = type(a).from_array(T1, (c01, axes[2], axes[3], c67), 1)
+    # merge axes quick and dirty
+    combine = A.combine_representations
+    axes = A.axis_reps
+    caxes = tuple(A.conjugate_representation(r) for r in axes)
 
-    C2 = np.einsum("aacdeegh->cdgh", at).reshape(d2 * d3, d6 * d7)
-    C2 = type(a).from_array(C2, (c23, c67), 1)
-    T2 = np.einsum("aacdefgh->efcdgh", at).reshape(d4 * d5, d2 * d3, d6, d7)
-    T2 = type(a).from_array(T2, (c45, c23, axes[6], axes[7]), 1)
+    def init_C(At):
+        temp = At.H @ At
+        temp = temp.permutate((2, 0), (3, 1))
+        row_rep = combine(*temp.axis_reps[:2])
+        col_rep = combine(*temp.axis_reps[2:])
+        C = type(At)((row_rep, col_rep), 1, temp.blocks, temp.block_irreps)
+        return C
 
-    C3 = np.einsum("aaccefgh->efgh", at).reshape(d4 * d5, d6 * d7)
-    C3 = type(a).from_array(C3, (c45, c67), 1)
-    T3 = np.einsum("abccefgh->efabgh", at)
-    T3 = T3.reshape(d4, d5, d0 * d1, d6 * d7)
-    T3 = type(a).from_array(T3, (axes[4], axes[5], c01, c67), 3)
+    C1 = init_C(A.permutate((0, 1, 2, 5), (3, 4)))
+    C2 = init_C(A.permutate((0, 1, 2, 3), (4, 5)))
+    C3 = init_C(A.permutate((0, 1, 3, 4), (2, 5)))
+    C4 = init_C(A.permutate((0, 1, 4, 5), (2, 3)))
 
-    C4 = np.einsum("abccefgg->efab", at).reshape(d4 * d5, d0 * d1)
-    C4 = type(a).from_array(C4, (c45, c01), 1)
-    T4 = np.einsum("abcdefgg->efabcd", at)
-    T4 = T4.reshape(d4 * d5, d0, d1, d2 * d3)
-    T4 = type(a).from_array(T4, (c45, axes[0], axes[1], c23), 1)
+    temp = A.permutate((0, 1, 2), (3, 4, 5))
+    temp = temp.H @ temp
+    temp = temp.permutate((3, 0), (4, 1, 5, 2))
+    repT1 = (combine(caxes[3], axes[3]), axes[4], caxes[4], combine(axes[5], caxes[5]))
+    T1 = type(A)(repT1, 1, temp.blocks, temp.block_irreps)
+
+    temp = A.permutate((0, 1, 3), (2, 4, 5))
+    temp = temp.H @ temp
+    temp = temp.permutate((3, 0), (4, 1, 5, 2))
+    repT2 = (combine(caxes[2], axes[2]), combine(axes[4], caxes[4]), axes[5], caxes[5])
+    T2 = type(A)(repT2, 1, temp.blocks, temp.block_irreps)
+
+    temp = A.permutate((0, 1, 4), (2, 3, 5))
+    temp = temp.H @ temp
+    temp = temp.permutate((3, 0, 4, 1), (5, 2))
+    repT3 = (caxes[2], axes[2], combine(caxes[3], axes[3]), combine(axes[5], caxes[5]))
+    T3 = type(A)(repT3, 3, temp.blocks, temp.block_irreps)
+
+    temp = A.permutate((0, 1, 5), (2, 3, 4))
+    temp = temp.H @ temp
+    temp = temp.permutate((3, 0), (4, 1, 5, 2))
+    repT4 = (combine(caxes[2], axes[2]), axes[3], caxes[3], combine(axes[4], caxes[4]))
+    T4 = type(A)(repT4, 1, temp.blocks, temp.block_irreps)
+
     return C1, T1, C2, T2, C3, T3, C4, T4
 
 
@@ -178,8 +190,8 @@ class CTM_Environment(object):
         Erase current environment tensors C and T and restart them from elementary
         tensors.
         """
-        for i, a in enumerate(self._a_ul):
-            C1, T1, C2, T2, C3, T3, C4, T4 = _initialize_env(a)
+        for i, A in enumerate(self._neq_As):
+            C1, T1, C2, T2, C3, T3, C4, T4 = _initialize_env(A)
             self._neq_C1s[i] = C1
             self._neq_T1s[i] = T1
             self._neq_C2s[i] = C2
@@ -238,7 +250,7 @@ class CTM_Environment(object):
             neq_a_rd.append(a_rd)
             neq_a_dl.append(a_dl)
 
-            C1, T1, C2, T2, C3, T3, C4, T4 = _initialize_env(a_ul)
+            C1, T1, C2, T2, C3, T3, C4, T4 = _initialize_env(A)
             neq_C1s.append(C1)
             neq_T1s.append(T1)
             neq_C2s.append(C2)
