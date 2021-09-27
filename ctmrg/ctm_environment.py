@@ -69,11 +69,10 @@ def _initialize_env(A):
 def _block_AAconj(A):
     """
     Construct U1_SymmetricTensor versions of double layer tensor a = A-A* that can be
-    used in add_a_blockU1. a is a matrix with merged bra and ket legs *and* legs merged
-    in two directions as rows and as columns. One version for each corner is needed, so
-    we have a_ul, a_ur, a_dl and a_dr. However to save memory, a_dl and a_dr can be
-    defined as a_ur.T and a_dl.T and use same memory storage.
-    To be able to use a_ur and a_ul in the same function, unconventional leg order is
+    used in add_a_bilayer. One version for each corner is needed, therefore we have
+    a_ul, a_ur, a_dl and a_dr, still we can define a_dl = a_ur.T and a_dr = a_ul.TH to
+    save memory (same block memory).
+    To be able to use a_ur and a_ul in the same function, non-clockwise leg order is
     required in a_ur.
 
         45                       67
