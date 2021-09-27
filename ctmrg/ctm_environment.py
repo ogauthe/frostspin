@@ -13,7 +13,7 @@ def _initialize_env(A):
     #
     #   0       0 2        0
     #   |        \|        |
-    #   T4=1   5--a--3  2=T2
+    #   T4=1   5--A--3  2=T2
     #   |  2     /|     3  |
     #   3       1 4        1
     #
@@ -208,40 +208,35 @@ class CTM_Environment(object):
         self._reset_temp_lists()
 
     @classmethod
-    def from_elementary_tensors(cls, tensors, tiling, colors, load_env=None):
+    def from_elementary_tensors(cls, tiling, tensors, representations, load_env=None):
         """
         Construct CTM_Environment from elementary tensors according to tiling.
 
         Parameters
         ----------
-        tensors : iterable of Nneq numpy arrays
-          Tensors given from left to right and up to down (as in array.flat)
         tiling : string
-          Tiling pattern, such as 'AB\nCD'.
-        colors : optional, list of Nneq colors
-          U(1) quantum numbers corresponding to the tensors. Note that dimensions are
-          check for compatibility with tensors, but color compatibility between legs to
-          contract is not checked.
+            Tiling pattern, such as 'AB\nBA' or 'AB\nCD'.
+        tensors : iterable of Nneq numpy arrays
+            Tensors given from left to right and up to down (as in array.flat)
+        representations : enum of Nneq representation tuple
+            Representation for each leg of each tensor.
         load_env : string
             File containing previously computed environment to restart from.
         """
-        cell = np.atleast_2d(  # cast one-row cells to 2d array
-            np.genfromtxt(
-                [" ".join(w) for w in tiling.strip().splitlines()], dtype="U1"
-            )
-        )
+        txt = [" ".join(w) for w in tiling.strip().splitlines()]
+        cell = np.atleast_2d(np.genfromtxt(txt, dtype="U1"))
         Nneq = len(set(cell.flat))
         if len(tensors) != Nneq:
             raise ValueError("Tensor number do not match tiling")
-        if len(colors) != Nneq:
+        if len(representations) != Nneq:
             raise ValueError("Representation number do not match tiling")
 
         # store tensors according to cell.flat order
         neq_As = []
-        for A0, col_A in zip(tensors, colors):
+        for A0, rep_A in zip(tensors, representations):
             if A0.ndim != 6:
                 raise ValueError("Elementary tensor must be of rank 6")
-            neq_As.append(U1_SymmetricTensor.from_array(A0, col_A, 2))
+            neq_As.append(U1_SymmetricTensor.from_array(A0, rep_A, 2))
 
         return cls(cell, neq_As, load_env=load_env)
 
@@ -302,7 +297,6 @@ class CTM_Environment(object):
                 reps_A.append(reps)
 
         # call from array after closing file
-        neq_a_ul, neq_a_ur, neq_a_rd, neq_a_dl = [[None] * Nneq for i in range(4)]
         for i in range(Nneq):
             neq_As[i] = U1_SymmetricTensor.from_array(neq_As[i], reps_A[i], 2)
 
@@ -405,20 +399,20 @@ class CTM_Environment(object):
         self._neq_T3s = neq_T3s
         self._neq_T4s = neq_T4s
 
-    def set_tensors(self, tensors, colors):
+    def set_tensors(self, tensors, representations):
         """
-        Set new elementary tensors while keeping environment tensors.
+        Set new elementary tensors while keeping environment tensors if possible.
         """
         if len(tensors) != self._Nneq:
             raise ValueError("Incompatible cell and tensors")
-        if len(colors) != self._Nneq:
+        if len(representations) != self._Nneq:
             raise ValueError("Incompatible cell and representations")
 
         restart_env = False
         for i, A0 in enumerate(tensors):
             if A0.ndim != 6:
                 raise ValueError("Elementary tensor must be of rank 6")
-            A = U1_SymmetricTensor.from_array(A0, colors[i], 2)
+            A = U1_SymmetricTensor.from_array(A0, representations[i], 2)
             # permutation of irreps inside an abelian representation are allowed: irrep
             # blocks will not be affected.
             # However if some sector size changes, cannot keep env: restart from scratch
@@ -437,13 +431,13 @@ class CTM_Environment(object):
         if restart_env:
             print("*** WARNING *** restart environment from scratch")
             self.restart()
+            self._Dmax = max(max(A.shape[2:]) for A in self._neq_As)
 
         else:  # reset all corners C-T // T-A since A changed
             self._corners_ul = [None] * self._Nneq
             self._corners_ur = [None] * self._Nneq
             self._corners_dl = [None] * self._Nneq
             self._corners_dr = [None] * self._Nneq
-            self._Dmax = max(max(A.shape[2:]) for A in self._neq_As)
 
     @property
     def cell(self):
@@ -556,7 +550,7 @@ class CTM_Environment(object):
         self._nT = [None] * self._Nneq
         self._nCY = [None] * self._Nneq
 
-    def fix_renormalized_up(self):
+    def set_renormalized_tensors_up(self):
         self._neq_C1s = self._nCX
         self._neq_T1s = self._nT
         self._neq_C2s = self._nCY
@@ -564,7 +558,7 @@ class CTM_Environment(object):
         self._corners_ur = [None] * self._Nneq
         self._reset_temp_lists()
 
-    def fix_renormalized_right(self):
+    def set_renormalized_tensors_right(self):
         self._neq_C2s = self._nCX
         self._neq_T2s = self._nT
         self._neq_C3s = self._nCY
@@ -572,7 +566,7 @@ class CTM_Environment(object):
         self._corners_dr = [None] * self._Nneq
         self._reset_temp_lists()
 
-    def fix_renormalized_down(self):
+    def set_renormalized_tensors_down(self):
         self._neq_C3s = self._nCX
         self._neq_T3s = self._nT
         self._neq_C4s = self._nCY
@@ -580,7 +574,7 @@ class CTM_Environment(object):
         self._corners_dl = [None] * self._Nneq
         self._reset_temp_lists()
 
-    def fix_renormalized_left(self):
+    def set_renormalized_tensors_left(self):
         self._neq_C4s = self._nCX
         self._neq_T4s = self._nT
         self._neq_C1s = self._nCY
