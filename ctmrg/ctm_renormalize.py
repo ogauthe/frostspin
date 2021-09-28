@@ -29,6 +29,7 @@ def construct_projectors_abelian(
     Rt = corner3 @ corner4
     M = R @ Rt
     U, s, V = M.svd(cut=chi, window=window, rcutoff=rcutoff, degen_ratio=degen_ratio)
+    del M
 
     for bi, sbi in enumerate(s):
         s12 = 1.0 / np.sqrt(sbi)
