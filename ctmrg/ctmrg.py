@@ -751,13 +751,14 @@ class CTMRG_U1(CTMRG):
     @classmethod  # no specialized __init__ required
     def from_elementary_tensors(
         cls,
+        tiling,
         tensors,
         representations,
-        tiling,
         chi_setpoint,
         cutoff=0.0,
         degen_ratio=1.0,
         window=0,
+        load_env=None,
         verbosity=0,
     ):
         """
@@ -788,12 +789,18 @@ class CTMRG_U1(CTMRG):
             implemented symmetry is smaller than physial symmetry. Default is 0. Can be
             kept to 0 if no degeneracies exist within a given irrep block (e.g. U(1) as
             SU(2) subgroup).
+        load_env : string
+            File to restart corner and edge environment tensors from, independently
+            from elementary tensors. If None, environment tensors will be initalized
+            from elementary tensors.
         verbosity : int
             Level of log verbosity. Default is no log.
         """
         if verbosity > 0:
             print("Start CTMRG from scratch using elementary tensors")
-        env = CTM_Environment.from_elementary_tensors(tiling, tensors, representations)
+        env = CTM_Environment.from_elementary_tensors(
+            tiling, tensors, representations, load_env=load_env
+        )
         return cls(env, chi_setpoint, cutoff, degen_ratio, window, verbosity)
 
     def __repr__(self):
