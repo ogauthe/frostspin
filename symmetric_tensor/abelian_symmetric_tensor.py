@@ -204,7 +204,8 @@ def _numba_abelian_transpose(
         new_row_block_indices,
     ) = _numpy_get_indices(new_row_irreps)
     block_cols = np.empty((new_col_irreps.size,), dtype=np.int64)
-    new_blocks = [np.zeros((0, 0)) for i in range(unique_row_irreps.size)]
+    dtype = old_blocks[0].dtype
+    new_blocks = [np.zeros((0, 0), dtype=dtype) for i in range(unique_row_irreps.size)]
 
     # 3) initialize block sizes. Non-existing blocks stay zero-sized
     # we need to keep all irrep blocks including empty ones (=no column) so that
@@ -216,7 +217,7 @@ def _numba_abelian_transpose(
     for i in numba.prange(unique_row_irreps.size):  # maybe no parallel actually better
         irr_indices = (new_col_irreps == unique_row_irreps[i]).nonzero()[0]
         block_cols[irr_indices] = np.arange(irr_indices.size)
-        new_blocks[i] = np.zeros((row_irrep_count[i], irr_indices.size))
+        new_blocks[i] = np.zeros((row_irrep_count[i], irr_indices.size), dtype=dtype)
 
     # 4) copy all coeff from all blocks to new destination
     for bi in numba.prange(old_block_irreps.size):
