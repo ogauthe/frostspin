@@ -292,7 +292,6 @@ class CTM_Environment(object):
                 reps_A.append(reps)
 
         # call from array after closing file
-        neq_a_ul, neq_a_ur, neq_a_rd, neq_a_dl = [[None] * Nneq for i in range(4)]
         for i in range(Nneq):
             neq_As[i] = U1_SymmetricTensor.from_array(
                 neq_As[i], reps_A[i], 2, conjugate_columns=False
