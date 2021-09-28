@@ -797,7 +797,11 @@ class CTMRG_U1(CTMRG):
             Level of log verbosity. Default is no log.
         """
         if verbosity > 0:
-            print("Start CTMRG from scratch using elementary tensors")
+            print("Start CTMRG from elementary tensors")
+            if load_env is None:
+                print("Initialize environment tensors from elementary tensors")
+            else:
+                print(f"Load environment from file {load_env}")
         env = CTM_Environment.from_elementary_tensors(
             tiling, tensors, representations, load_env=load_env
         )
