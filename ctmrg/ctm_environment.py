@@ -266,8 +266,12 @@ class CTM_Environment(object):
             data[f"_CTM_colors_C3_l_{i}"] = -self._neq_C3s[i].axis_reps[1]
             data[f"_CTM_colors_C4_u_{i}"] = self._neq_C4s[i].axis_reps[0]
             data[f"_CTM_colors_C4_r_{i}"] = -self._neq_C4s[i].axis_reps[1]
-            for leg in range(6):
-                data[f"_CTM_colors_A_{i}_{leg}"] = self._neq_As[i].axis_reps[leg]
+
+            # legacy: A must be save with conjugate_columns = True
+            data[f"_CTM_colors_A_{i}_0"] = self._neq_As[i].axis_reps[0]
+            data[f"_CTM_colors_A_{i}_1"] = self._neq_As[i].axis_reps[1]
+            for leg in range(2, 6):
+                data[f"_CTM_colors_A_{i}_{leg}"] = -self._neq_As[i].axis_reps[leg]
 
         return data
 
@@ -293,9 +297,7 @@ class CTM_Environment(object):
 
         # call from array after closing file
         for i in range(Nneq):
-            neq_As[i] = U1_SymmetricTensor.from_array(
-                neq_As[i], reps_A[i], 2, conjugate_columns=False
-            )
+            neq_As[i] = U1_SymmetricTensor.from_array(neq_As[i], reps_A[i], 2)
 
         return cls(cell, neq_As, load_env=savefile)
 
