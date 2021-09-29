@@ -167,9 +167,7 @@ def sparse_svd(A, k=6, ncv=None, tol=0, maxiter=None, return_singular_vectors=Tr
     )
 
     # lobpcg is not reliable, see scipy issue #10974.
-    eigvals, eigvec = slg.eigsh(
-        XH_X, k=k, tol=tol, maxiter=maxiter, ncv=ncv, which="LM"
-    )
+    eigvals, eigvec = slg.eigsh(XH_X, k=k, tol=tol, maxiter=maxiter, ncv=ncv)
 
     # improve stability following https://github.com/scipy/scipy/pull/11829
     # matrices should be small enough to avoid convergence errors in lg.svd
