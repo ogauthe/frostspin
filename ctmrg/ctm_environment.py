@@ -148,30 +148,12 @@ class CTM_Environment(object):
             self._a_dl.append(a_dl)
 
         # 4) initialize environment tensors
-        if load_env is None:  # from A
-            self._neq_C1s, self._neq_T1s = [], []
-            self._neq_C2s, self._neq_T2s = [], []
-            self._neq_C3s, self._neq_T3s = [], []
-            self._neq_C4s, self._neq_T4s = [], []
-            for A in neq_As:
-                C1, T1, C2, T2, C3, T3, C4, T4 = _initialize_env(A)
-                self._neq_C1s.append(C1)
-                self._neq_T1s.append(T1)
-                self._neq_C2s.append(C2)
-                self._neq_T2s.append(T2)
-                self._neq_C3s.append(C3)
-                self._neq_T3s.append(T3)
-                self._neq_C4s.append(C4)
-                self._neq_T4s.append(T4)
+        if load_env is None:
+            self.restart()
         else:  # from file
-            self.load_environment_from_file(load_env)
-
-        # 5) initialize temp arrays
-        self._corners_ul = [None] * self._Nneq
-        self._corners_ur = [None] * self._Nneq
-        self._corners_dl = [None] * self._Nneq
-        self._corners_dr = [None] * self._Nneq
-        self._reset_temp_lists()
+            loaded = self.load_environment_from_file(load_env)
+            if not loaded:
+                self.restart()
 
     @property
     def Dmax(self):
@@ -189,16 +171,20 @@ class CTM_Environment(object):
         Erase current environment tensors C and T and restart them from elementary
         tensors.
         """
-        for i, A in enumerate(self._neq_As):
+        self._neq_C1s, self._neq_T1s = [], []
+        self._neq_C2s, self._neq_T2s = [], []
+        self._neq_C3s, self._neq_T3s = [], []
+        self._neq_C4s, self._neq_T4s = [], []
+        for A in self._neq_As:
             C1, T1, C2, T2, C3, T3, C4, T4 = _initialize_env(A)
-            self._neq_C1s[i] = C1
-            self._neq_T1s[i] = T1
-            self._neq_C2s[i] = C2
-            self._neq_T2s[i] = T2
-            self._neq_C3s[i] = C3
-            self._neq_T3s[i] = T3
-            self._neq_C4s[i] = C4
-            self._neq_T4s[i] = T4
+            self._neq_C1s.append(C1)
+            self._neq_T1s.append(T1)
+            self._neq_C2s.append(C2)
+            self._neq_T2s.append(T2)
+            self._neq_C3s.append(C3)
+            self._neq_T3s.append(T3)
+            self._neq_C4s.append(C4)
+            self._neq_T4s.append(T4)
 
         self._corners_ul = [None] * self._Nneq
         self._corners_ur = [None] * self._Nneq
@@ -304,21 +290,38 @@ class CTM_Environment(object):
     def load_environment_from_file(self, savefile):
         """
         Load environment tensors from save file.
+        If representations do not match current elementary tensor representations, no
+        change is made on self and False is returned. Else environment tensors are
+        loaded and the function returns True.
         """
         # TODO upgrade savefile format
-        print(" *** WARNING *** cannot check if loaded environment fits tensors")
-        no_match = False
-
         neq_C1s, neq_C2s, neq_C3s, neq_C4s = [[] for i in range(4)]
         neq_T1s, neq_T2s, neq_T3s, neq_T4s = [[] for i in range(4)]
         r1r, r1d, r2d, r2l, r3u, r3l, r4u, r4r = [[] for i in range(8)]
 
+        match = True
         with np.load(savefile) as data:
             if (self._cell != data["_CTM_cell"]).any():
-                raise ValueError("Unit cell differs from savefile")
+                print(
+                    " *** WARNING *** no CTM environment reload:",
+                    "unit cells do not match",
+                )
+                return False
 
             # load dense array + add minus signs for backward compatibility
             for i in range(self._Nneq):
+                saxes = [sorted(r) for r in self._neq_As[i].axis_reps]
+                match &= sorted(data[f"_CTM_colors_A_{i}_0"]) == saxes[0]
+                match &= sorted(data[f"_CTM_colors_A_{i}_1"]) == saxes[1]
+                for leg in range(2, 6):
+                    match &= sorted(-data[f"_CTM_colors_A_{i}_{leg}"]) == saxes[leg]
+                if not match:
+                    print(
+                        " *** WARNING *** no CTM environment reload:",
+                        "representations do not match",
+                    )
+                    return False
+
                 neq_C1s.append(data[f"_CTM_C1_{i}"])
                 neq_C2s.append(data[f"_CTM_C2_{i}"])
                 neq_C3s.append(data[f"_CTM_C3_{i}"])
@@ -336,12 +339,6 @@ class CTM_Environment(object):
                 r4u.append(data[f"_CTM_colors_C4_u_{i}"])
                 r4r.append(-data[f"_CTM_colors_C4_r_{i}"])
 
-        if no_match:
-            print(" *** WARNING *** savefile environment do not match tensors A")
-            print("Restart environment from scratch")
-            self.restart()
-            return
-
         # call from array after closing file
         for i in range(self._Nneq):
             neq_C1s[i] = U1_SymmetricTensor.from_array(
@@ -357,6 +354,7 @@ class CTM_Environment(object):
                 neq_C4s[i], (r4u[i], r4r[i]), 1, conjugate_columns=False
             )
 
+        # first fill corners, to access their representation with get_Ci(x,y)
         self._neq_C1s = neq_C1s
         self._neq_C2s = neq_C2s
         self._neq_C3s = neq_C3s
@@ -397,6 +395,14 @@ class CTM_Environment(object):
         self._neq_T2s = neq_T2s
         self._neq_T3s = neq_T3s
         self._neq_T4s = neq_T4s
+
+        # reset constructed corners
+        self._corners_ul = [None] * self._Nneq
+        self._corners_ur = [None] * self._Nneq
+        self._corners_dl = [None] * self._Nneq
+        self._corners_dr = [None] * self._Nneq
+        self._reset_temp_lists()
+        return True
 
     def set_tensors(self, tensors, representations):
         """
