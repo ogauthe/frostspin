@@ -71,19 +71,6 @@ reps = (axesA, axesB)
 chi = 20
 ctm = CTMRG_U1.from_elementary_tensors(tiling, tensors, reps, chi, verbosity=100)
 
-ctm.save_to_file("data_test_ctmrg.npz")
-ctm2 = CTMRG_U1.from_file("data_test_ctmrg.npz")
-for (x, y) in ctm.neq_coords:
-    assert eq_st(ctm._env.get_A(x, y), ctm2._env.get_A(x, y))
-    assert eq_st(ctm._env.get_C1(x, y), ctm2._env.get_C1(x, y))
-    assert eq_st(ctm._env.get_C2(x, y), ctm2._env.get_C2(x, y))
-    assert eq_st(ctm._env.get_C3(x, y), ctm2._env.get_C3(x, y))
-    assert eq_st(ctm._env.get_C4(x, y), ctm2._env.get_C4(x, y))
-    assert eq_st(ctm._env.get_T1(x, y), ctm2._env.get_T1(x, y))
-    assert eq_st(ctm._env.get_T2(x, y), ctm2._env.get_T2(x, y))
-    assert eq_st(ctm._env.get_T3(x, y), ctm2._env.get_T3(x, y))
-    assert eq_st(ctm._env.get_T4(x, y), ctm2._env.get_T4(x, y))
-
 # check rdm before iterating: due to random tensors they do not stay hermitian
 rdm2x1_cell, rdm1x2_cell = ctm.compute_rdm_1st_neighbor_cell()
 for m in rdm2x1_cell:
@@ -99,3 +86,17 @@ for m in rdm_ur_cell:
 
 ctm.iterate()
 ctm.iterate()
+
+# check save and load once tensors != init
+ctm.save_to_file("data_test_ctmrg.npz")
+ctm2 = CTMRG_U1.from_file("data_test_ctmrg.npz")
+for (x, y) in ctm.neq_coords:
+    assert eq_st(ctm._env.get_A(x, y), ctm2._env.get_A(x, y))
+    assert eq_st(ctm._env.get_C1(x, y), ctm2._env.get_C1(x, y))
+    assert eq_st(ctm._env.get_C2(x, y), ctm2._env.get_C2(x, y))
+    assert eq_st(ctm._env.get_C3(x, y), ctm2._env.get_C3(x, y))
+    assert eq_st(ctm._env.get_C4(x, y), ctm2._env.get_C4(x, y))
+    assert eq_st(ctm._env.get_T1(x, y), ctm2._env.get_T1(x, y))
+    assert eq_st(ctm._env.get_T2(x, y), ctm2._env.get_T2(x, y))
+    assert eq_st(ctm._env.get_T3(x, y), ctm2._env.get_T3(x, y))
+    assert eq_st(ctm._env.get_T4(x, y), ctm2._env.get_T4(x, y))
