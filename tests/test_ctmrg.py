@@ -89,7 +89,7 @@ ctm.iterate()
 
 # check save and load once tensors != init
 ctm.save_to_file("data_test_ctmrg.npz")
-ctm2 = CTMRG_U1.from_file("data_test_ctmrg.npz")
+ctm2 = CTMRG_U1.from_file("data_test_ctmrg.npz", verbosity=100)
 for (x, y) in ctm.neq_coords:
     assert eq_st(ctm._env.get_A(x, y), ctm2._env.get_A(x, y))
     assert eq_st(ctm._env.get_C1(x, y), ctm2._env.get_C1(x, y))
