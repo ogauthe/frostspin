@@ -840,9 +840,8 @@ class CTMRG_U1(CTMRG):
         dr = self._env.get_corner_dr(x, y)
         if dr is not None:
             return dr
-        a_dr = self._env.get_a_rd(x + 2, y + 2)
         dr = contract_dr_corner_U1(
-            a_dr,
+            self._env.get_a_rd(x + 2, y + 2),
             self._env.get_T2(x + 3, y + 2),
             self._env.get_T3(x + 2, y + 3),
             self._env.get_C3(x + 3, y + 3),
@@ -859,10 +858,9 @@ class CTMRG_U1(CTMRG):
         dl = self._env.get_corner_dl(x, y)
         if dl is not None:
             return dl
-        a_dl = self._env.get_a_dl(x + 1, y + 2)
         dl = contract_dl_corner_U1(
             self._env.get_T4(x, y + 2),
-            a_dl,
+            self._env.get_a_dl(x + 1, y + 2),
             self._env.get_C4(x, y + 3),
             self._env.get_T3(x + 1, y + 3),
         )
@@ -878,12 +876,11 @@ class CTMRG_U1(CTMRG):
         ul = self._env.get_corner_ul(x, y)
         if ul is not None:
             return ul
-        a_ul = self._env.get_a_ul(x + 1, y + 1)
         ul = contract_ul_corner_U1(
             self._env.get_C1(x, y),
             self._env.get_T1(x + 1, y),
             self._env.get_T4(x, y + 1),
-            a_ul,
+            self._env.get_a_ul(x + 1, y + 1),
         )
         self._env.set_corner_ul(x, y, ul)
         return ul
@@ -897,11 +894,10 @@ class CTMRG_U1(CTMRG):
         ur = self._env.get_corner_ur(x, y)
         if ur is not None:
             return ur
-        a_ur = self._env.get_a_ur(x + 2, y + 1)
         ur = contract_ur_corner_U1(
             self._env.get_T2(x + 3, y + 1),
             self._env.get_C2(x + 3, y),
-            a_ur,
+            self._env.get_a_ur(x + 2, y + 1),
             self._env.get_T1(x + 2, y),
         )
         self._env.set_corner_ur(x, y, ur)
