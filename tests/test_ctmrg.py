@@ -67,9 +67,9 @@ axesB = (-rp, -ra, -rd, -rl, -ru, -rr)
 B0 = random_U1_tensor(axesB, rng)
 
 tensors = (A0, B0)
-colors = (axesA, axesB)
+reps = (axesA, axesB)
 chi = 20
-ctm = CTMRG_U1.from_elementary_tensors(tensors, colors, tiling, chi, verbosity=100)
+ctm = CTMRG_U1.from_elementary_tensors(tiling, tensors, reps, chi, verbosity=100)
 
 ctm.save_to_file("data_test_ctmrg.npz")
 ctm2 = CTMRG_U1.from_file("data_test_ctmrg.npz")
