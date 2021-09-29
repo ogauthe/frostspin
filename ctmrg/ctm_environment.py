@@ -299,7 +299,6 @@ class CTM_Environment(object):
         neq_T1s, neq_T2s, neq_T3s, neq_T4s = [[] for i in range(4)]
         r1r, r1d, r2d, r2l, r3u, r3l, r4u, r4r = [[] for i in range(8)]
 
-        match = True
         with np.load(savefile) as data:
             if (self._cell != data["_CTM_cell"]).any():
                 print(
@@ -311,7 +310,7 @@ class CTM_Environment(object):
             # load dense array + add minus signs for backward compatibility
             for i in range(self._Nneq):
                 saxes = [sorted(r) for r in self._neq_As[i].axis_reps]
-                match &= sorted(data[f"_CTM_colors_A_{i}_0"]) == saxes[0]
+                match = sorted(data[f"_CTM_colors_A_{i}_0"]) == saxes[0]
                 match &= sorted(data[f"_CTM_colors_A_{i}_1"]) == saxes[1]
                 for leg in range(2, 6):
                     match &= sorted(-data[f"_CTM_colors_A_{i}_{leg}"]) == saxes[leg]
