@@ -166,14 +166,10 @@ def sparse_svd(A, k=6, ncv=None, tol=0, maxiter=None, return_singular_vectors=Tr
         matvec=dot_XH_X, matmat=dot_XH_X, shape=(dmin, dmin), dtype=A.dtype
     )
 
-    try:
-        eigvals, eigvec = slg.eigsh(
-            XH_X, k=k, tol=tol, maxiter=maxiter, ncv=ncv, which="LM"
-        )
-    except slg.ArpackNoConvergence as err:
-        print("*** WARNING *** ARPACK did not converge, use LOBPCG", err)
-        X = np.random.RandomState(52).randn(dmin, k)
-        eigvals, eigvec = slg.lobpcg(XH_X, X, tol=tol, maxiter=maxiter)
+    # lobpcg is not reliable, see scipy issue #10974.
+    eigvals, eigvec = slg.eigsh(
+        XH_X, k=k, tol=tol, maxiter=maxiter, ncv=ncv, which="LM"
+    )
 
     # improve stability following https://github.com/scipy/scipy/pull/11829
     # matrices should be small enough to avoid convergence errors in lg.svd
