@@ -6,16 +6,16 @@ from symmetric_tensor.symmetric_tensor import SymmetricTensor
 
 
 @numba.njit(parallel=True)
-def _numba_fill_block(M, ri, ci):
-    m = np.empty((ri.size, ci.size), dtype=M.dtype)
+def _numba_fill_block(m, ri, ci):
+    b = np.empty((ri.size, ci.size), dtype=m.dtype)
     for i in numba.prange(ri.size):
         for j in numba.prange(ci.size):
-            m[i, j] = M[ri[i], ci[j]]
-    return m
+            b[i, j] = m[ri[i], ci[j]]
+    return b
 
 
 @numba.njit
-def _numba_reduce_to_blocks(M, row_irreps, col_irreps):
+def _numba_reduce_to_blocks(m, row_irreps, col_irreps):
     row_sort = row_irreps.argsort(kind="mergesort")
     sorted_row_irreps = row_irreps[row_sort]
     row_blocks = (
@@ -32,24 +32,26 @@ def _numba_reduce_to_blocks(M, row_irreps, col_irreps):
         ci = (col_irreps == sorted_row_irreps[row_blocks[rbi]]).nonzero()[0]
         if ci.size:
             ri = row_sort[row_blocks[rbi] : row_blocks[rbi + 1]]
-            m = _numba_fill_block(M, ri, ci)  # parallel
-            blocks.append(m)
+            b = _numba_fill_block(m, ri, ci)  # parallel
+            blocks.append(b)
             block_irreps.append(sorted_row_irreps[row_blocks[rbi]])
     block_irreps = np.array(block_irreps)
     return blocks, block_irreps
 
 
 @numba.njit(parallel=True)
-def _numba_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irreps):
+def _numba_blocks_to_array(blocks, block_irreps, row_irreps, col_irreps):
     # blocks must be homogeneous C-array tuple
     # heterogeneous tuple fails on __getitem__
     # homogeneous F-array MAY fail in a non-deterministic way
+    m = np.zeros((row_irreps.size, col_irreps.size), dtype=blocks[0].dtype)
     for bi in numba.prange(len(blocks)):
         row_indices = (row_irreps == block_irreps[bi]).nonzero()[0]
         col_indices = (col_irreps == block_irreps[bi]).nonzero()[0]
         for i in numba.prange(row_indices.size):
             for j in numba.prange(col_indices.size):
-                M[row_indices[i], col_indices[j]] = blocks[bi][i, j]
+                m[row_indices[i], col_indices[j]] = blocks[bi][i, j]
+    return m
 
 
 @numba.njit
@@ -298,11 +300,10 @@ class AbelianSymmetricTensor(SymmetricTensor):
             return arr.transpose(tuple(range(k, self._ndim)) + tuple(range(k)))
         row_irreps = self.combine_representations(*self._axis_reps[: self._n_leg_rows])
         col_irreps = self.combine_representations(*self._axis_reps[self._n_leg_rows :])
-        M = np.zeros(self.matrix_shape, dtype=self.dtype)
-        _numba_blocks_to_array(
-            M, self._blocks, self._block_irreps, row_irreps, col_irreps
+        arr = _numba_blocks_to_array(
+            self._blocks, self._block_irreps, row_irreps, col_irreps
         )
-        return M.reshape(self._shape)
+        return arr.reshape(self._shape)
 
     def permutate(self, row_axes, col_axes):
         # it is more convenient to deal woth 1 tuple of axes and use 1 int to
