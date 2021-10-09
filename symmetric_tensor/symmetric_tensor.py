@@ -52,7 +52,15 @@ class SymmetricTensor(object):
         self._shape = tuple(self.representation_dimension(rep) for rep in axis_reps)
         self._ndim = len(axis_reps)
         self._nblocks = len(blocks)
-        self._blocks = tuple(blocks)
+        if all(b.flags["C"] for b in blocks):
+            self._blocks = tuple(blocks)
+            self._f_contiguous = False
+        elif all(b.flags["F"] for b in blocks):
+            self._blocks = tuple(blocks)
+            self._f_contiguous = True
+        else:
+            self._blocks = tuple(np.ascontiguousarray(b) for b in blocks)
+            self._f_contiguous = False
         self._block_irreps = block_irreps
         self._ncoeff = sum(b.size for b in blocks)
         assert self._nblocks > 0
@@ -83,6 +91,10 @@ class SymmetricTensor(object):
     @property
     def dtype(self):
         return self._blocks[0].dtype
+
+    @property
+    def f_contiguous(self):
+        return self._f_contiguous
 
     @property
     def n_leg_rows(self):
@@ -197,14 +209,6 @@ class SymmetricTensor(object):
 
     def get_column_representation(self):
         return self.combine_representations(*self._axis_reps[self._n_leg_rows :])
-
-    def is_heterogeneous(self):
-        # blocks may be a numba heterogeneous tuple because a size 1 matrix stays
-        # C-contiguous after tranpose and will be cast to numba array(float64, 2d, C),
-        # while any larger matrix will be cast to array(float64, 2d, F).
-        # see https://github.com/numba/numba/issues/5967
-        c_contiguous = [b.flags.c_contiguous for b in self._blocks]
-        return min(c_contiguous) ^ max(c_contiguous)
 
     # symmetry-specific methods with fixed signature
     def toarray(self):

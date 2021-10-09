@@ -1,7 +1,6 @@
 import numpy as np
 import scipy.linalg as lg
 import numba
-from numba import literal_unroll  # numba issue #5344
 
 from symmetric_tensor.symmetric_tensor import SymmetricTensor
 
@@ -40,22 +39,11 @@ def _numba_reduce_to_blocks(M, row_irreps, col_irreps):
     return blocks, block_irreps
 
 
-@numba.njit
-def _numba_to_array_heterogeneous(M, blocks, block_irreps, row_irreps, col_irreps):
-    # tedious dealing with heterogeneous tuple: cannot parallelize, enum or getitem
-    bi = 0
-    for b in literal_unroll(blocks):
-        row_indices = (row_irreps == block_irreps[bi]).nonzero()[0]
-        col_indices = (col_irreps == block_irreps[bi]).nonzero()[0]
-        for i, ri in enumerate(row_indices):
-            for j, cj in enumerate(col_indices):
-                M[ri, cj] = b[i, j]
-        bi += 1
-
-
 @numba.njit(parallel=True)
-def _numba_to_array_homogeneous(M, blocks, block_irreps, row_irreps, col_irreps):
-    # when blocks is homogeneous, loops are simple and can be parallelized
+def _numba_blocks_to_array(M, blocks, block_irreps, row_irreps, col_irreps):
+    # blocks must be homogeneous C-array tuple
+    # heterogeneous tuple fails on __getitem__
+    # homogeneous F-array MAY fail in a non-deterministic way
     for bi in numba.prange(len(blocks)):
         row_indices = (row_irreps == block_irreps[bi]).nonzero()[0]
         col_indices = (col_irreps == block_irreps[bi]).nonzero()[0]
@@ -130,7 +118,7 @@ def _numba_abelian_transpose(
     ----------
     old_shape : (ndim,) integer ndarray
         Tensor shape before transpose.
-    old_blocks : tuple of onb matrices
+    old_blocks : homogeneous tuple of onb C-array
         Reduced blocks before transpose.
     old_block_irreps : (onb,) int8 ndarray
         Block irreps before transpose.
@@ -149,12 +137,14 @@ def _numba_abelian_transpose(
 
     Returns
     -------
-    blocks : tuple of nnb matrices
+    blocks : tuple of nnb C-array
         Reduced blocks after transpose.
     block_irreps : (nnb,) int8 ndarray
         Block irreps after transpose.
 
     Note that old_shape is a ndarray and not a tuple.
+    old_blocks MUST be homogeneous tuple of C-array, using F-array sometimes
+    fails in a non-deterministic way.
     """
     ###################################################################################
     # Loop on old blocks, for each coeff, find new index, new irrep block and copy data.
@@ -302,17 +292,16 @@ class AbelianSymmetricTensor(SymmetricTensor):
         return cls(row_axis_reps + col_axis_reps, n_leg_rows, blocks, block_irreps)
 
     def toarray(self):
+        if self._f_contiguous:  # bug calling numba with f-array unituple
+            arr = self.T.toarray()
+            k = self._ndim - self._n_leg_rows
+            return arr.transpose(tuple(range(k, self._ndim)) + tuple(range(k)))
         row_irreps = self.combine_representations(*self._axis_reps[: self._n_leg_rows])
         col_irreps = self.combine_representations(*self._axis_reps[self._n_leg_rows :])
         M = np.zeros(self.matrix_shape, dtype=self.dtype)
-        if self.is_heterogeneous():  # TODO treat separatly size 1 + call homogeneous
-            _numba_to_array_heterogeneous(
-                M, self._blocks, self._block_irreps, row_irreps, col_irreps
-            )
-        else:
-            _numba_to_array_homogeneous(
-                M, self._blocks, self._block_irreps, row_irreps, col_irreps
-            )
+        _numba_blocks_to_array(
+            M, self._blocks, self._block_irreps, row_irreps, col_irreps
+        )
         return M.reshape(self._shape)
 
     def permutate(self, row_axes, col_axes):
@@ -332,7 +321,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
         ):
             return self.T
 
-        if self.is_heterogeneous():
+        if self._f_contiguous:  # bug calling numba_tranpose with f-array
             axesT = tuple((ax - self._n_leg_rows) % self._ndim for ax in axes)
             return self.T.permutate(axesT[:n_leg_rows], axesT[n_leg_rows:])
 
