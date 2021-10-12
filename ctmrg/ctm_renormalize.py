@@ -60,20 +60,15 @@ def renormalize_T(Pt, T, A, P):
     #       \     01    /
     #        \    ||   /
     #         0'3-T3-20'
-    nT = np.tensordot(
-        T, P.reshape(A.shape[5], A.shape[5], T.shape[3], P.shape[1]), ((3,), (2,))
-    )
-    nT = nT.transpose(0, 3, 1, 4, 2, 5).copy()
-    nT = np.tensordot(A, nT, ((4, 5), (0, 1)))
-    nT = nT.transpose(0, 1, 4, 5, 2, 3, 6, 7).copy()
-    nT = np.tensordot(A.conj(), nT, ((0, 1, 4, 5), (0, 1, 2, 3)))
-    nT = (
-        nT.transpose(3, 1, 4, 2, 0, 5)
-        .copy()
-        .reshape(Pt.shape[0], A.shape[2] ** 2 * P.shape[1])
-    )
-    nT = (Pt.T @ nT).reshape(Pt.shape[1], A.shape[2], A.shape[2], P.shape[1])
-    nT /= np.linalg.norm(nT, ord=np.inf)
+    nT = T.permutate((0, 1, 2), (3,))
+    nT = nT @ P.permutate((2,), (0, 1, 3))
+    nT = nT.permutate((0, 3, 1, 4), (2, 5))
+    nT = A.permutate((0, 1, 2, 3), (4, 5)) @ nT
+    nT = nT.permutate((0, 1, 4, 5), (2, 3, 6, 7))
+    nT = A.permutate((2, 3), (0, 1, 4, 5)).conj() @ nT
+    nT = nT.permutate((3, 1, 4), (2, 0, 5))
+    nT = Pt.T @ nT
+    nT /= nT.norm()
     return nT
 
 
@@ -137,13 +132,15 @@ def renormalize_C1_up(C1, T4, P):
     return renormalize_corner_P(C1.T, T4.permutate((3,), (0, 1, 2)), P).T
 
 
-def renormalize_T1(Pt, T1, A, P):
+def renormalize_T1_monolayer(Pt, T1, A, P):
     """
     Renormalize edge T1 using projectors P and Pt
     CPU: 2*chi**2*D**4*(d*a*D**2 + chi)
     """
-    nT1 = renormalize_T(Pt, T1.transpose(1, 2, 3, 0), A.transpose(0, 1, 4, 5, 2, 3), P)
-    return nT1.swapaxes(0, 3)
+    nT1 = renormalize_T(
+        Pt, T1.permutate((1, 2, 3), (0,)), A.permutate((0, 1), (4, 5, 2, 3)), P
+    )
+    return nT1.permutate((3,), (0, 1, 2))
 
 
 def renormalize_C2_up(C2, T2, Pt):
@@ -162,13 +159,15 @@ def renormalize_C2_right(C2, T1, P):
     return renormalize_corner_P(C2.T, T1.permutate((3,), (0, 1, 2)), P).T
 
 
-def renormalize_T2(Pt, A, T2, P):
+def renormalize_T2_monolayer(Pt, A, T2, P):
     """
     Renormalize edge T2 using projectors P and Pt
     CPU: 2*chi**2*D**4*(d*a*D**2 + chi)
     """
-    nT2 = renormalize_T(Pt, T2.transpose(2, 3, 0, 1), A.transpose(0, 1, 5, 2, 3, 4), P)
-    return nT2.transpose(0, 3, 1, 2)
+    nT2 = renormalize_T(
+        Pt, T2.permutate((2, 3, 0), (1,)), A.permutate((0, 1), (5, 2, 3, 4)), P
+    )
+    return nT2.permutate((0,)(3, 1, 2))
 
 
 def renormalize_C3_right(C3, T3, Pt):
@@ -187,12 +186,12 @@ def renormalize_C3_down(C3, T2, P):
     return renormalize_corner_P(C3, T2, P)
 
 
-def renormalize_T3(Pt, T3, A, P):
+def renormalize_T3_monolayer(Pt, T3, A, P):
     """
     Renormalize edge T3 using projectors P and Pt
     CPU: 2*chi**2*D**4*(d*a*D**2 + chi)
     """
-    return renormalize_T(Pt, T3, A, P).transpose(1, 2, 0, 3)
+    return renormalize_T(Pt, T3, A, P).permutate((1, 2, 0), (3,))
 
 
 def renormalize_C4_down(C4, T4, Pt):
@@ -211,13 +210,15 @@ def renormalize_C4_left(C4, T3, P):
     return renormalize_corner_P(C4.T, T3.permutate((2, 3), (0, 1)), P).T
 
 
-def renormalize_T4(Pt, T4, A, P):
+def renormalize_T4_monolayer(Pt, T4, A, P):
     """
     Renormalize edge T4 using projectors P and Pt
     CPU: 2*chi**2*D**4*(a*d*D**2 + chi)
     """
-    nT4 = renormalize_T(Pt, T4.transpose(1, 2, 3, 0), A.transpose(0, 1, 3, 4, 5, 2), P)
-    return nT4.swapaxes(0, 3)
+    nT4 = renormalize_T(
+        Pt, T4.permutate((1, 2, 3), (0,)), A.permutate((0, 1), (3, 4, 5, 2)), P
+    )
+    return nT4.permutate((3,), (1, 2, 0))
 
 
 def renormalize_C1_left(C1, T1, Pt):
