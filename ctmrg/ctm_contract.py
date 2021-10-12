@@ -4,14 +4,14 @@
 ###############################################################################
 
 
-def contract_corner(C1, T1, T4, A):
+def contract_corner_monolayer(C1, T1, T4, A):
     """
     Contract a corner C-T//T-A. Take upper left corner as template.
     """
     #  C1-03-T1-2
     #  |     ||
     #  1->3  01
-    ul = T1.transpose(1, 2, 0, 3).reshape(T1.shape[1] ** 2 * T1.shape[0], T1.shape[3])
+    ul = T1.permutate((1, 2, 0), (3,))
     ul = ul @ C1
 
     #  C1---T1-2
@@ -22,20 +22,7 @@ def contract_corner(C1, T1, T4, A):
     #  T4=1,2 -> 3,4
     #  |
     #  3 -> 5
-    ul = (ul @ T4.reshape(T4.shape[0], T4.shape[1] ** 2 * T4.shape[3])).reshape(
-        T1.shape[1], T1.shape[2], T1.shape[0], T4.shape[1], T4.shape[2], T4.shape[3]
-    )
-    ul = (
-        ul.transpose(0, 3, 1, 4, 2, 5)
-        .copy()
-        .reshape(
-            T1.shape[1] * T4.shape[1],
-            T1.shape[2] * T4.shape[2] * T1.shape[0] * T4.shape[3],
-        )
-    )
-    temp = A.transpose(0, 1, 3, 4, 2, 5).reshape(
-        A.shape[0] * A.shape[1] * A.shape[3] * A.shape[4], A.shape[2] * A.shape[5]
-    )
+    ul = ul @ T4.permutate((0,), (1, 2, 3))
 
     #  C1----T1-4
     #  |     ||
@@ -45,20 +32,9 @@ def contract_corner(C1, T1, T4, A):
     #  T4-15-A-2
     #  | \3  |\
     #  5     3 1
-    ul = (temp @ ul).reshape(
-        A.shape[0] * A.shape[1],
-        A.shape[3] * A.shape[4],
-        T1.shape[2] * T4.shape[2],
-        T1.shape[0] * T4.shape[3],
-    )
-    ul = (
-        ul.swapaxes(1, 2)
-        .copy()
-        .reshape(
-            A.shape[0] * A.shape[1] * T1.shape[2] * T4.shape[2],
-            A.shape[3] * A.shape[4] * T1.shape[0] * T4.shape[3],
-        )
-    )  # memory peak 2*a*d*chi**2*D**4
+    ul = ul.permutate((0, 3), (1, 4, 2, 5))
+    ul = A.permutate((0, 1, 3, 4), (2, 5)) @ ul
+
     #  C1----T1-6
     #  |     ||
     #  |     |2
@@ -67,20 +43,8 @@ def contract_corner(C1, T1, T4, A):
     #  T4----A-4      5-A*-0
     #  | \3  |\         |\
     #  7     5 1        1 3
-    temp = (
-        temp.reshape(
-            A.shape[0] * A.shape[1], A.shape[3] * A.shape[4], A.shape[2] * A.shape[5]
-        )
-        .swapaxes(0, 1)
-        .conj()
-        .copy()
-        .reshape(
-            A.shape[3] * A.shape[4], A.shape[0] * A.shape[1] * A.shape[2] * A.shape[5]
-        )
-    )
-    ul = (temp @ ul).reshape(
-        A.shape[3], A.shape[4], A.shape[3], A.shape[4], T1.shape[0], T4.shape[3]
-    )
+    ul = ul.permutate((0, 1, 4, 5), (2, 3, 6, 7))  # memory peak 2*a*d*chi**2*D**4
+    ul = A.permutate((3, 4), (0, 1, 2, 5)).conjugate() @ ul
 
     #  C1-T1-4 ---->2
     #  |  ||
@@ -88,97 +52,39 @@ def contract_corner(C1, T1, T4, A):
     #  |  ||
     #  5  31
     #  5  34
-    return ul.transpose(2, 0, 4, 3, 1, 5)  # do not reshape to avoid copy here
+    return ul.permutate((2, 0, 4), (3, 1, 5))
 
 
-def contract_ul_corner(C1, T1, T4, A):
-    return contract_corner(C1, T1, T4, A)
+def contract_ul_corner_monolayer(C1, T1, T4, A):
+    return contract_corner_monolayer(C1, T1, T4, A)
 
 
-def contract_ur_corner(T1, C2, A, T2):
-    return contract_corner(
-        C2, T2.transpose(1, 2, 3, 0), T1, A.transpose(0, 1, 3, 4, 5, 2)
+def contract_ur_corner_monolayer(T1, C2, A, T2):
+    return contract_corner_monolayer(
+        C2, T2.permutate((1, 2, 3), (0,)), T1, A.permutate((0, 1), (3, 4, 5, 2))
     )
 
 
-def contract_dr_corner(A, T2, T3, C3):
-    return contract_corner(
+def contract_dr_corner_monolayer(A, T2, T3, C3):
+    """
+    unusual leg convention: dr is transposed compared to clockwise order
+    """
+    return contract_corner_monolayer(
         C3.T,
-        T3.transpose(3, 0, 1, 2),
-        T2.transpose(1, 2, 3, 0),
-        A.transpose(0, 1, 4, 5, 2, 3),
-    ).transpose(
-        3, 4, 5, 0, 1, 2
-    )  # transpose matrix to keep clockwise legs
-
-
-def contract_dl_corner(T4, A, C4, T3):
-    return contract_corner(
-        C4, T4, T3.transpose(3, 0, 1, 2), A.transpose(0, 1, 5, 2, 3, 4)
+        T3.permutate((3,), (0, 1, 2)),
+        T2.permutate((1,), (2, 3, 0)),
+        A.permutate((0, 1), (4, 5, 2, 3)),
     )
 
 
-###############################################################################
-# construct halves from corners
-# memory: max during corner construction
-###############################################################################
-
-
-def contract_u_half(C1, T1l, T1r, C2, T4, Al, Ar, T2):
-    ul = contract_ul_corner(C1, T1l, T4, Al).copy()
-    ul = ul.reshape(Al.shape[3] ** 2 * T1l.shape[0], Al.shape[4] ** 2 * T4.shape[3])
-    ur = contract_ur_corner(T1r, C2, Ar, T2).copy()
-    ur = ur.reshape(Ar.shape[4] ** 2 * T2.shape[1], Ar.shape[5] ** 2 * T1r.shape[3])
-    #  UL-01-UR
-    #  |      |
-    #  1      0
-    return ur @ ul
-
-
-def contract_l_half(C1, T1, T4u, Au, T4d, Ad, C4, T3):
-    ul = contract_ul_corner(C1, T1, T4u, Au).copy()
-    ul = ul.reshape(Au.shape[3] ** 2 * T1.shape[0], Au.shape[4] ** 2 * T4u.shape[3])
-    dl = contract_dl_corner(T4d, Ad, C4, T3).copy()
-    dl = dl.reshape(Ad.shape[2] ** 2 * T4d.shape[0], Ad.shape[3] ** 2 * T3.shape[2])
-    #  UL-0
-    #  |
-    #  1
-    #  0
-    #  |
-    #  DL-1
-    return ul @ dl
-
-
-def contract_d_half(T4, Al, Ar, T2, C4, T3l, T3r, C3):
-    dl = contract_dl_corner(T4, Al, C4, T3l).copy()
-    dl = dl.reshape(Al.shape[2] ** 2 * T4.shape[0], Al.shape[3] ** 2 * T3l.shape[2])
-    # dr.T is needed in matrix product. Transpose *before* reshape to optimize copy
-    dr = contract_dr_corner(Ar, T2, T3r, C3).transpose(3, 4, 5, 0, 1, 2).copy()
-    dr = dr.reshape(Ar.shape[5] ** 2 * T3r.shape[3], Ar.shape[2] ** 2 * T2.shape[0])
-    #  0      1
-    #  0      0
-    #  |      |
-    #  DL-11-DR
-    return dl @ dr
-
-
-def contract_r_half(T1, C2, Au, T2u, Ad, T2d, T3, C3):
-    ur = contract_ur_corner(T1, C2, Au, T2u).copy()
-    ur = ur.reshape(Au.shape[4] ** 2 * T2u.shape[1], Au.shape[5] ** 2 * T1.shape[3])
-    # dr.T is needed in matrix product. Transpose *before* reshape to optimize copy
-    dr = contract_dr_corner(Ad, T2d, T3, C3).transpose(3, 4, 5, 0, 1, 2).copy()
-    dr = dr.reshape(Ad.shape[5] ** 2 * T3.shape[3], Ad.shape[2] ** 2 * T2d.shape[0])
-    #      1-UR
-    #         |
-    #         0
-    #         1
-    #         |
-    #      0-DR
-    return dr @ ur
+def contract_dl_corner_monolayer(T4, A, C4, T3):
+    return contract_corner_monolayer(
+        C4, T4, T3.permutate((3,), (0, 1, 2)), A.permutate((0, 1), (5, 2, 3, 4))
+    )
 
 
 ########################################################################################
-#  construct 2x2 corners using U(1) symmetry
+#  construct 2x2 corners bilayer
 #  memory: peak at 2*chi**2*D**4
 #
 #  Nearly all the contraction has been put inside add_a_bilayer, only the corner C is
@@ -188,7 +94,7 @@ def contract_r_half(T1, C2, Au, T2u, Ad, T2d, T3, C3):
 ########################################################################################
 
 
-# Function add_a_conj takes double layer tensor a = A-A* as input in the form of a
+# Function add_a_bilayer takes double layer tensor a = A-A* as input in the form of a
 # SymmetricTensor, with merged bra and ket legs *and* legs merged in two directions as
 # rows and as columns. To save memory, only 2 versions of a exsit, a_ul and a_ur. To
 # contract dr and dl corenrs, the transpose of a_ul and a_ur are used (same storage,
