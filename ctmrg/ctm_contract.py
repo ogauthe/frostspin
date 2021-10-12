@@ -202,7 +202,7 @@ def contract_ul_corner_U1(C1, T1, T4, a_ul):
     return ul
 
 
-def contract_ur_corner_U1(T2, C2, a_ur, T1):
+def contract_ur_corner_U1(T1, C2, a_ur, T2):
     """
     Contract upper right corner using U(1) symmetry.
     """
