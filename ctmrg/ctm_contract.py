@@ -99,18 +99,18 @@ def contract_dl_corner_monolayer(T4, A, C4, T3):
 # rows and as columns. To save memory, only 2 versions of a exsit, a_ul and a_ur. To
 # contract dr and dl corenrs, the transpose of a_ul and a_ur are used (same storage,
 # see ctm_environment).
-def contract_ul_corner_U1(C1, T1, T4, a_ul):
+def contract_ul_corner_bilayer(C1, T1, T4, a_ul):
     """
-    Contract upper left corner using U(1) symmetry.
+    Contract upper left corner using contracted A-A*
     """
     ul = C1 @ T4.permutate((0,), (1, 2, 3))
     ul = add_a_bilayer(T1.permutate((1, 2, 0), (3,)), ul, a_ul)
     return ul
 
 
-def contract_ur_corner_U1(T1, C2, a_ur, T2):
+def contract_ur_corner_bilayer(T1, C2, a_ur, T2):
     """
-    Contract upper right corner using U(1) symmetry.
+    Contract upper right corner using contracted A-A*
     """
     ur = C2 @ T1.permutate((0,), (1, 2, 3))
     # a_ur has swapped up and right legs:
@@ -122,9 +122,9 @@ def contract_ur_corner_U1(T1, C2, a_ur, T2):
     return ur
 
 
-def contract_dr_corner_U1(a_dr, T2, T3, C3):
+def contract_dr_corner_bilayer(a_dr, T2, T3, C3):
     """
-    Contract down right corner using U(1) symmetry.
+    Contract down right corner using contracted A-A*
     """
     # a_dr is actually a_ul.T
     # to get a corner with convient leg ordering, a swap is made between T2 and T3, ie
@@ -136,9 +136,9 @@ def contract_dr_corner_U1(a_dr, T2, T3, C3):
     return dr.T
 
 
-def contract_dl_corner_U1(T4, a_dl, C4, T3):
+def contract_dl_corner_bilayer(T4, a_dl, C4, T3):
     """
-    Contract down left corner using U(1) symmetry.
+    Contract down left corner using contracted A-A*
     """
     dl = T3.permutate((0, 1, 2), (3,)) @ C4.T
     # a_dl = a_ur.T has swapped up and right legs:

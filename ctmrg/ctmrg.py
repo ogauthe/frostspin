@@ -3,33 +3,32 @@ import numpy as np
 from ctmrg import rdm, observables
 from ctmrg.ctm_environment import CTM_Environment
 from ctmrg.ctm_contract import (
-    contract_ul_corner_U1,
-    contract_ur_corner_U1,
-    contract_dl_corner_U1,
-    contract_dr_corner_U1,
-    contract_u_half,
-    contract_l_half,
-    contract_d_half,
-    contract_r_half,
+    # contract_ul_corner_monolayer,
+    # contract_ur_corner_monolayer,
+    # contract_dl_corner_monolayer,
+    # contract_dr_corner_monolayer,
+    contract_ul_corner_bilayer,
+    contract_ur_corner_bilayer,
+    contract_dl_corner_bilayer,
+    contract_dr_corner_bilayer,
 )
 from ctmrg.ctm_renormalize import (
     construct_projectors,
-    construct_projectors_abelian,
     renormalize_C1_up,
-    renormalize_T1,
-    renormalize_T1_U1,
+    # renormalize_T1_monolayer,
+    renormalize_T1_bilayer,
     renormalize_C2_up,
     renormalize_C2_right,
-    renormalize_T2,
-    renormalize_T2_U1,
+    # renormalize_T2_monolayer,
+    renormalize_T2_bilayer,
     renormalize_C3_right,
     renormalize_C3_down,
-    renormalize_T3,
-    renormalize_T3_U1,
+    # renormalize_T3_monolayer,
+    renormalize_T3_bilayer,
     renormalize_C4_down,
     renormalize_C4_left,
-    renormalize_T4,
-    renormalize_T4_U1,
+    # renormalize_T4_monolayer,
+    renormalize_T4_bilayer,
     renormalize_C1_left,
 )
 from symmetric_tensor.asymmetric_tensor import AsymmetricTensor
@@ -286,257 +285,6 @@ class CTMRG(object):
             self.print_tensor_shapes()
         if self.verbosity > 1:
             print("Finished CTM iteration")
-
-    def up_move(self):
-        if self.verbosity > 1:
-            print("\nstart up move")
-        # 1) compute isometries for every non-equivalent sites
-        # convention : get projectors from svd(R @ Rt)
-        for x, y in self._neq_coords:
-            R = contract_r_half(
-                self._env.get_T1(x + 2, y),
-                self._env.get_C2(x + 3, y),
-                self._env.get_A(x + 2, y + 1),
-                self._env.get_T2(x + 3, y + 1),
-                self._env.get_A(x + 2, y + 2),
-                self._env.get_T2(x + 3, y + 2),
-                self._env.get_T3(x + 2, y + 3),
-                self._env.get_C3(x + 3, y + 3),
-            )
-            Rt = contract_l_half(
-                self._env.get_C1(x, y),
-                self._env.get_T1(x + 1, y),
-                self._env.get_T4(x, y + 1),
-                self._env.get_A(x + 1, y + 1),
-                self._env.get_T4(x, y + 2),
-                self._env.get_A(x + 1, y + 2),
-                self._env.get_C4(x, y + 3),
-                self._env.get_T3(x + 1, y + 3),
-            )
-            #        L-0  == 1-R
-            #        L         R
-            #        L         R
-            #        L-1     0-R
-            P, Pt = construct_projectors(
-                R, Rt, self.chi_setpoint, self.cutoff, self.degen_ratio, self.window
-            )
-            self._env.store_projectors(
-                x + 2, y, P, Pt
-            )  # indices: Pt <=> renormalized T in R
-            del R, Rt
-
-        # 2) renormalize every non-equivalent C1, T1 and C2
-        # need all projectors to be constructed at this time
-        if self.verbosity > 2:
-            print("Projectors constructed, renormalize tensors")
-        for x, y in self._neq_coords:
-            P = self._env.get_P(x + 1, y)
-            Pt = self._env.get_Pt(x, y)
-            nC1 = renormalize_C1_up(
-                self._env.get_C1(x, y), self._env.get_T4(x, y + 1), P
-            )
-
-            nT1 = renormalize_T1(
-                Pt, self._env.get_T1(x, y), self._env.get_A(x, y + 1), P
-            )
-
-            nC2 = renormalize_C2_up(
-                self._env.get_C2(x, y), self._env.get_T2(x, y + 1), Pt
-            )
-            self._env.store_renormalized_tensors(x, y + 1, nC1, nT1, nC2)
-
-        # 3) store renormalized tensors in the environment
-        # renormalization reads C1[x,y] but writes C1[x,y+1]
-        # => need to compute every renormalized tensors before storing any of them
-        self._env.fix_renormalized_up()
-        if self.verbosity > 1:
-            print("up move completed")
-
-    def right_move(self):
-        if self.verbosity > 1:
-            print("\nstart right move")
-        # 1) compute isometries for every non-equivalent sites
-        for x, y in self._neq_coords:
-            #      0  1    0
-            #      |  | => R
-            #      DDDD    1
-            R = contract_d_half(
-                self._env.get_T4(x, y + 2),
-                self._env.get_A(x + 1, y + 2),
-                self._env.get_A(x + 2, y + 2),
-                self._env.get_T2(x + 3, y + 2),
-                self._env.get_C4(x, y + 3),
-                self._env.get_T3(x + 1, y + 3),
-                self._env.get_T3(x + 2, y + 3),
-                self._env.get_C3(x + 3, y + 3),
-            )
-            #      UUUU     0
-            #      |  | =>  Rt
-            #      1  0     1
-            Rt = contract_u_half(
-                self._env.get_C1(x, y),
-                self._env.get_T1(x + 1, y),
-                self._env.get_T1(x + 2, y),
-                self._env.get_C2(x + 3, y),
-                self._env.get_T4(x, y + 1),
-                self._env.get_A(x + 1, y + 1),
-                self._env.get_A(x + 2, y + 1),
-                self._env.get_T2(x + 3, y + 1),
-            )
-            P, Pt = construct_projectors(
-                R, Rt, self.chi_setpoint, self.cutoff, self.degen_ratio, self.window
-            )
-            self._env.store_projectors(x + 3, y + 2, P, Pt)
-            del R, Rt
-
-        # 2) renormalize tensors by absorbing column
-        if self.verbosity > 2:
-            print("Projectors constructed, renormalize tensors")
-        for x, y in self._neq_coords:
-            P = self._env.get_P(x, y + 1)
-            Pt = self._env.get_Pt(x, y)
-            nC2 = renormalize_C2_right(
-                self._env.get_C2(x, y), self._env.get_T1(x - 1, y), P
-            )
-
-            nT2 = renormalize_T2(
-                Pt, self._env.get_A(x - 1, y), self._env.get_T2(x, y), P
-            )
-
-            nC3 = renormalize_C3_right(
-                self._env.get_C3(x, y), self._env.get_T3(x - 1, y), Pt
-            )
-            self._env.store_renormalized_tensors(x - 1, y, nC2, nT2, nC3)
-
-        # 3) store renormalized tensors in the environment
-        self._env.fix_renormalized_right()
-        if self.verbosity > 1:
-            print("right move completed")
-
-    def down_move(self):
-        if self.verbosity > 1:
-            print("\nstart down move")
-        # 1) compute isometries for every non-equivalent sites
-        for x, y in self._neq_coords:
-            #        L-0      L-1
-            #        L        L
-            #        L    =>  L
-            #        L-1      L-0
-            R = contract_l_half(
-                self._env.get_C1(x, y),
-                self._env.get_T1(x + 1, y),
-                self._env.get_T4(x, y + 1),
-                self._env.get_A(x + 1, y + 1),
-                self._env.get_T4(x, y + 2),
-                self._env.get_A(x + 1, y + 2),
-                self._env.get_C4(x, y + 3),
-                self._env.get_T3(x + 1, y + 3),
-            )
-            #      1-R
-            #        R
-            #        R
-            #      0-R
-            Rt = contract_r_half(
-                self._env.get_T1(x + 2, y),
-                self._env.get_C2(x + 3, y),
-                self._env.get_A(x + 2, y + 1),
-                self._env.get_T2(x + 3, y + 1),
-                self._env.get_A(x + 2, y + 2),
-                self._env.get_T2(x + 3, y + 2),
-                self._env.get_T3(x + 2, y + 3),
-                self._env.get_C3(x + 3, y + 3),
-            )
-
-            P, Pt = construct_projectors(
-                R, Rt, self.chi_setpoint, self.cutoff, self.degen_ratio, self.window
-            )
-            self._env.store_projectors(x + 3, y + 3, P, Pt)
-            del R, Rt
-
-        # 2) renormalize every non-equivalent C3, T3 and C4
-        if self.verbosity > 2:
-            print("Projectors constructed, renormalize tensors")
-        for x, y in self._neq_coords:
-            P = self._env.get_P(x - 1, y)
-            Pt = self._env.get_Pt(x, y)
-            nC3 = renormalize_C3_down(
-                self._env.get_C3(x, y), self._env.get_T2(x, y - 1), P
-            )
-
-            nT3 = renormalize_T3(
-                Pt, self._env.get_T3(x, y), self._env.get_A(x, y - 1), P
-            )
-
-            nC4 = renormalize_C4_down(
-                self._env.get_C4(x, y), self._env.get_T4(x, y - 1), Pt
-            )
-            self._env.store_renormalized_tensors(x, y - 1, nC3, nT3, nC4)
-
-        # 3) store renormalized tensors in the environment
-        self._env.fix_renormalized_down()
-        if self.verbosity > 1:
-            print("down move completed")
-
-    def left_move(self):
-        if self.verbosity > 1:
-            print("\nstart left move")
-        # 1) compute isometries for every non-equivalent sites
-        for x, y in self._neq_coords:
-            #      UUUU      1
-            #      |  |  =>  R
-            #      1  0      0
-            R = contract_u_half(
-                self._env.get_C1(x, y),
-                self._env.get_T1(x + 1, y),
-                self._env.get_T1(x + 2, y),
-                self._env.get_C2(x + 3, y),
-                self._env.get_T4(x, y + 1),
-                self._env.get_A(x + 1, y + 1),
-                self._env.get_A(x + 2, y + 1),
-                self._env.get_T2(x + 3, y + 1),
-            )
-            #      0  1
-            #      |  |
-            #      DDDD
-            Rt = contract_d_half(
-                self._env.get_T4(x, y + 2),
-                self._env.get_A(x + 1, y + 2),
-                self._env.get_A(x + 2, y + 2),
-                self._env.get_T2(x + 3, y + 2),
-                self._env.get_C4(x, y + 3),
-                self._env.get_T3(x + 1, y + 3),
-                self._env.get_T3(x + 2, y + 3),
-                self._env.get_C3(x + 3, y + 3),
-            )
-            P, Pt = construct_projectors(
-                R, Rt, self.chi_setpoint, self.cutoff, self.degen_ratio, self.window
-            )
-            self._env.store_projectors(x, y + 1, P, Pt)
-            del R, Rt
-
-        # 2) renormalize every non-equivalent C4, T4 and C1
-        if self.verbosity > 2:
-            print("Projectors constructed, renormalize tensors")
-        for x, y in self._neq_coords:
-            P = self._env.get_P(x, y - 1)
-            Pt = self._env.get_Pt(x, y)
-            nC4 = renormalize_C4_left(
-                self._env.get_C4(x, y), self._env.get_T3(x + 1, y), P
-            )
-
-            nT4 = renormalize_T4(
-                Pt, self._env.get_T4(x, y), self._env.get_A(x + 1, y), P
-            )
-
-            nC1 = renormalize_C1_left(
-                self._env.get_C1(x, y), self._env.get_T1(x + 1, y), Pt
-            )
-            self._env.store_renormalized_tensors(x + 1, y, nC4, nT4, nC1)
-
-        # 3) store renormalized tensors in the environment
-        self._env.fix_renormalized_left()
-        if self.verbosity > 1:
-            print("left move completed")
 
     def compute_rdm1x2(self, x=0, y=0):
         if self.verbosity > 1:
@@ -841,7 +589,7 @@ class CTMRG_U1(CTMRG):
         dr = self._env.get_corner_dr(x, y)
         if dr is not None:
             return dr
-        dr = contract_dr_corner_U1(
+        dr = contract_dr_corner_bilayer(
             self._env.get_a_rd(x + 2, y + 2),
             self._env.get_T2(x + 3, y + 2),
             self._env.get_T3(x + 2, y + 3),
@@ -859,7 +607,7 @@ class CTMRG_U1(CTMRG):
         dl = self._env.get_corner_dl(x, y)
         if dl is not None:
             return dl
-        dl = contract_dl_corner_U1(
+        dl = contract_dl_corner_bilayer(
             self._env.get_T4(x, y + 2),
             self._env.get_a_dl(x + 1, y + 2),
             self._env.get_C4(x, y + 3),
@@ -877,7 +625,7 @@ class CTMRG_U1(CTMRG):
         ul = self._env.get_corner_ul(x, y)
         if ul is not None:
             return ul
-        ul = contract_ul_corner_U1(
+        ul = contract_ul_corner_bilayer(
             self._env.get_C1(x, y),
             self._env.get_T1(x + 1, y),
             self._env.get_T4(x, y + 1),
@@ -895,7 +643,7 @@ class CTMRG_U1(CTMRG):
         ur = self._env.get_corner_ur(x, y)
         if ur is not None:
             return ur
-        ur = contract_ur_corner_U1(
+        ur = contract_ur_corner_bilayer(
             self._env.get_T1(x + 2, y),
             self._env.get_C2(x + 3, y),
             self._env.get_a_ur(x + 2, y + 1),
@@ -918,7 +666,7 @@ class CTMRG_U1(CTMRG):
             reduced_ur = self.construct_reduced_ur(x, y)
             reduced_ul = self.construct_reduced_ul(x, y)
             reduced_dl = self.construct_reduced_dl(x, y)
-            P, Pt = construct_projectors_abelian(
+            P, Pt = construct_projectors(
                 reduced_dr,
                 reduced_ur,
                 reduced_ul,
@@ -942,7 +690,7 @@ class CTMRG_U1(CTMRG):
             )
 
             a_ul = self._env.get_a_ul(x, y + 1)
-            nT1 = renormalize_T1_U1(Pt, self._env.get_T1(x, y), a_ul, P)
+            nT1 = renormalize_T1_bilayer(Pt, self._env.get_T1(x, y), a_ul, P)
 
             nC2 = renormalize_C2_up(
                 self._env.get_C2(x, y), self._env.get_T2(x, y + 1), Pt
@@ -970,7 +718,7 @@ class CTMRG_U1(CTMRG):
             reduced_dr = self.construct_reduced_dr(x, y)
             reduced_ur = self.construct_reduced_ur(x, y)
             reduced_ul = self.construct_reduced_ul(x, y)
-            P, Pt = construct_projectors_abelian(
+            P, Pt = construct_projectors(
                 reduced_dl,
                 reduced_dr,
                 reduced_ur,
@@ -993,7 +741,7 @@ class CTMRG_U1(CTMRG):
             )
 
             a_ur = self._env.get_a_ur(x - 1, y)
-            nT2 = renormalize_T2_U1(Pt, self._env.get_T2(x, y), a_ur, P)
+            nT2 = renormalize_T2_bilayer(Pt, self._env.get_T2(x, y), a_ur, P)
 
             nC3 = renormalize_C3_right(
                 self._env.get_C3(x, y), self._env.get_T3(x - 1, y), Pt
@@ -1019,7 +767,7 @@ class CTMRG_U1(CTMRG):
             reduced_dl = self.construct_reduced_dl(x, y)
             reduced_dr = self.construct_reduced_dr(x, y)
             reduced_ur = self.construct_reduced_ur(x, y)
-            P, Pt = construct_projectors_abelian(
+            P, Pt = construct_projectors(
                 reduced_ul,
                 reduced_dl,
                 reduced_dr,
@@ -1042,7 +790,7 @@ class CTMRG_U1(CTMRG):
             )
 
             a_dl = self._env.get_a_dl(x, y - 1)
-            nT3 = renormalize_T3_U1(Pt, self._env.get_T3(x, y), a_dl, P)
+            nT3 = renormalize_T3_bilayer(Pt, self._env.get_T3(x, y), a_dl, P)
 
             nC4 = renormalize_C4_down(
                 self._env.get_C4(x, y), self._env.get_T4(x, y - 1), Pt
@@ -1068,7 +816,7 @@ class CTMRG_U1(CTMRG):
             reduced_ul = self.construct_reduced_ul(x, y)
             reduced_dl = self.construct_reduced_dl(x, y)
             reduced_dr = self.construct_reduced_dr(x, y)
-            P, Pt = construct_projectors_abelian(
+            P, Pt = construct_projectors(
                 reduced_ur,
                 reduced_ul,
                 reduced_dl,
@@ -1092,7 +840,7 @@ class CTMRG_U1(CTMRG):
             )
 
             a_ul = self._env.get_a_ul(x + 1, y)
-            nT4 = renormalize_T4_U1(Pt, self._env.get_T4(x, y), a_ul, P)
+            nT4 = renormalize_T4_bilayer(Pt, self._env.get_T4(x, y), a_ul, P)
 
             nC1 = renormalize_C1_left(
                 self._env.get_C1(x, y), self._env.get_T1(x + 1, y), Pt
