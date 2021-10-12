@@ -66,37 +66,6 @@ def _initialize_env(A):
     return C1, T1, C2, T2, C3, T3, C4, T4
 
 
-def _block_AAconj(A):
-    """
-    Construct U1_SymmetricTensor versions of double layer tensor a = A-A* that can be
-    used in add_a_bilayer. One version for each corner is needed, therefore we have
-    a_ul, a_ur, a_dl and a_dr, still we can define a_dl = a_ur.T and a_dr = a_ul.TH to
-    save memory (same block memory).
-    To be able to use a_ur and a_ul in the same function, non-clockwise leg order is
-    required in a_ur.
-
-        45                       67
-        ||                       ||
-    67=a_ul=01               23=a_ur=45
-        ||                       ||
-        23                       01
-
-        23                       01
-        ||                       ||
-    67=a_dl=01 = a_ur.T       23=a_dr=45 = a_ul.T
-        ||                       ||
-        45                       67
-    """
-    # optimize dot(A,A*) using A.H, then put conjugate version as 2nd layer in permutate
-    a_ul = A.H @ A
-    a_ul = a_ul.permutate((5, 1, 6, 2), (4, 0, 7, 3))
-    a_rd = a_ul.T
-
-    a_ur = a_ul.permutate((2, 3, 6, 7), (0, 1, 4, 5))
-    a_dl = a_ur.T
-    return a_ul, a_ur, a_rd, a_dl
-
-
 class CTM_Environment(object):
     """
     Container for CTMRG environment tensors. Follow leg conventions from CTMRG.
@@ -139,13 +108,6 @@ class CTM_Environment(object):
         self._Dmax = max(max(A.shape[2:]) for A in self._neq_As)
 
         # 3) Construct double layer tensor A-A* for use in add_a_block
-        self._a_ur, self._a_ul, self._a_rd, self._a_dl = [[] for i in range(4)]
-        for A in neq_As:
-            a_ul, a_ur, a_rd, a_dl = _block_AAconj(A)
-            self._a_ur.append(a_ur)
-            self._a_ul.append(a_ul)
-            self._a_rd.append(a_rd)
-            self._a_dl.append(a_dl)
 
         # 4) initialize environment tensors
         if load_env is None:
@@ -360,32 +322,32 @@ class CTM_Environment(object):
         self._neq_C4s = neq_C4s
 
         for i, (x, y) in enumerate(self._neq_coords):
-            axes = self._a_ul[i].axis_reps
+            axes = self._neq_As[i].axis_reps
 
             r1r = self.get_C1(x - 1, y).axis_reps[0]
             r2l = self.get_C2(x + 1, y).axis_reps[1]
-            repsT1 = (r2l, -axes[2], -axes[3], r1r)
+            repsT1 = (r2l, axes[4], -axes[4], r1r)
             neq_T1s[i] = U1_SymmetricTensor.from_array(
                 neq_T1s[i], repsT1, 1, conjugate_columns=False
             )
 
             r2d = -self.get_C2(x, y + 1).axis_reps[0]
             r3u = self.get_C3(x, y - 1).axis_reps[0]
-            repsT2 = (r2d, r3u, axes[6], axes[7])
+            repsT2 = (r2d, r3u, axes[5], -axes[5])
             neq_T2s[i] = U1_SymmetricTensor.from_array(
                 neq_T2s[i], repsT2, 1, conjugate_columns=False
             )
 
             r3l = self.get_C3(x + 1, y).axis_reps[1]
             r4r = -self.get_C4(x - 1, y).axis_reps[1]
-            repsT3 = (-axes[4], -axes[5], r3l, r4r)
+            repsT3 = (-axes[2], axes[2], r3l, r4r)
             neq_T3s[i] = U1_SymmetricTensor.from_array(
                 neq_T3s[i], repsT3, 3, conjugate_columns=False
             )
 
             r4u = -self.get_C4(x, y - 1).axis_reps[0]
             r1d = self.get_C1(x, y + 1).axis_reps[1]
-            repsT4 = (r1d, -axes[0], -axes[1], -r4u)
+            repsT4 = (r1d, axes[3], -axes[3], -r4u)
             neq_T4s[i] = U1_SymmetricTensor.from_array(
                 neq_T4s[i], repsT4, 1, conjugate_columns=False
             )
@@ -424,13 +386,7 @@ class CTM_Environment(object):
             for r1, r2 in zip(A.axis_reps, self._neq_As[i].axis_reps):
                 if sorted(r1) != sorted(r2):
                     restart_env = True
-
-            a_ul, a_ur, a_rd, a_dl = _block_AAconj(A)
             self._neq_As[i] = A
-            self._a_ur[i] = a_ur
-            self._a_ul[i] = a_ul
-            self._a_rd[i] = a_rd
-            self._a_dl[i] = a_dl
 
         if restart_env:
             print("*** WARNING *** restart environment from scratch")
@@ -498,18 +454,6 @@ class CTM_Environment(object):
 
     def get_Pt(self, x, y):
         return self._neq_Pt[self._indices[x % self._Lx, y % self._Ly]]
-
-    def get_a_ul(self, x, y):
-        return self._a_ul[self._indices[x % self._Lx, y % self._Ly]]
-
-    def get_a_ur(self, x, y):
-        return self._a_ur[self._indices[x % self._Lx, y % self._Ly]]
-
-    def get_a_rd(self, x, y):
-        return self._a_rd[self._indices[x % self._Lx, y % self._Ly]]
-
-    def get_a_dl(self, x, y):
-        return self._a_dl[self._indices[x % self._Lx, y % self._Ly]]
 
     def get_corner_ul(self, x, y):
         return self._corners_ul[self._indices[x % self._Lx, y % self._Ly]]

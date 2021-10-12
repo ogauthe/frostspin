@@ -3,32 +3,32 @@ import numpy as np
 from ctmrg import rdm, observables
 from ctmrg.ctm_environment import CTM_Environment
 from ctmrg.ctm_contract import (
-    # contract_ul_corner_monolayer,
-    # contract_ur_corner_monolayer,
-    # contract_dl_corner_monolayer,
-    # contract_dr_corner_monolayer,
-    contract_ul_corner_bilayer,
-    contract_ur_corner_bilayer,
-    contract_dl_corner_bilayer,
-    contract_dr_corner_bilayer,
+    contract_ul_corner_monolayer,
+    contract_ur_corner_monolayer,
+    contract_dl_corner_monolayer,
+    contract_dr_corner_monolayer,
+    # contract_ul_corner_bilayer,
+    # contract_ur_corner_bilayer,
+    # contract_dl_corner_bilayer,
+    # contract_dr_corner_bilayer,
 )
 from ctmrg.ctm_renormalize import (
     construct_projectors,
     renormalize_C1_up,
-    # renormalize_T1_monolayer,
-    renormalize_T1_bilayer,
+    renormalize_T1_monolayer,
+    # renormalize_T1_bilayer,
     renormalize_C2_up,
     renormalize_C2_right,
-    # renormalize_T2_monolayer,
-    renormalize_T2_bilayer,
+    renormalize_T2_monolayer,
+    # renormalize_T2_bilayer,
     renormalize_C3_right,
     renormalize_C3_down,
-    # renormalize_T3_monolayer,
-    renormalize_T3_bilayer,
+    renormalize_T3_monolayer,
+    # renormalize_T3_bilayer,
     renormalize_C4_down,
     renormalize_C4_left,
-    # renormalize_T4_monolayer,
-    renormalize_T4_bilayer,
+    renormalize_T4_monolayer,
+    # renormalize_T4_bilayer,
     renormalize_C1_left,
 )
 from symmetric_tensor.asymmetric_tensor import AsymmetricTensor
@@ -589,8 +589,8 @@ class CTMRG_U1(CTMRG):
         dr = self._env.get_corner_dr(x, y)
         if dr is not None:
             return dr
-        dr = contract_dr_corner_bilayer(
-            self._env.get_a_rd(x + 2, y + 2),
+        dr = contract_dr_corner_monolayer(
+            self._env.get_A(x + 2, y + 2),
             self._env.get_T2(x + 3, y + 2),
             self._env.get_T3(x + 2, y + 3),
             self._env.get_C3(x + 3, y + 3),
@@ -607,9 +607,9 @@ class CTMRG_U1(CTMRG):
         dl = self._env.get_corner_dl(x, y)
         if dl is not None:
             return dl
-        dl = contract_dl_corner_bilayer(
+        dl = contract_dl_corner_monolayer(
             self._env.get_T4(x, y + 2),
-            self._env.get_a_dl(x + 1, y + 2),
+            self._env.get_A(x + 1, y + 2),
             self._env.get_C4(x, y + 3),
             self._env.get_T3(x + 1, y + 3),
         )
@@ -625,11 +625,11 @@ class CTMRG_U1(CTMRG):
         ul = self._env.get_corner_ul(x, y)
         if ul is not None:
             return ul
-        ul = contract_ul_corner_bilayer(
+        ul = contract_ul_corner_monolayer(
             self._env.get_C1(x, y),
             self._env.get_T1(x + 1, y),
             self._env.get_T4(x, y + 1),
-            self._env.get_a_ul(x + 1, y + 1),
+            self._env.get_A(x + 1, y + 1),
         )
         self._env.set_corner_ul(x, y, ul)
         return ul
@@ -643,10 +643,10 @@ class CTMRG_U1(CTMRG):
         ur = self._env.get_corner_ur(x, y)
         if ur is not None:
             return ur
-        ur = contract_ur_corner_bilayer(
+        ur = contract_ur_corner_monolayer(
             self._env.get_T1(x + 2, y),
             self._env.get_C2(x + 3, y),
-            self._env.get_a_ur(x + 2, y + 1),
+            self._env.get_A(x + 2, y + 1),
             self._env.get_T2(x + 3, y + 1),
         )
         self._env.set_corner_ur(x, y, ur)
@@ -689,8 +689,8 @@ class CTMRG_U1(CTMRG):
                 self._env.get_C1(x, y), self._env.get_T4(x, y + 1), P
             )
 
-            a_ul = self._env.get_a_ul(x, y + 1)
-            nT1 = renormalize_T1_bilayer(Pt, self._env.get_T1(x, y), a_ul, P)
+            A = self._env.get_A(x, y + 1)
+            nT1 = renormalize_T1_monolayer(Pt, self._env.get_T1(x, y), A, P)
 
             nC2 = renormalize_C2_up(
                 self._env.get_C2(x, y), self._env.get_T2(x, y + 1), Pt
@@ -740,8 +740,8 @@ class CTMRG_U1(CTMRG):
                 self._env.get_C2(x, y), self._env.get_T1(x - 1, y), P
             )
 
-            a_ur = self._env.get_a_ur(x - 1, y)
-            nT2 = renormalize_T2_bilayer(Pt, self._env.get_T2(x, y), a_ur, P)
+            A = self._env.get_A(x - 1, y)
+            nT2 = renormalize_T2_monolayer(Pt, self._env.get_T2(x, y), A, P)
 
             nC3 = renormalize_C3_right(
                 self._env.get_C3(x, y), self._env.get_T3(x - 1, y), Pt
@@ -789,8 +789,8 @@ class CTMRG_U1(CTMRG):
                 self._env.get_C3(x, y), self._env.get_T2(x, y - 1), P
             )
 
-            a_dl = self._env.get_a_dl(x, y - 1)
-            nT3 = renormalize_T3_bilayer(Pt, self._env.get_T3(x, y), a_dl, P)
+            A = self._env.get_A(x, y - 1)
+            nT3 = renormalize_T3_monolayer(Pt, self._env.get_T3(x, y), A, P)
 
             nC4 = renormalize_C4_down(
                 self._env.get_C4(x, y), self._env.get_T4(x, y - 1), Pt
@@ -839,8 +839,8 @@ class CTMRG_U1(CTMRG):
                 self._env.get_C4(x, y), self._env.get_T3(x + 1, y), P
             )
 
-            a_ul = self._env.get_a_ul(x + 1, y)
-            nT4 = renormalize_T4_bilayer(Pt, self._env.get_T4(x, y), a_ul, P)
+            A = self._env.get_A(x + 1, y)
+            nT4 = renormalize_T4_monolayer(Pt, self._env.get_T4(x, y), A, P)
 
             nC1 = renormalize_C1_left(
                 self._env.get_C1(x, y), self._env.get_T1(x + 1, y), Pt
