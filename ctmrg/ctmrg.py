@@ -895,10 +895,10 @@ class CTMRG_U1(CTMRG):
         if ur is not None:
             return ur
         ur = contract_ur_corner_U1(
-            self._env.get_T2(x + 3, y + 1),
+            self._env.get_T1(x + 2, y),
             self._env.get_C2(x + 3, y),
             self._env.get_a_ur(x + 2, y + 1),
-            self._env.get_T1(x + 2, y),
+            self._env.get_T2(x + 3, y + 1),
         )
         self._env.set_corner_ur(x, y, ur)
         return ur
