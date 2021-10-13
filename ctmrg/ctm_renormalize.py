@@ -59,16 +59,15 @@ def renormalize_corner_P(C, T, P):
     Renormalize corner C using projector P
     CPU: 2*chi**3*D**2
     """
-    # use C3 as reference. At least one transpose is needed.
+    # assume axes are already adjusted.
 
-    #   0         0
-    # 2-|       1-|
-    # 3-|  -->  2-|
-    #   1         3
-    #             0
-    #           1-|
-    nC = T.permutate((0, 2, 3), (1,))
-    nC = nC @ C
+    #           0
+    #         1-|
+    #         2-|
+    #           3
+    #           0
+    #         1-|
+    nC = T @ C
     #           0
     #       /-1-|
     # 1-P=01--2-|
@@ -85,7 +84,7 @@ def renormalize_corner_Pt(C, T, Pt):
     Renormalize corner C using projector Pt
     CPU: 2*chi**3*D**2
     """
-    # use C4 as reference, no transpose needed
+    # assume axes are already adjusted.
 
     #  0
     #  |-1
@@ -93,8 +92,7 @@ def renormalize_corner_Pt(C, T, Pt):
     #  3
     #  0
     #  |-1
-    nC = T.permutate((0, 1, 2), (3,))
-    nC = nC @ C
+    nC = T @ C
     #  0
     #  |-1-\
     #  |-2--10=P-1
@@ -111,7 +109,7 @@ def renormalize_C1_up(C1, T4, P):
     Renormalize corner C1 from an up move using projector P
     CPU: 2*chi**3*D**2
     """
-    return renormalize_corner_P(C1.T, T4.permutate((3,), (0, 1, 2)), P).T
+    return renormalize_corner_P(C1.T, T4.permutate((3, 1, 2), (0,)), P).T
 
 
 def renormalize_T1_monolayer(Pt, T1, A, P):
@@ -138,7 +136,7 @@ def renormalize_C2_right(C2, T1, P):
     Renormalize corner C2 from right move using projector P
     CPU: 2*chi**3*D**2
     """
-    return renormalize_corner_P(C2.T, T1.permutate((3,), (0, 1, 2)), P).T
+    return renormalize_corner_P(C2.T, T1.permutate((3, 1, 2), (0,)), P).T
 
 
 def renormalize_T2_monolayer(Pt, T2, A, P):
@@ -157,7 +155,7 @@ def renormalize_C3_right(C3, T3, Pt):
     Renormalize corner C3 from right move using projector Pt
     CPU: 2*chi**3*D**2
     """
-    return renormalize_corner_Pt(C3.T, T3.permutate((3,), (0, 1, 2)), Pt).T
+    return renormalize_corner_Pt(C3.T, T3.permutate((3, 0, 1), (2,)), Pt).T
 
 
 def renormalize_C3_down(C3, T2, P):
@@ -165,7 +163,7 @@ def renormalize_C3_down(C3, T2, P):
     Renormalize corner C3 from down move using projector P
     CPU: 2*chi**3*D**2
     """
-    return renormalize_corner_P(C3, T2, P)
+    return renormalize_corner_P(C3, T2.permutate((0, 2, 3), (1,)), P)
 
 
 def renormalize_T3_monolayer(Pt, T3, A, P):
@@ -181,7 +179,7 @@ def renormalize_C4_down(C4, T4, Pt):
     Renormalize corner C4 from a down move using projector Pt
     CPU: 2*chi**3*D**2
     """
-    return renormalize_corner_Pt(C4, T4, Pt)
+    return renormalize_corner_Pt(C4, T4.permutate((0, 1, 2), (3,)), Pt)
 
 
 def renormalize_C4_left(C4, T3, P):
@@ -189,7 +187,7 @@ def renormalize_C4_left(C4, T3, P):
     Renormalize corner C4 from a left move using projector P
     CPU: 2*chi**3*D**2
     """
-    return renormalize_corner_P(C4.T, T3.permutate((2, 3), (0, 1)), P).T
+    return renormalize_corner_P(C4.T, T3.permutate((2, 0, 1), (3,)), P).T
 
 
 def renormalize_T4_monolayer(Pt, T4, A, P):
@@ -208,7 +206,7 @@ def renormalize_C1_left(C1, T1, Pt):
     Renormalize corner C1 from a left move using projector Pt
     CPU: 2*chi**3*D**2
     """
-    return renormalize_corner_Pt(C1, T1, Pt)
+    return renormalize_corner_Pt(C1, T1.permutate((0, 1, 2), (3,)), Pt)
 
 
 ###############################################################################
