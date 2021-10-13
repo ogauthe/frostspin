@@ -1,7 +1,6 @@
 import numpy as np
 import scipy.linalg as lg
 import numba
-from numba.typed import List
 
 from symmetric_tensor.symmetric_tensor import SymmetricTensor
 
@@ -24,7 +23,7 @@ def _numba_reduce_to_blocks(m, row_irreps, col_irreps):
         + list((sorted_row_irreps[:-1] != sorted_row_irreps[1:]).nonzero()[0] + 1)
         + [row_irreps.size]
     )
-    blocks = List()
+    blocks = []
     block_irreps = []
     for rbi in range(len(row_blocks) - 1):  # order matters: cannot parallelize
         # actually parallelization is possible: init blocks and block_irreps with size
@@ -42,28 +41,9 @@ def _numba_reduce_to_blocks(m, row_irreps, col_irreps):
 
 @numba.njit(parallel=True)
 def _numba_blocks_to_array(blocks, block_irreps, row_irreps, col_irreps):
-    """
-    Cast AbelianSymmetricTensor to dense numpy array
-
-    Parameters
-    ----------
-    blocks : List[array(float64, 2d, C)] with len nb
-        Reduced blocks.
-    block_irreps : (nb,) int8 ndarray
-        Block irreps.
-    row_irreps : (nrows,) int8 ndarray
-        Row irreps.
-    col_irreps : (ncols,) int8 ndarray
-        Column irreps.
-
-    Returns
-    -------
-    m : (nrows, ncols) ndarray
-        Dense tensor.
-    """
-    # homogeneous tuple of F-array MAY fail in a non-deterministic way
-    # optimize loop order for C-array
-    # -> use List[C-array]
+    # blocks must be homogeneous C-array tuple
+    # heterogeneous tuple fails on __getitem__
+    # homogeneous F-array MAY fail in a non-deterministic way
     m = np.zeros((row_irreps.size, col_irreps.size), dtype=blocks[0].dtype)
     for bi in numba.prange(len(blocks)):
         row_indices = (row_irreps == block_irreps[bi]).nonzero()[0]
@@ -138,9 +118,9 @@ def _numba_abelian_transpose(
 
     Parameters
     ----------
-    old_shape : (ndim,) int64 ndarray
+    old_shape : (ndim,) integer ndarray
         Tensor shape before transpose.
-    old_blocks : List[array(float64, 2d, C)] with len onb
+    old_blocks : homogeneous tuple of onb C-array
         Reduced blocks before transpose.
     old_block_irreps : (onb,) int8 ndarray
         Block irreps before transpose.
@@ -150,7 +130,7 @@ def _numba_abelian_transpose(
         Column irreps before transpose.
     old_n_leg_rows : int
         Number of axes to concatenate to obtain old rows.
-    axes : (ndim,) int64 ndarray
+    axes : tuple of ndim integers
         Axes permutation.
     new_row_irreps : (new_nrows,) int8 ndarray
         Row irreps after transpose.
@@ -159,12 +139,14 @@ def _numba_abelian_transpose(
 
     Returns
     -------
-    blocks : List[array(float64, 2d, C)] with len nnb
+    blocks : tuple of nnb C-array
         Reduced blocks after transpose.
     block_irreps : (nnb,) int8 ndarray
         Block irreps after transpose.
 
     Note that old_shape is a ndarray and not a tuple.
+    old_blocks MUST be homogeneous tuple of C-array, using F-array sometimes
+    fails in a non-deterministic way.
     """
     ###################################################################################
     # Loop on old blocks, for each coeff, find new index, new irrep block and copy data.
@@ -185,10 +167,6 @@ def _numba_abelian_transpose(
     # it would be pretty similar to loop on new blocks and indices, get old indices and
     # copy old value, but it requires all old blocks to exist. This may not be true with
     # current matmul implementation.
-    #
-    # numba sometimes bugs when old_blocks is a homogeneous tuple of f-array
-    # size-1 arrays forbid use of List[f-array]
-    # in any case, loops are optimized for C-array => only consider this input
     ###################################################################################
 
     # 1) construct strides before and after transpose for rows and cols
@@ -259,7 +237,7 @@ def _numba_abelian_transpose(
                 new_blocks[new_bi][new_row_index, new_col_index] = old_blocks[bi][i, j]
 
     # 6) drop empty blocks, we do not need new_row_block_indices anymore
-    blocks = List()
+    blocks = []
     block_irreps = []
     for i in range(unique_row_irreps.size):
         if new_blocks[i].size:
@@ -363,7 +341,6 @@ class AbelianSymmetricTensor(SymmetricTensor):
             else:
                 axis_reps.append(self._axis_reps[ax])
         axis_reps = tuple(axis_reps)
-
         old_row_irreps = self.get_row_representation()
         old_col_irreps = self.get_column_representation()
         new_row_irreps = self.combine_representations(*axis_reps[:n_leg_rows])
@@ -375,7 +352,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
             old_row_irreps,
             old_col_irreps,
             self._n_leg_rows,
-            np.array(axes),
+            axes,
             new_row_irreps,
             new_col_irreps,
         )
