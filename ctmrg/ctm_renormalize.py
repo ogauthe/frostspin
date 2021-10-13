@@ -42,10 +42,9 @@ def renormalize_T(Pt, T, A, P):
     #       \     01    /
     #        \    ||   /
     #         0'3-T3-20'
-    nT = T.permutate((0, 1, 2), (3,))
-    nT = nT @ P.permutate((2,), (0, 1, 3))
+    nT = T @ P.permutate((2,), (0, 1, 3))
     nT = nT.permutate((0, 3), (1, 4, 2, 5))
-    nT = A.permutate((0, 1, 2, 3), (4, 5)) @ nT
+    nT = A @ nT
     nT = nT.permutate((0, 1, 4, 5), (2, 3, 6, 7))
     nT = A.permutate((2, 3), (0, 1, 4, 5)).conjugate() @ nT
     nT = nT.permutate((3, 1, 4), (2, 0, 5))
@@ -118,7 +117,7 @@ def renormalize_T1_monolayer(Pt, T1, A, P):
     CPU: 2*chi**2*D**4*(d*a*D**2 + chi)
     """
     nT1 = renormalize_T(
-        Pt, T1.permutate((1, 2, 3), (0,)), A.permutate((0, 1), (4, 5, 2, 3)), P
+        Pt, T1.permutate((1, 2, 3), (0,)), A.permutate((0, 1, 4, 5), (2, 3)), P
     )
     return nT1.permutate((3,), (1, 2, 0))
 
@@ -145,7 +144,7 @@ def renormalize_T2_monolayer(Pt, T2, A, P):
     CPU: 2*chi**2*D**4*(d*a*D**2 + chi)
     """
     nT2 = renormalize_T(
-        Pt, T2.permutate((2, 3, 0), (1,)), A.permutate((0, 1), (5, 2, 3, 4)), P
+        Pt, T2.permutate((2, 3, 0), (1,)), A.permutate((0, 1, 5, 2), (3, 4)), P
     )
     return nT2.permutate((0,), (3, 1, 2))
 
@@ -171,7 +170,10 @@ def renormalize_T3_monolayer(Pt, T3, A, P):
     Renormalize edge T3 using projectors P and Pt
     CPU: 2*chi**2*D**4*(d*a*D**2 + chi)
     """
-    return renormalize_T(Pt, T3, A, P).permutate((1, 2, 0), (3,))
+    nT3 = renormalize_T(
+        Pt, T3.permutate((0, 1, 2), (3,)), A.permutate((0, 1, 2, 3), (4, 5)), P
+    )
+    return nT3.permutate((1, 2, 0), (3,))
 
 
 def renormalize_C4_down(C4, T4, Pt):
@@ -196,7 +198,7 @@ def renormalize_T4_monolayer(Pt, T4, A, P):
     CPU: 2*chi**2*D**4*(a*d*D**2 + chi)
     """
     nT4 = renormalize_T(
-        Pt, T4.permutate((1, 2, 3), (0,)), A.permutate((0, 1), (3, 4, 5, 2)), P
+        Pt, T4.permutate((1, 2, 3), (0,)), A.permutate((0, 1, 3, 4), (5, 2)), P
     )
     return nT4.permutate((3,), (1, 2, 0))
 
