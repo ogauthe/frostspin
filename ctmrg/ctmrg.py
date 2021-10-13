@@ -3,10 +3,6 @@ import numpy as np
 from ctmrg import rdm, observables
 from ctmrg.ctm_environment import CTM_Environment
 from ctmrg.ctm_contract import (
-    # contract_ul_corner_monolayer,
-    # contract_ur_corner_monolayer,
-    # contract_dl_corner_monolayer,
-    # contract_dr_corner_monolayer,
     contract_ul_corner_bilayer,
     contract_ur_corner_bilayer,
     contract_dl_corner_bilayer,
@@ -15,21 +11,17 @@ from ctmrg.ctm_contract import (
 from ctmrg.ctm_renormalize import (
     construct_projectors,
     renormalize_C1_up,
-    # renormalize_T1_monolayer,
-    renormalize_T1_bilayer,
     renormalize_C2_up,
     renormalize_C2_right,
-    # renormalize_T2_monolayer,
-    renormalize_T2_bilayer,
     renormalize_C3_right,
     renormalize_C3_down,
-    # renormalize_T3_monolayer,
-    renormalize_T3_bilayer,
     renormalize_C4_down,
     renormalize_C4_left,
-    # renormalize_T4_monolayer,
-    renormalize_T4_bilayer,
     renormalize_C1_left,
+    renormalize_T1_bilayer,
+    renormalize_T2_bilayer,
+    renormalize_T3_bilayer,
+    renormalize_T4_bilayer,
 )
 
 
