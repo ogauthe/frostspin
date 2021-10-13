@@ -31,7 +31,6 @@ from ctmrg.ctm_renormalize import (
     renormalize_T4_bilayer,
     renormalize_C1_left,
 )
-from symmetric_tensor.asymmetric_tensor import AsymmetricTensor
 
 
 class CTMRG(object):
@@ -290,42 +289,6 @@ class CTMRG(object):
         if self.verbosity > 1:
             print(f"Compute rdm 1x2 with C1 coord = ({x},{y})")
         return rdm.rdm_1x2(
-            AsymmetricTensor.from_array(self._env.get_C1(x, y), 1),
-            AsymmetricTensor.from_array(self._env.get_T1(x + 1, y), 1),
-            AsymmetricTensor.from_array(self._env.get_T1(x + 2, y), 1),
-            AsymmetricTensor.from_array(self._env.get_C2(x + 3, y), 1),
-            AsymmetricTensor.from_array(self._env.get_T4(x, y + 1), 3),
-            AsymmetricTensor.from_array(self._env.get_A(x + 1, y + 1), 2),
-            AsymmetricTensor.from_array(self._env.get_A(x + 2, y + 1), 2),
-            AsymmetricTensor.from_array(self._env.get_T2(x + 3, y + 1), 2),
-            AsymmetricTensor.from_array(self._env.get_C4(x, y + 2), 1),
-            AsymmetricTensor.from_array(self._env.get_T3(x + 1, y + 2), 2),
-            AsymmetricTensor.from_array(self._env.get_T3(x + 2, y + 2), 2),
-            AsymmetricTensor.from_array(self._env.get_C3(x + 3, y + 2), 1),
-        )
-
-    def compute_rdm2x1(self, x=0, y=0):
-        if self.verbosity > 1:
-            print(f"Compute rdm 2x1 with C1 coord = ({x},{y})")
-        return rdm.rdm_2x1(
-            AsymmetricTensor.from_array(self._env.get_C1(x, y), 1),
-            AsymmetricTensor.from_array(self._env.get_T1(x + 1, y), 1),
-            AsymmetricTensor.from_array(self._env.get_C2(x + 2, y), 1),
-            AsymmetricTensor.from_array(self._env.get_T4(x, y + 1), 1),
-            AsymmetricTensor.from_array(self._env.get_A(x + 1, y + 1), 2),
-            AsymmetricTensor.from_array(self._env.get_T2(x + 2, y + 1), 2),
-            AsymmetricTensor.from_array(self._env.get_T4(x, y + 2), 1),
-            AsymmetricTensor.from_array(self._env.get_A(x + 1, y + 2), 2),
-            AsymmetricTensor.from_array(self._env.get_T2(x + 2, y + 2), 1),
-            AsymmetricTensor.from_array(self._env.get_C4(x, y + 3), 1),
-            AsymmetricTensor.from_array(self._env.get_T3(x + 1, y + 3), 1),
-            AsymmetricTensor.from_array(self._env.get_C3(x + 2, y + 3), 1),
-        )
-
-    def compute_rdm2x2(self, x=0, y=0):
-        if self.verbosity > 1:
-            print(f"Compute rdm 2x2 with C1 coord = ({x},{y})")
-        return rdm.rdm_2x2(
             self._env.get_C1(x, y),
             self._env.get_T1(x + 1, y),
             self._env.get_T1(x + 2, y),
@@ -334,14 +297,28 @@ class CTMRG(object):
             self._env.get_A(x + 1, y + 1),
             self._env.get_A(x + 2, y + 1),
             self._env.get_T2(x + 3, y + 1),
+            self._env.get_C4(x, y + 2),
+            self._env.get_T3(x + 1, y + 2),
+            self._env.get_T3(x + 2, y + 2),
+            self._env.get_C3(x + 3, y + 2),
+        )
+
+    def compute_rdm2x1(self, x=0, y=0):
+        if self.verbosity > 1:
+            print(f"Compute rdm 2x1 with C1 coord = ({x},{y})")
+        return rdm.rdm_2x1(
+            self._env.get_C1(x, y),
+            self._env.get_T1(x + 1, y),
+            self._env.get_C2(x + 2, y),
+            self._env.get_T4(x, y + 1),
+            self._env.get_A(x + 1, y + 1),
+            self._env.get_T2(x + 2, y + 1),
             self._env.get_T4(x, y + 2),
             self._env.get_A(x + 1, y + 2),
-            self._env.get_A(x + 2, y + 2),
-            self._env.get_T2(x + 3, y + 2),
+            self._env.get_T2(x + 2, y + 2),
             self._env.get_C4(x, y + 3),
             self._env.get_T3(x + 1, y + 3),
-            self._env.get_T3(x + 2, y + 3),
-            self._env.get_C3(x + 3, y + 3),
+            self._env.get_C3(x + 2, y + 3),
         )
 
     def compute_rdm_diag_dr(self, x=0, y=0):
@@ -353,18 +330,12 @@ class CTMRG(object):
         return rdm.rdm_diag_dr(
             self._env.get_C1(x, y),
             self._env.get_T1(x + 1, y),
-            self._env.get_T1(x + 2, y),
-            self._env.get_C2(x + 3, y),
+            self.construct_reduced_ur(x, y),
             self._env.get_T4(x, y + 1),
             self._env.get_A(x + 1, y + 1),
-            self._env.get_A(x + 2, y + 1),
-            self._env.get_T2(x + 3, y + 1),
-            self._env.get_T4(x, y + 2),
-            self._env.get_A(x + 1, y + 2),
+            self.construct_reduced_dl(x, y),
             self._env.get_A(x + 2, y + 2),
             self._env.get_T2(x + 3, y + 2),
-            self._env.get_C4(x, y + 3),
-            self._env.get_T3(x + 1, y + 3),
             self._env.get_T3(x + 2, y + 3),
             self._env.get_C3(x + 3, y + 3),
         )
@@ -376,6 +347,22 @@ class CTMRG(object):
                 f"({x+2},{y+1})",
             )
         return rdm.rdm_diag_ur(
+            self.construct_reduced_ul(x, y),
+            self._env.get_T1(x + 2, y),
+            self._env.get_C2(x + 3, y),
+            self._env.get_A(x + 2, y + 1),
+            self._env.get_T2(x + 3, y + 1),
+            self._env.get_T4(x, y + 2),
+            self._env.get_A(x + 1, y + 2),
+            self.construct_reduced_dr(x, y),
+            self._env.get_C4(x, y + 3),
+            self._env.get_T3(x + 1, y + 3),
+        )
+
+    def compute_rdm2x2(self, x=0, y=0):
+        if self.verbosity > 1:
+            print(f"Compute rdm 2x2 with C1 coord = ({x},{y})")
+        return rdm.rdm_2x2(
             self._env.get_C1(x, y),
             self._env.get_T1(x + 1, y),
             self._env.get_T1(x + 2, y),
@@ -851,78 +838,3 @@ class CTMRG_U1(CTMRG):
         self._env.set_renormalized_tensors_left()
         if self.verbosity > 1:
             print("left move completed")
-
-    def compute_rdm1x2(self, x=0, y=0):
-        if self.verbosity > 1:
-            print(f"Compute rdm 1x2 with C1 coord = ({x},{y})")
-        return rdm.rdm_1x2(
-            self._env.get_C1(x, y),
-            self._env.get_T1(x + 1, y),
-            self._env.get_T1(x + 2, y),
-            self._env.get_C2(x + 3, y),
-            self._env.get_T4(x, y + 1),
-            self._env.get_A(x + 1, y + 1),
-            self._env.get_A(x + 2, y + 1),
-            self._env.get_T2(x + 3, y + 1),
-            self._env.get_C4(x, y + 2),
-            self._env.get_T3(x + 1, y + 2),
-            self._env.get_T3(x + 2, y + 2),
-            self._env.get_C3(x + 3, y + 2),
-        )
-
-    def compute_rdm2x1(self, x=0, y=0):
-        if self.verbosity > 1:
-            print(f"Compute rdm 2x1 with C1 coord = ({x},{y})")
-        return rdm.rdm_2x1(
-            self._env.get_C1(x, y),
-            self._env.get_T1(x + 1, y),
-            self._env.get_C2(x + 2, y),
-            self._env.get_T4(x, y + 1),
-            self._env.get_A(x + 1, y + 1),
-            self._env.get_T2(x + 2, y + 1),
-            self._env.get_T4(x, y + 2),
-            self._env.get_A(x + 1, y + 2),
-            self._env.get_T2(x + 2, y + 2),
-            self._env.get_C4(x, y + 3),
-            self._env.get_T3(x + 1, y + 3),
-            self._env.get_C3(x + 2, y + 3),
-        )
-
-    def compute_rdm_diag_dr(self, x=0, y=0):
-        if self.verbosity > 1:
-            print(
-                f"Compute rdm for down right diagonal sites ({x+1},{y+1}) and",
-                f"({x+2},{y+2})",
-            )
-
-        return rdm.rdm_diag_dr(
-            self._env.get_C1(x, y),
-            self._env.get_T1(x + 1, y),
-            self.construct_reduced_ur(x, y),
-            self._env.get_T4(x, y + 1),
-            self._env.get_A(x + 1, y + 1),
-            self.construct_reduced_dl(x, y),
-            self._env.get_A(x + 2, y + 2),
-            self._env.get_T2(x + 3, y + 2),
-            self._env.get_T3(x + 2, y + 3),
-            self._env.get_C3(x + 3, y + 3),
-        )
-
-    def compute_rdm_diag_ur(self, x=0, y=0):
-        if self.verbosity > 1:
-            print(
-                f"Compute rdm for upper right diagonal sites ({x+1},{y+2}) and",
-                f"({x+2},{y+1})",
-            )
-        return rdm.rdm_diag_ur(
-            self.construct_reduced_ul(x, y),
-            self._env.get_T1(x + 2, y),
-            self._env.get_C2(x + 3, y),
-            self._env.get_A(x + 2, y + 1),
-            self._env.get_T2(x + 3, y + 1),
-            self._env.get_T4(x, y + 2),
-            self._env.get_A(x + 1, y + 2),
-            self.construct_reduced_dr(x, y),
-            self._env.get_C4(x, y + 3),
-            self._env.get_T3(x + 1, y + 3),
-        )
