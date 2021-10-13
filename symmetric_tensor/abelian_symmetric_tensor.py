@@ -42,9 +42,28 @@ def _numba_reduce_to_blocks(m, row_irreps, col_irreps):
 
 @numba.njit(parallel=True)
 def _numba_blocks_to_array(blocks, block_irreps, row_irreps, col_irreps):
-    # blocks must be homogeneous C-array tuple
-    # heterogeneous tuple fails on __getitem__
-    # homogeneous F-array MAY fail in a non-deterministic way
+    """
+    Cast AbelianSymmetricTensor to dense numpy array
+
+    Parameters
+    ----------
+    blocks : List[array(float64, 2d, C)] with len nb
+        Reduced blocks.
+    block_irreps : (nb,) int8 ndarray
+        Block irreps.
+    row_irreps : (nrows,) int8 ndarray
+        Row irreps.
+    col_irreps : (ncols,) int8 ndarray
+        Column irreps.
+
+    Returns
+    -------
+    m : (nrows, ncols) ndarray
+        Dense tensor.
+    """
+    # homogeneous tuple of F-array MAY fail in a non-deterministic way
+    # optimize loop order for C-array
+    # -> use List[C-array]
     m = np.zeros((row_irreps.size, col_irreps.size), dtype=blocks[0].dtype)
     for bi in numba.prange(len(blocks)):
         row_indices = (row_irreps == block_irreps[bi]).nonzero()[0]
@@ -119,9 +138,9 @@ def _numba_abelian_transpose(
 
     Parameters
     ----------
-    old_shape : (ndim,) integer ndarray
+    old_shape : (ndim,) int64 ndarray
         Tensor shape before transpose.
-    old_blocks : homogeneous tuple of onb C-array
+    old_blocks : List[array(float64, 2d, C)] with len onb
         Reduced blocks before transpose.
     old_block_irreps : (onb,) int8 ndarray
         Block irreps before transpose.
@@ -131,7 +150,7 @@ def _numba_abelian_transpose(
         Column irreps before transpose.
     old_n_leg_rows : int
         Number of axes to concatenate to obtain old rows.
-    axes : tuple of ndim integers
+    axes : (ndim,) int64 ndarray
         Axes permutation.
     new_row_irreps : (new_nrows,) int8 ndarray
         Row irreps after transpose.
@@ -140,14 +159,12 @@ def _numba_abelian_transpose(
 
     Returns
     -------
-    blocks : tuple of nnb C-array
+    blocks : List[array(float64, 2d, C)] with len nnb
         Reduced blocks after transpose.
     block_irreps : (nnb,) int8 ndarray
         Block irreps after transpose.
 
     Note that old_shape is a ndarray and not a tuple.
-    old_blocks MUST be homogeneous tuple of C-array, using F-array sometimes
-    fails in a non-deterministic way.
     """
     ###################################################################################
     # Loop on old blocks, for each coeff, find new index, new irrep block and copy data.
@@ -168,6 +185,10 @@ def _numba_abelian_transpose(
     # it would be pretty similar to loop on new blocks and indices, get old indices and
     # copy old value, but it requires all old blocks to exist. This may not be true with
     # current matmul implementation.
+    #
+    # numba sometimes bugs when old_blocks is a homogeneous tuple of f-array
+    # size-1 arrays forbid use of List[f-array]
+    # in any case, loops are optimized for C-array => only consider this input
     ###################################################################################
 
     # 1) construct strides before and after transpose for rows and cols
