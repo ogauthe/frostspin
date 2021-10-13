@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.linalg as lg
 import numba
+from numba.typed import List
 
 from symmetric_tensor.symmetric_tensor import SymmetricTensor
 
@@ -23,7 +24,7 @@ def _numba_reduce_to_blocks(m, row_irreps, col_irreps):
         + list((sorted_row_irreps[:-1] != sorted_row_irreps[1:]).nonzero()[0] + 1)
         + [row_irreps.size]
     )
-    blocks = []
+    blocks = List()
     block_irreps = []
     for rbi in range(len(row_blocks) - 1):  # order matters: cannot parallelize
         # actually parallelization is possible: init blocks and block_irreps with size
@@ -237,7 +238,7 @@ def _numba_abelian_transpose(
                 new_blocks[new_bi][new_row_index, new_col_index] = old_blocks[bi][i, j]
 
     # 6) drop empty blocks, we do not need new_row_block_indices anymore
-    blocks = []
+    blocks = List()
     block_irreps = []
     for i in range(unique_row_irreps.size):
         if new_blocks[i].size:
@@ -341,6 +342,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
             else:
                 axis_reps.append(self._axis_reps[ax])
         axis_reps = tuple(axis_reps)
+
         old_row_irreps = self.get_row_representation()
         old_col_irreps = self.get_column_representation()
         new_row_irreps = self.combine_representations(*axis_reps[:n_leg_rows])
@@ -352,7 +354,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
             old_row_irreps,
             old_col_irreps,
             self._n_leg_rows,
-            axes,
+            np.array(axes),
             new_row_irreps,
             new_col_irreps,
         )

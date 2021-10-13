@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.linalg as lg
+from numba.typed import List
 
 from misc_tools.svd_tools import sparse_svd, numba_find_chi_largest
 
@@ -53,13 +54,13 @@ class SymmetricTensor(object):
         self._ndim = len(axis_reps)
         self._nblocks = len(blocks)
         if all(b.flags["C"] for b in blocks):
-            self._blocks = tuple(blocks)
+            self._blocks = List(blocks)
             self._f_contiguous = False
         elif all(b.flags["F"] for b in blocks):
-            self._blocks = tuple(blocks)
+            self._blocks = tuple(blocks)  # numba issue 5967: cannot use List
             self._f_contiguous = True
         else:
-            self._blocks = tuple(np.ascontiguousarray(b) for b in blocks)
+            self._blocks = List(np.ascontiguousarray(b) for b in blocks)
             self._f_contiguous = False
         self._block_irreps = block_irreps
         self._ncoeff = sum(b.size for b in blocks)
