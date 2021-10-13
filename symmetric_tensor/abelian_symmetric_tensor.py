@@ -195,23 +195,31 @@ def _numba_abelian_transpose(
         block_rows,
         new_row_block_indices,
     ) = _numpy_get_indices(new_row_irreps)
-    block_cols = np.empty((new_col_irreps.size,), dtype=np.int64)
-    dtype = old_blocks[0].dtype
 
-    # 3) initialize block sizes. Non-existing blocks stay zero-sized
+    # 3) find each column index inside new blocks
+    block_cols = np.empty((new_col_irreps.size,), dtype=np.int64)
+    col_irrep_count = np.zeros((unique_row_irreps.size,), dtype=np.int64)
+    for i in range(new_col_irreps.size):
+        for j in range(unique_row_irreps.size):
+            if new_col_irreps[i] == unique_row_irreps[j]:
+                block_cols[i] = col_irrep_count[j]
+                col_irrep_count[j] += 1
+                break
+
+    # 4) initialize block sizes. Non-existing blocks stay zero-sized
     # we need to keep all irrep blocks including empty ones (=no column) so that
     # new_row_block_indices still refers to the accurate block.
     # We need to initialize to zero and not to empty because of possibly missing old
     # block.
     # >> other possibility: contiguous array data of size ncoeff, new_blocks information
     # set with strides. Then new_blocks = [data[i:j].reshape(m,n)]
-    new_blocks = []
-    for i in range(unique_row_irreps.size):
-        irr_indices = (new_col_irreps == unique_row_irreps[i]).nonzero()[0]
-        block_cols[irr_indices] = np.arange(irr_indices.size)
-        new_blocks.append(np.zeros((row_irrep_count[i], irr_indices.size), dtype=dtype))
+    dtype = old_blocks[0].dtype
+    new_blocks = [
+        np.zeros((row_irrep_count[i], col_irrep_count[i]), dtype=dtype)
+        for i in range(unique_row_irreps.size)
+    ]
 
-    # 4) copy all coeff from all blocks to new destination
+    # 5) copy all coeff from all blocks to new destination
     for bi in numba.prange(old_block_irreps.size):
         ori = (old_row_irreps == old_block_irreps[bi]).nonzero()[0].reshape(-1, 1)
         ori = (ori // rstrides1 % rmod * rstrides2).sum(axis=1)
@@ -228,7 +236,7 @@ def _numba_abelian_transpose(
                 new_col_index = block_cols[nc]
                 new_blocks[new_bi][new_row_index, new_col_index] = old_blocks[bi][i, j]
 
-    # 5) drop empty blocks, we do not need new_row_block_indices anymore
+    # 6) drop empty blocks, we do not need new_row_block_indices anymore
     blocks = []
     block_irreps = []
     for i in range(unique_row_irreps.size):
