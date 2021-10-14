@@ -32,7 +32,7 @@ def construct_projectors(
         r_blocks[bi] = corner1.blocks[ind1[bi]] @ corner2.blocks[ind2[bi]]
         rt_blocks[bi] = corner3.blocks[ind3[bi]] @ corner4.blocks[ind4[bi]]
         m = r_blocks[bi] @ rt_blocks[bi]
-        if min(m.shape) < 8 * chi:  # use full svd for small blocks
+        if min(m.shape) < 3 * chi:  # use full svd for small blocks
             try:
                 u, s, v = lg.svd(m, full_matrices=False, overwrite_a=True)
             except lg.LinAlgError as err:
