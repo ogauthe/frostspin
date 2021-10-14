@@ -70,7 +70,6 @@ def construct_projectors(
 
     block_irreps = corner2.block_irreps[ind2[non_empty]]
     mid_rep = corner2.init_representation(block_cuts[non_empty], block_irreps)
-    print(mid_rep)
     rep_P = (mid_rep,) + corner2.axis_reps[3:]
     rep_Pt = corner3.axis_reps[:3] + (mid_rep,)
     P = type(corner2)(rep_P, 1, p_blocks, block_irreps).T
