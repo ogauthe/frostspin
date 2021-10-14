@@ -292,17 +292,21 @@ class SymmetricTensor(object):
         )
         return type(self)(axis_reps, self._n_leg_rows, blocks, block_irreps)
 
-    def svd(self, cut=None, window=0, rcutoff=0.0, degen_ratio=1.0):
+    def svd(self, cut=None, max_dense_dim=None, window=0, rcutoff=0.0, degen_ratio=1.0):
         """
         Compute block-wise SVD of self and keep only cut largest singular values. Do not
         truncate if cut is not provided. Keep only values larger than rcutoff * max(sv).
         """
-        full = cut is None
+        if cut is None:
+            max_dense_dim = np.inf
+        elif max_dense_dim is None:
+            max_dense_dim = 8 * cut
+
         raw_u = [None] * self._nblocks
         raw_s = [None] * self._nblocks
         raw_v = [None] * self._nblocks
         for bi, b in enumerate(self._blocks):
-            if full or min(b.shape) < 3 * cut:  # dense svd for small blocks
+            if min(b.shape) < max_dense_dim:  # dense svd for small blocks
                 try:
                     u, s, v = lg.svd(b, full_matrices=False, check_finite=False)
                 except lg.LinAlgError as err:
@@ -316,7 +320,7 @@ class SymmetricTensor(object):
             raw_s[bi] = s
             raw_v[bi] = v
 
-        if full:
+        if cut is None:
             cutoff = rcutoff * max(s[0] for s in raw_s)
             block_cuts = np.array([(s > cutoff).sum() for s in raw_s])
         else:
