@@ -8,15 +8,17 @@ from ctmrg.ctm_contract import add_a_bilayer
 def construct_projectors(
     corner1, corner2, corner3, corner4, chi, rcutoff, degen_ratio, window
 ):
+    # factorize loops on different symmetry sectors, construct only blocks that will
+    # appear in final projectors. Compute SVD blockwise on the fly for R @ Rt, without
+    # storing all the blocks together.
 
-    shared = np.array(
-        sorted(
-            set(corner1.block_irreps)
-            .intersection(corner2.block_irreps)
-            .intersection(corner3.block_irreps)
-            .intersection(corner4.block_irreps)
-        )
+    shared = sorted(
+        set(corner1.block_irreps)
+        .intersection(corner2.block_irreps)
+        .intersection(corner3.block_irreps)
+        .intersection(corner4.block_irreps)
     )
+    shared = np.array(shared)
     n_blocks = shared.size
     ind1 = corner1.block_irreps.searchsorted(shared)
     ind2 = corner2.block_irreps.searchsorted(shared)
@@ -24,11 +26,9 @@ def construct_projectors(
     ind4 = corner4.block_irreps.searchsorted(shared)
 
     # first loop: compute SVD for all blocks
-    r_blocks, rt_blocks, u_blocks, s_blocks, v_blocks = [
-        [None] * n_blocks for i in range(5)
-    ]
-
-    for bi in range(n_blocks):  # avoid svd_truncate to compute SVD on the fly
+    r_blocks, rt_blocks = [[None] * n_blocks for i in range(2)]
+    u_blocks, s_blocks, v_blocks = [[None] * n_blocks for i in range(3)]
+    for bi in range(n_blocks):  # compute SVD on the fly
         r_blocks[bi] = corner1.blocks[ind1[bi]] @ corner2.blocks[ind2[bi]]
         rt_blocks[bi] = corner3.blocks[ind3[bi]] @ corner4.blocks[ind4[bi]]
         m = r_blocks[bi] @ rt_blocks[bi]
@@ -46,7 +46,6 @@ def construct_projectors(
                     lapack_driver="gesvd",
                 )
         else:
-            # for U(1) as SU(2) subgroup, no degen inside a color block
             u, s, v = sparse_svd(m, k=chi + window, maxiter=1000)
 
         u_blocks[bi] = u
@@ -71,7 +70,7 @@ def construct_projectors(
     block_irreps = corner2.block_irreps[ind2[non_empty]]
     mid_rep = corner2.init_representation(block_cuts[non_empty], block_irreps)
     rep_P = (mid_rep,) + corner2.axis_reps[3:]
-    rep_Pt = corner3.axis_reps[:3] + (mid_rep,)
+    rep_Pt = corner2.axis_reps[3:] + (mid_rep,)
     P = type(corner2)(rep_P, 1, p_blocks, block_irreps).T
     Pt = type(corner2)(rep_Pt, 3, pt_blocks, block_irreps)
     return P, Pt
