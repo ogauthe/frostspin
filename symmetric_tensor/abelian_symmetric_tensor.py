@@ -220,6 +220,7 @@ def _numba_abelian_transpose(
     ]
 
     # 5) copy all coeff from all blocks to new destination
+    # much faster NOT to parallelize loop on old_blocks (huge difference in block sizes)
     for bi in range(old_block_irreps.size):
         ori = (old_row_irreps == old_block_irreps[bi]).nonzero()[0].reshape(-1, 1)
         ori = (ori // rstrides1 % rmod * rstrides2).sum(axis=1)
