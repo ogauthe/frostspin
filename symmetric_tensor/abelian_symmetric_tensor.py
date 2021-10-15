@@ -220,7 +220,7 @@ def _numba_abelian_transpose(
     ]
 
     # 5) copy all coeff from all blocks to new destination
-    for bi in numba.prange(old_block_irreps.size):
+    for bi in range(old_block_irreps.size):
         ori = (old_row_irreps == old_block_irreps[bi]).nonzero()[0].reshape(-1, 1)
         ori = (ori // rstrides1 % rmod * rstrides2).sum(axis=1)
         oci = (old_col_irreps == old_block_irreps[bi]).nonzero()[0].reshape(-1, 1)
