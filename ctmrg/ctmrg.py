@@ -549,7 +549,7 @@ class CTMRG_U1(CTMRG):
         if self.verbosity > 0:
             print(self)
 
-    def construct_reduced_dr(self, x, y):
+    def construct_reduced_dr(self, x, y, free_memory=False):
         """
         Return down right corner reduced to U(1) blocks as a U1_SymmetricTensor. Check
         _env to find an already computed corner, if it does not exist construct it and
@@ -565,69 +565,77 @@ class CTMRG_U1(CTMRG):
         meaning reduced_dr is transposed when compared to standard clockwise order.
         """
         dr = self._env.get_corner_dr(x, y)
-        if dr is not None:
-            return dr
-        dr = contract_dr_corner_bilayer(
-            self._env.get_a_rd(x + 2, y + 2),
-            self._env.get_T2(x + 3, y + 2),
-            self._env.get_T3(x + 2, y + 3),
-            self._env.get_C3(x + 3, y + 3),
-        )
-        self._env.set_corner_dr(x, y, dr)
+        if dr is None:
+            dr = contract_dr_corner_bilayer(
+                self._env.get_a_rd(x + 2, y + 2),
+                self._env.get_T2(x + 3, y + 2),
+                self._env.get_T3(x + 2, y + 3),
+                self._env.get_C3(x + 3, y + 3),
+            )
+            if not free_memory:
+                self._env.set_corner_dr(x, y, dr)
+        elif free_memory:
+            self._env.set_corner_dr(x, y, None)
         return dr
 
-    def construct_reduced_dl(self, x, y):
+    def construct_reduced_dl(self, x, y, free_memory=False):
         """
         Return down left corner reduced to U(1) blocks as a U1_SymmetricTensor. Check
         _env to find an already computed corner, if it does not exist construct it and
         store it in _env.
         """
         dl = self._env.get_corner_dl(x, y)
-        if dl is not None:
-            return dl
-        dl = contract_dl_corner_bilayer(
-            self._env.get_T4(x, y + 2),
-            self._env.get_a_dl(x + 1, y + 2),
-            self._env.get_C4(x, y + 3),
-            self._env.get_T3(x + 1, y + 3),
-        )
-        self._env.set_corner_dl(x, y, dl)
+        if dl is None:
+            dl = contract_dl_corner_bilayer(
+                self._env.get_T4(x, y + 2),
+                self._env.get_a_dl(x + 1, y + 2),
+                self._env.get_C4(x, y + 3),
+                self._env.get_T3(x + 1, y + 3),
+            )
+            if not free_memory:
+                self._env.set_corner_dl(x, y, dl)
+        elif free_memory:
+            self._env.set_corner_dl(x, y, None)
         return dl
 
-    def construct_reduced_ul(self, x, y):
+    def construct_reduced_ul(self, x, y, free_memory=False):
         """
         Return upper left corner reduced to U(1) blocks as a U1_SymmetricTensor. Check
         _env to find an already computed corner, if it does not exist construct it and
         store it in _env.
         """
         ul = self._env.get_corner_ul(x, y)
-        if ul is not None:
-            return ul
-        ul = contract_ul_corner_bilayer(
-            self._env.get_C1(x, y),
-            self._env.get_T1(x + 1, y),
-            self._env.get_T4(x, y + 1),
-            self._env.get_a_ul(x + 1, y + 1),
-        )
-        self._env.set_corner_ul(x, y, ul)
+        if ul is None:
+            ul = contract_ul_corner_bilayer(
+                self._env.get_C1(x, y),
+                self._env.get_T1(x + 1, y),
+                self._env.get_T4(x, y + 1),
+                self._env.get_a_ul(x + 1, y + 1),
+            )
+            if not free_memory:
+                self._env.set_corner_ul(x, y, ul)
+        elif free_memory:
+            self._env.set_corner_ul(x, y, None)
         return ul
 
-    def construct_reduced_ur(self, x, y):
+    def construct_reduced_ur(self, x, y, free_memory=False):
         """
         Return upper right corner reduced to U(1) blocks as a U1_SymmetricTensor. Check
         _env to find an already computed corner, if it does not exist construct it and
         store it in _env.
         """
         ur = self._env.get_corner_ur(x, y)
-        if ur is not None:
-            return ur
-        ur = contract_ur_corner_bilayer(
-            self._env.get_T1(x + 2, y),
-            self._env.get_C2(x + 3, y),
-            self._env.get_a_ur(x + 2, y + 1),
-            self._env.get_T2(x + 3, y + 1),
-        )
-        self._env.set_corner_ur(x, y, ur)
+        if ur is None:
+            ur = contract_ur_corner_bilayer(
+                self._env.get_T1(x + 2, y),
+                self._env.get_C2(x + 3, y),
+                self._env.get_a_ur(x + 2, y + 1),
+                self._env.get_T2(x + 3, y + 1),
+            )
+            if not free_memory:
+                self._env.set_corner_ur(x, y, ur)
+        elif free_memory:
+            self._env.set_corner_ur(x, y, None)
         return ur
 
     def up_move(self):
@@ -639,16 +647,14 @@ class CTMRG_U1(CTMRG):
         if self.verbosity > 1:
             print("\nstart up move")
         # 1) compute isometries for every non-equivalent sites
+        # construct corners, free memory as soon as possible for corners that will be
+        # updated by this move.
         for x, y in self._neq_coords:
-            reduced_dr = self.construct_reduced_dr(x, y)
-            reduced_ur = self.construct_reduced_ur(x, y)
-            reduced_ul = self.construct_reduced_ul(x, y)
-            reduced_dl = self.construct_reduced_dl(x, y)
             P, Pt = construct_projectors(
-                reduced_dr,
-                reduced_ur,
-                reduced_ul,
-                reduced_dl,
+                self.construct_reduced_dr(x, y),
+                self.construct_reduced_ur(x, y, free_memory=True),
+                self.construct_reduced_ul(x, y, free_memory=True),
+                self.construct_reduced_dl(x, y),
                 self.chi_setpoint,
                 self.cutoff,
                 self.degen_ratio,
@@ -678,7 +684,7 @@ class CTMRG_U1(CTMRG):
         # 3) store renormalized tensors in the environment
         # renormalization reads C1[x,y] but writes C1[x,y+1]
         # => need to compute every renormalized tensors before storing any of them
-        self._env.set_renormalized_tensors_up()  # also removes corners ul and ur
+        self._env.set_renormalized_tensors_up()
         if self.verbosity > 1:
             print("up move completed")
 
@@ -692,15 +698,11 @@ class CTMRG_U1(CTMRG):
             print("\nstart right move")
         # 1) compute isometries for every non-equivalent sites
         for x, y in self._neq_coords:
-            reduced_dl = self.construct_reduced_dl(x, y)
-            reduced_dr = self.construct_reduced_dr(x, y)
-            reduced_ur = self.construct_reduced_ur(x, y)
-            reduced_ul = self.construct_reduced_ul(x, y)
             P, Pt = construct_projectors(
-                reduced_dl,
-                reduced_dr,
-                reduced_ur,
-                reduced_ul,
+                self.construct_reduced_dl(x, y),
+                self.construct_reduced_dr(x, y, free_memory=True),
+                self.construct_reduced_ur(x, y, free_memory=True),
+                self.construct_reduced_ul(x, y),
                 self.chi_setpoint,
                 self.cutoff,
                 self.degen_ratio,
@@ -741,15 +743,11 @@ class CTMRG_U1(CTMRG):
             print("\nstart down move")
         # 1) compute isometries for every non-equivalent sites
         for x, y in self._neq_coords:
-            reduced_ul = self.construct_reduced_ul(x, y)
-            reduced_dl = self.construct_reduced_dl(x, y)
-            reduced_dr = self.construct_reduced_dr(x, y)
-            reduced_ur = self.construct_reduced_ur(x, y)
             P, Pt = construct_projectors(
-                reduced_ul,
-                reduced_dl,
-                reduced_dr,
-                reduced_ur,
+                self.construct_reduced_ul(x, y),
+                self.construct_reduced_dl(x, y, free_memory=True),
+                self.construct_reduced_dr(x, y, free_memory=True),
+                self.construct_reduced_ur(x, y),
                 self.chi_setpoint,
                 self.cutoff,
                 self.degen_ratio,
@@ -790,21 +788,16 @@ class CTMRG_U1(CTMRG):
             print("\nstart left move")
         # 1) compute isometries for every non-equivalent sites
         for x, y in self._neq_coords:
-            reduced_ur = self.construct_reduced_ur(x, y)
-            reduced_ul = self.construct_reduced_ul(x, y)
-            reduced_dl = self.construct_reduced_dl(x, y)
-            reduced_dr = self.construct_reduced_dr(x, y)
             P, Pt = construct_projectors(
-                reduced_ur,
-                reduced_ul,
-                reduced_dl,
-                reduced_dr,
+                self.construct_reduced_ur(x, y),
+                self.construct_reduced_ul(x, y, free_memory=True),
+                self.construct_reduced_dl(x, y, free_memory=True),
+                self.construct_reduced_dr(x, y),
                 self.chi_setpoint,
                 self.cutoff,
                 self.degen_ratio,
                 self.window,
             )
-
             self._env.store_projectors(x, y + 1, P, Pt)
 
         # 2) renormalize every non-equivalent C4, T4 and C1

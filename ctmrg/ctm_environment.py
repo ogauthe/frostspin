@@ -558,30 +558,22 @@ class CTM_Environment(object):
         self._neq_C1s = self._nCX
         self._neq_T1s = self._nT
         self._neq_C2s = self._nCY
-        self._corners_ul = [None] * self._Nneq
-        self._corners_ur = [None] * self._Nneq
         self._reset_temp_lists()
 
     def set_renormalized_tensors_right(self):
         self._neq_C2s = self._nCX
         self._neq_T2s = self._nT
         self._neq_C3s = self._nCY
-        self._corners_ur = [None] * self._Nneq
-        self._corners_dr = [None] * self._Nneq
         self._reset_temp_lists()
 
     def set_renormalized_tensors_down(self):
         self._neq_C3s = self._nCX
         self._neq_T3s = self._nT
         self._neq_C4s = self._nCY
-        self._corners_dr = [None] * self._Nneq
-        self._corners_dl = [None] * self._Nneq
         self._reset_temp_lists()
 
     def set_renormalized_tensors_left(self):
         self._neq_C4s = self._nCX
         self._neq_T4s = self._nT
         self._neq_C1s = self._nCY
-        self._corners_dl = [None] * self._Nneq
-        self._corners_ul = [None] * self._Nneq
         self._reset_temp_lists()
