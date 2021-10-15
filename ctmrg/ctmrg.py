@@ -648,6 +648,8 @@ class CTMRG_U1(CTMRG):
         if self.verbosity > 1:
             print("\nstart up move")
         # 1) compute isometries for every non-equivalent sites
+        # construct corners, free memory as soon as possible for corners that will be
+        # updated by this move.
         for x, y in self._neq_coords:
             P, Pt = construct_projectors(
                 self.construct_reduced_dr(x, y),
@@ -683,7 +685,7 @@ class CTMRG_U1(CTMRG):
         # 3) store renormalized tensors in the environment
         # renormalization reads C1[x,y] but writes C1[x,y+1]
         # => need to compute every renormalized tensors before storing any of them
-        self._env.set_renormalized_tensors_up()  # also removes corners ul and ur
+        self._env.set_renormalized_tensors_up()
         if self.verbosity > 1:
             print("up move completed")
 
@@ -797,7 +799,6 @@ class CTMRG_U1(CTMRG):
                 self.degen_ratio,
                 self.window,
             )
-
             self._env.store_projectors(x, y + 1, P, Pt)
 
         # 2) renormalize every non-equivalent C4, T4 and C1
