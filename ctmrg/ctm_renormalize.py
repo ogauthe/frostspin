@@ -55,7 +55,9 @@ def construct_projectors(
                     lapack_driver="gesvd",
                 )
         else:
-            u, s, v = sparse_svd(m, k=block_chi[bi], maxiter=1000)
+            u, s, v = sparse_svd(
+                m, k=block_chi[bi], ncv=3 * block_chi[bi], maxiter=5000
+            )
 
         u_blocks[bi] = u
         s_blocks[bi] = s
