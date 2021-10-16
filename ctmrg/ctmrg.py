@@ -152,21 +152,24 @@ class CTMRG(object):
         if verbosity > 0:
             print("Restart CTMRG from file", filename)
         with np.load(filename) as fin:
+            # manage older data format with KeyError
             try:
                 block_chi_ratio = float(fin["_CTM_block_chi_ratio"])
             except KeyError:
+                print("Did not find block_chi_ratio, set it to 1.2")
                 block_chi_ratio = 1.2
             try:
                 chi_setpoint = int(fin["_CTM_chi_setpoint"])
-            except KeyError:  # old data format
+            except KeyError:
                 chi_setpoint = int(fin["_CTM_chi"])
             try:
                 cutoff = float(fin["_CTM_cutoff"][()])
                 degen_ratio = float(fin["_CTM_degen_ratio"][()])
-            except KeyError:  # old data format
+            except KeyError:
+                print("Did not find cutoff, set it to 0.0")
+                print("Did not find degen_ratio, set it to 1.0")
                 cutoff = 0.0
                 degen_ratio = 1.0
-        # env construction can take a lot of time (A-A* contraction is expensive)
         # better to open and close savefile twice (here and in env) to have env __init__
         # outside of file opening block.
         env = CTM_Environment.from_file(filename)
