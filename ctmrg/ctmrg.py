@@ -60,7 +60,7 @@ class CTMRG(object):
     """
 
     def __init__(
-        self, env, chi_setpoint, block_chi_ratio, cutoff, degen_ratio, window, verbosity
+        self, env, chi_setpoint, block_chi_ratio, cutoff, degen_ratio, verbosity
     ):
         """
         Constructor for totally asymmetric CTMRG algorithm. Consider using from_file or
@@ -83,9 +83,6 @@ class CTMRG(object):
             Used to define multiplets in projector singular values and truncate between
             two multiplets. Two consecutive (decreasing) values are considered
             degenerate if 1 >= s[i+1]/s[i] >= degen_ratio > 0.
-        window : int
-            In projector construction, compute chi_setpoint + window singular values
-            to preserve multiplet structure.
         verbosity : int
             Level of log verbosity.
         """
@@ -97,7 +94,6 @@ class CTMRG(object):
         self.chi_setpoint = chi_setpoint
         self.block_chi_ratio = block_chi_ratio
         self.cutoff = cutoff
-        self.window = window
         self.degen_ratio = degen_ratio
         self._neq_coords = self._env.neq_coords
 
@@ -124,7 +120,6 @@ class CTMRG(object):
         block_chi_ratio=1.2,
         cutoff=0.0,
         degen_ratio=1.0,
-        window=0,
         verbosity=0,
     ):
         """
@@ -142,9 +137,7 @@ class CTMRG(object):
         if verbosity > 0:
             print("Start CTMRG from scratch using elementary tensors")
         env = CTM_Environment.from_elementary_tensors(tensors, tiling)
-        return cls(
-            env, chi_setpoint, block_chi_ratio, cutoff, degen_ratio, window, verbosity
-        )
+        return cls(env, chi_setpoint, block_chi_ratio, cutoff, degen_ratio, verbosity)
 
     @classmethod
     def from_file(cls, filename, verbosity=0):
@@ -171,18 +164,14 @@ class CTMRG(object):
             try:
                 cutoff = float(fin["_CTM_cutoff"][()])
                 degen_ratio = float(fin["_CTM_degen_ratio"][()])
-                window = int(fin["_CTM_window"][()])
             except KeyError:  # old data format
                 cutoff = 0.0
                 degen_ratio = 1.0
-                window = 0
         # env construction can take a lot of time (A-A* contraction is expensive)
         # better to open and close savefile twice (here and in env) to have env __init__
         # outside of file opening block.
         env = CTM_Environment.from_file(filename)
-        return cls(
-            env, chi_setpoint, block_chi_ratio, cutoff, degen_ratio, window, verbosity
-        )
+        return cls(env, chi_setpoint, block_chi_ratio, cutoff, degen_ratio, verbosity)
 
     def save_to_file(self, filename, additional_data={}):
         """
@@ -200,7 +189,6 @@ class CTMRG(object):
             "_CTM_block_chi_ratio": self.block_chi_ratio,
             "_CTM_cutoff": self.cutoff,
             "_CTM_degen_ratio": self.degen_ratio,
-            "_CTM_window": self.window,
         }
         env_data = self._env.get_data_to_save()
         np.savez_compressed(filename, **data, **env_data, **additional_data)
@@ -242,9 +230,10 @@ class CTMRG(object):
         return "\n".join(
             (
                 repr(self),
-                f"chi_setpoint = {self.chi_setpoint}, block_chi_ratio =",
-                f"{self.block_chi_ratio}, cutoff = {self.cutoff}",
-                f"degen_ratio = {self.degen_ratio}, window = {self.window}",
+                f"chi_setpoint = {self.chi_setpoint}",
+                f"block_chi_ratio = {self.block_chi_ratio}",
+                f"cutoff = {self.cutoff}",
+                f"degen_ratio = {self.degen_ratio}",
                 f"unit cell =\n{self._env.cell}",
             )
         )
@@ -513,7 +502,6 @@ class CTMRG_U1(CTMRG):
         block_chi_ratio=1.2,
         cutoff=0.0,
         degen_ratio=1.0,
-        window=0,
         load_env=None,
         verbosity=0,
     ):
@@ -543,12 +531,6 @@ class CTMRG_U1(CTMRG):
             two multiplets. Two consecutive (decreasing) values are considered
             degenerate if 1 >= s[i+1]/s[i] >= degen_ratio > 0. Default is 1.0 (exact
             degeneracies)
-        window : int
-            During projector construction, compute chi_setpoint + window singular values
-            in each irrep block to preserve global multiplet structure. Required if
-            implemented symmetry is smaller than physial symmetry. Default is 0. Can be
-            kept to 0 if no degeneracies exist within a given irrep block (e.g. U(1) as
-            SU(2) subgroup).
         load_env : string
             File to restart corner and edge environment tensors from, independently
             from elementary tensors. If None, environment tensors will be initalized
@@ -565,9 +547,7 @@ class CTMRG_U1(CTMRG):
         env = CTM_Environment.from_elementary_tensors(
             tiling, tensors, representations, load_env=load_env
         )
-        return cls(
-            env, chi_setpoint, block_chi_ratio, cutoff, degen_ratio, window, verbosity
-        )
+        return cls(env, chi_setpoint, block_chi_ratio, cutoff, degen_ratio, verbosity)
 
     def __repr__(self):
         return (
@@ -695,7 +675,6 @@ class CTMRG_U1(CTMRG):
                 self.block_chi_ratio,
                 self.cutoff,
                 self.degen_ratio,
-                self.window,
             )
             self._env.store_projectors(x + 2, y, P, Pt)
 
@@ -744,7 +723,6 @@ class CTMRG_U1(CTMRG):
                 self.block_chi_ratio,
                 self.cutoff,
                 self.degen_ratio,
-                self.window,
             )
             self._env.store_projectors(x + 3, y + 2, P, Pt)
 
@@ -790,7 +768,6 @@ class CTMRG_U1(CTMRG):
                 self.block_chi_ratio,
                 self.cutoff,
                 self.degen_ratio,
-                self.window,
             )
             self._env.store_projectors(x + 3, y + 3, P, Pt)
 
@@ -836,7 +813,6 @@ class CTMRG_U1(CTMRG):
                 self.block_chi_ratio,
                 self.cutoff,
                 self.degen_ratio,
-                self.window,
             )
             self._env.store_projectors(x, y + 1, P, Pt)
 

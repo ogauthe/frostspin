@@ -14,7 +14,6 @@ def construct_projectors(
     block_chi_ratio,
     rcutoff,
     degen_ratio,
-    window,
 ):
     # factorize loops on different symmetry sectors, construct only blocks that will
     # appear in final projectors. Compute SVD blockwise on the fly for R @ Rt, without
@@ -45,7 +44,7 @@ def construct_projectors(
         r_blocks[bi] = corner1.blocks[ind1[bi]] @ corner2.blocks[ind2[bi]]
         rt_blocks[bi] = corner3.blocks[ind3[bi]] @ corner4.blocks[ind4[bi]]
         m = r_blocks[bi] @ rt_blocks[bi]
-        block_chi = min(chi + window, int(block_chi_ratio * r_blocks[bi].shape[1]) + 1)
+        block_chi = min(chi, int(block_chi_ratio * r_blocks[bi].shape[1]) + 1)
         if min(m.shape) < max(500, 8 * block_chi):  # use full svd for small blocks
             try:
                 u, s, v = lg.svd(m, full_matrices=False, overwrite_a=True)
