@@ -59,7 +59,9 @@ class CTMRG(object):
     computation, it is mostly interface and tensor selection.
     """
 
-    def __init__(self, env, chi_setpoint, cutoff, degen_ratio, window, verbosity):
+    def __init__(
+        self, env, chi_setpoint, block_chi_ratio, cutoff, degen_ratio, window, verbosity
+    ):
         """
         Constructor for totally asymmetric CTMRG algorithm. Consider using from_file or
         from_elementary_tensors methods instead of calling this one directly.
@@ -71,6 +73,10 @@ class CTMRG(object):
         chi_setpoint : integer
             Maximal corner dimension. This is a setpoint, actual corner dimension
             may be smaller due to cutoff or slightly larger to keep multiplets.
+        block_chi_ratio: float
+            Compute min(chi_setpoint, block_chi_ratio * last_block_chi) singular values
+            in each symmetry block during projector construction, where last_block_chi
+            is the number of singular values in this block last iteration.
         cutoff : float
             Singular value cutoff to improve stability.
         degen_ratio : float
@@ -89,6 +95,7 @@ class CTMRG(object):
             print(f"initalize CTMRG with verbosity = {self.verbosity}")
         self._env = env
         self.chi_setpoint = chi_setpoint
+        self.block_chi_ratio = block_chi_ratio
         self.cutoff = cutoff
         self.window = window
         self.degen_ratio = degen_ratio
@@ -104,6 +111,7 @@ class CTMRG(object):
         tensors,
         tiling,
         chi_setpoint,
+        block_chi_ratio=1.2,
         cutoff=0.0,
         degen_ratio=1.0,
         window=0,
@@ -124,7 +132,9 @@ class CTMRG(object):
         if verbosity > 0:
             print("Start CTMRG from scratch using elementary tensors")
         env = CTM_Environment.from_elementary_tensors(tensors, tiling)
-        return cls(env, chi_setpoint, cutoff, degen_ratio, window, verbosity)
+        return cls(
+            env, chi_setpoint, block_chi_ratio, cutoff, degen_ratio, window, verbosity
+        )
 
     @classmethod
     def from_file(cls, filename, verbosity=0):
@@ -141,13 +151,17 @@ class CTMRG(object):
             print("Restart CTMRG from file", filename)
         with np.load(filename) as fin:
             try:
-                chi_setpoint = fin["_CTM_chi_setpoint"][()]
-            except KeyError:  # old data format
-                chi_setpoint = fin["_CTM_chi"][()]
+                block_chi_ratio = float(fin["_CTM_block_chi_ratio"])
+            except KeyError:
+                block_chi_ratio = 1.2
             try:
-                cutoff = fin["_CTM_cutoff"][()]
-                degen_ratio = fin["_CTM_degen_ratio"][()]
-                window = fin["_CTM_window"][()]
+                chi_setpoint = int(fin["_CTM_chi_setpoint"])
+            except KeyError:  # old data format
+                chi_setpoint = int(fin["_CTM_chi"])
+            try:
+                cutoff = float(fin["_CTM_cutoff"][()])
+                degen_ratio = float(fin["_CTM_degen_ratio"][()])
+                window = int(fin["_CTM_window"][()])
             except KeyError:  # old data format
                 cutoff = 0.0
                 degen_ratio = 1.0
@@ -156,7 +170,9 @@ class CTMRG(object):
         # better to open and close savefile twice (here and in env) to have env __init__
         # outside of file opening block.
         env = CTM_Environment.from_file(filename)
-        return cls(env, chi_setpoint, cutoff, degen_ratio, window, verbosity)
+        return cls(
+            env, chi_setpoint, block_chi_ratio, cutoff, degen_ratio, window, verbosity
+        )
 
     def save_to_file(self, filename, additional_data={}):
         """
@@ -171,6 +187,7 @@ class CTMRG(object):
         """
         data = {
             "_CTM_chi_setpoint": self.chi_setpoint,
+            "_CTM_block_chi_ratio": self.block_chi_ratio,
             "_CTM_cutoff": self.cutoff,
             "_CTM_degen_ratio": self.degen_ratio,
             "_CTM_window": self.window,
@@ -215,7 +232,8 @@ class CTMRG(object):
         return "\n".join(
             (
                 repr(self),
-                f"chi_setpoint = {self.chi_setpoint}, cutoff = {self.cutoff}",
+                f"chi_setpoint = {self.chi_setpoint}, block_chi_ratio =",
+                f"{self.block_chi_ratio}, cutoff = {self.cutoff}",
                 f"degen_ratio = {self.degen_ratio}, window = {self.window}",
                 f"unit cell =\n{self._env.cell}",
             )
@@ -482,6 +500,7 @@ class CTMRG_U1(CTMRG):
         tensors,
         representations,
         chi_setpoint,
+        block_chi_ratio=1.2,
         cutoff=0.0,
         degen_ratio=1.0,
         window=0,
@@ -503,6 +522,10 @@ class CTMRG_U1(CTMRG):
         chi_setpoint : integer
             Maximal corner dimension. This is a setpoint, actual corner dimension
             may be smaller due to cutoff or slightly larger to keep multiplets.
+        block_chi_ratio: float
+            Compute min(chi_setpoint, block_chi_ratio * last_block_chi) singular values
+            in each symmetry block during projector construction, where last_block_chi
+            is the number of singular values in this block last iteration.
         cutoff : float
             Singular value cutoff to improve stability. Default is 0.0 (no cutoff)
         degen_ratio : float
@@ -532,7 +555,9 @@ class CTMRG_U1(CTMRG):
         env = CTM_Environment.from_elementary_tensors(
             tiling, tensors, representations, load_env=load_env
         )
-        return cls(env, chi_setpoint, cutoff, degen_ratio, window, verbosity)
+        return cls(
+            env, chi_setpoint, block_chi_ratio, cutoff, degen_ratio, window, verbosity
+        )
 
     def __repr__(self):
         return (
@@ -657,6 +682,7 @@ class CTMRG_U1(CTMRG):
                 self.construct_reduced_ul(x, y, free_memory=True),
                 self.construct_reduced_dl(x, y),
                 self.chi_setpoint,
+                self.block_chi_ratio,
                 self.cutoff,
                 self.degen_ratio,
                 self.window,
@@ -705,6 +731,7 @@ class CTMRG_U1(CTMRG):
                 self.construct_reduced_ur(x, y, free_memory=True),
                 self.construct_reduced_ul(x, y),
                 self.chi_setpoint,
+                self.block_chi_ratio,
                 self.cutoff,
                 self.degen_ratio,
                 self.window,
@@ -750,6 +777,7 @@ class CTMRG_U1(CTMRG):
                 self.construct_reduced_dr(x, y, free_memory=True),
                 self.construct_reduced_ur(x, y),
                 self.chi_setpoint,
+                self.block_chi_ratio,
                 self.cutoff,
                 self.degen_ratio,
                 self.window,
@@ -795,6 +823,7 @@ class CTMRG_U1(CTMRG):
                 self.construct_reduced_dl(x, y, free_memory=True),
                 self.construct_reduced_dr(x, y),
                 self.chi_setpoint,
+                self.block_chi_ratio,
                 self.cutoff,
                 self.degen_ratio,
                 self.window,

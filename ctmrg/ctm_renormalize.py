@@ -6,7 +6,15 @@ from ctmrg.ctm_contract import add_a_bilayer
 
 
 def construct_projectors(
-    corner1, corner2, corner3, corner4, chi, rcutoff, degen_ratio, window
+    corner1,
+    corner2,
+    corner3,
+    corner4,
+    chi,
+    block_chi_ratio,
+    rcutoff,
+    degen_ratio,
+    window,
 ):
     # factorize loops on different symmetry sectors, construct only blocks that will
     # appear in final projectors. Compute SVD blockwise on the fly for R @ Rt, without
@@ -28,11 +36,17 @@ def construct_projectors(
     # first loop: compute SVD for all blocks
     r_blocks, rt_blocks = [[None] * n_blocks for i in range(2)]
     u_blocks, s_blocks, v_blocks = [[None] * n_blocks for i in range(3)]
+
+    # CTMRG is a fixed point algorithm: expect symmetry sectors to converge very fast.
+    # Hence no need to consider worst case where all leading singular belong to the same
+    # symmetry sector: in each block, compute the same number of values as were kept in
+    # last iteration + some margin to fluctuate, as specified by block_chi_ratio
     for bi in range(n_blocks):  # compute SVD on the fly
         r_blocks[bi] = corner1.blocks[ind1[bi]] @ corner2.blocks[ind2[bi]]
         rt_blocks[bi] = corner3.blocks[ind3[bi]] @ corner4.blocks[ind4[bi]]
         m = r_blocks[bi] @ rt_blocks[bi]
-        if min(m.shape) < 8 * chi:  # use full svd for small blocks
+        block_chi = min(chi + window, int(block_chi_ratio * r_blocks[bi].shape[1]) + 1)
+        if min(m.shape) < max(500, 8 * block_chi):  # use full svd for small blocks
             try:
                 u, s, v = lg.svd(m, full_matrices=False, overwrite_a=True)
             except lg.LinAlgError as err:
@@ -46,7 +60,7 @@ def construct_projectors(
                     lapack_driver="gesvd",
                 )
         else:
-            u, s, v = sparse_svd(m, k=chi + window, maxiter=1000)
+            u, s, v = sparse_svd(m, k=block_chi, maxiter=1000)
 
         u_blocks[bi] = u
         s_blocks[bi] = s
