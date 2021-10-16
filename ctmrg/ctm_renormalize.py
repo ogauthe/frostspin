@@ -6,14 +6,7 @@ from ctmrg.ctm_contract import add_a_bilayer
 
 
 def construct_projectors(
-    corner1,
-    corner2,
-    corner3,
-    corner4,
-    chi,
-    block_chi_ratio,
-    rcutoff,
-    degen_ratio,
+    corner1, corner2, corner3, corner4, chi, block_chi_ratio, rcutoff, degen_ratio
 ):
     # factorize loops on different symmetry sectors, construct only blocks that will
     # appear in final projectors. Compute SVD blockwise on the fly for R @ Rt, without
@@ -40,12 +33,15 @@ def construct_projectors(
     # Hence no need to consider worst case where all leading singular belong to the same
     # symmetry sector: in each block, compute the same number of values as were kept in
     # last iteration + some margin to fluctuate, as specified by block_chi_ratio
+    block_chi = (corner2.axis_reps[5][:, None] == shared).sum(axis=0)
+    block_chi = np.maximum(block_chi + 10, (block_chi_ratio * block_chi).astype(int))
+    block_chi = np.minimum(chi, block_chi)
+
     for bi in range(n_blocks):  # compute SVD on the fly
         r_blocks[bi] = corner1.blocks[ind1[bi]] @ corner2.blocks[ind2[bi]]
         rt_blocks[bi] = corner3.blocks[ind3[bi]] @ corner4.blocks[ind4[bi]]
         m = r_blocks[bi] @ rt_blocks[bi]
-        block_chi = min(chi, int(block_chi_ratio * r_blocks[bi].shape[1]) + 1)
-        if min(m.shape) < max(500, 8 * block_chi):  # use full svd for small blocks
+        if min(m.shape) < max(100, 6 * block_chi[bi]):  # use full svd for small blocks
             try:
                 u, s, v = lg.svd(m, full_matrices=False, overwrite_a=True)
             except lg.LinAlgError as err:
@@ -59,7 +55,7 @@ def construct_projectors(
                     lapack_driver="gesvd",
                 )
         else:
-            u, s, v = sparse_svd(m, k=block_chi, maxiter=1000)
+            u, s, v = sparse_svd(m, k=block_chi[bi], maxiter=1000)
 
         u_blocks[bi] = u
         s_blocks[bi] = s
