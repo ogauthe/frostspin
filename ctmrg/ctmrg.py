@@ -100,10 +100,20 @@ class CTMRG(object):
         self.window = window
         self.degen_ratio = degen_ratio
         self._neq_coords = self._env.neq_coords
+
         if self.verbosity > 0:
             print(self)
             if self.verbosity > 2:
                 self.print_tensor_shapes()
+
+        if self.chi_setpoint < 2:
+            raise ValueError("chi_setpoint must be greater than 2")
+        if self.block_chi_ratio < 1.0:
+            raise ValueError("block_chi_ratio must be greater than 1.0")
+        if not (0.0 <= self.cutoff < 1.0):
+            raise ValueError("cutoff must me obey 0.0 <= self.cutoff < 1.0")
+        if not (0.0 < self.degen_ratio <= 1.0):
+            raise ValueError("degen_ratio must obey 0.0 <= self.degen_ratio < 1.0")
 
     @classmethod
     def from_elementary_tensors(
