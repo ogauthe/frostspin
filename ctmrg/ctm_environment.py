@@ -107,9 +107,7 @@ class CTM_Environment(object):
         self._neq_As = neq_As
         self._Dmax = max(max(A.shape[2:]) for A in self._neq_As)
 
-        # 3) Construct double layer tensor A-A* for use in add_a_block
-
-        # 4) initialize environment tensors
+        # 3) initialize environment tensors
         if load_env is None:
             self.restart()
         else:  # from file
