@@ -771,7 +771,7 @@ class CTMRG_U1(CTMRG):
                 self.cutoff,
                 self.degen_ratio,
             )
-            self._env.store_projectors(x + 3, y + 3, P, Pt)
+            self._env.store_projectors(x + 1, y + 3, P, Pt)
 
         # 2) renormalize every non-equivalent C3, T3 and C4
         if self.verbosity > 2:
