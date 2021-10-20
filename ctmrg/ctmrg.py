@@ -263,6 +263,21 @@ class CTMRG(object):
         if self.verbosity > 0:
             print(self)
 
+    def truncate_corners(self):
+        """
+        Truncate corners C1, C2, C3 and C4 without constructing ul, ur, dl and dr
+        Use before first move to reduce corner dimension if chi < D^2
+        """
+        # we cannot approximate independently each corner with an SVD: this would
+        # introduce an arbitrary unitary matrix between two corners U_1 @ V_2. To keep
+        # unit cell inner compatibility, we can only renormalize bonds, not tensors.
+        # So we renormalize bond between corners, without inserting edge tensors
+        # basically the same thing as a standard move, without absorption.
+        self.up_move_no_absorb()
+        self.right_move_no_absorb()
+        self.down_move_no_absorb()
+        self.left_move_no_absorb()
+
     def print_tensor_shapes(self):
         print("tensor shapes for C1 T1 C2 // T4 A T2 // C4 T3 C4:")
         for (x, y) in self._neq_coords:
@@ -841,3 +856,106 @@ class CTMRG_U1(CTMRG):
         self._env.set_renormalized_tensors_left()
         if self.verbosity > 1:
             print("left move completed")
+
+    def up_move_no_absorb(self):
+        # renormalize tensors without adding A-A* to reduce corner dimension
+        # here renormalize bond C1-C2. Very similar to up_move, keep structure
+        for x, y in self._neq_coords:
+            self._env.set_corner_ur(x, y, None)
+            self._env.set_corner_ul(x, y, None)
+            P, Pt = construct_projectors(
+                self._env.get_C3(x + 1, y + 1).T,
+                self._env.get_C2(x + 1, y),
+                self._env.get_C1(x, y),
+                self._env.get_C4(x, y + 1),
+                self.chi_setpoint,
+                self.block_chi_ratio,
+                self.cutoff,
+                self.degen_ratio,
+            )
+            self._env.store_projectors(x + 1, y, P, Pt)
+        for x, y in self._neq_coords:
+            # in place change: read and write C1(x,y), T1(x,y), C2(x,y)
+            P = self._env.get_P(x + 1, y)
+            Pt = self._env.get_Pt(x, y)
+            nC1 = P.T @ self._env.get_C1(x, y)
+            nT1 = (P.T @ self._env.get_T1(x, y)).permutate((0, 1, 2), (3,)) @ Pt
+            nT1 = nT1.permutate((0,), (1, 2, 3))
+            nC2 = self._env.get_C2(x, y) @ Pt
+            self._env.store_renormalized_tensors(x, y, nC1, nT1, nC2)
+        self._env.set_renormalized_tensors_up()
+
+    def right_move_no_absorb(self):
+        for (x, y) in self._neq_coords:
+            self._env.set_corner_ur(x, y, None)
+            self._env.set_corner_dr(x, y, None)
+            P, Pt = construct_projectors(
+                self._env.get_C4(x, y + 1),
+                self._env.get_C3(x + 1, y + 1).T,
+                self._env.get_C2(x + 1, y),
+                self._env.get_C1(x, y),
+                self.chi_setpoint,
+                self.block_chi_ratio,
+                self.cutoff,
+                self.degen_ratio,
+            )
+            self._env.store_projectors(x + 1, y + 1, P, Pt)
+        for x, y in self._neq_coords:
+            P = self._env.get_P(x, y + 1)
+            Pt = self._env.get_Pt(x, y)
+            nC2 = P.T @ self._env.get_C2(x, y)
+            nT2 = (Pt.T @ self._env.get_T2(x, y)).permutate((0, 2, 3), (1,)) @ P
+            nT2 = nT2.permutate((0,), (3, 1, 2))
+            nC3 = Pt.T @ self._env.get_C3(x, y)
+            self._env.store_renormalized_tensors(x, y, nC2, nT2, nC3)
+        self._env.set_renormalized_tensors_right()
+
+    def down_move_no_absorb(self):
+        for x, y in self._neq_coords:
+            self._env.set_corner_dl(x, y, None)
+            self._env.set_corner_dr(x, y, None)
+            P, Pt = construct_projectors(
+                self._env.get_C1(x, y),
+                self._env.get_C4(x, y + 1),
+                self._env.get_C3(x + 1, y + 1).T,
+                self._env.get_C2(x + 1, y),
+                self.chi_setpoint,
+                self.block_chi_ratio,
+                self.cutoff,
+                self.degen_ratio,
+            )
+            self._env.store_projectors(x, y + 1, P, Pt)
+        for x, y in self._neq_coords:
+            P = self._env.get_P(x - 1, y)
+            Pt = self._env.get_Pt(x, y)
+            nC3 = self._env.get_C3(x, y) @ P
+            nT3 = (self._env.get_T3(x, y) @ P).permutate((0, 1, 3), (2,)) @ Pt
+            nT3 = nT3.permutate((0, 1, 3), (2,))
+            nC4 = self._env.get_C4(x, y) @ Pt
+            self._env.store_renormalized_tensors(x, y, nC3, nT3, nC4)
+        self._env.set_renormalized_tensors_down()
+
+    def left_move_no_absorb(self):
+        for x, y in self._neq_coords:
+            self._env.set_corner_ul(x, y, None)
+            self._env.set_corner_dl(x, y, None)
+            P, Pt = construct_projectors(
+                self._env.get_C2(x + 1, y),
+                self._env.get_C1(x, y),
+                self._env.get_C4(x, y + 1),
+                self._env.get_C3(x + 1, y + 1).T,
+                self.chi_setpoint,
+                self.block_chi_ratio,
+                self.cutoff,
+                self.degen_ratio,
+            )
+            self._env.store_projectors(x, y, P, Pt)
+        for x, y in self._neq_coords:
+            P = self._env.get_P(x, y - 1)
+            Pt = self._env.get_Pt(x, y)
+            nC4 = P.T @ self._env.get_C4(x, y)
+            nT4 = (P.T @ self._env.get_T4(x, y)).permutate((0, 1, 2), (3,)) @ Pt
+            nT4 = nT4.permutate((0,), (1, 2, 3))
+            nC1 = self._env.get_C1(x, y) @ Pt
+            self._env.store_renormalized_tensors(x, y, nC4, nT4, nC1)
+        self._env.set_renormalized_tensors_left()
