@@ -279,6 +279,29 @@ class AbelianSymmetricTensor(SymmetricTensor):
         return True
 
     @classmethod
+    def random(cls, axis_reps, n_leg_rows, conjugate_columns=True, rng=None):
+        if rng is None:
+            rng = np.random.default_rng()
+        row_axis_reps = axis_reps[:n_leg_rows]
+        if conjugate_columns:
+            col_axis_reps = tuple(
+                cls.conjugate_representation(r) for r in axis_reps[n_leg_rows:]
+            )
+        else:
+            col_axis_reps = axis_reps[n_leg_rows:]
+        row_irreps = cls.combine_representations(*row_axis_reps)
+        col_irreps = cls.combine_representations(*col_axis_reps)
+        # quick and dirty: generate dense array, then call from_array
+        # generate only non-zero coeff to pass from_array assert
+        arr = np.zeros((row_irreps.size, col_irreps.size))
+        indices = (row_irreps[:, None] == col_irreps).nonzero()
+        arr[indices] = rng.random(indices[0].size)
+        arr = arr.reshape(tuple(ax.size for ax in axis_reps))
+        return cls.from_array(
+            arr, axis_reps, n_leg_rows, conjugate_columns=conjugate_columns
+        )
+
+    @classmethod
     def from_array(cls, arr, axis_reps, n_leg_rows, conjugate_columns=True):
         assert arr.shape == tuple(
             cls.representation_dimension(rep) for rep in axis_reps
