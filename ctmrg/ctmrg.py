@@ -249,6 +249,8 @@ class CTMRG(object):
         if self.verbosity > 0:
             print("Restart brand new environment from elementary tensors.")
         self._env.restart()
+        if self.verbosity > 0:
+            print(self)
 
     def set_tensors(self, tensors, keep_env=True):
         if keep_env:
@@ -262,6 +264,8 @@ class CTMRG(object):
             self._env = CTM_Environment.from_elementary_tensors(tensors, tiling)
         if self.verbosity > 0:
             print(self)
+            if self.verbosity > 2:
+                self.print_tensor_shapes()
 
     def truncate_corners(self):
         """
@@ -273,10 +277,14 @@ class CTMRG(object):
         # unit cell inner compatibility, we can only renormalize bonds, not tensors.
         # So we renormalize bond between corners, without inserting edge tensors
         # basically the same thing as a standard move, without absorption.
+        if self.verbosity > 0:
+            print(f"Truncate corners to chi = {self.chi_setpoint}")
         self.up_move_no_absorb()
         self.right_move_no_absorb()
         self.down_move_no_absorb()
         self.left_move_no_absorb()
+        if self.verbosity > 2:
+            self.print_tensor_shapes()
 
     def print_tensor_shapes(self):
         print("tensor shapes for C1 T1 C2 // T4 A T2 // C4 T3 C4:")
@@ -580,8 +588,8 @@ class CTMRG_U1(CTMRG):
         if self.verbosity > 0:
             print("set new tensors")
         self._env.set_tensors(tensors, representations)
-        if self.verbosity > 0:
-            print(self)
+        if self.verbosity > 2:
+            self.print_tensor_shapes()
 
     def construct_reduced_dr(self, x, y, free_memory=False):
         """
