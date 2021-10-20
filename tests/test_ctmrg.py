@@ -101,7 +101,4 @@ for (x, y) in ctm.neq_coords:
     assert eq_st(ctm._env.get_T3(x, y), ctm2._env.get_T3(x, y))
     assert eq_st(ctm._env.get_T4(x, y), ctm2._env.get_T4(x, y))
 
-ctm.restart_environment()
-ctm.truncate_corners()
-ctm.iterate()
 print("Completed")

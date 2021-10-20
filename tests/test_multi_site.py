@@ -1,16 +1,57 @@
 #!/usr/bin/env python3
 
 import numpy as np
+import scipy.linalg as lg
 
 from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
 from ctmrg.ctmrg import CTMRG_U1
 
+"""
+Exhaustive test for CTMRG unit cell. Construct a 4x4 unit cell with all 32 inequivalent
+bond differ from each other. Use U(1): each bond has dimension 4, but has different
+quantum numbers and contraction with any other bond will fail. Also consider charge
+conjugation: conjugate representation does not appear in any other bond.
+
+    0     4     7    10
+    |     |     |     |
+ 3--A--1--B--5--C--8--D--3
+    |     |     |     |
+    2     6     9    11
+    |     |     |     |
+14--E-12--F-15--G-17--H-14
+    |     |     |     |
+   13    16    18    19
+    |     |     |     |
+22--I-20--J-23--K-25--L-22
+    |     |     |     |
+   21    24    26    27
+    |     |     |     |
+29--M-28--N-30--O-31--P-29
+    |     |     |     |
+    0     4     7    10
+
+"""
+
+
+def eq_st(st1, st2):
+    if type(st1) != type(st2):
+        return False
+    if st1.shape != st2.shape:
+        return False
+    if st1.nblocks != st2.nblocks:
+        return False
+    for ax in range(st1.ndim):
+        if not np.asarray(st1.axis_reps[ax] == st2.axis_reps[ax]).all():
+            return False
+    for bi in range(st1.nblocks):
+        if not (st1.blocks[bi] == st2.blocks[bi]).all():
+            return False
+    return True
+
+
+# use same physical and ancila for all sites
 ap = np.array([-1, 1], dtype=np.int8)
 aa = np.array([-1, 1], dtype=np.int8)
-a1 = np.array([-1, 0, 1], dtype=np.int8)
-a2 = np.array([-2, 0, 2], dtype=np.int8)
-a3 = np.array([-1, 1, 0], dtype=np.int8)
-a4 = np.array([-2, 2, 0], dtype=np.int8)
 
 axes1 = np.array(
     [
@@ -133,12 +174,60 @@ ctm = CTMRG_U1.from_elementary_tensors(
     tiling,
     tensors,
     representations,
-    23,
+    13,
     block_chi_ratio=1.2,
     cutoff=1e-10,
     degen_ratio=1.0,
     verbosity=2,
 )
 
+rdm2x1_cell, rdm1x2_cell = ctm.compute_rdm_1st_neighbor_cell()
+for m in rdm2x1_cell:
+    assert lg.norm(m - m.T) < 1e-8
+for m in rdm1x2_cell:
+    assert lg.norm(m - m.T) < 1e-8
+
+rdm_dr_cell, rdm_ur_cell = ctm.compute_rdm_2nd_neighbor_cell()
+for m in rdm_dr_cell:
+    assert lg.norm(m - m.T) < 1e-8
+for m in rdm_ur_cell:
+    assert lg.norm(m - m.T) < 1e-8
+
 ctm.iterate()
 ctm.iterate()
+
+# check truncate_corners succeeds
+ctm.restart_environment()
+ctm.truncate_corners()
+ctm.iterate()
+ctm.iterate()
+
+rdm2x1_cell, rdm1x2_cell = ctm.compute_rdm_1st_neighbor_cell()
+# precision is low due to random tensors
+# also due to U(1), measure is made on 1 coeff only
+for m in rdm2x1_cell:
+    assert lg.norm(m - m.T) < 1e-3
+for m in rdm1x2_cell:
+    assert lg.norm(m - m.T) < 1e-3
+
+rdm_dr_cell, rdm_ur_cell = ctm.compute_rdm_2nd_neighbor_cell()
+for m in rdm_dr_cell:
+    assert lg.norm(m - m.T) < 1e-3
+for m in rdm_ur_cell:
+    assert lg.norm(m - m.T) < 1e-3
+
+# check save and load once tensors != init
+ctm.save_to_file("data_test_ctmrg.npz")
+ctm2 = CTMRG_U1.from_file("data_test_ctmrg.npz", verbosity=100)
+for (x, y) in ctm.neq_coords:
+    assert eq_st(ctm._env.get_A(x, y), ctm2._env.get_A(x, y))
+    assert eq_st(ctm._env.get_C1(x, y), ctm2._env.get_C1(x, y))
+    assert eq_st(ctm._env.get_C2(x, y), ctm2._env.get_C2(x, y))
+    assert eq_st(ctm._env.get_C3(x, y), ctm2._env.get_C3(x, y))
+    assert eq_st(ctm._env.get_C4(x, y), ctm2._env.get_C4(x, y))
+    assert eq_st(ctm._env.get_T1(x, y), ctm2._env.get_T1(x, y))
+    assert eq_st(ctm._env.get_T2(x, y), ctm2._env.get_T2(x, y))
+    assert eq_st(ctm._env.get_T3(x, y), ctm2._env.get_T3(x, y))
+    assert eq_st(ctm._env.get_T4(x, y), ctm2._env.get_T4(x, y))
+
+print("Completed")
