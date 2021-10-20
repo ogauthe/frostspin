@@ -7,32 +7,6 @@ from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
 from ctmrg.ctmrg import CTMRG_U1
 
 
-def random_U1_tensor(axis_reps, rng=None):
-    """
-    Construct random U(1) symmetric tensor. Non-zero coefficients are taken from
-    continuous uniform distribution in the half-open interval [0.0, 1.0).
-
-    Parameters
-    ----------
-    axis_reps : enumerable of 1D integer arrays.
-        U(1) quantum numbers of each axis.
-    rng : optional, random number generator. Can be used to reproduce results.
-
-    Returns
-    -------
-    output : ndarray
-        random U(1) tensor, with shape following axis_reps dimensons.
-    """
-    if rng is None:
-        rng = np.random.default_rng()
-    irreps1D = U1_SymmetricTensor.combine_representations(*axis_reps)
-    nnz = (irreps1D == 0).nonzero()[0]
-    t0 = np.zeros(irreps1D.size)
-    t0[nnz] = rng.random(nnz.size)
-    t0 = t0.reshape(tuple(r.size for r in axis_reps))
-    return t0
-
-
 def eq_st(st1, st2):
     if type(st1) != type(st2):
         return False
@@ -62,9 +36,9 @@ rl = np.array([1, -2, 1, 0, 0], dtype=np.int8)
 
 tiling = "AB\nBA"
 axesA = (rp, ra, ru, rr, rd, rl)
-A0 = random_U1_tensor(axesA, rng)
+A0 = U1_SymmetricTensor.random(axesA, 2, rng=rng).toarray()
 axesB = (-rp, -ra, -rd, -rl, -ru, -rr)
-B0 = random_U1_tensor(axesB, rng)
+B0 = U1_SymmetricTensor.random(axesB, 2, rng=rng).toarray()
 
 tensors = (A0, B0)
 reps = (axesA, axesB)
