@@ -33,7 +33,7 @@ def construct_projectors(
     # Hence no need to consider worst case where all leading singular belong to the same
     # symmetry sector: in each block, compute the same number of values as were kept in
     # last iteration + some margin to fluctuate, as specified by block_chi_ratio
-    block_chi = (corner2.axis_reps[5][:, None] == shared).sum(axis=0)
+    block_chi = (corner2.axis_reps[-1][:, None] == shared).sum(axis=0)
     block_chi = np.maximum(block_chi + 10, (block_chi_ratio * block_chi).astype(int))
     block_chi = np.minimum(chi, block_chi)
 
@@ -82,10 +82,11 @@ def construct_projectors(
 
     block_irreps = corner2.block_irreps[ind2[non_empty]]
     mid_rep = corner2.init_representation(block_cuts[non_empty], block_irreps)
-    rep_P = (mid_rep,) + corner2.axis_reps[3:]
-    rep_Pt = corner2.axis_reps[3:] + (mid_rep,)
+    nl = corner2.n_leg_rows  # 3 in standard sweep, 1 in corner truncation
+    rep_P = (mid_rep,) + corner2.axis_reps[nl:]
+    rep_Pt = corner2.axis_reps[nl:] + (mid_rep,)
     P = type(corner2)(rep_P, 1, p_blocks, block_irreps).T
-    Pt = type(corner2)(rep_Pt, 3, pt_blocks, block_irreps)
+    Pt = type(corner2)(rep_Pt, nl, pt_blocks, block_irreps)
     return P, Pt
 
 
