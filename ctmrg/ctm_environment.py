@@ -331,8 +331,8 @@ class CTM_Environment(object):
                 neq_T1s[i], repsT1, 1, conjugate_columns=False
             )
 
-            r2d = -self.get_C2(x, y + 1).axis_reps[0]
-            r3u = self.get_C3(x, y - 1).axis_reps[0]
+            r2d = -self.get_C2(x, y - 1).axis_reps[0]
+            r3u = self.get_C3(x, y + 1).axis_reps[0]
             repsT2 = (r2d, r3u, axes[5], -axes[5])
             neq_T2s[i] = U1_SymmetricTensor.from_array(
                 neq_T2s[i], repsT2, 1, conjugate_columns=False
@@ -345,8 +345,8 @@ class CTM_Environment(object):
                 neq_T3s[i], repsT3, 3, conjugate_columns=False
             )
 
-            r4u = -self.get_C4(x, y - 1).axis_reps[0]
-            r1d = self.get_C1(x, y + 1).axis_reps[1]
+            r4u = -self.get_C4(x, y + 1).axis_reps[0]
+            r1d = self.get_C1(x, y - 1).axis_reps[1]
             repsT4 = (r1d, axes[3], -axes[3], -r4u)
             neq_T4s[i] = U1_SymmetricTensor.from_array(
                 neq_T4s[i], repsT4, 1, conjugate_columns=False
