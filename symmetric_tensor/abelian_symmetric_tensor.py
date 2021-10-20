@@ -45,7 +45,7 @@ def _numba_blocks_to_array(blocks, block_irreps, row_irreps, col_irreps):
     # heterogeneous tuple fails on __getitem__
     # homogeneous F-array MAY fail in a non-deterministic way
     m = np.zeros((row_irreps.size, col_irreps.size), dtype=blocks[0].dtype)
-    for bi in numba.prange(len(blocks)):
+    for bi in range(len(blocks)):  # same as transpose => no parallel
         row_indices = (row_irreps == block_irreps[bi]).nonzero()[0]
         col_indices = (col_irreps == block_irreps[bi]).nonzero()[0]
         for i in numba.prange(row_indices.size):
