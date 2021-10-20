@@ -133,7 +133,7 @@ ctm = CTMRG_U1.from_elementary_tensors(
     tiling,
     tensors,
     representations,
-    21,
+    23,
     block_chi_ratio=1.2,
     cutoff=1e-10,
     degen_ratio=1.0,
