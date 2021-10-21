@@ -6,44 +6,6 @@ import numba
 default_color = np.array([], dtype=np.int8)
 
 
-def random_U1_tensor(*colors, rng=None):
-    """
-    Construct random U(1) symmetric tensor. Non-zero coefficients are taken from
-    continuous uniform distribution in the half-open interval [0.0, 1.0).
-
-    Parameters
-    ----------
-    colors : enumerable of 1D integer arrays.
-      U(1) quantum numbers of each axis.
-    rng : optional, random number generator. Can be used to reproduce results.
-
-    Returns
-    -------
-    output : float array
-      random U(1) tensor, with shape following colors sizes.
-    """
-    if rng is None:
-        rng = np.random.default_rng()
-    col1D = combine_colors(*colors)
-    nnz = col1D == 0
-    t = np.zeros(col1D.size)
-    t[nnz] = rng.random(nnz.sum())
-    t = t.reshape(tuple(c.size for c in colors))
-    return t
-
-
-def checkU1(T, colorsT, tol=1e-14):
-    """
-    Check tensor has U(1) symmetry up to tolerance
-    """
-    if tuple(len(c) for c in colorsT) != T.shape:
-        raise ValueError("Color dimensions do not match tensor")
-    for ind in np.array((np.abs(T) > tol).nonzero()).T:
-        if sum(colorsT[i][c] for i, c in enumerate(ind)) != 0:
-            return ind, T[tuple(ind)]
-    return None, 0
-
-
 @numba.njit
 def combine_colors(*colors):
     """
