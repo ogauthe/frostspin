@@ -97,7 +97,7 @@ def product_degen(degen1, irreps1, degen2, irreps2):
     return degen
 
 
-class SU2_Representation(object):
+class SU2_Representation:
     """
     SU(2) representation. Representations are immutable, hashable objects.
     """

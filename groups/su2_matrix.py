@@ -252,7 +252,7 @@ def blocks_from_raw_data(degen_in, irreps_in, degen_out, irreps_out, data):
     return blocks, block_irreps
 
 
-class SU2_Matrix(object):
+class SU2_Matrix:
     __array_priority__ = 15.0  # bypass ndarray.__mul__
 
     def __init__(self, blocks, block_irreps, left_rep, right_rep):

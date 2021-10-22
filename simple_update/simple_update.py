@@ -195,7 +195,7 @@ def update_second_neighbor(
     return newL, new_mid, newR, new_lambda_L, new_lambda_R, -col_nbL, col_nbR
 
 
-class SimpleUpdate1x2(object):
+class SimpleUpdate1x2:
     # Instead of adding diagonal weights on all bonds before applying gate, it is more
     # efficient to consider weights always on by default. Then weights must be removed
     # only once on single updated link to avoid double counting.
@@ -764,7 +764,7 @@ class SimpleUpdate1x2(object):
             print("updated bond 4: new lambda4 =", self._lambda4)
 
 
-class SimpleUpdate2x2(object):
+class SimpleUpdate2x2:
     # Same as SimpleUpdate1x2, consider weights on by default.
     def __init__(
         self,
