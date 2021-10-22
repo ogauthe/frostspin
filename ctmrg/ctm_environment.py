@@ -66,7 +66,7 @@ def _initialize_env(A):
     return C1, T1, C2, T2, C3, T3, C4, T4
 
 
-class CTM_Environment(object):
+class CTM_Environment:
     """
     Container for CTMRG environment tensors. Follow leg conventions from CTMRG.
     """

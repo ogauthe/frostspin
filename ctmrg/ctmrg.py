@@ -25,7 +25,7 @@ from ctmrg.ctm_renormalize import (
 )
 
 
-class CTMRG(object):
+class CTMRG:
     """
     Corner Transfer Matrix Renormalization Group algorithm. Approximately contract
     a square tensor network with precision controlled by corner dimension chi. This

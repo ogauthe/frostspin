@@ -3,7 +3,7 @@ import time
 import numpy as np
 
 
-class Converger(object):
+class Converger:
     """
     Wrapper class to detect convergence success or failure.
     """

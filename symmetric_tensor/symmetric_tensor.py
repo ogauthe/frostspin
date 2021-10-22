@@ -12,7 +12,7 @@ from misc_tools.svd_tools import sparse_svd, numba_find_chi_largest
 # blocks are tuple of contiguous F or C arrays (numba)
 
 
-class SymmetricTensor(object):
+class SymmetricTensor:
     """
     Generic base class to deal with symmetric tensors. Defines interface that can be
     implemented as derived classes for any symmetry.

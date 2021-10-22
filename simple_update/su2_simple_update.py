@@ -9,7 +9,7 @@ from groups.su2_matrix import (
 )
 
 
-class SU2_SimpleUpdate(object):
+class SU2_SimpleUpdate:
     """
     SU(2) symmetric simple update algorithm. Only deals with finite temperature. Each
     site has to be an *irreducible* representation of SU(2).
