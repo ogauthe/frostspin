@@ -252,7 +252,7 @@ def _numba_abelian_transpose(
 class AbelianSymmetricTensor(SymmetricTensor):
     """
     Efficient storage and manipulation for a tensor with abelian symmetry. Irreps
-    are labelled as int8 integers, representations are 1D ndarray with np.int9 dtype.
+    are labelled as int8 integers, representations are 1D ndarray with np.int8 dtype.
     """
 
     @classmethod
