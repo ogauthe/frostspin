@@ -344,3 +344,7 @@ class SymmetricTensor:
         U = type(self)(rep_u, self._n_leg_rows, u_blocks, block_irreps)
         V = type(self)(rep_v, 1, v_blocks, block_irreps)
         return U, s_values, V
+
+    def expm(self):
+        blocks = tuple(lg.expm(b) for b in self._blocks)
+        return type(self)(self._axis_reps, self._n_leg_rows, blocks, self._block_irreps)
