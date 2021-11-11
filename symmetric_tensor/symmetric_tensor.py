@@ -241,7 +241,7 @@ class SymmetricTensor:
         blocks = tuple(b.T.conj() for b in self._blocks)
         return type(self)(self._col_reps, self._row_reps, blocks, self._block_irreps)
 
-    def permutate(self, row_reps, col_reps):  # signature != ndarray.transpose
+    def permutate(self, row_axes, col_axes):  # signature != ndarray.transpose
         """
         Permutate axes, changing tensor structure.
         """
