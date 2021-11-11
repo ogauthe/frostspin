@@ -251,8 +251,11 @@ class SymmetricTensor:
         """
         Tensor dot operation between two tensors with compatible internal structure.
         Left hand term column axes all are contracted with right hand term row axes.
+
+        Note that some allowed block may be missing in the output tensor, if the
+        associated irrep does not appear in the contracted bond.
         """
-        # do not construct empty blocks: those will be missing TODO: change this
+        assert type(self) == type(other)
         assert (
             self._shape[len(self._row_reps) :] == other._shape[: len(other._row_reps)]
         )
