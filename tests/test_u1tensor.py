@@ -6,7 +6,7 @@ import scipy.linalg as lg
 from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
 
 
-def random_U1_tensor(axis_reps, rng=None):
+def random_U1_tensor(row_reps, col_reps, rng=None):
     """
     Construct random U(1) symmetric tensor. Non-zero coefficients are taken from
     continuous uniform distribution in the half-open interval [0.0, 1.0).
@@ -24,11 +24,12 @@ def random_U1_tensor(axis_reps, rng=None):
     """
     if rng is None:
         rng = np.random.default_rng()
-    irreps1D = U1_SymmetricTensor.combine_representations(*axis_reps)
+    reps = row_reps + col_reps
+    irreps1D = U1_SymmetricTensor.combine_representations(*reps)
     nnz = (irreps1D == 0).nonzero()[0]
     t0 = np.zeros(irreps1D.size)
     t0[nnz] = rng.random(nnz.size)
-    t0 = t0.reshape(tuple(r.size for r in axis_reps))
+    t0 = t0.reshape(tuple(r.size for r in reps))
     return t0
 
 
@@ -40,9 +41,10 @@ c3 = np.array([-2, -2, 0, 0, 0, 2, 2], dtype=np.int8)
 c4 = np.array([-2, -1, 0, 1, 2], dtype=np.int8)
 c5 = np.array([-3, -1, 0, 2], dtype=np.int8)  # breaks conjugation symmetry
 
-axis_reps = (c1, c2, c3, c4, c5)
-t0 = random_U1_tensor(axis_reps, rng)
-tu1 = U1_SymmetricTensor.from_array(t0, axis_reps, 2)
+row_reps = (c1, c2)
+col_reps = (c3, c4, c5)
+t0 = random_U1_tensor(row_reps, col_reps, rng=rng)
+tu1 = U1_SymmetricTensor.from_array(t0, row_reps, col_reps)
 
 assert (tu1.toarray() == t0).all()
 assert abs(1.0 - tu1.norm() / lg.norm(t0)) < 1e-14

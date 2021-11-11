@@ -46,11 +46,13 @@ class SymmetricTensor:
     def representation_dimension(cls, rep):
         return NotImplemented
 
-    def __init__(self, axis_reps, n_leg_rows, blocks, block_irreps):
-        self._axis_reps = axis_reps  # tuple of representation
-        self._n_leg_rows = n_leg_rows  # int
-        self._shape = tuple(self.representation_dimension(rep) for rep in axis_reps)
-        self._ndim = len(axis_reps)
+    def __init__(self, row_reps, col_reps, blocks, block_irreps):
+        self._row_reps = row_reps
+        self._col_reps = col_reps
+        self._shape = tuple(
+            self.representation_dimension(rep) for rep in row_reps + col_reps
+        )
+        self._ndim = len(self._shape)
         self._nblocks = len(blocks)
         if all(b.flags["C"] for b in blocks):
             self._blocks = tuple(blocks)
@@ -64,7 +66,7 @@ class SymmetricTensor:
         self._block_irreps = block_irreps
         self._ncoeff = sum(b.size for b in blocks)
         assert self._nblocks > 0
-        assert 0 < n_leg_rows < self._ndim
+        assert 0 < len(self._row_reps) < self._ndim
         assert len(block_irreps) == self._nblocks
         assert sorted(set(block_irreps)) == list(block_irreps)
         assert self.check_blocks_fit_representations()
@@ -83,10 +85,8 @@ class SymmetricTensor:
 
     @property
     def matrix_shape(self):
-        return (
-            np.prod(self._shape[: self._n_leg_rows]),
-            np.prod(self._shape[self._n_leg_rows :]),
-        )
+        n = len(self._row_reps)
+        return (np.prod(self._shape[:n]), np.prod(self._shape[n:]))
 
     @property
     def dtype(self):
@@ -95,10 +95,6 @@ class SymmetricTensor:
     @property
     def f_contiguous(self):
         return self._f_contiguous
-
-    @property
-    def n_leg_rows(self):
-        return self._n_leg_rows
 
     @property
     def ncoeff(self):
@@ -113,17 +109,22 @@ class SymmetricTensor:
         return self._block_irreps
 
     @property
-    def axis_reps(self):
-        return self._axis_reps
+    def row_reps(self):
+        return self._row_reps
+
+    @property
+    def col_reps(self):
+        return self._col_reps
 
     def copy(self):
         blocks = tuple(b.copy() for b in self._blocks)
-        return type(self)(self._axis_reps, self._n_leg_rows, blocks, self._block_irreps)
+        return type(self)(self._row_reps, self._col_reps, blocks, self._block_irreps)
 
     def __add__(self, other):
         assert type(other) == type(self), "Mixing incompatible types"
         assert self._shape == other._shape, "Mixing incompatible axes"
-        assert self._n_leg_rows == other._n_leg_rows, "Mixing incompatible fusion trees"
+        assert all((r == r2).all() for (r, r2) in zip(self._row_reps, other._row_reps))
+        assert all((r == r2).all() for (r, r2) in zip(self._col_reps, other._col_reps))
 
         # need to take into account possibly missing block in self or other
         blocks = []
@@ -146,40 +147,15 @@ class SymmetricTensor:
 
         blocks = tuple(blocks)
         block_irreps = np.array(block_irreps)
-        return type(self)(self._axis_reps, self._n_leg_rows, blocks, block_irreps)
+        return type(self)(self._row_reps, self._col_reps, blocks, block_irreps)
 
     def __sub__(self, other):
-        assert type(other) == type(self), "Mixing incompatible types"
-        assert self._shape == other._shape, "Mixing incompatible axes"
-        assert self._n_leg_rows == other._n_leg_rows, "Mixing incompatible fusion trees"
-
-        # need to take into account possibly missing block in self or other
-        blocks = []
-        block_irreps = []
-        i1, i2 = 0, 0
-        while i1 < self._nblocks and i2 < other._nblocks:
-            if self._block_irreps[i1] == other._block_irreps[i2]:
-                blocks.append(self._blocks[i1] - other._blocks[i2])
-                block_irreps.append(self._block_irreps[i1])
-                i1 += 1
-                i2 += 1
-            elif self._block_irreps[i1] < other._block_irreps[i2]:
-                blocks.append(self._blocks[i1].copy())  # no data sharing
-                block_irreps.append(self._block_irreps[i1])
-                i1 += 1
-            else:
-                blocks.append(-other._blocks[i2])
-                block_irreps.append(other._block_irreps[i2])
-                i2 += 1
-
-        blocks = tuple(blocks)
-        block_irreps = np.array(block_irreps)
-        return type(self)(self._axis_reps, self._n_leg_rows, blocks, self._block_irreps)
+        return self + (-other)  # much simplier than dedicated implem for tiny perf loss
 
     def __mul__(self, x):
         assert np.isscalar(x) or x.size == 1
         blocks = tuple(x * b for b in self._blocks)
-        return type(self)(self._axis_reps, self._n_leg_rows, blocks, self._block_irreps)
+        return type(self)(self._row_reps, self._col_reps, blocks, self._block_irreps)
 
     def __rmul__(self, x):
         return self * x
@@ -192,7 +168,7 @@ class SymmetricTensor:
 
     def __neg__(self):
         blocks = tuple(-b for b in self._blocks)
-        return type(self)(self._axis_reps, self._n_leg_rows, blocks, self._block_irreps)
+        return type(self)(self._row_reps, self._col_reps, blocks, self._block_irreps)
 
     def __imul__(self, x):
         for b in self._blocks:
@@ -205,10 +181,10 @@ class SymmetricTensor:
         return self
 
     def get_row_representation(self):
-        return self.combine_representations(*self._axis_reps[: self._n_leg_rows])
+        return self.combine_representations(*self._row_reps)
 
     def get_column_representation(self):
-        return self.combine_representations(*self._axis_reps[self._n_leg_rows :])
+        return self.combine_representations(*self._col_reps)
 
     # symmetry-specific methods with fixed signature
     def toarray(self):
@@ -248,12 +224,10 @@ class SymmetricTensor:
         block_irreps and block order are not affected.
         """
         # block_irreps are conjugate both in T and conj: no change
-        nlr = self._ndim - self._n_leg_rows
         blocks = tuple(b.T.conj() for b in self._blocks)
-        axis_reps = tuple(self._axis_reps[i] for i in range(-nlr, self._n_leg_rows))
-        return type(self)(axis_reps, nlr, blocks, self._block_irreps)
+        return type(self)(self._col_reps, self._row_reps, blocks, self._block_irreps)
 
-    def permutate(self, row_axes, col_axes):  # signature != ndarray.transpose
+    def permutate(self, row_reps, col_reps):  # signature != ndarray.transpose
         """
         Permutate axes, changing tensor structure.
         """
@@ -265,11 +239,10 @@ class SymmetricTensor:
         Left hand term column axes all are contracted with right hand term row axes.
         """
         # do not construct empty blocks: those will be missing TODO: change this
-        assert self._shape[self._n_leg_rows :] == other._shape[: other._n_leg_rows]
-        assert all(
-            np.asanyarray(r1 == r2).all()
-            for (r1, r2) in zip(self._axis_reps[self._n_leg_rows :], other._axis_reps)
+        assert (
+            self._shape[len(self._row_reps) :] == other._shape[: len(other._row_reps)]
         )
+        assert all((r == r2).all() for (r, r2) in zip(self._col_reps, other._row_reps))
 
         i1 = 0
         i2 = 0
@@ -287,10 +260,7 @@ class SymmetricTensor:
                 i2 += 1
 
         block_irreps = np.array(block_irreps)
-        axis_reps = (
-            self._axis_reps[: self._n_leg_rows] + other._axis_reps[other._n_leg_rows :]
-        )
-        return type(self)(axis_reps, self._n_leg_rows, blocks, block_irreps)
+        return type(self)(self._row_reps, other._col_reps, blocks, block_irreps)
 
     def svd(self, cut=None, max_dense_dim=None, window=0, rcutoff=0.0, degen_ratio=1.0):
         """
@@ -339,12 +309,10 @@ class SymmetricTensor:
 
         block_irreps = self._block_irreps[non_empty]
         mid_rep = self.init_representation(block_cuts[non_empty], block_irreps)
-        rep_u = self._axis_reps[: self._n_leg_rows] + (mid_rep,)
-        rep_v = (mid_rep,) + self._axis_reps[self._n_leg_rows :]
-        U = type(self)(rep_u, self._n_leg_rows, u_blocks, block_irreps)
-        V = type(self)(rep_v, 1, v_blocks, block_irreps)
+        U = type(self)(self._row_reps, (mid_rep,), u_blocks, block_irreps)
+        V = type(self)((mid_rep,), self._col_reps, v_blocks, block_irreps)
         return U, s_values, V
 
     def expm(self):
         blocks = tuple(lg.expm(b) for b in self._blocks)
-        return type(self)(self._axis_reps, self._n_leg_rows, blocks, self._block_irreps)
+        return type(self)(self._row_reps, self._col_reps, blocks, self._block_irreps)

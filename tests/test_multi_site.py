@@ -40,8 +40,13 @@ def eq_st(st1, st2):
         return False
     if st1.nblocks != st2.nblocks:
         return False
-    for ax in range(st1.ndim):
-        if not np.asarray(st1.axis_reps[ax] == st2.axis_reps[ax]).all():
+    if len(st1.row_reps) != len(st2.row_reps):
+        return False
+    for (r1, r2) in zip(st1.row_reps, st2.row_reps):
+        if (r1 != r2).any():
+            return False
+    for (r1, r2) in zip(st1.col_reps, st2.col_reps):
+        if (r1 != r2).any():
             return False
     for bi in range(st1.nblocks):
         if not (st1.blocks[bi] == st2.blocks[bi]).all():
@@ -111,7 +116,7 @@ axes2 = (axes1[:, :, None] - axes1[:, None]).reshape(nx, d ** 2)
 print(((axes2 == axes2[:, None]).all(axis=2) == np.eye(nx, dtype=bool)).all())
 print((axes2 == -axes2[:, None]).all(axis=2).sum() == 0)
 
-representations = (
+reps = (
     (ap, aa, axes1[0], axes1[1], axes1[2], axes1[3]),
     (-ap, -aa, -axes1[4], -axes1[5], -axes1[6], -axes1[1]),
     (ap, aa, axes1[7], axes1[8], axes1[9], axes1[5]),
@@ -131,25 +136,25 @@ representations = (
 )
 
 rng = np.random.default_rng(42)
-t00 = U1_SymmetricTensor.random(representations[0], 2, rng=rng).toarray()
-t01 = U1_SymmetricTensor.random(representations[1], 2, rng=rng).toarray()
-t02 = U1_SymmetricTensor.random(representations[2], 2, rng=rng).toarray()
-t03 = U1_SymmetricTensor.random(representations[3], 2, rng=rng).toarray()
+t00 = U1_SymmetricTensor.random(reps[0][:2], reps[0][2:], rng=rng).toarray()
+t01 = U1_SymmetricTensor.random(reps[1][:2], reps[1][2:], rng=rng).toarray()
+t02 = U1_SymmetricTensor.random(reps[2][:2], reps[2][2:], rng=rng).toarray()
+t03 = U1_SymmetricTensor.random(reps[3][:2], reps[3][2:], rng=rng).toarray()
 
-t10 = U1_SymmetricTensor.random(representations[4], 2, rng=rng).toarray()
-t11 = U1_SymmetricTensor.random(representations[5], 2, rng=rng).toarray()
-t12 = U1_SymmetricTensor.random(representations[6], 2, rng=rng).toarray()
-t13 = U1_SymmetricTensor.random(representations[7], 2, rng=rng).toarray()
+t10 = U1_SymmetricTensor.random(reps[4][:2], reps[4][2:], rng=rng).toarray()
+t11 = U1_SymmetricTensor.random(reps[5][:2], reps[5][2:], rng=rng).toarray()
+t12 = U1_SymmetricTensor.random(reps[6][:2], reps[6][2:], rng=rng).toarray()
+t13 = U1_SymmetricTensor.random(reps[7][:2], reps[7][2:], rng=rng).toarray()
 
-t20 = U1_SymmetricTensor.random(representations[8], 2, rng=rng).toarray()
-t21 = U1_SymmetricTensor.random(representations[9], 2, rng=rng).toarray()
-t22 = U1_SymmetricTensor.random(representations[10], 2, rng=rng).toarray()
-t23 = U1_SymmetricTensor.random(representations[11], 2, rng=rng).toarray()
+t20 = U1_SymmetricTensor.random(reps[8][:2], reps[8][2:], rng=rng).toarray()
+t21 = U1_SymmetricTensor.random(reps[9][:2], reps[9][2:], rng=rng).toarray()
+t22 = U1_SymmetricTensor.random(reps[10][:2], reps[10][2:], rng=rng).toarray()
+t23 = U1_SymmetricTensor.random(reps[11][:2], reps[11][2:], rng=rng).toarray()
 
-t30 = U1_SymmetricTensor.random(representations[12], 2, rng=rng).toarray()
-t31 = U1_SymmetricTensor.random(representations[13], 2, rng=rng).toarray()
-t32 = U1_SymmetricTensor.random(representations[14], 2, rng=rng).toarray()
-t33 = U1_SymmetricTensor.random(representations[15], 2, rng=rng).toarray()
+t30 = U1_SymmetricTensor.random(reps[12][:2], reps[12][2:], rng=rng).toarray()
+t31 = U1_SymmetricTensor.random(reps[13][:2], reps[13][2:], rng=rng).toarray()
+t32 = U1_SymmetricTensor.random(reps[14][:2], reps[14][2:], rng=rng).toarray()
+t33 = U1_SymmetricTensor.random(reps[15][:2], reps[15][2:], rng=rng).toarray()
 
 tensors = (
     t00,
@@ -169,11 +174,12 @@ tensors = (
     t32,
     t33,
 )
+
 tiling = "ABCD\nEFGH\nIJKL\nMNOP"
 ctm = CTMRG_U1.from_elementary_tensors(
     tiling,
     tensors,
-    representations,
+    reps,
     13,
     block_chi_ratio=1.2,
     cutoff=1e-10,

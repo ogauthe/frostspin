@@ -269,52 +269,40 @@ class AbelianSymmetricTensor(SymmetricTensor):
         return rep
 
     def check_blocks_fit_representations(self):
-        row_rep = self.get_row_representation()
-        col_rep = self.get_column_representation()
+        row_irreps = self.get_row_representation()
+        col_irreps = self.get_column_representation()
         for bi in range(self._nblocks):
-            nr = (row_rep == self._block_irreps[bi]).sum()
-            nc = (col_rep == self._block_irreps[bi]).sum()
+            nr = (row_irreps == self._block_irreps[bi]).sum()
+            nc = (col_irreps == self._block_irreps[bi]).sum()
             if self._blocks[bi].shape != (nr, nc):
                 return False
         return True
 
     @classmethod
-    def random(cls, axis_reps, n_leg_rows, conjugate_columns=True, rng=None):
+    def random(cls, row_reps, col_reps, conjugate_columns=True, rng=None):
         if rng is None:
             rng = np.random.default_rng()
-        row_axis_reps = axis_reps[:n_leg_rows]
         if conjugate_columns:
-            col_axis_reps = tuple(
-                cls.conjugate_representation(r) for r in axis_reps[n_leg_rows:]
-            )
-        else:
-            col_axis_reps = axis_reps[n_leg_rows:]
-        row_irreps = cls.combine_representations(*row_axis_reps)
-        col_irreps = cls.combine_representations(*col_axis_reps)
+            col_reps = tuple(cls.conjugate_representation(r) for r in col_reps)
+        row_irreps = cls.combine_representations(*row_reps)
+        col_irreps = cls.combine_representations(*col_reps)
         # quick and dirty: generate dense array, then call from_array
         # generate only non-zero coeff to pass from_array assert
         arr = np.zeros((row_irreps.size, col_irreps.size))
         indices = (row_irreps[:, None] == col_irreps).nonzero()
         arr[indices] = rng.random(indices[0].size)
-        arr = arr.reshape(tuple(ax.size for ax in axis_reps))
-        return cls.from_array(
-            arr, axis_reps, n_leg_rows, conjugate_columns=conjugate_columns
-        )
+        arr = arr.reshape(tuple(ax.size for ax in row_reps + col_reps))
+        return cls.from_array(arr, row_reps, col_reps, conjugate_columns=False)
 
     @classmethod
-    def from_array(cls, arr, axis_reps, n_leg_rows, conjugate_columns=True):
+    def from_array(cls, arr, row_reps, col_reps, conjugate_columns=True):
         assert arr.shape == tuple(
-            cls.representation_dimension(rep) for rep in axis_reps
+            cls.representation_dimension(rep) for rep in row_reps + col_reps
         )
-        row_axis_reps = axis_reps[:n_leg_rows]
         if conjugate_columns:
-            col_axis_reps = tuple(
-                cls.conjugate_representation(r) for r in axis_reps[n_leg_rows:]
-            )
-        else:
-            col_axis_reps = axis_reps[n_leg_rows:]
-        row_irreps = cls.combine_representations(*row_axis_reps)
-        col_irreps = cls.combine_representations(*col_axis_reps)
+            col_reps = tuple(cls.conjugate_representation(r) for r in col_reps)
+        row_irreps = cls.combine_representations(*row_reps)
+        col_irreps = cls.combine_representations(*col_reps)
         # requires copy if arr is not contiguous
         # using flatiter on non-contiguous is too slow, no other way
         M = arr.reshape(row_irreps.size, col_irreps.size)
@@ -323,85 +311,84 @@ class AbelianSymmetricTensor(SymmetricTensor):
             abs(1.0 - np.sqrt(sum(lg.norm(b) ** 2 for b in blocks)) / lg.norm(arr))
             < 1e-13
         )
-        return cls(row_axis_reps + col_axis_reps, n_leg_rows, blocks, block_irreps)
+        return cls(row_reps, col_reps, blocks, block_irreps)
 
     def toarray(self):
         if self._f_contiguous:  # bug calling numba with f-array unituple
             arr = self.T.toarray()
-            k = self._ndim - self._n_leg_rows
+            k = len(self._col_reps)
             return arr.transpose(tuple(range(k, self._ndim)) + tuple(range(k)))
-        row_irreps = self.combine_representations(*self._axis_reps[: self._n_leg_rows])
-        col_irreps = self.combine_representations(*self._axis_reps[self._n_leg_rows :])
+        row_irreps = self.combine_representations(*self._row_reps)
+        col_irreps = self.combine_representations(*self._col_reps)
         arr = _numba_blocks_to_array(
             self._blocks, self._block_irreps, row_irreps, col_irreps
         )
         return arr.reshape(self._shape)
 
     def permutate(self, row_axes, col_axes):
-        # it is more convenient to deal woth 1 tuple of axes and use 1 int to
-        # split it into rows and columns internally (is it?)
-        # but the interface is much simpler with 2 tuples.
-        axes = tuple(row_axes) + tuple(col_axes)
-        n_leg_rows = len(row_axes)
-        t = tuple(range(self._ndim))
-        assert sorted(axes) == list(t)
-        if n_leg_rows == self._n_leg_rows and axes == t:
-            return self
+        assert sorted(row_axes + col_axes) == list(range(self._ndim))
+        nx0 = len(self._row_reps)
 
-        if (
-            n_leg_rows == self._ndim - self._n_leg_rows
-            and axes == t[self._n_leg_rows :] + t[: self._n_leg_rows]
-        ):
+        # return early for or identity or matrix transpose
+        if row_axes == tuple(range(nx0)) and col_axes == tuple(range(nx0, self._ndim)):
+            return self
+        if row_axes == tuple(range(nx0, self._ndim)) and col_axes == tuple(range(nx0)):
             return self.T
 
-        if self._f_contiguous:  # bug calling numba_tranpose with f-array
-            axesT = tuple((ax - self._n_leg_rows) % self._ndim for ax in axes)
-            return self.T.permutate(axesT[:n_leg_rows], axesT[n_leg_rows:])
+        # only call numba_transpose on C-array (bug with F-array)
+        if self._f_contiguous:
+            row_axes_T = tuple((ax - nx0) % self._ndim for ax in row_axes)
+            col_axes_T = tuple((ax - nx0) % self._ndim for ax in col_axes)
+            return self.T.permutate(row_axes_T, col_axes_T)
 
-        axis_reps = []
-        for i, ax in enumerate(axes):
-            if (i < n_leg_rows) ^ (ax < self._n_leg_rows):
-                axis_reps.append(self.conjugate_representation(self._axis_reps[ax]))
+        # construt new axes, conjugate if axis changes between row adnd column
+        row_reps = []
+        for ax in row_axes:
+            if ax < nx0:
+                row_reps.append(self._row_reps[ax])
             else:
-                axis_reps.append(self._axis_reps[ax])
-        axis_reps = tuple(axis_reps)
-        old_row_irreps = self.get_row_representation()
-        old_col_irreps = self.get_column_representation()
-        new_row_irreps = self.combine_representations(*axis_reps[:n_leg_rows])
-        new_col_irreps = self.combine_representations(*axis_reps[n_leg_rows:])
+                row_reps.append(self.conjugate_representation(self._col_reps[ax - nx0]))
+        row_reps = tuple(row_reps)
+        col_reps = []
+        for ax in col_axes:
+            if ax < nx0:
+                col_reps.append(self.conjugate_representation(self._row_reps[ax]))
+            else:
+                col_reps.append(self._col_reps[ax - nx0])
+        col_reps = tuple(col_reps)
+
+        # construct new blocks by swapping coeff
         blocks, block_irreps = _numba_abelian_transpose(
             np.array(self._shape),
             self._blocks,
             self._block_irreps,
-            old_row_irreps,
-            old_col_irreps,
-            self._n_leg_rows,
-            axes,
-            new_row_irreps,
-            new_col_irreps,
+            self.get_row_representation(),
+            self.get_column_representation(),
+            nx0,
+            row_axes + col_axes,
+            self.combine_representations(*row_reps),
+            self.combine_representations(*col_reps),
         )
-        return type(self)(axis_reps, n_leg_rows, blocks, block_irreps)
+        return type(self)(row_reps, col_reps, blocks, block_irreps)
 
     @property
     def T(self):
-        n_legs = self._ndim - self._n_leg_rows
         conj_irreps = self.conjugate_representation(self._block_irreps)  # abelian only
         so = conj_irreps.argsort()
         block_irreps = conj_irreps[so]
         blocks = tuple(self._blocks[i].T for i in so)
-        axis_reps = tuple(
-            self.conjugate_representation(self._axis_reps[i])
-            for i in range(-n_legs, self._n_leg_rows)
-        )
-        return type(self)(axis_reps, n_legs, blocks, block_irreps)
+        row_reps = tuple(self.conjugate_representation(r) for r in self._col_reps)
+        col_reps = tuple(self.conjugate_representation(r) for r in self._row_reps)
+        return type(self)(row_reps, col_reps, blocks, block_irreps)
 
     def conjugate(self):
         conj_irreps = self.conjugate_representation(self._block_irreps)  # abelian only
         so = conj_irreps.argsort()
         block_irreps = conj_irreps[so]
         blocks = tuple(self._blocks[i].conj() for i in so)
-        axis_reps = tuple(self.conjugate_representation(r) for r in self._axis_reps)
-        return type(self)(axis_reps, self._n_leg_rows, blocks, block_irreps)
+        row_reps = tuple(self.conjugate_representation(r) for r in self._row_reps)
+        col_reps = tuple(self.conjugate_representation(r) for r in self._col_reps)
+        return type(self)(row_reps, col_reps, blocks, block_irreps)
 
     def norm(self):
         return np.sqrt(sum(lg.norm(b) ** 2 for b in self._blocks))
