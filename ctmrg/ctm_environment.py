@@ -23,15 +23,15 @@ def _initialize_env(A):
 
     # merge axes quick and dirty
     combine = A.combine_representations
-    axes = A.axis_reps
+    axes = A.col_reps
     caxes = tuple(A.conjugate_representation(r) for r in axes)
 
     def init_C(At):
         temp = At.H @ At
         temp = temp.permutate((2, 0), (3, 1))
-        row_rep = combine(*temp.axis_reps[:2])
-        col_rep = combine(*temp.axis_reps[2:])
-        C = type(At)((row_rep, col_rep), 1, temp.blocks, temp.block_irreps)
+        row_reps = (combine(*temp.row_reps),)
+        col_reps = (combine(*temp.col_reps),)
+        C = type(At)(row_reps, col_reps, temp.blocks, temp.block_irreps)
         return C
 
     C1 = init_C(A.permutate((0, 1, 2, 5), (3, 4)))
@@ -42,26 +42,26 @@ def _initialize_env(A):
     temp = A.permutate((0, 1, 2), (3, 4, 5))
     temp = temp.H @ temp
     temp = temp.permutate((3, 0), (4, 1, 5, 2))
-    repT1 = (combine(caxes[3], axes[3]), axes[4], caxes[4], combine(axes[5], caxes[5]))
-    T1 = type(A)(repT1, 1, temp.blocks, temp.block_irreps)
+    repT1 = (combine(caxes[1], axes[1]), axes[2], caxes[2], combine(axes[3], caxes[3]))
+    T1 = type(A)(repT1[:1], repT1[1:], temp.blocks, temp.block_irreps)
 
     temp = A.permutate((0, 1, 3), (2, 4, 5))
     temp = temp.H @ temp
     temp = temp.permutate((3, 0), (4, 1, 5, 2))
-    repT2 = (combine(caxes[2], axes[2]), combine(axes[4], caxes[4]), axes[5], caxes[5])
-    T2 = type(A)(repT2, 1, temp.blocks, temp.block_irreps)
+    repT2 = (combine(caxes[0], axes[0]), combine(axes[2], caxes[2]), axes[3], caxes[3])
+    T2 = type(A)(repT2[:1], repT2[1:], temp.blocks, temp.block_irreps)
 
     temp = A.permutate((0, 1, 4), (2, 3, 5))
     temp = temp.H @ temp
     temp = temp.permutate((3, 0, 4, 1), (5, 2))
-    repT3 = (caxes[2], axes[2], combine(caxes[3], axes[3]), combine(axes[5], caxes[5]))
-    T3 = type(A)(repT3, 3, temp.blocks, temp.block_irreps)
+    repT3 = (caxes[0], axes[0], combine(caxes[1], axes[1]), combine(axes[3], caxes[3]))
+    T3 = type(A)(repT3[:3], repT3[3:], temp.blocks, temp.block_irreps)
 
     temp = A.permutate((0, 1, 5), (2, 3, 4))
     temp = temp.H @ temp
     temp = temp.permutate((3, 0), (4, 1, 5, 2))
-    repT4 = (combine(caxes[2], axes[2]), axes[3], caxes[3], combine(axes[4], caxes[4]))
-    T4 = type(A)(repT4, 1, temp.blocks, temp.block_irreps)
+    repT4 = (combine(caxes[0], axes[0]), axes[1], caxes[1], combine(axes[2], caxes[2]))
+    T4 = type(A)(repT4[:1], repT4[1:], temp.blocks, temp.block_irreps)
 
     return C1, T1, C2, T2, C3, T3, C4, T4
 
@@ -181,7 +181,7 @@ class CTM_Environment:
         for A0, rep_A in zip(tensors, representations):
             if A0.ndim != 6:
                 raise ValueError("Elementary tensor must be of rank 6")
-            neq_As.append(U1_SymmetricTensor.from_array(A0, rep_A, 2))
+            neq_As.append(U1_SymmetricTensor.from_array(A0, rep_A[:2], rep_A[2:]))
 
         return cls(cell, neq_As, load_env=load_env)
 
@@ -204,20 +204,20 @@ class CTM_Environment:
             data[f"_CTM_T3_{i}"] = self._neq_T3s[i].toarray()
             data[f"_CTM_C4_{i}"] = self._neq_C4s[i].toarray()
             data[f"_CTM_T4_{i}"] = self._neq_T4s[i].toarray()
-            data[f"_CTM_colors_C1_r_{i}"] = self._neq_C1s[i].axis_reps[0]
-            data[f"_CTM_colors_C1_d_{i}"] = -self._neq_C1s[i].axis_reps[1]
-            data[f"_CTM_colors_C2_d_{i}"] = self._neq_C2s[i].axis_reps[0]
-            data[f"_CTM_colors_C2_l_{i}"] = -self._neq_C2s[i].axis_reps[1]
-            data[f"_CTM_colors_C3_u_{i}"] = self._neq_C3s[i].axis_reps[0]
-            data[f"_CTM_colors_C3_l_{i}"] = -self._neq_C3s[i].axis_reps[1]
-            data[f"_CTM_colors_C4_u_{i}"] = self._neq_C4s[i].axis_reps[0]
-            data[f"_CTM_colors_C4_r_{i}"] = -self._neq_C4s[i].axis_reps[1]
+            data[f"_CTM_colors_C1_r_{i}"] = self._neq_C1s[i].row_reps[0]
+            data[f"_CTM_colors_C1_d_{i}"] = -self._neq_C1s[i].col_reps[0]
+            data[f"_CTM_colors_C2_d_{i}"] = self._neq_C2s[i].row_reps[0]
+            data[f"_CTM_colors_C2_l_{i}"] = -self._neq_C2s[i].col_reps[0]
+            data[f"_CTM_colors_C3_u_{i}"] = self._neq_C3s[i].row_reps[0]
+            data[f"_CTM_colors_C3_l_{i}"] = -self._neq_C3s[i].col_reps[0]
+            data[f"_CTM_colors_C4_u_{i}"] = self._neq_C4s[i].row_reps[0]
+            data[f"_CTM_colors_C4_r_{i}"] = -self._neq_C4s[i].col_reps[0]
 
             # legacy: A must be save with conjugate_columns = True
-            data[f"_CTM_colors_A_{i}_0"] = self._neq_As[i].axis_reps[0]
-            data[f"_CTM_colors_A_{i}_1"] = self._neq_As[i].axis_reps[1]
+            data[f"_CTM_colors_A_{i}_0"] = self._neq_As[i].row_reps[0]
+            data[f"_CTM_colors_A_{i}_1"] = self._neq_As[i].row_reps[1]
             for leg in range(2, 6):
-                data[f"_CTM_colors_A_{i}_{leg}"] = -self._neq_As[i].axis_reps[leg]
+                data[f"_CTM_colors_A_{i}_{leg}"] = -self._neq_As[i].col_reps[leg - 2]
 
         return data
 
@@ -243,7 +243,9 @@ class CTM_Environment:
 
         # call from array after closing file
         for i in range(Nneq):
-            neq_As[i] = U1_SymmetricTensor.from_array(neq_As[i], reps_A[i], 2)
+            neq_As[i] = U1_SymmetricTensor.from_array(
+                neq_As[i], reps_A[i][:2], reps_A[i][2:]
+            )
 
         return cls(cell, neq_As, load_env=savefile)
 
@@ -255,6 +257,7 @@ class CTM_Environment:
         loaded and the function returns True.
         """
         # TODO upgrade savefile format
+        # TODO raise exception if no reload
         neq_C1s, neq_C2s, neq_C3s, neq_C4s = [[] for i in range(4)]
         neq_T1s, neq_T2s, neq_T3s, neq_T4s = [[] for i in range(4)]
         r1r, r1d, r2d, r2l, r3u, r3l, r4u, r4r = [[] for i in range(8)]
@@ -269,7 +272,10 @@ class CTM_Environment:
 
             # load dense array + add minus signs for backward compatibility
             for i in range(self._Nneq):
-                saxes = [sorted(r) for r in self._neq_As[i].axis_reps]
+                saxes = [
+                    sorted(r)
+                    for r in self._neq_As[i].row_reps + self._neq_As[i].col_reps
+                ]
                 match = sorted(data[f"_CTM_colors_A_{i}_0"]) == saxes[0]
                 match &= sorted(data[f"_CTM_colors_A_{i}_1"]) == saxes[1]
                 for leg in range(2, 6):
@@ -301,16 +307,16 @@ class CTM_Environment:
         # call from array after closing file
         for i in range(self._Nneq):
             neq_C1s[i] = U1_SymmetricTensor.from_array(
-                neq_C1s[i], (r1r[i], r1d[i]), 1, conjugate_columns=False
+                neq_C1s[i], (r1r[i],), (r1d[i],), conjugate_columns=False
             )
             neq_C2s[i] = U1_SymmetricTensor.from_array(
-                neq_C2s[i], (r2d[i], r2l[i]), 1, conjugate_columns=False
+                neq_C2s[i], (r2d[i],), (r2l[i],), conjugate_columns=False
             )
             neq_C3s[i] = U1_SymmetricTensor.from_array(
-                neq_C3s[i], (r3u[i], r3l[i]), 1, conjugate_columns=False
+                neq_C3s[i], (r3u[i],), (r3l[i],), conjugate_columns=False
             )
             neq_C4s[i] = U1_SymmetricTensor.from_array(
-                neq_C4s[i], (r4u[i], r4r[i]), 1, conjugate_columns=False
+                neq_C4s[i], (r4u[i],), (r4r[i],), conjugate_columns=False
             )
 
         # first fill corners, to access their representation with get_Ci(x,y)
@@ -320,34 +326,30 @@ class CTM_Environment:
         self._neq_C4s = neq_C4s
 
         for i, (x, y) in enumerate(self._neq_coords):
-            axes = self._neq_As[i].axis_reps
+            axes = self._neq_As[i].col_reps
 
-            r1r = self.get_C1(x - 1, y).axis_reps[0]
-            r2l = self.get_C2(x + 1, y).axis_reps[1]
-            repsT1 = (r2l, axes[4], -axes[4], r1r)
+            r1r = self.get_C1(x - 1, y).row_reps[0]
+            r2l = self.get_C2(x + 1, y).col_reps[0]
             neq_T1s[i] = U1_SymmetricTensor.from_array(
-                neq_T1s[i], repsT1, 1, conjugate_columns=False
+                neq_T1s[i], (r2l,), (axes[2], -axes[2], r1r), conjugate_columns=False
             )
 
-            r2d = -self.get_C2(x, y - 1).axis_reps[0]
-            r3u = self.get_C3(x, y + 1).axis_reps[0]
-            repsT2 = (r2d, r3u, axes[5], -axes[5])
+            r2d = -self.get_C2(x, y - 1).row_reps[0]
+            r3u = self.get_C3(x, y + 1).row_reps[0]
             neq_T2s[i] = U1_SymmetricTensor.from_array(
-                neq_T2s[i], repsT2, 1, conjugate_columns=False
+                neq_T2s[i], (r2d,), (r3u, axes[3], -axes[3]), conjugate_columns=False
             )
 
-            r3l = self.get_C3(x + 1, y).axis_reps[1]
-            r4r = -self.get_C4(x - 1, y).axis_reps[1]
-            repsT3 = (-axes[2], axes[2], r3l, r4r)
+            r3l = self.get_C3(x + 1, y).col_reps[0]
+            r4r = -self.get_C4(x - 1, y).col_reps[0]
             neq_T3s[i] = U1_SymmetricTensor.from_array(
-                neq_T3s[i], repsT3, 3, conjugate_columns=False
+                neq_T3s[i], (-axes[0], axes[0], r3l), (r4r,), conjugate_columns=False
             )
 
-            r4u = -self.get_C4(x, y + 1).axis_reps[0]
-            r1d = self.get_C1(x, y - 1).axis_reps[1]
-            repsT4 = (r1d, axes[3], -axes[3], -r4u)
+            r4u = -self.get_C4(x, y + 1).row_reps[0]
+            r1d = self.get_C1(x, y - 1).col_reps[0]
             neq_T4s[i] = U1_SymmetricTensor.from_array(
-                neq_T4s[i], repsT4, 1, conjugate_columns=False
+                neq_T4s[i], (r1d,), (axes[1], -axes[1], -r4u), conjugate_columns=False
             )
 
         self._neq_T1s = neq_T1s
@@ -376,12 +378,17 @@ class CTM_Environment:
         for i, A0 in enumerate(tensors):
             if A0.ndim != 6:
                 raise ValueError("Elementary tensor must be of rank 6")
-            A = U1_SymmetricTensor.from_array(A0, representations[i], 2)
+            A = U1_SymmetricTensor.from_array(
+                A0, representations[i][:2], representations[i][2:]
+            )
             # permutation of irreps inside an abelian representation are allowed: irrep
             # blocks will not be affected.
             # However if some sector size changes, cannot keep env: restart from scratch
             # use lists to catch total dimension change
-            for r1, r2 in zip(A.axis_reps, self._neq_As[i].axis_reps):
+            for r1, r2 in zip(A.row_reps, self._neq_As[i].row_reps):
+                if (r1 != r2).any():
+                    raise ValueError("Cannot change physical or ancilla leg")
+            for r1, r2 in zip(A.col_reps, self._neq_As[i].col_reps):
                 if sorted(r1) != sorted(r2):
                     restart_env = True
             self._neq_As[i] = A

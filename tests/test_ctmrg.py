@@ -14,8 +14,13 @@ def eq_st(st1, st2):
         return False
     if st1.nblocks != st2.nblocks:
         return False
-    for ax in range(st1.ndim):
-        if not np.asarray(st1.axis_reps[ax] == st2.axis_reps[ax]).all():
+    if len(st1.row_reps) != len(st2.row_reps):
+        return False
+    for (r1, r2) in zip(st1.row_reps, st2.row_reps):
+        if (r1 != r2).any():
+            return False
+    for (r1, r2) in zip(st1.col_reps, st2.col_reps):
+        if (r1 != r2).any():
             return False
     for bi in range(st1.nblocks):
         if not (st1.blocks[bi] == st2.blocks[bi]).all():
@@ -36,9 +41,9 @@ rl = np.array([1, -2, 1, 0, 0], dtype=np.int8)
 
 tiling = "AB\nBA"
 axesA = (rp, ra, ru, rr, rd, rl)
-A0 = U1_SymmetricTensor.random(axesA, 2, rng=rng).toarray()
+A0 = U1_SymmetricTensor.random(axesA[:2], axesA[2:], rng=rng).toarray()
 axesB = (-rp, -ra, -rd, -rl, -ru, -rr)
-B0 = U1_SymmetricTensor.random(axesB, 2, rng=rng).toarray()
+B0 = U1_SymmetricTensor.random(axesB[:2], axesB[2:], rng=rng).toarray()
 
 tensors = (A0, B0)
 reps = (axesA, axesB)
