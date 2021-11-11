@@ -71,6 +71,16 @@ class SymmetricTensor:
         assert sorted(set(block_irreps)) == list(block_irreps)
         assert self.check_blocks_fit_representations()
 
+    @classmethod
+    def random(cls, row_reps, col_reps, conjugate_columns=True, rng=None):
+        # aimed for test, dumb implementation with from_array(zero)
+        if rng is None:
+            rng = np.random.default_rng()
+        z = np.zeros([cls.representation_dimension(rep) for rep in row_reps + col_reps])
+        st = cls.from_array(z, row_reps, col_reps, conjugate_columns=conjugate_columns)
+        st._blocks = tuple(rng.random(b.shape) for b in st._blocks)
+        return st
+
     @property
     def nblocks(self):
         return self._nblocks
@@ -187,7 +197,11 @@ class SymmetricTensor:
         return self.combine_representations(*self._col_reps)
 
     # symmetry-specific methods with fixed signature
-    def toarray(self):
+    @classmethod
+    def from_array(cls, arr, row_reps, col_reps, conjugate_columns=True):
+        return NotImplemented
+
+    def toarray(self, matrix_shape=False):
         return NotImplemented
 
     def norm(self):
