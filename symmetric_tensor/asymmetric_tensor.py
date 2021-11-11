@@ -31,33 +31,29 @@ class AsymmetricTensor(SymmetricTensor):
         return rep
 
     @classmethod
-    def from_array(cls, arr, n_leg_rows):
-        matrix_shape = (
-            np.prod(arr.shape[:n_leg_rows]),
-            np.prod(arr.shape[n_leg_rows:]),
-        )
-        block = arr.reshape(matrix_shape)
-        return cls(arr.shape, n_leg_rows, (block,), cls._irrep)
+    def from_array(cls, arr, row_reps, col_reps, conjugate_columns=True):
+        assert arr.shape == row_reps + col_reps
+        block = arr.reshape(np.prod(row_reps), np.prod(col_reps))
+        return cls(row_reps, col_reps, (block,), cls._irrep)
 
-    def toarray(self):
+    def toarray(self, matrix_shape=False):
+        if matrix_shape:
+            return self._blocks[0]
         return self._blocks[0].reshape(self._shape)
 
     def permutate(self, row_axes, col_axes):
         arr = self._blocks[0].reshape(self._shape).transpose(row_axes + col_axes)
-        return AsymmetricTensor.from_array(arr, len(row_axes))
+        n = len(row_axes)
+        return type(self).from_array(arr, arr.shape[:n], arr.shape[n:])
 
     @property
     def T(self):
-        return AsymmetricTensor(
-            self._axis_reps[self._n_leg_rows :] + self._axis_reps[: self._n_leg_rows],
-            self._ndim - self._n_leg_rows,
-            (self._blocks[0].T,),
-            self._irrep,
-        )
+        blocks = (self._blocks[0].T,)
+        return type(self)(self._col_reps, self._row_reps, blocks, self._irrep)
 
     def conjugate(self):
         blocks = (self._blocks[0].conj(),)
-        return AsymmetricTensor(self._axis_reps, self._n_leg_rows, blocks, self._irrep)
+        return type(self)(self._row_reps, self._col_reps, blocks, self._irrep)
 
     def norm(self):
         return lg.norm(self._blocks[0])
