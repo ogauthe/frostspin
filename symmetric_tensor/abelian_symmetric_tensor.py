@@ -279,22 +279,6 @@ class AbelianSymmetricTensor(SymmetricTensor):
         return True
 
     @classmethod
-    def random(cls, row_reps, col_reps, conjugate_columns=True, rng=None):
-        if rng is None:
-            rng = np.random.default_rng()
-        if conjugate_columns:
-            col_reps = tuple(cls.conjugate_representation(r) for r in col_reps)
-        row_irreps = cls.combine_representations(*row_reps)
-        col_irreps = cls.combine_representations(*col_reps)
-        # quick and dirty: generate dense array, then call from_array
-        # generate only non-zero coeff to pass from_array assert
-        arr = np.zeros((row_irreps.size, col_irreps.size))
-        indices = (row_irreps[:, None] == col_irreps).nonzero()
-        arr[indices] = rng.random(indices[0].size)
-        arr = arr.reshape(tuple(ax.size for ax in row_reps + col_reps))
-        return cls.from_array(arr, row_reps, col_reps, conjugate_columns=False)
-
-    @classmethod
     def from_array(cls, arr, row_reps, col_reps, conjugate_columns=True):
         assert arr.shape == tuple(
             cls.representation_dimension(rep) for rep in row_reps + col_reps
@@ -308,22 +292,26 @@ class AbelianSymmetricTensor(SymmetricTensor):
         M = arr.reshape(row_irreps.size, col_irreps.size)
         blocks, block_irreps = _numba_reduce_to_blocks(M, row_irreps, col_irreps)
         assert (
-            abs(1.0 - np.sqrt(sum(lg.norm(b) ** 2 for b in blocks)) / lg.norm(arr))
-            < 1e-13
+            abs((n := lg.norm(arr)) - np.sqrt(sum(lg.norm(b) ** 2 for b in blocks)))
+            <= 1e-13 * n  # allows for arr = 0
         )
         return cls(row_reps, col_reps, blocks, block_irreps)
 
-    def toarray(self):
+    def toarray(self, matrix_shape=False):
         if self._f_contiguous:  # bug calling numba with f-array unituple
-            arr = self.T.toarray()
+            m = self.T.toarray(matrix_shape=matrix_shape)
+            if matrix_shape:
+                return m.T
             k = len(self._col_reps)
-            return arr.transpose(tuple(range(k, self._ndim)) + tuple(range(k)))
+            return m.transpose(tuple(range(k, self._ndim)) + tuple(range(k)))
         row_irreps = self.combine_representations(*self._row_reps)
         col_irreps = self.combine_representations(*self._col_reps)
-        arr = _numba_blocks_to_array(
+        m = _numba_blocks_to_array(
             self._blocks, self._block_irreps, row_irreps, col_irreps
         )
-        return arr.reshape(self._shape)
+        if matrix_shape:
+            return m
+        return m.reshape(self._shape)
 
     def permutate(self, row_axes, col_axes):
         assert sorted(row_axes + col_axes) == list(range(self._ndim))
