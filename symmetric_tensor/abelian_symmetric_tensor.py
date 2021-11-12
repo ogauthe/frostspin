@@ -362,24 +362,14 @@ class AbelianSymmetricTensor(SymmetricTensor):
         )
         return type(self)(row_reps, col_reps, blocks, block_irreps)
 
-    @property
-    def T(self):
-        conj_irreps = self.conjugate_representation(self._block_irreps)  # abelian only
-        so = conj_irreps.argsort()
-        block_irreps = conj_irreps[so]
-        blocks = tuple(self._blocks[i].T for i in so)
-        row_reps = tuple(self.conjugate_representation(r) for r in self._col_reps)
-        col_reps = tuple(self.conjugate_representation(r) for r in self._row_reps)
-        return type(self)(row_reps, col_reps, blocks, block_irreps)
+    def norm(self):
+        return np.sqrt(sum(lg.norm(b) ** 2 for b in self._blocks))
 
-    def conjugate(self):
+    def group_conjugated(self):
         conj_irreps = self.conjugate_representation(self._block_irreps)  # abelian only
         so = conj_irreps.argsort()
         block_irreps = conj_irreps[so]
-        blocks = tuple(self._blocks[i].conj() for i in so)
+        blocks = tuple(self._blocks[i] for i in so)
         row_reps = tuple(self.conjugate_representation(r) for r in self._row_reps)
         col_reps = tuple(self.conjugate_representation(r) for r in self._col_reps)
         return type(self)(row_reps, col_reps, blocks, block_irreps)
-
-    def norm(self):
-        return np.sqrt(sum(lg.norm(b) ** 2 for b in self._blocks))

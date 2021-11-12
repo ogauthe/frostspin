@@ -196,7 +196,6 @@ class SymmetricTensor:
     def get_column_representation(self):
         return self.combine_representations(*self._col_reps)
 
-    # symmetry-specific methods with fixed signature
     @classmethod
     def from_array(cls, arr, row_reps, col_reps, conjugate_columns=True):
         return NotImplemented
@@ -210,26 +209,38 @@ class SymmetricTensor:
         """
         return NotImplemented
 
+    def group_conjugated(self):
+        """
+        Return a new tensor with all representations (row, columns and blocks irreps)
+        conjugated according to group rules. This may change block order, but not the
+        block themselves. Since the tensor is a group singlet, it is unaffected in its
+        dense form.
+        """
+        return NotImplemented
+
     @property
     def T(self):
         """
         Matrix transpose operation, swapping rows and columns. Internal structure and
         and leg merging are not affected: each block is just transposed. Block irreps
-        are conjugate, which may change block order.
+        are group conjugated, which may change block order.
         """
         # Transpose the matrix representation of the tensor, ie swap rows and columns
         # and transpose diagonal blocks, without any data move or copy. Irreps need to
-        # be conjugate since row (bra) and columns (ket) are swapped. Since irreps are
-        # just integers, conjugation is group-specific and cannot be implemented here.
-        return NotImplemented
+        # be conjugate since row (bra) and columns (ket) are swapped.
+        conj = self.group_conjugated()
+        blocks = tuple(b.T for b in conj._blocks)
+        return type(self)(conj._col_reps, conj._row_reps, blocks, conj._block_irreps)
 
     def conjugate(self):
         """
-        Complex conjugate operation. Block values are conjugate, block_irreps are also
-        conjugate according to group rules. Internal structure is not affected, however
-        block order may change.
+        Complex conjugate operation. Block values are conjugate and all representations
+        are group conjugated. Internal structure is not affected, however block order
+        may change.
         """
-        return NotImplemented
+        conj = self.group_conjugated()
+        blocks = tuple(b.conj() for b in conj._blocks)
+        return type(self)(conj._row_reps, conj._col_reps, blocks, conj._block_irreps)
 
     @property
     def H(self):
