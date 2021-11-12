@@ -201,7 +201,7 @@ class SymmetricTensor:
     def from_array(cls, arr, row_reps, col_reps, conjugate_columns=True):
         return NotImplemented
 
-    def toarray(self, matrix_shape=False):
+    def toarray(self, as_matrix=False):
         return NotImplemented
 
     def norm(self):

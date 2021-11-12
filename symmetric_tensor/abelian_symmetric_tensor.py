@@ -297,10 +297,10 @@ class AbelianSymmetricTensor(SymmetricTensor):
         )
         return cls(row_reps, col_reps, blocks, block_irreps)
 
-    def toarray(self, matrix_shape=False):
+    def toarray(self, as_matrix=False):
         if self._f_contiguous:  # bug calling numba with f-array unituple
-            if matrix_shape:
-                return self.T.toarray(matrix_shape=True).T
+            if as_matrix:
+                return self.T.toarray(as_matrix=True).T
             arr = self.T.toarray()
             k = len(self._col_reps)
             return arr.transpose(tuple(range(k, self._ndim)) + tuple(range(k)))
@@ -309,7 +309,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
         m = _numba_blocks_to_array(
             self._blocks, self._block_irreps, row_irreps, col_irreps
         )
-        if matrix_shape:
+        if as_matrix:
             return m
         return m.reshape(self._shape)
 
