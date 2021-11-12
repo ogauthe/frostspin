@@ -299,11 +299,11 @@ class AbelianSymmetricTensor(SymmetricTensor):
 
     def toarray(self, matrix_shape=False):
         if self._f_contiguous:  # bug calling numba with f-array unituple
-            m = self.T.toarray(matrix_shape=matrix_shape)
             if matrix_shape:
-                return m.T
+                return self.T.toarray(matrix_shape=True).T
+            arr = self.T.toarray()
             k = len(self._col_reps)
-            return m.transpose(tuple(range(k, self._ndim)) + tuple(range(k)))
+            return arr.transpose(tuple(range(k, self._ndim)) + tuple(range(k)))
         row_irreps = self.combine_representations(*self._row_reps)
         col_irreps = self.combine_representations(*self._col_reps)
         m = _numba_blocks_to_array(
