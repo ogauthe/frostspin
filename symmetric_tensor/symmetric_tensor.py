@@ -67,7 +67,7 @@ class SymmetricTensor:
         self._ncoeff = sum(b.size for b in blocks)
         assert self._nblocks > 0
         assert 0 < len(self._row_reps) < self._ndim
-        assert len(block_irreps) == self._nblocks
+        assert block_irreps.size == self._nblocks
         assert sorted(set(block_irreps)) == list(block_irreps)
         assert self.check_blocks_fit_representations()
 

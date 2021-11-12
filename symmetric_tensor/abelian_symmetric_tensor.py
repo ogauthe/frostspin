@@ -269,13 +269,16 @@ class AbelianSymmetricTensor(SymmetricTensor):
         return rep
 
     def check_blocks_fit_representations(self):
+        assert self._block_irreps.size == self._nblocks
+        assert len(self._blocks) == self._nblocks
         row_irreps = self.get_row_representation()
         col_irreps = self.get_column_representation()
-        for bi in range(self._nblocks):
-            nr = (row_irreps == self._block_irreps[bi]).sum()
-            nc = (col_irreps == self._block_irreps[bi]).sum()
-            if self._blocks[bi].shape != (nr, nc):
-                return False
+        for (irr, b) in zip(self._block_irreps, self._blocks):
+            nr = (row_irreps == irr).sum()
+            nc = (col_irreps == irr).sum()
+            assert nr > 0
+            assert nc > 0
+            assert b.shape == (nr, nc)
         return True
 
     @classmethod
