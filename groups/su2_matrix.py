@@ -196,9 +196,6 @@ def construct_transpose_matrix(representations, n_bra_leg1, n_bra_leg2, swap):
         Number of representations in left leg of transposed matrix.
     swap: enumerable of int
         Leg permutations, taking left and right legs in a row.
-    contract: bool
-        Whether to contract projectors. If False, non-contracted projectors are
-        returned.
     """
     assert len(representations) == len(swap)
     sh1 = tuple(r.dim for r in representations)
