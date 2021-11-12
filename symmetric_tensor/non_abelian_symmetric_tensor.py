@@ -59,8 +59,8 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
         proj2 = proj2[perm].T.tocsr()
         unitary = proj2 @ proj1
         # tests show that construct_matrix_projector output has no numerical zeros
-        # however unitary may have more than 70% stored coeff coeff being numerical
-        # zeros, with several order of magnitude between them and real non-zeros.
+        # however unitary may have more than 70% stored coeff being numerical zeros,
+        # with several order of magnitude between them and real non-zeros.
         unitary.data[np.abs(unitary.data) < 1e-14] = 0.0
         unitary.eliminate_zeros()
         unitary = unitary.sorted_indices()  # copy to get clean data array
@@ -193,7 +193,7 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
         try:
             unitary = self._unitary_dic[key]
         except KeyError:
-            unitary = self.construct_unitary(row_axes, col_axes, row_axes + col_axes)
+            unitary = self.construct_unitary(row_reps, col_reps, row_axes + col_axes)
             self._unitary_dic[key] = unitary
         # TODO slice unitary to do product blockwise, allowing for missing blocks
         # also include sqrt(dim) in input and output
