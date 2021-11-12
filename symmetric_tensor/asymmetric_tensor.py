@@ -46,14 +46,8 @@ class AsymmetricTensor(SymmetricTensor):
         n = len(row_axes)
         return type(self).from_array(arr, arr.shape[:n], arr.shape[n:])
 
-    @property
-    def T(self):
-        blocks = (self._blocks[0].T,)
-        return type(self)(self._col_reps, self._row_reps, blocks, self._irrep)
-
-    def conjugate(self):
-        blocks = (self._blocks[0].conj(),)
-        return type(self)(self._row_reps, self._col_reps, blocks, self._irrep)
+    def group_conjugated(self):
+        return self
 
     def norm(self):
         return lg.norm(self._blocks[0])
