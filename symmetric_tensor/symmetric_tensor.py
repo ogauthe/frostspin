@@ -279,14 +279,36 @@ class SymmetricTensor:
         block_irreps = np.array(block_irreps)
         return type(self)(self._row_reps, other._col_reps, blocks, block_irreps)
 
-    def svd(self, cut=None, max_dense_dim=None, window=0, rcutoff=0.0, degen_ratio=1.0):
+    def svd(self):
+        u_blocks = [None] * self._nblocks
+        s_blocks = [None] * self._nblocks
+        v_blocks = [None] * self._nblocks
+        for bi, b in enumerate(self._blocks):
+            try:
+                u, s, v = lg.svd(b, full_matrices=False, check_finite=False)
+            except lg.LinAlgError as err:
+                print("Error in scipy dense SVD:", err)
+                u, s, v = lg.svd(
+                    b, full_matrices=False, check_finite=False, driver="gesvd"
+                )
+            u_blocks[bi] = u
+            s_blocks[bi] = s
+            v_blocks[bi] = v
+
+        degen = np.array([s.size for s in s_blocks])
+        mid_rep = self.init_representation(degen, self._block_irreps)
+        U = type(self)(self._row_reps, (mid_rep,), u_blocks, self._block_irreps)
+        V = type(self)((mid_rep,), self._col_reps, v_blocks, self._block_irreps)
+        return U, s_blocks, V
+
+    def truncated_svd(
+        self, cut, max_dense_dim=None, window=0, rcutoff=0.0, degen_ratio=1.0
+    ):
         """
-        Compute block-wise SVD of self and keep only cut largest singular values. Do not
-        truncate if cut is not provided. Keep only values larger than rcutoff * max(sv).
+        Compute block-wise SVD of self and keep only cut largest singular values. Keep
+        only values larger than rcutoff * max(sv).
         """
-        if cut is None:
-            max_dense_dim = np.inf
-        elif max_dense_dim is None:
+        if max_dense_dim is None:
             max_dense_dim = 8 * cut
 
         raw_u = [None] * self._nblocks
@@ -307,22 +329,16 @@ class SymmetricTensor:
             raw_s[bi] = s
             raw_v[bi] = v
 
-        if cut is None:
-            cutoff = rcutoff * max(s[0] for s in raw_s)
-            block_cuts = np.array([(s > cutoff).sum() for s in raw_s])
-        else:
-            raw_s = tuple(raw_s)
-            block_cuts = numba_find_chi_largest(raw_s, cut, rcutoff, degen_ratio)
-
         u_blocks = []
         s_values = []
         v_blocks = []
+        block_cuts = numba_find_chi_largest(tuple(raw_s), cut, rcutoff, degen_ratio)
         non_empty = block_cuts.nonzero()[0]
         for bi in non_empty:
-            cut = block_cuts[bi]
-            u_blocks.append(np.ascontiguousarray(raw_u[bi][:, :cut]))
-            s_values.append(raw_s[bi][:cut])
-            v_blocks.append(raw_v[bi][:cut])
+            bcut = block_cuts[bi]
+            u_blocks.append(np.ascontiguousarray(raw_u[bi][:, :bcut]))
+            s_values.append(raw_s[bi][:bcut])
+            v_blocks.append(raw_v[bi][:bcut])
 
         block_irreps = self._block_irreps[non_empty]
         mid_rep = self.init_representation(block_cuts[non_empty], block_irreps)
