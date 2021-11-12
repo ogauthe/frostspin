@@ -115,8 +115,10 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     """
     repL = functools.reduce(operator.mul, rep_left_enum)
     repR = functools.reduce(operator.mul, rep_right_enum)
-    dimL = repL.dim
-    dimR = repR.dim
+    dimLR = repL.dim * repR.dim
+    projL = get_projector_chained(*rep_left_enum)
+    projR = get_projector_chained(*rep_right_enum)
+
     target = sorted(set(repL.irreps).intersection(repR.irreps))
     if not target:
         raise ValueError("Representations have no common irrep")
@@ -124,11 +126,6 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     repR = repR.truncated(target[-1])
     if target != list(repL.irreps) or target != list(repR.irreps):  # TODO
         raise NotImplementedError("TODO: remove irreps that will not fuse")
-
-    projL = get_projector_chained(*rep_left_enum)
-    projR = get_projector_chained(*rep_right_enum)
-    if conj_right:  # same as conjugating input irrep, with smaller dimensions
-        projR = projR @ ssp.csc_matrix(repR.get_conjugator())
 
     row = []
     col = []
@@ -138,12 +135,11 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     shift_out = 0
     for i, irr in enumerate(target):
         degenR = repR.degen[i]
-        matR = projR[:, shiftR : shiftR + degenR * irr].reshape(dimR * degenR, irr)
+        matR = projR[:, shiftR : shiftR + degenR * irr].reshape(-1, irr) / np.sqrt(irr)
         matR = matR.T.tocsr()
-        sing_proj = ssp.csr_matrix(
-            SU2_Representation.irrep(irr).get_conjugator() / np.sqrt(irr)
-        )
-        matR = sing_proj @ matR
+        if not conj_right:
+            sing_proj = ssp.csr_matrix(SU2_Representation.irrep(irr).get_conjugator())
+            matR = sing_proj @ matR
         # it is not memory efficient to contract directly with the full matL: in csr,
         # indptr has size nrows, which would be dimL * degenL, much too large (saturates
         # memory). It also requires some sparse transpose. Using csc just puts the
@@ -152,8 +148,7 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
         for j in range(repL.degen[i]):
             matLR = projL[:, shiftL : shiftL + irr].tocsr()  # avoid large indptr
             matLR = matLR @ matR
-            matLR = matLR.tocoo()  # explicit cast needed in case shape does not change
-            matLR = matLR.reshape(dimL * dimR, degenR)
+            matLR = matLR.tocoo().reshape(dimLR, degenR)  # force coo cast
             row.extend(matLR.row)
             col.extend(shift_out + matLR.col)
             data.extend(matLR.data)
@@ -162,7 +157,7 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
         shiftR += degenR * irr
 
     assert shift_out == repL.degen @ repR.degen
-    full_proj = ssp.csr_matrix((data, (row, col)), shape=(dimL * dimR, shift_out))
+    full_proj = ssp.csr_matrix((data, (row, col)), shape=(dimLR, shift_out))
     return full_proj
 
 
@@ -318,12 +313,11 @@ class SU2_Matrix:
             rep_left_enum = (self._left_rep,)
         if rep_right_enum is None:
             rep_right_enum = (self._right_rep,)
-        proj, ind = construct_matrix_projector(
+        proj = construct_matrix_projector(
             rep_left_enum, rep_right_enum, conj_right=True
         )
-        ar = np.zeros(self._left_rep.dim * self._right_rep.dim)
-        ar[ind] = proj @ self.to_raw_data()
-        return ar.reshape(self.shape)
+        arr = proj @ self.to_raw_data()
+        return arr.reshape(self.shape)
 
     def __repr__(self):
         s = "SU2_Matrix with irreps and shapes:\n"
