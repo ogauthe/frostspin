@@ -283,9 +283,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
 
     @classmethod
     def from_array(cls, arr, row_reps, col_reps, conjugate_columns=True):
-        assert arr.shape == tuple(
-            cls.representation_dimension(rep) for rep in row_reps + col_reps
-        )
+        assert arr.shape == tuple(r.size for r in row_reps + col_reps)
         if conjugate_columns:
             col_reps = tuple(cls.conjugate_representation(r) for r in col_reps)
         row_irreps = cls.combine_representations(*row_reps)
