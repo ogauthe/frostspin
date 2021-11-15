@@ -115,8 +115,12 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     """
     repL = functools.reduce(operator.mul, rep_left_enum)
     repR = functools.reduce(operator.mul, rep_right_enum)
-    dimL = repL.dim
-    dimR = repR.dim
+    dimLR = repL.dim * repR.dim
+    projL = get_projector_chained(*rep_left_enum)
+    projR = get_projector_chained(*rep_right_enum)
+    if conj_right:  # same as conjugating input irrep, with smaller dimensions
+        projR = projR @ ssp.csc_matrix(repR.get_conjugator())
+
     target = sorted(set(repL.irreps).intersection(repR.irreps))
     if not target:
         raise ValueError("Representations have no common irrep")
@@ -124,11 +128,6 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     repR = repR.truncated(target[-1])
     if target != list(repL.irreps) or target != list(repR.irreps):  # TODO
         raise NotImplementedError("TODO: remove irreps that will not fuse")
-
-    projL = get_projector_chained(*rep_left_enum)
-    projR = get_projector_chained(*rep_right_enum)
-    if conj_right:  # same as conjugating input irrep, with smaller dimensions
-        projR = projR @ ssp.csc_matrix(repR.get_conjugator())
 
     row = []
     col = []
@@ -138,7 +137,7 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     shift_out = 0
     for i, irr in enumerate(target):
         degenR = repR.degen[i]
-        matR = projR[:, shiftR : shiftR + degenR * irr].reshape(dimR * degenR, irr)
+        matR = projR[:, shiftR : shiftR + degenR * irr].reshape(-1, irr)
         matR = matR.T.tocsr()
         sing_proj = ssp.csr_matrix(
             SU2_Representation.irrep(irr).get_conjugator() / np.sqrt(irr)
@@ -152,8 +151,7 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
         for j in range(repL.degen[i]):
             matLR = projL[:, shiftL : shiftL + irr].tocsr()  # avoid large indptr
             matLR = matLR @ matR
-            matLR = matLR.tocoo()  # explicit cast needed in case shape does not change
-            matLR = matLR.reshape(dimL * dimR, degenR)
+            matLR = matLR.tocoo().reshape(dimLR, degenR)  # force coo cast
             row.extend(matLR.row)
             col.extend(shift_out + matLR.col)
             data.extend(matLR.data)
@@ -162,7 +160,7 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
         shiftR += degenR * irr
 
     assert shift_out == repL.degen @ repR.degen
-    full_proj = ssp.csr_matrix((data, (row, col)), shape=(dimL * dimR, shift_out))
+    full_proj = ssp.csr_matrix((data, (row, col)), shape=(dimLR, shift_out))
     return full_proj
 
 
