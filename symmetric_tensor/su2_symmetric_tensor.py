@@ -7,22 +7,22 @@ import groups.su2_matrix  # TODO remove me
 
 
 @numba.njit
-def _numba_elementary_combine_SU2(r1, r2):
-    degen = np.zeros((r1[1, -1] + r2[1, -1] - 1,), dtype=np.int64)
-    for i1 in range(r1.shape[1]):
-        for i2 in range(r2.shape[1]):
-            for irr in range(abs(r1[1, i1] - r2[1, i2]), r1[1, i1] + r2[1, i2] - 1, 2):
-                degen[irr] += r1[0, i1] * r2[0, i2]  # shit irr-1 <-- irr
+def _numba_elementary_combine_SU2(degen1, irreps1, degen2, irreps2):
+    degen = np.zeros(irreps1[-1] + irreps2[-1] - 1, dtype=np.int64)
+    for (d1, irr1) in zip(degen1, irreps1):
+        for (d2, irr2) in zip(degen2, irreps2):
+            for irr in range(abs(irr1 - irr2), irr1 + irr2 - 1, 2):
+                degen[irr] += d1 * d2  # shit irr-1 <-- irr to start at 0
     nnz = degen.nonzero()[0]
-    return np.concatenate((degen[nnz], nnz + 1)).reshape(2, -1)
+    return degen[nnz], nnz + 1
 
 
 @numba.njit
 def _numba_combine_SU2(*reps):
-    combined = reps[0]
+    degen, irreps = reps[0]
     for r in reps[1:]:
-        combined = _numba_elementary_combine_SU2(combined, r)
-    return combined
+        degen, irreps = _numba_elementary_combine_SU2(degen, irreps, r[0], r[1])
+    return np.concatenate((degen, irreps)).reshape(2, -1)
 
 
 class SU2_SymmetricTensor(NonAbelianSymmetricTensor):
