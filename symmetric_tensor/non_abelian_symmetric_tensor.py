@@ -67,7 +67,7 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
         return unitary
 
     @classmethod
-    def construct_matrix_projector(row_reps, col_reps, conjugate_columns=True):
+    def construct_matrix_projector(row_reps, col_reps, conjugate_columns=False):
         return NotImplemented
 
     @classmethod
@@ -137,7 +137,9 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
             arr = self.T.toarray()
             k = len(self._col_reps)
             return arr.transpose(tuple(range(k, self._ndim)) + tuple(range(k)))
-        proj = self.construct_matrix_projector(self._row_reps, self._col_reps)
+        proj = self.construct_matrix_projector(
+            self._row_reps, self._col_reps, conjugate_columns=True
+        )
         arr = proj @ self.to_raw_data()
         if as_matrix:
             return arr.reshape(self.matrix_shape)

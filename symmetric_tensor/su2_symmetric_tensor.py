@@ -56,7 +56,7 @@ class SU2_SymmetricTensor(NonAbelianSymmetricTensor):
         return self  # all SU(2) representations are self-conjugate
 
     @classmethod
-    def construct_matrix_projector(cls, row_reps, col_reps, conjugate_columns=True):
+    def construct_matrix_projector(cls, row_reps, col_reps, conjugate_columns=False):
         # WIP
         # reuse SU2_Matrix stuff
         rep_left_enum = tuple(SU2_Representation(r[0], r[1]) for r in row_reps)
