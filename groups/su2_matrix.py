@@ -118,8 +118,6 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     dimLR = repL.dim * repR.dim
     projL = get_projector_chained(*rep_left_enum)
     projR = get_projector_chained(*rep_right_enum)
-    if conj_right:  # same as conjugating input irrep, with smaller dimensions
-        projR = projR @ ssp.csc_matrix(repR.get_conjugator())
 
     target = sorted(set(repL.irreps).intersection(repR.irreps))
     if not target:
@@ -137,12 +135,11 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     shift_out = 0
     for i, irr in enumerate(target):
         degenR = repR.degen[i]
-        matR = projR[:, shiftR : shiftR + degenR * irr].reshape(-1, irr)
+        matR = projR[:, shiftR : shiftR + degenR * irr].reshape(-1, irr) / np.sqrt(irr)
         matR = matR.T.tocsr()
-        sing_proj = ssp.csr_matrix(
-            SU2_Representation.irrep(irr).get_conjugator() / np.sqrt(irr)
-        )
-        matR = sing_proj @ matR
+        if not conj_right:
+            sing_proj = ssp.csr_matrix(SU2_Representation.irrep(irr).get_conjugator())
+            matR = sing_proj @ matR
         # it is not memory efficient to contract directly with the full matL: in csr,
         # indptr has size nrows, which would be dimL * degenL, much too large (saturates
         # memory). It also requires some sparse transpose. Using csc just puts the
