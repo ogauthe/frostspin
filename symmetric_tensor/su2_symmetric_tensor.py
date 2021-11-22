@@ -73,4 +73,4 @@ class SU2_SymmetricTensor(NonAbelianSymmetricTensor):
     # Symmetry specific methods with fixed signature
     ####################################################################################
     def group_conjugated(self):
-        return self  # all SU(2) representations are self-conjugate
+        return self  # every SU(2) representations are self-conjugate
