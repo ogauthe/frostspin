@@ -95,8 +95,8 @@ class SymmetricTensor:
 
     @property
     def matrix_shape(self):
-        n = len(self._row_reps)
-        return (np.prod(self._shape[:n]), np.prod(self._shape[n:]))
+        nrr = len(self._row_reps)
+        return (np.prod(self._shape[:nrr]), np.prod(self._shape[nrr:]))
 
     @property
     def dtype(self):
@@ -155,7 +155,6 @@ class SymmetricTensor:
                 block_irreps.append(other._block_irreps[i2])
                 i2 += 1
 
-        blocks = tuple(blocks)
         block_irreps = np.array(block_irreps)
         return type(self)(self._row_reps, self._col_reps, blocks, block_irreps)
 
@@ -201,7 +200,16 @@ class SymmetricTensor:
         return NotImplemented
 
     def toarray(self, as_matrix=False):
-        return NotImplemented
+        if self._f_contiguous:  # bug calling numba with f-array unituple
+            if as_matrix:
+                return self.T._array().T
+            arr = self.T.toarray()
+            k = len(self._col_reps)
+            return arr.transpose(*range(k, self._ndim), *range(k))
+        m = self._toarray()
+        if as_matrix:
+            return m
+        return m.reshape(self._shape)
 
     def norm(self):
         """
@@ -256,7 +264,22 @@ class SymmetricTensor:
         """
         Permutate axes, changing tensor structure.
         """
-        return NotImplemented
+        assert sorted(row_axes + col_axes) == list(range(self._ndim))
+        nrr = len(self._row_reps)
+
+        # return early for identity or matrix transpose
+        if row_axes == tuple(range(nrr)) and col_axes == tuple(range(nrr, self._ndim)):
+            return self
+        if row_axes == tuple(range(nrr, self._ndim)) and col_axes == tuple(range(nrr)):
+            return self.T
+
+        # only permutate C-array (numba bug with tuple of F-array)
+        if self._f_contiguous:
+            row_axes_T = tuple((ax - nrr) % self._ndim for ax in row_axes)
+            col_axes_T = tuple((ax - nrr) % self._ndim for ax in col_axes)
+            return self.T._permutate(row_axes_T, col_axes_T)
+
+        return self._permutate(row_axes, col_axes)
 
     def __matmul__(self, other):
         """

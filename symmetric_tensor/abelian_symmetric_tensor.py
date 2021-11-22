@@ -298,52 +298,30 @@ class AbelianSymmetricTensor(SymmetricTensor):
         )
         return cls(row_reps, col_reps, blocks, block_irreps)
 
-    def toarray(self, as_matrix=False):
-        if self._f_contiguous:  # bug calling numba with f-array unituple
-            if as_matrix:
-                return self.T.toarray(as_matrix=True).T
-            arr = self.T.toarray()
-            k = len(self._col_reps)
-            return arr.transpose(tuple(range(k, self._ndim)) + tuple(range(k)))
-        row_irreps = self.combine_representations(*self._row_reps)
-        col_irreps = self.combine_representations(*self._col_reps)
-        m = _numba_blocks_to_array(
-            self._blocks, self._block_irreps, row_irreps, col_irreps
+    def _toarray(self):
+        return _numba_blocks_to_array(
+            self._blocks,
+            self._block_irreps,
+            self.get_row_representation(),
+            self.get_column_representation(),
         )
-        if as_matrix:
-            return m
-        return m.reshape(self._shape)
 
-    def permutate(self, row_axes, col_axes):
-        assert sorted(row_axes + col_axes) == list(range(self._ndim))
-        nx0 = len(self._row_reps)
-
-        # return early for or identity or matrix transpose
-        if row_axes == tuple(range(nx0)) and col_axes == tuple(range(nx0, self._ndim)):
-            return self
-        if row_axes == tuple(range(nx0, self._ndim)) and col_axes == tuple(range(nx0)):
-            return self.T
-
-        # only call numba_transpose on C-array (bug with F-array)
-        if self._f_contiguous:
-            row_axes_T = tuple((ax - nx0) % self._ndim for ax in row_axes)
-            col_axes_T = tuple((ax - nx0) % self._ndim for ax in col_axes)
-            return self.T.permutate(row_axes_T, col_axes_T)
-
+    def _permutate(self, row_axes, col_axes):
         # construt new axes, conjugate if axis changes between row adnd column
+        nrr = len(self._row_reps)
         row_reps = []
         for ax in row_axes:
-            if ax < nx0:
+            if ax < nrr:
                 row_reps.append(self._row_reps[ax])
             else:
-                row_reps.append(self.conjugate_representation(self._col_reps[ax - nx0]))
+                row_reps.append(self.conjugate_representation(self._col_reps[ax - nrr]))
         row_reps = tuple(row_reps)
         col_reps = []
         for ax in col_axes:
-            if ax < nx0:
+            if ax < nrr:
                 col_reps.append(self.conjugate_representation(self._row_reps[ax]))
             else:
-                col_reps.append(self._col_reps[ax - nx0])
+                col_reps.append(self._col_reps[ax - nrr])
         col_reps = tuple(col_reps)
 
         # construct new blocks by swapping coeff
@@ -353,7 +331,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
             self._block_irreps,
             self.get_row_representation(),
             self.get_column_representation(),
-            nx0,
+            nrr,
             row_axes + col_axes,
             self.combine_representations(*row_reps),
             self.combine_representations(*col_reps),
