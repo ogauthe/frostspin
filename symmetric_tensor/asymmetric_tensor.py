@@ -13,6 +13,10 @@ class AsymmetricTensor(SymmetricTensor):
     """
 
     # not a subclass of AbelianSymmetricTensor
+
+    ####################################################################################
+    # Symmetry implementation
+    ####################################################################################
     _symmetry = "{e}"
     _irrep = np.zeros((1,), dtype=np.int8)
 
@@ -32,6 +36,9 @@ class AsymmetricTensor(SymmetricTensor):
     def representation_dimension(cls, rep):
         return rep
 
+    ####################################################################################
+    # Symmetry specific methods with fixed signature
+    ####################################################################################
     @classmethod
     def from_array(cls, arr, row_reps, col_reps, conjugate_columns=True):
         assert arr.shape == tuple(row_reps) + tuple(col_reps)

@@ -255,9 +255,18 @@ class AbelianSymmetricTensor(SymmetricTensor):
     are labelled as int8 integers, representations are 1D ndarray with np.int8 dtype.
     """
 
+    ####################################################################################
+    # Symmetry implementation
+    ####################################################################################
+    _symmetry = NotImplemented
+
     @classmethod
-    def representation_dimension(cls, rep):
-        return rep.size
+    def combine_representations(cls, *reps):
+        return NotImplemented
+
+    @classmethod
+    def conjugate_representation(cls, rep):
+        return NotImplemented
 
     @classmethod
     def init_representation(cls, degen, irreps):
@@ -268,19 +277,13 @@ class AbelianSymmetricTensor(SymmetricTensor):
             k += d
         return rep
 
-    def check_blocks_fit_representations(self):
-        assert self._block_irreps.size == self._nblocks
-        assert len(self._blocks) == self._nblocks
-        row_irreps = self.get_row_representation()
-        col_irreps = self.get_column_representation()
-        for (irr, b) in zip(self._block_irreps, self._blocks):
-            nr = (row_irreps == irr).sum()
-            nc = (col_irreps == irr).sum()
-            assert nr > 0
-            assert nc > 0
-            assert b.shape == (nr, nc)
-        return True
+    @classmethod
+    def representation_dimension(cls, rep):
+        return rep.size
 
+    ####################################################################################
+    # Symmetry specific methods with fixed signature
+    ####################################################################################
     @classmethod
     def from_array(cls, arr, row_reps, col_reps, conjugate_columns=True):
         assert arr.shape == tuple(r.size for r in row_reps + col_reps)
@@ -338,9 +341,6 @@ class AbelianSymmetricTensor(SymmetricTensor):
         )
         return type(self)(row_reps, col_reps, blocks, block_irreps)
 
-    def norm(self):
-        return np.sqrt(sum(lg.norm(b) ** 2 for b in self._blocks))
-
     def group_conjugated(self):
         conj_irreps = self.conjugate_representation(self._block_irreps)  # abelian only
         so = conj_irreps.argsort()
@@ -349,3 +349,19 @@ class AbelianSymmetricTensor(SymmetricTensor):
         row_reps = tuple(self.conjugate_representation(r) for r in self._row_reps)
         col_reps = tuple(self.conjugate_representation(r) for r in self._col_reps)
         return type(self)(row_reps, col_reps, blocks, block_irreps)
+
+    def check_blocks_fit_representations(self):
+        assert self._block_irreps.size == self._nblocks
+        assert len(self._blocks) == self._nblocks
+        row_irreps = self.get_row_representation()
+        col_irreps = self.get_column_representation()
+        for (irr, b) in zip(self._block_irreps, self._blocks):
+            nr = (row_irreps == irr).sum()
+            nc = (col_irreps == irr).sum()
+            assert nr > 0
+            assert nc > 0
+            assert b.shape == (nr, nc)
+        return True
+
+    def norm(self):
+        return np.sqrt(sum(lg.norm(b) ** 2 for b in self._blocks))

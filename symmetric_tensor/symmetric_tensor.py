@@ -23,13 +23,12 @@ class SymmetricTensor:
     the middle representation.
     """
 
+    ####################################################################################
+    # Symmetry implementation
+    # each of those methods must be defined according to group rules to define symmetry
+    ####################################################################################
     _symmetry = NotImplemented
 
-    @property
-    def symmetry(self):
-        return self._symmetry
-
-    # need to define those methods to deal with symmetries
     @classmethod
     def combine_representations(cls, *reps):
         return NotImplemented
@@ -46,6 +45,43 @@ class SymmetricTensor:
     def representation_dimension(cls, rep):
         return NotImplemented
 
+    ####################################################################################
+    # Symmetry specific methods with fixed signature
+    ####################################################################################
+    @classmethod
+    def from_array(cls, arr, row_reps, col_reps, conjugate_columns=True):
+        return NotImplemented
+
+    def _toarray(self):
+        # returns rank-2 numpy array, called by public toarray
+        return NotImplemented
+
+    def _permutate(self, row_axes, col_axes):
+        # returns SymmetricTensor, called by public permutate after input check and
+        # cast to C-array only
+        return NotImplemented
+
+    def group_conjugated(self):
+        """
+        Return a new tensor with all representations (row, columns and blocks irreps)
+        conjugated according to group rules. This may change block order, but not the
+        block themselves. Since the tensor is a group singlet, it is unaffected in its
+        dense form.
+        """
+        return NotImplemented
+
+    def check_blocks_fit_representation(self):
+        return NotImplemented
+
+    def norm(self):
+        """
+        Tensor Frobenius norm.
+        """
+        return NotImplemented
+
+    ####################################################################################
+    # Initializer
+    ####################################################################################
     def __init__(self, row_reps, col_reps, blocks, block_irreps):
         self._row_reps = row_reps
         self._col_reps = col_reps
@@ -71,15 +107,12 @@ class SymmetricTensor:
         assert sorted(set(block_irreps)) == list(block_irreps)
         assert self.check_blocks_fit_representations()
 
-    @classmethod
-    def random(cls, row_reps, col_reps, conjugate_columns=True, rng=None):
-        # aimed for test, dumb implementation with from_array(zero)
-        if rng is None:
-            rng = np.random.default_rng()
-        z = np.zeros([cls.representation_dimension(rep) for rep in row_reps + col_reps])
-        st = cls.from_array(z, row_reps, col_reps, conjugate_columns=conjugate_columns)
-        st._blocks = tuple(rng.random(b.shape) for b in st._blocks)
-        return st
+    ####################################################################################
+    # getters
+    ####################################################################################
+    @property
+    def symmetry(self):
+        return self._symmetry
 
     @property
     def nblocks(self):
@@ -126,10 +159,9 @@ class SymmetricTensor:
     def col_reps(self):
         return self._col_reps
 
-    def copy(self):
-        blocks = tuple(b.copy() for b in self._blocks)
-        return type(self)(self._row_reps, self._col_reps, blocks, self._block_irreps)
-
+    ####################################################################################
+    # Magic methods
+    ####################################################################################
     def __add__(self, other):
         assert type(other) == type(self), "Mixing incompatible types"
         assert self._shape == other._shape, "Mixing incompatible axes"
@@ -189,16 +221,41 @@ class SymmetricTensor:
             b /= x
         return self
 
-    def get_row_representation(self):
-        return self.combine_representations(*self._row_reps)
+    def __matmul__(self, other):
+        """
+        Tensor dot operation between two tensors with compatible internal structure.
+        Left hand term column axes all are contracted with right hand term row axes.
 
-    def get_column_representation(self):
-        return self.combine_representations(*self._col_reps)
+        Note that some allowed block may be missing in the output tensor, if the
+        associated irrep does not appear in the contracted bond.
+        """
+        assert type(self) == type(other)
+        assert (
+            self._shape[len(self._row_reps) :] == other._shape[: len(other._row_reps)]
+        )
+        assert all((r == r2).all() for (r, r2) in zip(self._col_reps, other._row_reps))
 
-    @classmethod
-    def from_array(cls, arr, row_reps, col_reps, conjugate_columns=True):
-        return NotImplemented
+        i1 = 0
+        i2 = 0
+        blocks = []
+        block_irreps = []
+        while i1 < self._nblocks and i2 < other._nblocks:
+            if self._block_irreps[i1] == other._block_irreps[i2]:
+                blocks.append(self._blocks[i1] @ other._blocks[i2])
+                block_irreps.append(self._block_irreps[i1])
+                i1 += 1
+                i2 += 1
+            elif self._block_irreps[i1] < other._block_irreps[i2]:
+                i1 += 1
+            else:
+                i2 += 1
 
+        block_irreps = np.array(block_irreps)
+        return type(self)(self._row_reps, other._col_reps, blocks, block_irreps)
+
+    ####################################################################################
+    # misc
+    ####################################################################################
     def toarray(self, as_matrix=False):
         if self._f_contiguous:  # bug calling numba with f-array unituple
             if as_matrix:
@@ -211,21 +268,29 @@ class SymmetricTensor:
             return m
         return m.reshape(self._shape)
 
-    def norm(self):
-        """
-        Tensor Frobenius norm.
-        """
-        return NotImplemented
+    @classmethod
+    def random(cls, row_reps, col_reps, conjugate_columns=True, rng=None):
+        # aimed for test, dumb implementation with from_array(zero)
+        if rng is None:
+            rng = np.random.default_rng()
+        z = np.zeros([cls.representation_dimension(rep) for rep in row_reps + col_reps])
+        st = cls.from_array(z, row_reps, col_reps, conjugate_columns=conjugate_columns)
+        st._blocks = tuple(rng.random(b.shape) for b in st._blocks)
+        return st
 
-    def group_conjugated(self):
-        """
-        Return a new tensor with all representations (row, columns and blocks irreps)
-        conjugated according to group rules. This may change block order, but not the
-        block themselves. Since the tensor is a group singlet, it is unaffected in its
-        dense form.
-        """
-        return NotImplemented
+    def copy(self):
+        blocks = tuple(b.copy() for b in self._blocks)
+        return type(self)(self._row_reps, self._col_reps, blocks, self._block_irreps)
 
+    def get_row_representation(self):
+        return self.combine_representations(*self._row_reps)
+
+    def get_column_representation(self):
+        return self.combine_representations(*self._col_reps)
+
+    ####################################################################################
+    # transpose and permutate
+    ####################################################################################
     @property
     def T(self):
         """
@@ -281,38 +346,9 @@ class SymmetricTensor:
 
         return self._permutate(row_axes, col_axes)
 
-    def __matmul__(self, other):
-        """
-        Tensor dot operation between two tensors with compatible internal structure.
-        Left hand term column axes all are contracted with right hand term row axes.
-
-        Note that some allowed block may be missing in the output tensor, if the
-        associated irrep does not appear in the contracted bond.
-        """
-        assert type(self) == type(other)
-        assert (
-            self._shape[len(self._row_reps) :] == other._shape[: len(other._row_reps)]
-        )
-        assert all((r == r2).all() for (r, r2) in zip(self._col_reps, other._row_reps))
-
-        i1 = 0
-        i2 = 0
-        blocks = []
-        block_irreps = []
-        while i1 < self._nblocks and i2 < other._nblocks:
-            if self._block_irreps[i1] == other._block_irreps[i2]:
-                blocks.append(self._blocks[i1] @ other._blocks[i2])
-                block_irreps.append(self._block_irreps[i1])
-                i1 += 1
-                i2 += 1
-            elif self._block_irreps[i1] < other._block_irreps[i2]:
-                i1 += 1
-            else:
-                i2 += 1
-
-        block_irreps = np.array(block_irreps)
-        return type(self)(self._row_reps, other._col_reps, blocks, block_irreps)
-
+    ####################################################################################
+    # Linear algebra
+    ####################################################################################
     def svd(self):
         u_blocks = [None] * self._nblocks
         s_blocks = [None] * self._nblocks
