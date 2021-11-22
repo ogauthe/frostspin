@@ -43,6 +43,31 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
 
     @classmethod
     def construct_matrix_projector(row_reps, col_reps, conjugate_columns=False):
+        r"""
+                    singlet space
+                    /          \
+                   /            \
+                prod_l        prod_r
+                 /               /
+                /\              /\
+               /\ \            /\ \
+             row_reps        col_reps
+
+        Parameters
+        ----------
+        row_reps : tuple of ndarray
+            Row axis representations.
+        col_reps : tuple of ndarray
+            Column axis representations.
+        conjugate_columns : bool
+            Whether to add projector on singlet on column axes.
+
+        Returns
+        -------
+        proj : (M, N) sparse matrix
+            Projector on singlet, with M the dimension of the full parameter space and
+            N the singlet space dimension.
+        """
         return NotImplemented
 
     ####################################################################################
@@ -101,6 +126,7 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
         unitary = unitary.sorted_indices()  # copy to get clean data array
         return unitary
 
+    @classmethod
     def _blocks_from_raw_data(cls, raw_data, row_rep, col_rep):
         # TODO put sqrt(dim) in "unitary" and jit me
         i1 = 0
@@ -165,8 +191,8 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
             col_reps = tuple(cls.conjugate_representation(r) for r in col_reps)
         blocks, block_irreps = cls._blocks_from_raw_data(
             raw_data,
-            cls.combine_representation(*row_reps),
-            cls.combine_representation(*col_reps),
+            cls.combine_representations(*row_reps),
+            cls.combine_representations(*col_reps),
         )
         return cls(row_reps, col_reps, blocks, block_irreps)
 
@@ -206,9 +232,12 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
         # TODO slice unitary to do product blockwise, allowing for missing blocks
         # also include sqrt(dim) in input and output
         raw_data = unitary @ self.to_raw_data()
-        new_row_rep = (self.combine_representations(*row_reps),)
-        new_col_rep = (self.combine_representations(*col_reps),)
-        return self._blocks_from_raw_data(raw_data, new_row_rep, new_col_rep)
+        blocks, block_irreps = self._blocks_from_raw_data(
+            raw_data,
+            self.combine_representations(*row_reps),
+            self.combine_representations(*col_reps),
+        )
+        return type(self)(row_reps, col_reps, blocks, block_irreps)
 
     def group_conjugated(self):
         return NotImplemented
