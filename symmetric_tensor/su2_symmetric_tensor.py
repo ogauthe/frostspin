@@ -31,8 +31,10 @@ class SU2_SymmetricTensor(NonAbelianSymmetricTensor):
     dimension = 2 * s + 1
     """
 
+    ####################################################################################
+    # Symmetry implementation
+    ####################################################################################
     _symmetry = "SU(2)"
-    _unitary_dic = {}
 
     @classmethod
     def combine_representations(cls, *reps):
@@ -48,12 +50,14 @@ class SU2_SymmetricTensor(NonAbelianSymmetricTensor):
     def representation_dimension(cls, rep):
         return rep[0] @ rep[1]
 
+    ####################################################################################
+    # Non-abelian specific symmetry implementation
+    ####################################################################################
+    _unitary_dic = {}
+
     @classmethod
     def irrep_dimension(cls, irr):
         return irr
-
-    def group_conjugated(self):
-        return self  # all SU(2) representations are self-conjugate
 
     @classmethod
     def construct_matrix_projector(cls, row_reps, col_reps, conjugate_columns=False):
@@ -64,3 +68,9 @@ class SU2_SymmetricTensor(NonAbelianSymmetricTensor):
         return groups.su2_matrix.construct_matrix_projector(
             rep_left_enum, rep_right_enum, conj_right=conjugate_columns
         )
+
+    ####################################################################################
+    # Symmetry specific methods with fixed signature
+    ####################################################################################
+    def group_conjugated(self):
+        return self  # all SU(2) representations are self-conjugate
