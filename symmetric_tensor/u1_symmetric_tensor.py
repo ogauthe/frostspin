@@ -12,6 +12,16 @@ def _numba_combine_U1(*reps):
 
 
 class U1_SymmetricTensor(AbelianSymmetricTensor):
+    """
+    SymmetricTensor with global U(1) symmetry.
+    """
+
+    # most of the code is in AbelianSymmetricTensor, group fusion rules and conjugation
+    # are the only symmetry-specific methods left.
+
+    ####################################################################################
+    # Symmetry implementation
+    ####################################################################################
     _symmetry = "U(1)"
 
     @classmethod
