@@ -419,3 +419,58 @@ class SymmetricTensor:
     def expm(self):
         blocks = tuple(lg.expm(b) for b in self._blocks)
         return type(self)(self._row_reps, self._col_reps, blocks, self._block_irreps)
+
+    ####################################################################################
+    # I/O
+    ####################################################################################
+    def save_to_file(self, savefile):
+        """
+        Save SymmetricTensor into savefile with npz format.
+        """
+        data = self.get_data_dic()
+        np.savez_compressed(savefile, **data)
+
+    def get_data_dic(self, prefix=""):
+        """
+        Construct data dictionary containing all information to store the
+        SymmetricTensor into an external file.
+        """
+        # allows to save several SymmetricTensors in one file by using different
+        # prefixes.
+        data = {
+            prefix + "_symmetry": self._symmetry,
+            prefix + "_n_row_reps": len(self._row_reps),
+            prefix + "_n_col_reps": len(self._col_reps),
+            prefix + "_block_irreps": self._block_irreps,
+        }
+        for ri, r in enumerate(self._row_reps):
+            data[f"{prefix}_row_rep_{ri}"] = r
+        for ci, c in enumerate(self._col_reps):
+            data[f"{prefix}_col_rep_{ci}"] = c
+        for bi, b in enumerate(self._blocks):
+            data[f"{prefix}_block_{bi}"] = b
+        return data
+
+    @classmethod
+    def load_from_dic(cls, data, prefix=""):
+        if cls._symmetry != data[prefix + "_symmetry"][()]:
+            raise ValueError(f"Saved SymmetricTensor does not match type {cls}")
+        row_reps = []
+        for ri in range(data[prefix + "_n_row_reps"][()]):
+            row_reps.append(data[f"{prefix}_row_rep_{ri}"])
+        row_reps = tuple(row_reps)
+        col_reps = []
+        for ci in range(data[prefix + "_n_col_reps"][()]):
+            col_reps.append(data[f"{prefix}_col_rep_{ci}"])
+        col_reps = tuple(col_reps)
+        block_irreps = data[prefix + "_block_irreps"]
+        blocks = []
+        for bi in range(block_irreps.size):
+            blocks.append(data[f"{prefix}_block_{bi}"])
+        return cls(row_reps, col_reps, blocks, block_irreps)
+
+    @classmethod
+    def load_from_file(cls, savefile, prefix=""):
+        with np.load(savefile) as fin:
+            st = cls.load_from_dic(fin, prefix=prefix)
+        return st
