@@ -7,10 +7,12 @@ from symmetric_tensor.symmetric_tensor import SymmetricTensor
 class AsymmetricTensor(SymmetricTensor):
     """
     Tensor with no symmetry, mostly for debug and benchmarks purposes.
+
+    An asymmetric representation is just a rank-0, size-1 integer array corresponding to
+    its dimension.
     """
 
     # not a subclass of AbelianSymmetricTensor
-    # representation is just an integer corresponding to the dimension
     _symmetry = "{e}"
     _irrep = np.zeros((1,), dtype=np.int8)
 
@@ -32,19 +34,18 @@ class AsymmetricTensor(SymmetricTensor):
 
     @classmethod
     def from_array(cls, arr, row_reps, col_reps, conjugate_columns=True):
-        assert arr.shape == row_reps + col_reps
+        assert arr.shape == tuple(row_reps) + tuple(col_reps)
         block = arr.reshape(np.prod(row_reps), np.prod(col_reps))
         return cls(row_reps, col_reps, (block,), cls._irrep)
 
-    def toarray(self, as_matrix=False):
-        if as_matrix:
-            return self._blocks[0]
-        return self._blocks[0].reshape(self._shape)
+    def _toarray(self):
+        return self._blocks[0]
 
-    def permutate(self, row_axes, col_axes):
+    def _permutate(self, row_axes, col_axes):
         arr = self._blocks[0].reshape(self._shape).transpose(row_axes + col_axes)
-        n = len(row_axes)
-        return type(self).from_array(arr, arr.shape[:n], arr.shape[n:])
+        row_reps = tuple(np.array(d) for d in arr.shape[: len(row_axes)])
+        col_reps = tuple(np.array(d) for d in arr.shape[len(row_axes) :])
+        return type(self).from_array(arr, row_reps, col_reps)
 
     def group_conjugated(self):
         return self
