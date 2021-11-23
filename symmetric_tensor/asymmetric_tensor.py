@@ -30,7 +30,7 @@ class AsymmetricTensor(SymmetricTensor):
 
     @classmethod
     def init_representation(cls, degen, irreps):
-        return degen
+        return degen.reshape([])
 
     @classmethod
     def representation_dimension(cls, rep):
