@@ -160,7 +160,7 @@ class SymmetricTensor:
         return self._col_reps
 
     ####################################################################################
-    # Symmetry agnostic methods
+    # Magic methods
     ####################################################################################
     def __add__(self, other):
         assert type(other) == type(self), "Mixing incompatible types"
@@ -253,6 +253,9 @@ class SymmetricTensor:
         block_irreps = np.array(block_irreps)
         return type(self)(self._row_reps, other._col_reps, blocks, block_irreps)
 
+    ####################################################################################
+    # misc
+    ####################################################################################
     def toarray(self, as_matrix=False):
         if self._f_contiguous:  # bug calling numba with f-array unituple
             if as_matrix:
@@ -264,27 +267,6 @@ class SymmetricTensor:
         if as_matrix:
             return m
         return m.reshape(self._shape)
-
-    def permutate(self, row_axes, col_axes):  # signature != ndarray.transpose
-        """
-        Permutate axes, changing tensor structure.
-        """
-        assert sorted(row_axes + col_axes) == list(range(self._ndim))
-        nrr = len(self._row_reps)
-
-        # return early for identity or matrix transpose
-        if row_axes == tuple(range(nrr)) and col_axes == tuple(range(nrr, self._ndim)):
-            return self
-        if row_axes == tuple(range(nrr, self._ndim)) and col_axes == tuple(range(nrr)):
-            return self.T
-
-        # only permutate C-array (numba bug with tuple of F-array)
-        if self._f_contiguous:
-            row_axes_T = tuple((ax - nrr) % self._ndim for ax in row_axes)
-            col_axes_T = tuple((ax - nrr) % self._ndim for ax in col_axes)
-            return self.T._permutate(row_axes_T, col_axes_T)
-
-        return self._permutate(row_axes, col_axes)
 
     @classmethod
     def random(cls, row_reps, col_reps, conjugate_columns=True, rng=None):
@@ -306,6 +288,9 @@ class SymmetricTensor:
     def get_column_representation(self):
         return self.combine_representations(*self._col_reps)
 
+    ####################################################################################
+    # transpose and permutate
+    ####################################################################################
     @property
     def T(self):
         """
@@ -340,6 +325,30 @@ class SymmetricTensor:
         blocks = tuple(b.T.conj() for b in self._blocks)
         return type(self)(self._col_reps, self._row_reps, blocks, self._block_irreps)
 
+    def permutate(self, row_axes, col_axes):  # signature != ndarray.transpose
+        """
+        Permutate axes, changing tensor structure.
+        """
+        assert sorted(row_axes + col_axes) == list(range(self._ndim))
+        nrr = len(self._row_reps)
+
+        # return early for identity or matrix transpose
+        if row_axes == tuple(range(nrr)) and col_axes == tuple(range(nrr, self._ndim)):
+            return self
+        if row_axes == tuple(range(nrr, self._ndim)) and col_axes == tuple(range(nrr)):
+            return self.T
+
+        # only permutate C-array (numba bug with tuple of F-array)
+        if self._f_contiguous:
+            row_axes_T = tuple((ax - nrr) % self._ndim for ax in row_axes)
+            col_axes_T = tuple((ax - nrr) % self._ndim for ax in col_axes)
+            return self.T._permutate(row_axes_T, col_axes_T)
+
+        return self._permutate(row_axes, col_axes)
+
+    ####################################################################################
+    # Linear algebra
+    ####################################################################################
     def svd(self):
         u_blocks = [None] * self._nblocks
         s_blocks = [None] * self._nblocks
