@@ -25,28 +25,29 @@ class SymmetricTensor:
 
     ####################################################################################
     # Symmetry implementation
-    # each of those methods must be defined according to group rules to define symmetry
+    # each of those methods must be defined according to group rules to define symmetry.
     ####################################################################################
     _symmetry = NotImplemented
 
-    @classmethod
-    def combine_representations(cls, *reps):
+    @staticmethod
+    def combine_representations(*reps):
         return NotImplemented
 
-    @classmethod
-    def conjugate_representation(cls, rep):
+    @staticmethod
+    def conjugate_representation(rep):
         return NotImplemented
 
-    @classmethod
-    def init_representation(cls, degen, irreps):
+    @staticmethod
+    def init_representation(degen, irreps):
         return NotImplemented
 
-    @classmethod
-    def representation_dimension(cls, rep):
+    @staticmethod
+    def representation_dimension(rep):
         return NotImplemented
 
     ####################################################################################
     # Symmetry specific methods with fixed signature
+    # These methods must be defined in subclasses to set SymmetricTensor behavior
     ####################################################################################
     @classmethod
     def from_array(cls, arr, row_reps, col_reps, conjugate_columns=True):
