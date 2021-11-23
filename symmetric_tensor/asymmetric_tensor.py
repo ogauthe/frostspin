@@ -30,7 +30,7 @@ class AsymmetricTensor(SymmetricTensor):
 
     @classmethod
     def init_representation(cls, degen, irreps):
-        return degen
+        return degen.reshape([])
 
     @classmethod
     def representation_dimension(cls, rep):
@@ -56,6 +56,14 @@ class AsymmetricTensor(SymmetricTensor):
 
     def group_conjugated(self):
         return self
+
+    def check_blocks_fit_representations(self):
+        assert self._block_irreps == type(self)._irrep
+        assert self._nblocks == 1
+        assert len(self._blocks) == 1
+        assert self._blocks[0].shape == self.matrix_shape
+        assert self._shape == tuple(self._row_reps) + tuple(self._col_reps)
+        return True
 
     def norm(self):
         return lg.norm(self._blocks[0])
