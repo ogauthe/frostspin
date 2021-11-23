@@ -3,7 +3,7 @@ import bisect
 import numpy as np
 import scipy.linalg as lg
 
-from symmetric_tensor.symmetric_tensor import SymmetricTensor
+from .symmetric_tensor import SymmetricTensor
 
 
 class NonAbelianSymmetricTensor(SymmetricTensor):

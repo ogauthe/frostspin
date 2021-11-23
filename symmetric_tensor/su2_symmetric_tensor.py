@@ -2,7 +2,7 @@ import numpy as np
 import scipy.sparse as ssp
 import numba
 
-from symmetric_tensor.non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
+from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 from groups.su2_representation import SU2_Representation  # TODO remove me
 
 

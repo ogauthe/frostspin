@@ -2,7 +2,7 @@ import numpy as np
 import scipy.linalg as lg
 import numba
 
-from symmetric_tensor.symmetric_tensor import SymmetricTensor
+from .symmetric_tensor import SymmetricTensor
 
 
 @numba.njit(parallel=True)
