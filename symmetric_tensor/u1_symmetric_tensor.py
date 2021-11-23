@@ -1,6 +1,6 @@
 import numba
 
-from symmetric_tensor.abelian_symmetric_tensor import AbelianSymmetricTensor
+from .abelian_symmetric_tensor import AbelianSymmetricTensor
 
 
 @numba.njit
