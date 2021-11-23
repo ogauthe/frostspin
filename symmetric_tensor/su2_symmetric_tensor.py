@@ -46,7 +46,7 @@ def _get_projector(in1, in2, max_irrep=2 ** 30):
                     data.extend(data123)
                     shift3[irr3] += d2 * irr3
                     shift1 += irr1
-    sh = (in1[0] @ in2[1], in2[0] @ in2[1] * out_dim)  # contract 1st leg in chained
+    sh = (in1[0] @ in1[1], in2[0] @ in2[1] * out_dim)  # contract 1st leg in chained
     return ssp.csr_matrix((data, (row, col)), shape=sh)
 
 
@@ -69,8 +69,8 @@ def _get_projector_chained(*rep_in, singlet_only=False):
         return ssp.eye(rep_in[0].dim).tocsc()
 
     for i in range(1, n):
-        forwards.append(forwards[i - 1] * rep_in[i])
-        backwards.append(backwards[i - 1] * rep_in[-i - 1])
+        forwards.append(_numba_combine_SU2(forwards[i - 1], rep_in[i]))
+        backwards.append(_numba_combine_SU2(backwards[i - 1], rep_in[-i - 1]))
 
     if singlet_only:
         # projection is made only on singlet. Remove irreps that wont fuse to 1.
@@ -191,7 +191,7 @@ class SU2_SymmetricTensor(NonAbelianSymmetricTensor):
                 data.extend(matLR.data)
                 shift_out += degenR
 
-        assert shift_out == repL[0] @ repR[0]
+        assert shift_out == repL[0, indL] @ repR[0, indR]
         full_proj = ssp.csr_matrix((data, (row, col)), shape=(dimLR, shift_out))
         return full_proj
 
