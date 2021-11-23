@@ -24,12 +24,12 @@ class U1_SymmetricTensor(AbelianSymmetricTensor):
     ####################################################################################
     _symmetry = "U(1)"
 
-    @classmethod
-    def combine_representations(cls, *reps):
+    @staticmethod
+    def combine_representations(*reps):
         if len(reps) > 1:  # numba issue 7245
             return _numba_combine_U1(*reps)
         return reps[0]
 
-    @classmethod
-    def conjugate_representation(cls, rep):
+    @staticmethod
+    def conjugate_representation(rep):
         return -rep

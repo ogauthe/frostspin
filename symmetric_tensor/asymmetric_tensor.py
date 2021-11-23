@@ -20,20 +20,20 @@ class AsymmetricTensor(SymmetricTensor):
     _symmetry = "{e}"
     _irrep = np.zeros((1,), dtype=np.int8)
 
-    @classmethod
-    def combine_representations(cls, *reps):
+    @staticmethod
+    def combine_representations(*reps):
         return np.prod([r for r in reps])
 
-    @classmethod
-    def conjugate_representation(cls, rep):
+    @staticmethod
+    def conjugate_representation(rep):
         return rep
 
-    @classmethod
-    def init_representation(cls, degen, irreps):
+    @staticmethod
+    def init_representation(degen, irreps):
         return degen.reshape([])
 
-    @classmethod
-    def representation_dimension(cls, rep):
+    @staticmethod
+    def representation_dimension(rep):
         return rep
 
     ####################################################################################

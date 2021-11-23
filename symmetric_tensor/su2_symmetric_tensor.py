@@ -123,18 +123,18 @@ class SU2_SymmetricTensor(NonAbelianSymmetricTensor):
     ####################################################################################
     _symmetry = "SU(2)"
 
-    @classmethod
-    def combine_representations(cls, *reps):
+    @staticmethod
+    def combine_representations(*reps):
         if len(reps) > 1:  # numba issue 7245
             return _numba_combine_SU2(*reps)
         return reps[0]
 
-    @classmethod
-    def conjugate_representation(cls, rep):
+    @staticmethod
+    def conjugate_representation(rep):
         return rep
 
-    @classmethod
-    def representation_dimension(cls, rep):
+    @staticmethod
+    def representation_dimension(rep):
         return rep[0] @ rep[1]
 
     ####################################################################################

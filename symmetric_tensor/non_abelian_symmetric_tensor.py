@@ -16,20 +16,20 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
     ####################################################################################
     _symmetry = NotImplemented
 
-    @classmethod
-    def combine_representations(cls, *reps):
+    @staticmethod
+    def combine_representations(*reps):
         return NotImplemented
 
-    @classmethod
-    def conjugate_representation(cls, rep):
+    @staticmethod
+    def conjugate_representation(rep):
         return NotImplemented
 
-    @classmethod
-    def init_representation(cls, degen, irreps):
+    @staticmethod
+    def init_representation(degen, irreps):
         return np.array([degen, irreps], dtype=irreps.dtype)
 
-    @classmethod
-    def representation_dimension(cls, rep):
+    @staticmethod
+    def representation_dimension(rep):
         return NotImplemented
 
     ####################################################################################
