@@ -16,22 +16,6 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
     ####################################################################################
     _symmetry = NotImplemented
 
-    @staticmethod
-    def combine_representations(*reps):
-        return NotImplemented
-
-    @staticmethod
-    def conjugate_representation(rep):
-        return NotImplemented
-
-    @staticmethod
-    def init_representation(degen, irreps):
-        return np.array([degen, irreps], dtype=irreps.dtype)
-
-    @staticmethod
-    def representation_dimension(rep):
-        return NotImplemented
-
     ####################################################################################
     # Non-abelian specific symmetry implementation
     ####################################################################################
@@ -39,7 +23,7 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
 
     @classmethod
     def irrep_dimension(irrep):
-        return NotImplemented
+        raise NotImplementedError("Must be defined in derived class")
 
     @classmethod
     def construct_matrix_projector(row_reps, col_reps, conjugate_columns=False):
@@ -68,7 +52,7 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
             Projector on singlet, with M the dimension of the full parameter space and
             N the singlet space dimension.
         """
-        return NotImplemented
+        raise NotImplementedError("Must be defined in derived class")
 
     ####################################################################################
     # Non-abelian shared symmetry implementation
@@ -236,9 +220,6 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
             self.combine_representations(*col_reps),
         )
         return type(self)(row_reps, col_reps, blocks, block_irreps)
-
-    def group_conjugated(self):
-        return NotImplemented
 
     def check_blocks_fit_representations(self):
         assert self._block_irreps.size == self._nblocks

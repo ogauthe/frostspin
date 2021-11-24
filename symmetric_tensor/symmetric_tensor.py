@@ -31,19 +31,19 @@ class SymmetricTensor:
 
     @staticmethod
     def combine_representations(*reps):
-        return NotImplemented
+        raise NotImplementedError("Must be defined in derived class")
 
     @staticmethod
     def conjugate_representation(rep):
-        return NotImplemented
+        raise NotImplementedError("Must be defined in derived class")
 
     @staticmethod
     def init_representation(degen, irreps):
-        return NotImplemented
+        raise NotImplementedError("Must be defined in derived class")
 
     @staticmethod
     def representation_dimension(rep):
-        return NotImplemented
+        raise NotImplementedError("Must be defined in derived class")
 
     ####################################################################################
     # Symmetry specific methods with fixed signature
@@ -51,16 +51,16 @@ class SymmetricTensor:
     ####################################################################################
     @classmethod
     def from_array(cls, arr, row_reps, col_reps, conjugate_columns=True):
-        return NotImplemented
+        raise NotImplementedError("Must be defined in derived class")
 
     def _toarray(self):
         # returns rank-2 numpy array, called by public toarray
-        return NotImplemented
+        raise NotImplementedError("Must be defined in derived class")
 
     def _permutate(self, row_axes, col_axes):
         # returns SymmetricTensor, called by public permutate after input check and
         # cast to C-array only
-        return NotImplemented
+        raise NotImplementedError("Must be defined in derived class")
 
     def group_conjugated(self):
         """
@@ -69,16 +69,16 @@ class SymmetricTensor:
         block themselves. Since the tensor is a group singlet, it is unaffected in its
         dense form.
         """
-        return NotImplemented
+        raise NotImplementedError("Must be defined in derived class")
 
     def check_blocks_fit_representation(self):
-        return NotImplemented
+        raise NotImplementedError("Must be defined in derived class")
 
     def norm(self):
         """
         Tensor Frobenius norm.
         """
-        return NotImplemented
+        raise NotImplementedError("Must be defined in derived class")
 
     ####################################################################################
     # Initializer
