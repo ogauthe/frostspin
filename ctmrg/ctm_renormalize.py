@@ -6,8 +6,40 @@ from ctmrg.ctm_contract import add_a_bilayer
 
 
 def construct_projectors(
-    corner1, corner2, corner3, corner4, chi, block_chi_ratio, rcutoff, degen_ratio
+    corner1,
+    corner2,
+    corner3,
+    corner4,
+    chi,
+    block_chi_ratio,
+    ncv_ratio,
+    rcutoff,
+    degen_ratio,
 ):
+    """
+    Parameters
+    ----------
+    corner1 : SymmetricTensor
+        First corner, either obtained by C-T//T-A contraction or just C (no absorb)
+    corner2 : SymmetricTensor
+        Second corner to contract
+    corner3 : SymmetricTensor
+        Third corner to contract
+    corner4 : SymmetricTensor
+        Fourth corner to contract
+    chi : int
+        Total number of singular values to keep
+    block_chi_ratio : float
+        For each symmetry block, compute block_chi = block_chi_ratio * last_block_chi
+        singular values, where last_block_chi is the size of the symmetry sector during
+        last truncation. Final number of kept singular values is ajusted according to
+        chi.
+    ncv_ratio : float
+        For each symmetry sector, generate ncv = ncv_ratio * chi_block Lanczos vectors.
+    degen_ratio : float
+        ratio to consider values as degenerate (see numba_find_chi_largest
+        documentation)
+    """
     # factorize loops on different symmetry sectors, construct only blocks that will
     # appear in final projectors. Compute SVD blockwise on the fly for R @ Rt, without
     # storing all the blocks together.
@@ -65,7 +97,7 @@ def construct_projectors(
             # a good precision is required for singular values, especially with pseudo
             # inverse. If precision is not good enough, reduced density matrix are less
             # hermitian. This requires a large number of computed vectors (ncv).
-            ncv = 3 * block_chi[bi]
+            ncv = int(ncv_ratio * block_chi[bi])
             u, s, v = sparse_svd(m, k=block_chi[bi], ncv=ncv, maxiter=1000)
 
         u_blocks[bi] = u
