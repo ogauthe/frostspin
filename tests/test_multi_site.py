@@ -4,7 +4,7 @@ import numpy as np
 import scipy.linalg as lg
 
 from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
-from ctmrg.ctmrg import CTMRG_U1
+from ctmrg.ctmrg import CTMRG
 
 """
 Exhaustive test for CTMRG unit cell. Construct a 4x4 unit cell with all 32 inequivalent
@@ -176,7 +176,7 @@ tensors = (
 )
 
 tiling = "ABCD\nEFGH\nIJKL\nMNOP"
-ctm = CTMRG_U1.from_elementary_tensors(
+ctm = CTMRG.from_elementary_tensors(
     tiling,
     tensors,
     reps,
@@ -216,7 +216,7 @@ rdm_dr_cell, rdm_ur_cell = ctm.compute_rdm_2nd_neighbor_cell()
 
 # check save and load once tensors != init
 ctm.save_to_file("data_test_ctmrg.npz")
-ctm2 = CTMRG_U1.from_file("data_test_ctmrg.npz", verbosity=100)
+ctm2 = CTMRG.from_file("data_test_ctmrg.npz", verbosity=100)
 for (x, y) in ctm.neq_coords:
     assert eq_st(ctm._env.get_A(x, y), ctm2._env.get_A(x, y))
     assert eq_st(ctm._env.get_C1(x, y), ctm2._env.get_C1(x, y))

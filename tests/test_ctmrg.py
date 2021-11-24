@@ -4,7 +4,7 @@ import numpy as np
 import scipy.linalg as lg
 
 from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
-from ctmrg.ctmrg import CTMRG_U1
+from ctmrg.ctmrg import CTMRG
 
 
 def eq_st(st1, st2):
@@ -48,7 +48,7 @@ B0 = U1_SymmetricTensor.random(axesB[:2], axesB[2:], rng=rng).toarray()
 tensors = (A0, B0)
 reps = (axesA, axesB)
 chi = 20
-ctm = CTMRG_U1.from_elementary_tensors(tiling, tensors, reps, chi, verbosity=100)
+ctm = CTMRG.from_elementary_tensors(tiling, tensors, reps, chi, verbosity=100)
 
 # check rdm before iterating: due to random tensors they do not stay hermitian
 rdm2x1_cell, rdm1x2_cell = ctm.compute_rdm_1st_neighbor_cell()
@@ -68,7 +68,7 @@ ctm.iterate()
 
 # check save and load once tensors != init
 ctm.save_to_file("data_test_ctmrg.npz")
-ctm2 = CTMRG_U1.from_file("data_test_ctmrg.npz", verbosity=100)
+ctm2 = CTMRG.from_file("data_test_ctmrg.npz", verbosity=100)
 for (x, y) in ctm.neq_coords:
     assert eq_st(ctm._env.get_A(x, y), ctm2._env.get_A(x, y))
     assert eq_st(ctm._env.get_C1(x, y), ctm2._env.get_C1(x, y))

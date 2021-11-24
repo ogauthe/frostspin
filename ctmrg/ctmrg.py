@@ -57,6 +57,15 @@ class CTMRG:
     contractions, renormalization and reduced density matrix construction functions are
     defined in distinct modules. This class has very few members and makes no
     computation, it is mostly interface and tensor selection.
+
+    Virtual symmetries are implemented using SymmetricTensors framework. It is essential
+    to speed-up contractions and SVDs, as well as improving numerical precision.
+
+    At each move, two corners among ul, ur, dl and dr are renormalized, but the other
+    two can still be used for next moves. Each time a corner is computed, it is stored
+    in the environment to be used later (including by compute_rdm_diag ur and dr). After
+    each renormalization, delete the two corners that have been renormalized. In total,
+    in addition to C and T environment tensors, 4*Lx*Ly corners are stored.
     """
 
     def __init__(
@@ -89,6 +98,7 @@ class CTMRG:
         self.verbosity = verbosity
         if self.verbosity > 0:
             print(f"initalize CTMRG with verbosity = {self.verbosity}")
+        self._symmetry = "U(1)"
         self._env = env
         self.chi_setpoint = chi_setpoint
         self.block_chi_ratio = block_chi_ratio
@@ -113,30 +123,69 @@ class CTMRG:
     @classmethod
     def from_elementary_tensors(
         cls,
-        tensors,
         tiling,
+        tensors,
+        representations,
         chi_setpoint,
         block_chi_ratio=1.2,
         cutoff=0.0,
         degen_ratio=1.0,
+        load_env=None,
         verbosity=0,
     ):
         """
-        Construct CTMRG from elementary tensors and tiling.
+        Construct CTMRG from elementary tensors and tiling. Symmetry is NOT checked for
+        elementary tensors.
 
         Parameters
         ----------
         tensors : enumerable of tensors
             Elementary tensors of unit cell, from left to right from top to bottom.
+        representations: enumerable of tuple of representation matching tensors.
+            Representation for each tensors axis.
         tiling : string
             String defining the shape of the unit cell, typically "A" or "AB\nCD".
-
-        Refer to __init__ for the other parameters.
+        chi_setpoint : integer
+            Maximal corner dimension. This is a setpoint, actual corner dimension
+            may be smaller due to cutoff or slightly larger to keep multiplets.
+        block_chi_ratio: float
+            Compute min(chi_setpoint, block_chi_ratio * last_block_chi) singular values
+            in each symmetry block during projector construction, where last_block_chi
+            is the number of singular values in this block last iteration.
+        cutoff : float
+            Singular value cutoff to improve stability. Default is 0.0 (no cutoff)
+        degen_ratio : float
+            Used to define multiplets in projector singular values and truncate between
+            two multiplets. Two consecutive (decreasing) values are considered
+            degenerate if 1 >= s[i+1]/s[i] >= degen_ratio > 0. Default is 1.0 (exact
+            degeneracies)
+        load_env : string
+            File to restart corner and edge environment tensors from, independently
+            from elementary tensors. If None, environment tensors will be initalized
+            from elementary tensors.
+        verbosity : int
+            Level of log verbosity. Default is no log.
         """
         if verbosity > 0:
-            print("Start CTMRG from scratch using elementary tensors")
-        env = CTM_Environment.from_elementary_tensors(tensors, tiling)
+            print("Start CTMRG from elementary tensors")
+            if load_env is None:
+                print("Initialize environment tensors from elementary tensors")
+            else:
+                print(f"Load environment from file {load_env}")
+        env = CTM_Environment.from_elementary_tensors(
+            tiling, tensors, representations, load_env=load_env
+        )
         return cls(env, chi_setpoint, block_chi_ratio, cutoff, degen_ratio, verbosity)
+
+    def set_tensors(self, tensors, representations):
+        """
+        Set new elementary tensors while keeping current environment if possible.
+        """
+        if self.verbosity > 0:
+            print("set new tensors")
+        self._env.set_tensors(tensors, representations)
+        if self.verbosity > 2:
+            self.print_tensor_shapes()
 
     @classmethod
     def from_file(cls, filename, verbosity=0):
@@ -192,8 +241,8 @@ class CTMRG:
             "_CTM_cutoff": self.cutoff,
             "_CTM_degen_ratio": self.degen_ratio,
         }
-        env_data = self._env.get_data_to_save()
-        np.savez_compressed(filename, **data, **env_data, **additional_data)
+        data |= self._env.get_data_dic()
+        np.savez_compressed(filename, **data, **additional_data)
         if self.verbosity > 0:
             print("CTMRG saved in file", filename)
 
@@ -226,7 +275,10 @@ class CTMRG:
         return self._env.chi_max
 
     def __repr__(self):
-        return f"asymmetric CTMRG with Dmax = {self.Dmax} and chi_max = {self.chi_max}"
+        return (
+            f"{self._symmetry} symmetric CTMRG with Dmax = {self.Dmax} and chi_max"
+            f" = {self.chi_max}"
+        )
 
     def __str__(self):
         return "\n".join(
@@ -250,21 +302,6 @@ class CTMRG:
         self._env.restart()
         if self.verbosity > 0:
             print(self)
-
-    def set_tensors(self, tensors, keep_env=True):
-        if keep_env:
-            if self.verbosity > 0:
-                print("set new tensors")
-            self._env.set_tensors(tensors)
-        else:  # restart from scratch
-            if self.verbosity > 0:
-                print("Restart with new tensors and new environment")
-            tiling = "\n".join("".join(s) for s in self.cell)
-            self._env = CTM_Environment.from_elementary_tensors(tensors, tiling)
-        if self.verbosity > 0:
-            print(self)
-            if self.verbosity > 2:
-                self.print_tensor_shapes()
 
     def truncate_corners(self):
         """
@@ -494,101 +531,6 @@ class CTMRG:
         )
         xi = -self.Ly / np.log(np.abs(v2))
         return xi
-
-
-class CTMRG_U1(CTMRG):
-    """
-    Specialized CTMRG algorithm for U(1) symmetric tensors. U(1) symmetry is implemented
-    in SVD and cannot be broken during the process. It is also used to speed up certain
-    contractions. Refer to CTMRG class for details and conventions.
-
-    Projectors are efficiently constructed using U(1) symmetry. As soon as CTTA corners
-    are constructed, they are reduced to a list of submatrices corresponding to U(1)
-    blocks. Halves are only constructed blockwise and their SVD is computed on the fly.
-    This is efficient since no reshape or transpose happens once corners are
-    constructed. However using U(1) in corner construction is not efficient due to
-    transposes arising at each step.
-
-    At each move, two corners among ul, ur, dl and dr are renormalized, but the other
-    two can still be used for next moves. So every time a corner is computed, store it
-    in the environment to be used later (including by compute_rdm_diag ur and dr). After
-    each renormalization, delete the two corners that have been renormalized. In total,
-    in addition to C and T environment tensors, 4*Lx*Ly corners are stored in reduced
-    block form.
-    """
-
-    @classmethod  # no specialized __init__ required
-    def from_elementary_tensors(
-        cls,
-        tiling,
-        tensors,
-        representations,
-        chi_setpoint,
-        block_chi_ratio=1.2,
-        cutoff=0.0,
-        degen_ratio=1.0,
-        load_env=None,
-        verbosity=0,
-    ):
-        """
-        Construct U(1) symmetric CTMRG from elementary tensors and tiling. Symmetry is
-        NOT checked for elementary tensors.
-
-        Parameters
-        ----------
-        tensors : enumerable of tensors
-            Elementary tensors of unit cell, from left to right from top to bottom.
-        representations: enumerable of tuple of representation matching tensors.
-            Representation for each tensors axis.
-        tiling : string
-            String defining the shape of the unit cell, typically "A" or "AB\nCD".
-        chi_setpoint : integer
-            Maximal corner dimension. This is a setpoint, actual corner dimension
-            may be smaller due to cutoff or slightly larger to keep multiplets.
-        block_chi_ratio: float
-            Compute min(chi_setpoint, block_chi_ratio * last_block_chi) singular values
-            in each symmetry block during projector construction, where last_block_chi
-            is the number of singular values in this block last iteration.
-        cutoff : float
-            Singular value cutoff to improve stability. Default is 0.0 (no cutoff)
-        degen_ratio : float
-            Used to define multiplets in projector singular values and truncate between
-            two multiplets. Two consecutive (decreasing) values are considered
-            degenerate if 1 >= s[i+1]/s[i] >= degen_ratio > 0. Default is 1.0 (exact
-            degeneracies)
-        load_env : string
-            File to restart corner and edge environment tensors from, independently
-            from elementary tensors. If None, environment tensors will be initalized
-            from elementary tensors.
-        verbosity : int
-            Level of log verbosity. Default is no log.
-        """
-        if verbosity > 0:
-            print("Start CTMRG from elementary tensors")
-            if load_env is None:
-                print("Initialize environment tensors from elementary tensors")
-            else:
-                print(f"Load environment from file {load_env}")
-        env = CTM_Environment.from_elementary_tensors(
-            tiling, tensors, representations, load_env=load_env
-        )
-        return cls(env, chi_setpoint, block_chi_ratio, cutoff, degen_ratio, verbosity)
-
-    def __repr__(self):
-        return (
-            f"U(1) symmetric CTMRG with Dmax = {self.Dmax} and chi_max = "
-            f"{self.chi_max}"
-        )
-
-    def set_tensors(self, tensors, representations):
-        """
-        Set new elementary tensors while keeping current environment if possible.
-        """
-        if self.verbosity > 0:
-            print("set new tensors")
-        self._env.set_tensors(tensors, representations)
-        if self.verbosity > 2:
-            self.print_tensor_shapes()
 
     def construct_reduced_dr(self, x, y, free_memory=False):
         """
