@@ -17,7 +17,7 @@ class AsymmetricTensor(SymmetricTensor):
     ####################################################################################
     # Symmetry implementation
     ####################################################################################
-    _symmetry = "{e}"
+    _symmetry = "trivial"
     _irrep = np.zeros((1,), dtype=np.int8)
 
     @staticmethod
