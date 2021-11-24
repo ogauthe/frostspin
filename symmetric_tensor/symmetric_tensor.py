@@ -84,10 +84,10 @@ class SymmetricTensor:
     # Initializer
     ####################################################################################
     def __init__(self, row_reps, col_reps, blocks, block_irreps):
-        self._row_reps = row_reps
-        self._col_reps = col_reps
+        self._row_reps = tuple(row_reps)
+        self._col_reps = tuple(col_reps)
         self._shape = tuple(
-            self.representation_dimension(rep) for rep in row_reps + col_reps
+            self.representation_dimension(r) for r in self._row_reps + self._col_reps
         )
         self._ndim = len(self._shape)
         self._nblocks = len(blocks)
@@ -459,11 +459,9 @@ class SymmetricTensor:
         row_reps = []
         for ri in range(data[prefix + "_n_row_reps"][()]):
             row_reps.append(data[f"{prefix}_row_rep_{ri}"])
-        row_reps = tuple(row_reps)
         col_reps = []
         for ci in range(data[prefix + "_n_col_reps"][()]):
             col_reps.append(data[f"{prefix}_col_rep_{ci}"])
-        col_reps = tuple(col_reps)
         block_irreps = data[prefix + "_block_irreps"]
         blocks = []
         for bi in range(block_irreps.size):

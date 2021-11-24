@@ -310,14 +310,12 @@ class AbelianSymmetricTensor(SymmetricTensor):
                 row_reps.append(self._row_reps[ax])
             else:
                 row_reps.append(self.conjugate_representation(self._col_reps[ax - nrr]))
-        row_reps = tuple(row_reps)
         col_reps = []
         for ax in col_axes:
             if ax < nrr:
                 col_reps.append(self.conjugate_representation(self._row_reps[ax]))
             else:
                 col_reps.append(self._col_reps[ax - nrr])
-        col_reps = tuple(col_reps)
 
         # construct new blocks by swapping coeff
         blocks, block_irreps = _numba_abelian_transpose(
