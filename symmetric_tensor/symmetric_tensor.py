@@ -289,6 +289,28 @@ class SymmetricTensor:
     def get_column_representation(self):
         return self.combine_representations(*self._col_reps)
 
+    def diagonal_imul(self, diag_blocks, left=False):
+        """
+        Matrix product with a diagonal matrix with matching symmetry. If left is True,
+        matrix multiplication is from the left.
+
+        This is an in-place operation.
+
+        Parameters
+        ----------
+        diag_blocks : enum of 1D array
+            Must have same length as _n_blocks
+        left : bool
+        """
+        if len(diag_blocks) != self._n_blocks:
+            raise ValueError("Diagonal blocks do not match tensor")
+        if left:
+            for b, diag in zip(self._blocks, diag_blocks):
+                b[:] *= diag[:, None]
+        else:
+            for b, diag in zip(self._blocks, diag_blocks):
+                b[:] *= diag
+
     ####################################################################################
     # transpose and permutate
     ####################################################################################
