@@ -211,14 +211,12 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
                 row_reps.append(self._row_reps[ax])
             else:
                 row_reps.append(self.conjugate_representation(self._col_reps[ax - nx0]))
-        row_reps = tuple(row_reps)
         col_reps = []
         for ax in col_axes:
             if ax < nx0:
                 col_reps.append(self.conjugate_representation(self._row_reps[ax]))
             else:
                 col_reps.append(self._col_reps[ax - nx0])
-        col_reps = tuple(col_reps)
 
         # if hash is too slow, can be decomposed: at init, set dic corresponding to
         # representations, then permutate only needs hash from row_axes and col_axes

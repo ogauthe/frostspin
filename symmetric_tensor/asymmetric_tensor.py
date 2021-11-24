@@ -62,7 +62,7 @@ class AsymmetricTensor(SymmetricTensor):
         assert self._nblocks == 1
         assert len(self._blocks) == 1
         assert self._blocks[0].shape == self.matrix_shape
-        assert self._shape == tuple(self._row_reps) + tuple(self._col_reps)
+        assert self._shape == self._row_reps + self._col_reps
         return True
 
     def norm(self):
