@@ -185,7 +185,7 @@ class CTM_Environment:
 
         return cls(cell, neq_As, load_env=load_env)
 
-    def get_data_to_save(self):
+    def get_data_dic(self):
         """
         Return environment data as a dict to save in external file.
         """

@@ -242,8 +242,8 @@ class CTMRG:
             "_CTM_cutoff": self.cutoff,
             "_CTM_degen_ratio": self.degen_ratio,
         }
-        env_data = self._env.get_data_to_save()
-        np.savez_compressed(filename, **data, **env_data, **additional_data)
+        data |= self._env.get_data_dic()
+        np.savez_compressed(filename, **data, **additional_data)
         if self.verbosity > 0:
             print("CTMRG saved in file", filename)
 
