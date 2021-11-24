@@ -261,14 +261,6 @@ class AbelianSymmetricTensor(SymmetricTensor):
     _symmetry = NotImplemented
 
     @staticmethod
-    def combine_representations(*reps):
-        return NotImplemented
-
-    @staticmethod
-    def conjugate_representation(rep):
-        return NotImplemented
-
-    @staticmethod
     def init_representation(degen, irreps):
         rep = np.empty((degen.sum(),), dtype=np.int8)
         k = 0
