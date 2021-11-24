@@ -69,7 +69,14 @@ class CTMRG:
     """
 
     def __init__(
-        self, env, chi_setpoint, block_chi_ratio, cutoff, degen_ratio, verbosity
+        self,
+        env,
+        chi_setpoint,
+        block_chi_ratio,
+        ncv_ratio,
+        cutoff,
+        degen_ratio,
+        verbosity,
     ):
         """
         Constructor for totally asymmetric CTMRG algorithm. Consider using from_file or
@@ -86,6 +93,8 @@ class CTMRG:
             Compute min(chi_setpoint, block_chi_ratio * last_block_chi) singular values
             in each symmetry block during projector construction, where last_block_chi
             is the number of singular values in this block last iteration.
+        ncv_ratio : float
+            Compute ncv_ratio * block_chi Lanczos vectors in each symmetry block.
         cutoff : float
             Singular value cutoff to improve stability.
         degen_ratio : float
@@ -102,6 +111,7 @@ class CTMRG:
         self._env = env
         self.chi_setpoint = chi_setpoint
         self.block_chi_ratio = block_chi_ratio
+        self.ncv_ratio = ncv_ratio
         self.cutoff = cutoff
         self.degen_ratio = degen_ratio
         self._neq_coords = self._env.neq_coords
@@ -128,6 +138,7 @@ class CTMRG:
         representations,
         chi_setpoint,
         block_chi_ratio=1.2,
+        ncv_ratio=3.0,
         cutoff=0.0,
         degen_ratio=1.0,
         load_env=None,
@@ -152,6 +163,8 @@ class CTMRG:
             Compute min(chi_setpoint, block_chi_ratio * last_block_chi) singular values
             in each symmetry block during projector construction, where last_block_chi
             is the number of singular values in this block last iteration.
+        ncv_ratio : float
+            Compute ncv_ratio * block_chi Lanczos vectors in each symmetry block.
         cutoff : float
             Singular value cutoff to improve stability. Default is 0.0 (no cutoff)
         degen_ratio : float
@@ -175,7 +188,15 @@ class CTMRG:
         env = CTM_Environment.from_elementary_tensors(
             tiling, tensors, representations, load_env=load_env
         )
-        return cls(env, chi_setpoint, block_chi_ratio, cutoff, degen_ratio, verbosity)
+        return cls(
+            env,
+            chi_setpoint,
+            block_chi_ratio,
+            ncv_ratio,
+            cutoff,
+            degen_ratio,
+            verbosity,
+        )
 
     def set_tensors(self, tensors, representations):
         """
@@ -208,6 +229,11 @@ class CTMRG:
                 print("Did not find block_chi_ratio, set it to 1.2")
                 block_chi_ratio = 1.2
             try:
+                ncv_ratio = float(fin["_CTM_ncv_ratio"])
+            except KeyError:
+                print("Did not find ncv_ratio, set it to 3.0")
+                ncv_ratio = 3.0
+            try:
                 chi_setpoint = int(fin["_CTM_chi_setpoint"])
             except KeyError:
                 chi_setpoint = int(fin["_CTM_chi"])
@@ -222,7 +248,15 @@ class CTMRG:
         # better to open and close savefile twice (here and in env) to have env __init__
         # outside of file opening block.
         env = CTM_Environment.from_file(filename)
-        return cls(env, chi_setpoint, block_chi_ratio, cutoff, degen_ratio, verbosity)
+        return cls(
+            env,
+            chi_setpoint,
+            block_chi_ratio,
+            ncv_ratio,
+            cutoff,
+            degen_ratio,
+            verbosity,
+        )
 
     def save_to_file(self, filename, additional_data={}):
         """
@@ -238,6 +272,7 @@ class CTMRG:
         data = {
             "_CTM_chi_setpoint": self.chi_setpoint,
             "_CTM_block_chi_ratio": self.block_chi_ratio,
+            "_CTM_ncv_ratio": self.ncv_ratio,
             "_CTM_cutoff": self.cutoff,
             "_CTM_degen_ratio": self.degen_ratio,
         }
@@ -286,6 +321,7 @@ class CTMRG:
                 repr(self),
                 f"chi_setpoint = {self.chi_setpoint}",
                 f"block_chi_ratio = {self.block_chi_ratio}",
+                f"ncv_ratio = {self.ncv_ratio}",
                 f"cutoff = {self.cutoff}",
                 f"degen_ratio = {self.degen_ratio}",
                 f"unit cell =\n{self._env.cell}",
@@ -640,6 +676,7 @@ class CTMRG:
                 self.construct_reduced_dl(x, y),
                 self.chi_setpoint,
                 self.block_chi_ratio,
+                self.ncv_ratio,
                 self.cutoff,
                 self.degen_ratio,
             )
@@ -688,6 +725,7 @@ class CTMRG:
                 self.construct_reduced_ul(x, y),
                 self.chi_setpoint,
                 self.block_chi_ratio,
+                self.ncv_ratio,
                 self.cutoff,
                 self.degen_ratio,
             )
@@ -733,6 +771,7 @@ class CTMRG:
                 self.construct_reduced_ur(x, y),
                 self.chi_setpoint,
                 self.block_chi_ratio,
+                self.ncv_ratio,
                 self.cutoff,
                 self.degen_ratio,
             )
@@ -778,6 +817,7 @@ class CTMRG:
                 self.construct_reduced_dr(x, y),
                 self.chi_setpoint,
                 self.block_chi_ratio,
+                self.ncv_ratio,
                 self.cutoff,
                 self.degen_ratio,
             )
@@ -819,6 +859,7 @@ class CTMRG:
                 self._env.get_C4(x, y + 1),
                 self.chi_setpoint,
                 self.block_chi_ratio,
+                self.ncv_ratio,
                 self.cutoff,
                 self.degen_ratio,
             )
@@ -845,6 +886,7 @@ class CTMRG:
                 self._env.get_C1(x, y),
                 self.chi_setpoint,
                 self.block_chi_ratio,
+                self.ncv_ratio,
                 self.cutoff,
                 self.degen_ratio,
             )
@@ -870,6 +912,7 @@ class CTMRG:
                 self._env.get_C2(x + 1, y),
                 self.chi_setpoint,
                 self.block_chi_ratio,
+                self.ncv_ratio,
                 self.cutoff,
                 self.degen_ratio,
             )
@@ -895,6 +938,7 @@ class CTMRG:
                 self._env.get_C3(x + 1, y + 1).T,
                 self.chi_setpoint,
                 self.block_chi_ratio,
+                self.ncv_ratio,
                 self.cutoff,
                 self.degen_ratio,
             )
