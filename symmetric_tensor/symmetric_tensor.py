@@ -260,7 +260,7 @@ class SymmetricTensor:
     def toarray(self, as_matrix=False):
         if self._f_contiguous:  # bug calling numba with f-array unituple
             if as_matrix:
-                return self.T._array().T
+                return self.T._toarray().T
             arr = self.T.toarray()
             k = len(self._col_reps)
             return arr.transpose(*range(k, self._ndim), *range(k))
