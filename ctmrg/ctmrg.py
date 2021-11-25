@@ -313,7 +313,7 @@ class CTMRG:
     def __repr__(self):
         return (
             f"{self._symmetry} symmetric CTMRG with Dmax = {self.Dmax} and chi_max"
-            f"= {self.chi_max}"
+            f" = {self.chi_max}"
         )
 
     def __str__(self):
