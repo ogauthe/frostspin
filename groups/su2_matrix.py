@@ -313,7 +313,9 @@ class SU2_Matrix:
             rep_left_enum = (self._left_rep,)
         if rep_right_enum is None:
             rep_right_enum = (self._right_rep,)
-        proj = construct_matrix_projector(rep_left_enum, rep_right_enum)
+        proj = construct_matrix_projector(
+            rep_left_enum, rep_right_enum, conj_right=True
+        )
         arr = proj @ self.to_raw_data()
         return arr.reshape(self.shape)
 
