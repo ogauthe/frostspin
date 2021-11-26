@@ -15,6 +15,7 @@ def construct_projectors(
     ncv_ratio,
     rcutoff,
     degen_ratio,
+    last_renormalized,
 ):
     """
     Parameters
@@ -39,6 +40,8 @@ def construct_projectors(
     degen_ratio : float
         ratio to consider values as degenerate (see numba_find_chi_largest
         documentation)
+    last_renormalized : SymmetricTensor
+        Last renormalized corner, used to estimate block sizes in SVD.
     """
     # factorize loops on different symmetry sectors, construct only blocks that will
     # appear in final projectors. Compute SVD blockwise on the fly for R @ Rt, without
@@ -50,6 +53,7 @@ def construct_projectors(
     # U, s, V = truncated_svd(M)
     # P = R.T @ U.conj() / s
     # Pt = Rt @ V.T.conj() / s
+    assert (last_renormalized.col_reps[0] == corner2.col_reps[-1]).all()
 
     shared = sorted(
         set(corner1.block_irreps)
@@ -72,7 +76,11 @@ def construct_projectors(
     # Hence no need to consider worst case where all leading singular belong to the same
     # symmetry sector: in each block, compute the same number of values as were kept in
     # last iteration + some margin to fluctuate, as specified by block_chi_ratio
-    block_chi = (corner2.col_reps[-1][:, None] == shared).sum(axis=0)
+    block_chi = np.zeros(shared.shape, dtype=int)
+    last_irreps = last_renormalized.block_irreps
+    for bi, ind in enumerate(last_irreps.searchsorted(shared)):
+        if ind < last_irreps.size and shared[bi] == last_irreps[ind]:
+            block_chi[bi] = last_renormalized.blocks[ind].shape[1]
     block_chi = np.maximum(block_chi + 10, (block_chi_ratio * block_chi).astype(int))
     block_chi = np.minimum(chi, block_chi)
 

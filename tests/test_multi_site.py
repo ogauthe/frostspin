@@ -123,25 +123,25 @@ reps = (
 )
 
 rng = np.random.default_rng(42)
-t00 = U1_SymmetricTensor.random(reps[0][:2], reps[0][2:], rng=rng).toarray()
-t01 = U1_SymmetricTensor.random(reps[1][:2], reps[1][2:], rng=rng).toarray()
-t02 = U1_SymmetricTensor.random(reps[2][:2], reps[2][2:], rng=rng).toarray()
-t03 = U1_SymmetricTensor.random(reps[3][:2], reps[3][2:], rng=rng).toarray()
+t00 = U1_SymmetricTensor.random(reps[0][:2], reps[0][2:], rng=rng)
+t01 = U1_SymmetricTensor.random(reps[1][:2], reps[1][2:], rng=rng)
+t02 = U1_SymmetricTensor.random(reps[2][:2], reps[2][2:], rng=rng)
+t03 = U1_SymmetricTensor.random(reps[3][:2], reps[3][2:], rng=rng)
 
-t10 = U1_SymmetricTensor.random(reps[4][:2], reps[4][2:], rng=rng).toarray()
-t11 = U1_SymmetricTensor.random(reps[5][:2], reps[5][2:], rng=rng).toarray()
-t12 = U1_SymmetricTensor.random(reps[6][:2], reps[6][2:], rng=rng).toarray()
-t13 = U1_SymmetricTensor.random(reps[7][:2], reps[7][2:], rng=rng).toarray()
+t10 = U1_SymmetricTensor.random(reps[4][:2], reps[4][2:], rng=rng)
+t11 = U1_SymmetricTensor.random(reps[5][:2], reps[5][2:], rng=rng)
+t12 = U1_SymmetricTensor.random(reps[6][:2], reps[6][2:], rng=rng)
+t13 = U1_SymmetricTensor.random(reps[7][:2], reps[7][2:], rng=rng)
 
-t20 = U1_SymmetricTensor.random(reps[8][:2], reps[8][2:], rng=rng).toarray()
-t21 = U1_SymmetricTensor.random(reps[9][:2], reps[9][2:], rng=rng).toarray()
-t22 = U1_SymmetricTensor.random(reps[10][:2], reps[10][2:], rng=rng).toarray()
-t23 = U1_SymmetricTensor.random(reps[11][:2], reps[11][2:], rng=rng).toarray()
+t20 = U1_SymmetricTensor.random(reps[8][:2], reps[8][2:], rng=rng)
+t21 = U1_SymmetricTensor.random(reps[9][:2], reps[9][2:], rng=rng)
+t22 = U1_SymmetricTensor.random(reps[10][:2], reps[10][2:], rng=rng)
+t23 = U1_SymmetricTensor.random(reps[11][:2], reps[11][2:], rng=rng)
 
-t30 = U1_SymmetricTensor.random(reps[12][:2], reps[12][2:], rng=rng).toarray()
-t31 = U1_SymmetricTensor.random(reps[13][:2], reps[13][2:], rng=rng).toarray()
-t32 = U1_SymmetricTensor.random(reps[14][:2], reps[14][2:], rng=rng).toarray()
-t33 = U1_SymmetricTensor.random(reps[15][:2], reps[15][2:], rng=rng).toarray()
+t30 = U1_SymmetricTensor.random(reps[12][:2], reps[12][2:], rng=rng)
+t31 = U1_SymmetricTensor.random(reps[13][:2], reps[13][2:], rng=rng)
+t32 = U1_SymmetricTensor.random(reps[14][:2], reps[14][2:], rng=rng)
+t33 = U1_SymmetricTensor.random(reps[15][:2], reps[15][2:], rng=rng)
 
 tensors = (
     t00,
@@ -166,9 +166,9 @@ tiling = "ABCD\nEFGH\nIJKL\nMNOP"
 ctm = CTMRG.from_elementary_tensors(
     tiling,
     tensors,
-    reps,
     13,
     block_chi_ratio=1.2,
+    ncv_ratio=2.5,
     cutoff=1e-10,
     degen_ratio=1.0,
     verbosity=2,

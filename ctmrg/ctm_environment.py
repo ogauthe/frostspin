@@ -1,8 +1,6 @@
 import numpy as np
 
-from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
-
-# TODO upgrade savefile format
+from symmetric_tensor.tools import get_symmetric_tensor_type
 
 
 def _initialize_env(A):
@@ -71,13 +69,11 @@ class CTM_Environment:
     Container for CTMRG environment tensors. Follow leg conventions from CTMRG.
     """
 
-    def __init__(self, cell, neq_As, load_env=None):
+    def __init__(self, cell, As, C1s, C2s, C3s, C4s, T1s, T2s, T3s, T4s):
         """
         Initialize environment tensors. Consider calling from_elementary_tensors
         or from_file instead of directly calling this function.
         """
-        # this function makes no input validation, needs to be done before
-
         # 1) Define indices and neq_coords from cell
         # construct list of unique letters sorted according to appearance order in cell
         # (may be different from lexicographic order)
@@ -104,16 +100,60 @@ class CTM_Environment:
         self._indices = indices.T.copy()  # transpose
 
         # 2) store tensors. They have to follow cell.flat order.
-        self._neq_As = neq_As
+        self._neq_As = tuple(As)
+        self._neq_C1s = C1s
+        self._neq_C2s = C2s
+        self._neq_C3s = C3s
+        self._neq_C4s = C4s
+        self._neq_T1s = T1s
+        self._neq_T2s = T2s
+        self._neq_T3s = T3s
+        self._neq_T4s = T4s
         self._Dmax = max(max(A.shape[2:]) for A in self._neq_As)
 
-        # 3) initialize environment tensors
-        if load_env is None:
-            self.restart()
-        else:  # from file
-            loaded = self.load_environment_from_file(load_env)
-            if not loaded:
-                self.restart()
+        # 3) check tensor types and numbers
+        self._ST = type(As[0])
+
+        def check(tensors, ndim, name):
+            if len(tensors) != self._Nneq:
+                raise ValueError(f"Invalid {name} number")
+            for t in tensors:
+                if type(t) != self._ST:
+                    raise ValueError(f"Invalid {name} type")
+                if t.ndim != ndim:
+                    raise ValueError(f"Invalid {name} ndim")
+
+        check(As, 6, "A")
+        check(C1s, 2, "C1")
+        check(C2s, 2, "C2")
+        check(C3s, 2, "C3")
+        check(C4s, 2, "C4")
+        check(T1s, 4, "T1")
+        check(T2s, 4, "T2")
+        check(T3s, 4, "T3")
+        check(T4s, 4, "T4")
+
+        # check matching between C, T and A requires cumbersome dealing with row/col
+        # and conjugation. Little risk of error, _initialize_env and from_file are safe.
+
+        # 4) check elementary tensors match together (need cell and coords)
+        for (x, y) in self._neq_coords:
+            axes = self.get_A(x, y).group_conjugated().col_reps
+            if not (axes[0] == self.get_A(x, y - 1).col_reps[2]).all():
+                raise ValueError("Vertical bond does not match at coord {(x,y)}")
+            if not (axes[1] == self.get_A(x + 1, y).col_reps[3]).all():
+                raise ValueError("Horizontal bond does not match at coord {(x,y)}")
+
+        # 5) init enlarged corner and projectors lists
+        self._corners_ul = [None] * self._Nneq
+        self._corners_ur = [None] * self._Nneq
+        self._corners_dl = [None] * self._Nneq
+        self._corners_dr = [None] * self._Nneq
+        self._reset_temp_lists()
+
+    @property
+    def symmetry(self):
+        return self._ST.symmetry
 
     @property
     def Dmax(self):
@@ -126,34 +166,8 @@ class CTM_Environment:
             for C in self._neq_C1s + self._neq_C2s + self._neq_C3s + self._neq_C4s
         )
 
-    def restart(self):
-        """
-        Erase current environment tensors C and T and restart them from elementary
-        tensors.
-        """
-        self._neq_C1s, self._neq_T1s = [], []
-        self._neq_C2s, self._neq_T2s = [], []
-        self._neq_C3s, self._neq_T3s = [], []
-        self._neq_C4s, self._neq_T4s = [], []
-        for A in self._neq_As:
-            C1, T1, C2, T2, C3, T3, C4, T4 = _initialize_env(A)
-            self._neq_C1s.append(C1)
-            self._neq_T1s.append(T1)
-            self._neq_C2s.append(C2)
-            self._neq_T2s.append(T2)
-            self._neq_C3s.append(C3)
-            self._neq_T3s.append(T3)
-            self._neq_C4s.append(C4)
-            self._neq_T4s.append(T4)
-
-        self._corners_ul = [None] * self._Nneq
-        self._corners_ur = [None] * self._Nneq
-        self._corners_dl = [None] * self._Nneq
-        self._corners_dr = [None] * self._Nneq
-        self._reset_temp_lists()
-
     @classmethod
-    def from_elementary_tensors(cls, tiling, tensors, representations, load_env=None):
+    def from_elementary_tensors(cls, tiling, tensors):
         """
         Construct CTM_Environment from elementary tensors according to tiling.
 
@@ -161,248 +175,83 @@ class CTM_Environment:
         ----------
         tiling : string
             Tiling pattern, such as 'AB\nBA' or 'AB\nCD'.
-        tensors : iterable of Nneq numpy arrays
+        tensors : iterable of Nneq SymmetricTensor
             Tensors given from left to right and up to down (as in array.flat)
-        representations : enum of Nneq representation tuple
-            Representation for each leg of each tensor.
-        load_env : string
-            File containing previously computed environment to restart from.
         """
         txt = [" ".join(w) for w in tiling.strip().splitlines()]
         cell = np.atleast_2d(np.genfromtxt(txt, dtype="U1"))
-        Nneq = len(set(cell.flat))
-        if len(tensors) != Nneq:
-            raise ValueError("Tensor number do not match tiling")
-        if len(representations) != Nneq:
-            raise ValueError("Representation number do not match tiling")
-
-        # store tensors according to cell.flat order
-        neq_As = []
-        for A0, rep_A in zip(tensors, representations):
-            if A0.ndim != 6:
-                raise ValueError("Elementary tensor must be of rank 6")
-            neq_As.append(U1_SymmetricTensor.from_array(A0, rep_A[:2], rep_A[2:]))
-
-        return cls(cell, neq_As, load_env=load_env)
-
-    def get_data_dic(self):
-        """
-        Return environment data as a dict to save in external file.
-        """
-        # do not store lists to avoid pickle
-        # come back to elementary numpy arrays
-        data = {"_CTM_cell": self._cell}
-
-        # save dense array + add minus signs for backward compatibility
-        for i in range(self._Nneq):
-            data[f"_CTM_A_{i}"] = self._neq_As[i].toarray()
-            data[f"_CTM_C1_{i}"] = self._neq_C1s[i].toarray()
-            data[f"_CTM_T1_{i}"] = self._neq_T1s[i].toarray()
-            data[f"_CTM_C2_{i}"] = self._neq_C2s[i].toarray()
-            data[f"_CTM_T2_{i}"] = self._neq_T2s[i].toarray()
-            data[f"_CTM_C3_{i}"] = self._neq_C3s[i].toarray()
-            data[f"_CTM_T3_{i}"] = self._neq_T3s[i].toarray()
-            data[f"_CTM_C4_{i}"] = self._neq_C4s[i].toarray()
-            data[f"_CTM_T4_{i}"] = self._neq_T4s[i].toarray()
-            data[f"_CTM_colors_C1_r_{i}"] = self._neq_C1s[i].row_reps[0]
-            data[f"_CTM_colors_C1_d_{i}"] = -self._neq_C1s[i].col_reps[0]
-            data[f"_CTM_colors_C2_d_{i}"] = self._neq_C2s[i].row_reps[0]
-            data[f"_CTM_colors_C2_l_{i}"] = -self._neq_C2s[i].col_reps[0]
-            data[f"_CTM_colors_C3_u_{i}"] = self._neq_C3s[i].row_reps[0]
-            data[f"_CTM_colors_C3_l_{i}"] = -self._neq_C3s[i].col_reps[0]
-            data[f"_CTM_colors_C4_u_{i}"] = self._neq_C4s[i].row_reps[0]
-            data[f"_CTM_colors_C4_r_{i}"] = -self._neq_C4s[i].col_reps[0]
-
-            # legacy: A must be save with conjugate_columns = True
-            data[f"_CTM_colors_A_{i}_0"] = self._neq_As[i].row_reps[0]
-            data[f"_CTM_colors_A_{i}_1"] = self._neq_As[i].row_reps[1]
-            for leg in range(2, 6):
-                data[f"_CTM_colors_A_{i}_{leg}"] = -self._neq_As[i].col_reps[leg - 2]
-
-        return data
+        if len(tensors) != len(set(cell.flat)):
+            raise ValueError("Incompatible cell and tensor number")
+        C1s, C2s, C3s, C4s, T1s, T2s, T3s, T4s = [[] for i in range(8)]
+        for A in tensors:
+            C1, T1, C2, T2, C3, T3, C4, T4 = _initialize_env(A)
+            C1s.append(C1)
+            T1s.append(T1)
+            C2s.append(C2)
+            T2s.append(T2)
+            C3s.append(C3)
+            T3s.append(T3)
+            C4s.append(C4)
+            T4s.append(T4)
+        return cls(cell, tensors, C1s, C2s, C3s, C4s, T1s, T2s, T3s, T4s)
 
     @classmethod
     def from_file(cls, savefile):
         """
         Construct CTM_Environment from save file.
         """
-        # 2 steps construction: first load elementary tensors
-        # then initialize object to be able to navigate through unit cell
-        # finally reopen file to load environment: calling C(x1, y1) representations to
-        # construct T(x2, y2). This is not possible with just flat indices.
-        # TODO change this (requires change in savefile format to save T representation)
-
-        neq_As, reps_A = [], []
+        As, C1s, C2s, C3s, C4s, T1s, T2s, T3s, T4s = [[] for i in range(9)]
         with np.load(savefile) as data:
             cell = data["_CTM_cell"]
-            Nneq = len(set(cell.flat))
-            for i in range(Nneq):
-                neq_As.append(data[f"_CTM_A_{i}"])
-                reps = tuple(data[f"_CTM_colors_A_{i}_{leg}"] for leg in range(6))
-                reps_A.append(reps)
+            ST = get_symmetric_tensor_type(data["_CTM_symmetry"][()])
+            for i in range(len(set(cell.flat))):
+                As.append(ST.load_from_dic(data, prefix=f"_CTM_A_{i}"))
+                C1s.append(ST.load_from_dic(data, prefix=f"_CTM_C1_{i}"))
+                C2s.append(ST.load_from_dic(data, prefix=f"_CTM_C2_{i}"))
+                C3s.append(ST.load_from_dic(data, prefix=f"_CTM_C3_{i}"))
+                C4s.append(ST.load_from_dic(data, prefix=f"_CTM_C4_{i}"))
+                T1s.append(ST.load_from_dic(data, prefix=f"_CTM_T1_{i}"))
+                T2s.append(ST.load_from_dic(data, prefix=f"_CTM_T2_{i}"))
+                T3s.append(ST.load_from_dic(data, prefix=f"_CTM_T3_{i}"))
+                T4s.append(ST.load_from_dic(data, prefix=f"_CTM_T4_{i}"))
+        return cls(cell, As, C1s, C2s, C3s, C4s, T1s, T2s, T3s, T4s)
 
-        # call from array after closing file
-        for i in range(Nneq):
-            neq_As[i] = U1_SymmetricTensor.from_array(
-                neq_As[i], reps_A[i][:2], reps_A[i][2:]
-            )
-
-        return cls(cell, neq_As, load_env=savefile)
-
-    def load_environment_from_file(self, savefile):
+    def get_data_dic(self):
         """
-        Load environment tensors from save file.
-        If representations do not match current elementary tensor representations, no
-        change is made on self and False is returned. Else environment tensors are
-        loaded and the function returns True.
+        Return environment data as a dict to save in external file.
         """
-        # TODO upgrade savefile format
-        # TODO raise exception if no reload
-        neq_C1s, neq_C2s, neq_C3s, neq_C4s = [[] for i in range(4)]
-        neq_T1s, neq_T2s, neq_T3s, neq_T4s = [[] for i in range(4)]
-        r1r, r1d, r2d, r2l, r3u, r3l, r4u, r4r = [[] for i in range(8)]
+        data = {"_CTM_cell": self._cell, "_CTM_symmetry": self.symmetry}
 
-        with np.load(savefile) as data:
-            if (self._cell != data["_CTM_cell"]).any():
-                print(
-                    " *** WARNING *** no CTM environment reload:",
-                    "unit cells do not match",
-                )
-                return False
-
-            # load dense array + add minus signs for backward compatibility
-            for i in range(self._Nneq):
-                saxes = [
-                    sorted(r)
-                    for r in self._neq_As[i].row_reps + self._neq_As[i].col_reps
-                ]
-                match = sorted(data[f"_CTM_colors_A_{i}_0"]) == saxes[0]
-                match &= sorted(data[f"_CTM_colors_A_{i}_1"]) == saxes[1]
-                for leg in range(2, 6):
-                    match &= sorted(-data[f"_CTM_colors_A_{i}_{leg}"]) == saxes[leg]
-                if not match:
-                    print(
-                        " *** WARNING *** no CTM environment reload:",
-                        "representations do not match",
-                    )
-                    return False
-
-                neq_C1s.append(data[f"_CTM_C1_{i}"])
-                neq_C2s.append(data[f"_CTM_C2_{i}"])
-                neq_C3s.append(data[f"_CTM_C3_{i}"])
-                neq_C4s.append(data[f"_CTM_C4_{i}"])
-                neq_T1s.append(data[f"_CTM_T1_{i}"])
-                neq_T2s.append(data[f"_CTM_T2_{i}"])
-                neq_T3s.append(data[f"_CTM_T3_{i}"])
-                neq_T4s.append(data[f"_CTM_T4_{i}"])
-                r1r.append(data[f"_CTM_colors_C1_r_{i}"])
-                r1d.append(-data[f"_CTM_colors_C1_d_{i}"])
-                r2d.append(data[f"_CTM_colors_C2_d_{i}"])
-                r2l.append(-data[f"_CTM_colors_C2_l_{i}"])
-                r3u.append(data[f"_CTM_colors_C3_u_{i}"])
-                r3l.append(-data[f"_CTM_colors_C3_l_{i}"])
-                r4u.append(data[f"_CTM_colors_C4_u_{i}"])
-                r4r.append(-data[f"_CTM_colors_C4_r_{i}"])
-
-        # call from array after closing file
+        # use SymmetricTensor nice I/O, pure npz file without pickle
         for i in range(self._Nneq):
-            neq_C1s[i] = U1_SymmetricTensor.from_array(
-                neq_C1s[i], (r1r[i],), (r1d[i],), conjugate_columns=False
-            )
-            neq_C2s[i] = U1_SymmetricTensor.from_array(
-                neq_C2s[i], (r2d[i],), (r2l[i],), conjugate_columns=False
-            )
-            neq_C3s[i] = U1_SymmetricTensor.from_array(
-                neq_C3s[i], (r3u[i],), (r3l[i],), conjugate_columns=False
-            )
-            neq_C4s[i] = U1_SymmetricTensor.from_array(
-                neq_C4s[i], (r4u[i],), (r4r[i],), conjugate_columns=False
-            )
+            data |= self._neq_As[i].get_data_dic(prefix=f"_CTM_A_{i}")
+            data |= self._neq_C1s[i].get_data_dic(prefix=f"_CTM_C1_{i}")
+            data |= self._neq_C2s[i].get_data_dic(prefix=f"_CTM_C2_{i}")
+            data |= self._neq_C3s[i].get_data_dic(prefix=f"_CTM_C3_{i}")
+            data |= self._neq_C4s[i].get_data_dic(prefix=f"_CTM_C4_{i}")
+            data |= self._neq_T1s[i].get_data_dic(prefix=f"_CTM_T1_{i}")
+            data |= self._neq_T2s[i].get_data_dic(prefix=f"_CTM_T2_{i}")
+            data |= self._neq_T3s[i].get_data_dic(prefix=f"_CTM_T3_{i}")
+            data |= self._neq_T4s[i].get_data_dic(prefix=f"_CTM_T4_{i}")
+        return data
 
-        # first fill corners, to access their representation with get_Ci(x,y)
-        self._neq_C1s = neq_C1s
-        self._neq_C2s = neq_C2s
-        self._neq_C3s = neq_C3s
-        self._neq_C4s = neq_C4s
-
-        for i, (x, y) in enumerate(self._neq_coords):
-            axes = self._neq_As[i].col_reps
-
-            r1r = self.get_C1(x - 1, y).row_reps[0]
-            r2l = self.get_C2(x + 1, y).col_reps[0]
-            neq_T1s[i] = U1_SymmetricTensor.from_array(
-                neq_T1s[i], (r2l,), (axes[2], -axes[2], r1r), conjugate_columns=False
-            )
-
-            r2d = -self.get_C2(x, y - 1).row_reps[0]
-            r3u = self.get_C3(x, y + 1).row_reps[0]
-            neq_T2s[i] = U1_SymmetricTensor.from_array(
-                neq_T2s[i], (r2d,), (r3u, axes[3], -axes[3]), conjugate_columns=False
-            )
-
-            r3l = self.get_C3(x + 1, y).col_reps[0]
-            r4r = -self.get_C4(x - 1, y).col_reps[0]
-            neq_T3s[i] = U1_SymmetricTensor.from_array(
-                neq_T3s[i], (-axes[0], axes[0], r3l), (r4r,), conjugate_columns=False
-            )
-
-            r4u = -self.get_C4(x, y + 1).row_reps[0]
-            r1d = self.get_C1(x, y - 1).col_reps[0]
-            neq_T4s[i] = U1_SymmetricTensor.from_array(
-                neq_T4s[i], (r1d,), (axes[1], -axes[1], -r4u), conjugate_columns=False
-            )
-
-        self._neq_T1s = neq_T1s
-        self._neq_T2s = neq_T2s
-        self._neq_T3s = neq_T3s
-        self._neq_T4s = neq_T4s
+    def set_tensors(self, tensors):
+        """
+        Set new elementary tensors. Type, shape and representations have to match
+        current elementary tensors.
+        """
+        if len(tensors) != self._Nneq:
+            raise ValueError("Incompatible cell and tensors")
+        for i, A in enumerate(tensors):
+            if not A.match_representations(self._neq_As[i]):
+                raise ValueError("Incompatible representation for new tensor")
+        self._neq_As = tuple(tensors)
 
         # reset constructed corners
         self._corners_ul = [None] * self._Nneq
         self._corners_ur = [None] * self._Nneq
         self._corners_dl = [None] * self._Nneq
         self._corners_dr = [None] * self._Nneq
-        self._reset_temp_lists()
-        return True
-
-    def set_tensors(self, tensors, representations):
-        """
-        Set new elementary tensors while keeping environment tensors if possible.
-        """
-        if len(tensors) != self._Nneq:
-            raise ValueError("Incompatible cell and tensors")
-        if len(representations) != self._Nneq:
-            raise ValueError("Incompatible cell and representations")
-
-        restart_env = False
-        for i, A0 in enumerate(tensors):
-            if A0.ndim != 6:
-                raise ValueError("Elementary tensor must be of rank 6")
-            A = U1_SymmetricTensor.from_array(
-                A0, representations[i][:2], representations[i][2:]
-            )
-            # permutation of irreps inside an abelian representation are allowed: irrep
-            # blocks will not be affected.
-            # However if some sector size changes, cannot keep env: restart from scratch
-            # use lists to catch total dimension change
-            for r1, r2 in zip(A.row_reps, self._neq_As[i].row_reps):
-                if (r1 != r2).any():
-                    raise ValueError("Cannot change physical or ancilla leg")
-            for r1, r2 in zip(A.col_reps, self._neq_As[i].col_reps):
-                if sorted(r1) != sorted(r2):
-                    restart_env = True
-            self._neq_As[i] = A
-
-        if restart_env:
-            print("*** WARNING *** restart environment from scratch")
-            self.restart()
-            self._Dmax = max(max(A.shape[2:]) for A in self._neq_As)
-
-        else:  # reset all corners C-T // T-A since A changed
-            self._corners_ul = [None] * self._Nneq
-            self._corners_ur = [None] * self._Nneq
-            self._corners_dl = [None] * self._Nneq
-            self._corners_dr = [None] * self._Nneq
 
     @property
     def cell(self):
