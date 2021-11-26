@@ -34,24 +34,11 @@ conjugation: conjugate representation does not appear in any other bond.
 
 
 def eq_st(st1, st2):
-    if type(st1) != type(st2):
-        return False
-    if st1.shape != st2.shape:
-        return False
-    if st1.nblocks != st2.nblocks:
-        return False
-    if len(st1.row_reps) != len(st2.row_reps):
-        return False
-    for (r1, r2) in zip(st1.row_reps, st2.row_reps):
-        if (r1 != r2).any():
-            return False
-    for (r1, r2) in zip(st1.col_reps, st2.col_reps):
-        if (r1 != r2).any():
-            return False
-    for bi in range(st1.nblocks):
-        if not (st1.blocks[bi] == st2.blocks[bi]).all():
-            return False
-    return True
+    return (
+        st1.match_representations(st2)
+        and (st1.block_irreps == st2.block_irreps).all()
+        and all((b1 == b2).all() for b1, b2 in zip(st1.blocks, st2.blocks))
+    )
 
 
 # use same physical and ancila for all sites
