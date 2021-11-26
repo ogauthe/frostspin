@@ -164,11 +164,7 @@ class SymmetricTensor:
     # Magic methods
     ####################################################################################
     def __add__(self, other):
-        assert type(other) == type(self), "Mixing incompatible types"
-        assert self._shape == other._shape, "Mixing incompatible axes"
-        assert all((r == r2).all() for (r, r2) in zip(self._row_reps, other._row_reps))
-        assert all((r == r2).all() for (r, r2) in zip(self._col_reps, other._col_reps))
-
+        assert self.match_representations(other)
         # need to take into account possibly missing block in self or other
         blocks = []
         block_irreps = []
@@ -255,6 +251,19 @@ class SymmetricTensor:
     ####################################################################################
     # misc
     ####################################################################################
+    def match_representations(self, st):
+        """
+        Check if input has same type, same shape and same representations on every legs
+        as self. block_irreps and blocks are not checked. Return bool, does not raise.
+        """
+        return (
+            type(self) == type(st)
+            and self.shape == st.shape
+            and len(self._row_reps) == len(st.row_reps)
+            and all((r == r2).all() for (r, r2) in zip(self._row_reps, st._row_reps))
+            and all((r == r2).all() for (r, r2) in zip(self._col_reps, st._col_reps))
+        )
+
     def toarray(self, as_matrix=False):
         if self._f_contiguous:  # bug calling numba with f-array unituple
             if as_matrix:
