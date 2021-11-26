@@ -258,8 +258,6 @@ class AbelianSymmetricTensor(SymmetricTensor):
     ####################################################################################
     # Symmetry implementation
     ####################################################################################
-    _symmetry = NotImplemented
-
     @staticmethod
     def init_representation(degen, irreps):
         rep = np.empty((degen.sum(),), dtype=np.int8)

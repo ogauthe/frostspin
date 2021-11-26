@@ -14,7 +14,7 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
     ####################################################################################
     # Symmetry implementation
     ####################################################################################
-    _symmetry = NotImplemented
+    # every method is group-specific
 
     ####################################################################################
     # Non-abelian specific symmetry implementation

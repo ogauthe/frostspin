@@ -27,7 +27,10 @@ class SymmetricTensor:
     # Symmetry implementation
     # each of those methods must be defined according to group rules to define symmetry.
     ####################################################################################
-    _symmetry = NotImplemented
+    @classmethod
+    @property
+    def symmetry(cls):
+        raise NotImplementedError("Must be defined in derived class")
 
     @staticmethod
     def combine_representations(*reps):
@@ -111,10 +114,6 @@ class SymmetricTensor:
     ####################################################################################
     # getters
     ####################################################################################
-    @property
-    def symmetry(self):
-        return self._symmetry
-
     @property
     def nblocks(self):
         return self._nblocks
@@ -470,7 +469,7 @@ class SymmetricTensor:
         # allows to save several SymmetricTensors in one file by using different
         # prefixes.
         data = {
-            prefix + "_symmetry": self._symmetry,
+            prefix + "_symmetry": self.symmetry,
             prefix + "_n_row_reps": len(self._row_reps),
             prefix + "_n_col_reps": len(self._col_reps),
             prefix + "_block_irreps": self._block_irreps,
@@ -485,7 +484,7 @@ class SymmetricTensor:
 
     @classmethod
     def load_from_dic(cls, data, prefix=""):
-        if cls._symmetry != data[prefix + "_symmetry"][()]:
+        if cls.symmetry != data[prefix + "_symmetry"][()]:
             raise ValueError(f"Saved SymmetricTensor does not match type {cls}")
         row_reps = []
         for ri in range(data[prefix + "_n_row_reps"][()]):

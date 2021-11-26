@@ -121,7 +121,10 @@ class SU2_SymmetricTensor(NonAbelianSymmetricTensor):
     ####################################################################################
     # Symmetry implementation
     ####################################################################################
-    _symmetry = "SU(2)"
+    @classmethod
+    @property
+    def symmetry(cls):
+        return "SU(2)"
 
     @staticmethod
     def combine_representations(*reps):
