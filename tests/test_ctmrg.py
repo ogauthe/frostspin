@@ -28,14 +28,13 @@ rl = np.array([1, -2, 1, 0, 0], dtype=np.int8)
 
 tiling = "AB\nBA"
 axesA = (rp, ra, ru, rr, rd, rl)
-A0 = U1_SymmetricTensor.random(axesA[:2], axesA[2:], rng=rng).toarray()
+A0 = U1_SymmetricTensor.random(axesA[:2], axesA[2:], rng=rng)
 axesB = (-rp, -ra, -rd, -rl, -ru, -rr)
-B0 = U1_SymmetricTensor.random(axesB[:2], axesB[2:], rng=rng).toarray()
+B0 = U1_SymmetricTensor.random(axesB[:2], axesB[2:], rng=rng)
 
 tensors = (A0, B0)
-reps = (axesA, axesB)
 chi = 20
-ctm = CTMRG.from_elementary_tensors(tiling, tensors, reps, chi, verbosity=100)
+ctm = CTMRG.from_elementary_tensors(tiling, tensors, chi, verbosity=100)
 
 # check rdm before iterating: due to random tensors they do not stay hermitian
 rdm2x1_cell, rdm1x2_cell = ctm.compute_rdm_1st_neighbor_cell()

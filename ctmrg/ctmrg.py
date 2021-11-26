@@ -108,7 +108,6 @@ class CTMRG:
         print(" *** DEV MODE ***")
         if self.verbosity > 0:
             print(f"initalize CTMRG with verbosity = {self.verbosity}")
-        self._symmetry = "U(1)"
         self._env = env
         self.chi_setpoint = chi_setpoint
         self.block_chi_ratio = block_chi_ratio
@@ -136,13 +135,11 @@ class CTMRG:
         cls,
         tiling,
         tensors,
-        representations,
         chi_setpoint,
         block_chi_ratio=1.2,
         ncv_ratio=3.0,
         cutoff=0.0,
         degen_ratio=1.0,
-        load_env=None,
         verbosity=0,
     ):
         """
@@ -151,10 +148,8 @@ class CTMRG:
 
         Parameters
         ----------
-        tensors : enumerable of tensors
+        tensors : enumerable of SymmetricTensor
             Elementary tensors of unit cell, from left to right from top to bottom.
-        representations: enumerable of tuple of representation matching tensors.
-            Representation for each tensors axis.
         tiling : string
             String defining the shape of the unit cell, typically "A" or "AB\nCD".
         chi_setpoint : integer
@@ -173,22 +168,12 @@ class CTMRG:
             two multiplets. Two consecutive (decreasing) values are considered
             degenerate if 1 >= s[i+1]/s[i] >= degen_ratio > 0. Default is 1.0 (exact
             degeneracies)
-        load_env : string
-            File to restart corner and edge environment tensors from, independently
-            from elementary tensors. If None, environment tensors will be initalized
-            from elementary tensors.
         verbosity : int
             Level of log verbosity. Default is no log.
         """
         if verbosity > 0:
             print("Start CTMRG from elementary tensors")
-            if load_env is None:
-                print("Initialize environment tensors from elementary tensors")
-            else:
-                print(f"Load environment from file {load_env}")
-        env = CTM_Environment.from_elementary_tensors(
-            tiling, tensors, representations, load_env=load_env
-        )
+        env = CTM_Environment.from_elementary_tensors(tiling, tensors)
         return cls(
             env,
             chi_setpoint,
@@ -199,13 +184,13 @@ class CTMRG:
             verbosity,
         )
 
-    def set_tensors(self, tensors, representations):
+    def set_tensors(self, tensors):
         """
         Set new elementary tensors while keeping current environment if possible.
         """
         if self.verbosity > 0:
             print("set new tensors")
-        self._env.set_tensors(tensors, representations)
+        self._env.set_tensors(tensors)
         if self.verbosity > 2:
             self.print_tensor_shapes()
 
@@ -223,29 +208,11 @@ class CTMRG:
         if verbosity > 0:
             print("Restart CTMRG from file", filename)
         with np.load(filename) as fin:
-            # manage older data format with KeyError
-            try:
-                block_chi_ratio = float(fin["_CTM_block_chi_ratio"])
-            except KeyError:
-                print("Did not find block_chi_ratio, set it to 1.2")
-                block_chi_ratio = 1.2
-            try:
-                ncv_ratio = float(fin["_CTM_ncv_ratio"])
-            except KeyError:
-                print("Did not find ncv_ratio, set it to 3.0")
-                ncv_ratio = 3.0
-            try:
-                chi_setpoint = int(fin["_CTM_chi_setpoint"])
-            except KeyError:
-                chi_setpoint = int(fin["_CTM_chi"])
-            try:
-                cutoff = float(fin["_CTM_cutoff"][()])
-                degen_ratio = float(fin["_CTM_degen_ratio"][()])
-            except KeyError:
-                print("Did not find cutoff, set it to 0.0")
-                print("Did not find degen_ratio, set it to 1.0")
-                cutoff = 0.0
-                degen_ratio = 1.0
+            block_chi_ratio = float(fin["_CTM_block_chi_ratio"])
+            ncv_ratio = float(fin["_CTM_ncv_ratio"])
+            chi_setpoint = int(fin["_CTM_chi_setpoint"])
+            cutoff = float(fin["_CTM_cutoff"])
+            degen_ratio = float(fin["_CTM_degen_ratio"])
         # better to open and close savefile twice (here and in env) to have env __init__
         # outside of file opening block.
         env = CTM_Environment.from_file(filename)
@@ -283,6 +250,10 @@ class CTMRG:
             print("CTMRG saved in file", filename)
 
     @property
+    def symmetry(self):
+        return self._env.symmetry
+
+    @property
     def Lx(self):
         return self._env.Lx
 
@@ -312,7 +283,7 @@ class CTMRG:
 
     def __repr__(self):
         return (
-            f"{self._symmetry} symmetric CTMRG with Dmax = {self.Dmax} and chi_max"
+            f"{self.symmetry} symmetric CTMRG with Dmax = {self.Dmax} and chi_max"
             f" = {self.chi_max}"
         )
 
@@ -336,7 +307,9 @@ class CTMRG:
         """
         if self.verbosity > 0:
             print("Restart brand new environment from elementary tensors.")
-        self._env.restart()
+        tensors = [self._env.get_A(x, y) for (x, y) in self.neq_coords]
+        tiling = "\n".join("".join(line) for line in self.cell)
+        self._env = CTM_Environment.from_elementary_tensors(tiling, tensors)
         if self.verbosity > 0:
             print(self)
 
