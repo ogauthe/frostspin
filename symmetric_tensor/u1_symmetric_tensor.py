@@ -22,7 +22,10 @@ class U1_SymmetricTensor(AbelianSymmetricTensor):
     ####################################################################################
     # Symmetry implementation
     ####################################################################################
-    _symmetry = "U(1)"
+    @classmethod
+    @property
+    def symmetry(cls):
+        return "U(1)"
 
     @staticmethod
     def combine_representations(*reps):
