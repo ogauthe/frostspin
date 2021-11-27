@@ -653,6 +653,7 @@ class CTMRG:
                 self.ncv_ratio,
                 self.cutoff,
                 self.degen_ratio,
+                self._env.get_C2(x + 2, y),
             )
             self._env.store_projectors(x + 2, y, P, Pt)
 
@@ -702,6 +703,7 @@ class CTMRG:
                 self.ncv_ratio,
                 self.cutoff,
                 self.degen_ratio,
+                self._env.get_C3(x + 3, y + 2).T,
             )
             self._env.store_projectors(x + 3, y + 2, P, Pt)
 
@@ -748,6 +750,7 @@ class CTMRG:
                 self.ncv_ratio,
                 self.cutoff,
                 self.degen_ratio,
+                self._env.get_C4(x + 1, y + 3),
             )
             self._env.store_projectors(x + 1, y + 3, P, Pt)
 
@@ -794,6 +797,7 @@ class CTMRG:
                 self.ncv_ratio,
                 self.cutoff,
                 self.degen_ratio,
+                self._env.get_C1(x, y + 1),
             )
             self._env.store_projectors(x, y + 1, P, Pt)
 
@@ -826,9 +830,10 @@ class CTMRG:
         for x, y in self._neq_coords:
             self._env.set_corner_ur(x, y, None)
             self._env.set_corner_ul(x, y, None)
+            C2 = self._env.get_C2(x + 1, y)
             P, Pt = construct_projectors(
                 self._env.get_C3(x + 1, y + 1).T,
-                self._env.get_C2(x + 1, y),
+                C2,
                 self._env.get_C1(x, y),
                 self._env.get_C4(x, y + 1),
                 self.chi_setpoint,
@@ -836,6 +841,7 @@ class CTMRG:
                 self.ncv_ratio,
                 self.cutoff,
                 self.degen_ratio,
+                C2,
             )
             self._env.store_projectors(x + 1, y, P, Pt)
         for x, y in self._neq_coords:
@@ -853,9 +859,10 @@ class CTMRG:
         for (x, y) in self._neq_coords:
             self._env.set_corner_ur(x, y, None)
             self._env.set_corner_dr(x, y, None)
+            C3 = self._env.get_C3(x + 1, y + 1).T
             P, Pt = construct_projectors(
                 self._env.get_C4(x, y + 1),
-                self._env.get_C3(x + 1, y + 1).T,
+                C3,
                 self._env.get_C2(x + 1, y),
                 self._env.get_C1(x, y),
                 self.chi_setpoint,
@@ -863,6 +870,7 @@ class CTMRG:
                 self.ncv_ratio,
                 self.cutoff,
                 self.degen_ratio,
+                C3,
             )
             self._env.store_projectors(x + 1, y + 1, P, Pt)
         for x, y in self._neq_coords:
@@ -879,9 +887,10 @@ class CTMRG:
         for x, y in self._neq_coords:
             self._env.set_corner_dl(x, y, None)
             self._env.set_corner_dr(x, y, None)
+            C4 = self._env.get_C4(x, y + 1)
             P, Pt = construct_projectors(
                 self._env.get_C1(x, y),
-                self._env.get_C4(x, y + 1),
+                C4,
                 self._env.get_C3(x + 1, y + 1).T,
                 self._env.get_C2(x + 1, y),
                 self.chi_setpoint,
@@ -889,6 +898,7 @@ class CTMRG:
                 self.ncv_ratio,
                 self.cutoff,
                 self.degen_ratio,
+                C4,
             )
             self._env.store_projectors(x, y + 1, P, Pt)
         for x, y in self._neq_coords:
@@ -905,9 +915,10 @@ class CTMRG:
         for x, y in self._neq_coords:
             self._env.set_corner_ul(x, y, None)
             self._env.set_corner_dl(x, y, None)
+            C1 = self._env.get_C1(x, y)
             P, Pt = construct_projectors(
                 self._env.get_C2(x + 1, y),
-                self._env.get_C1(x, y),
+                C1,
                 self._env.get_C4(x, y + 1),
                 self._env.get_C3(x + 1, y + 1).T,
                 self.chi_setpoint,
@@ -915,6 +926,7 @@ class CTMRG:
                 self.ncv_ratio,
                 self.cutoff,
                 self.degen_ratio,
+                C1,
             )
             self._env.store_projectors(x, y, P, Pt)
         for x, y in self._neq_coords:
