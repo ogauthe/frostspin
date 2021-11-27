@@ -138,7 +138,7 @@ class CTMRG:
         chi_setpoint,
         block_chi_ratio=1.2,
         ncv_ratio=3.0,
-        cutoff=0.0,
+        cutoff=1e-11,
         degen_ratio=1.0,
         verbosity=0,
     ):
