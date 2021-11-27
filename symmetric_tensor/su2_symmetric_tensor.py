@@ -66,7 +66,7 @@ def _get_projector_chained(*rep_in, singlet_only=False):
     forwards, backwards = [[rep_in[0]], [rep_in[-1]]]
     n = len(rep_in)
     if n == 1:
-        return ssp.eye(rep_in[0].dim).tocsc()
+        return ssp.eye(rep_in[0][0] @ rep_in[0][1]).tocsc()
 
     for i in range(1, n):
         forwards.append(_numba_combine_SU2(forwards[i - 1], rep_in[i]))
@@ -135,6 +135,12 @@ class SU2_SymmetricTensor(NonAbelianSymmetricTensor):
     @staticmethod
     def conjugate_representation(rep):
         return rep
+
+    @staticmethod
+    def init_representation(degen, irreps):
+        assert degen.ndim == 1
+        assert irreps.shape == (degen.size,)
+        return np.vstack((degen, irreps))
 
     @staticmethod
     def representation_dimension(rep):

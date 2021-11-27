@@ -22,10 +22,6 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
     _unitary_dic = NotImplemented
 
     @classmethod
-    def irrep_dimension(irrep):
-        raise NotImplementedError("Must be defined in derived class")
-
-    @classmethod
     def construct_matrix_projector(row_reps, col_reps, conjugate_columns=False):
         r"""
                     singlet space
