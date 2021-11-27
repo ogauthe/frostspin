@@ -103,11 +103,11 @@ class SymmetricTensor:
         else:
             self._blocks = tuple(np.ascontiguousarray(b) for b in blocks)
             self._f_contiguous = False
-        self._block_irreps = block_irreps
+        self._block_irreps = np.asarray(block_irreps)
         self._ncoeff = sum(b.size for b in blocks)
         assert self._nblocks > 0
         assert 0 < len(self._row_reps) < self._ndim
-        assert block_irreps.size == self._nblocks
+        assert self._block_irreps.size == self._nblocks
         assert sorted(set(block_irreps)) == list(block_irreps)
         assert self.check_blocks_fit_representations()
 
@@ -183,7 +183,6 @@ class SymmetricTensor:
                 block_irreps.append(other._block_irreps[i2])
                 i2 += 1
 
-        block_irreps = np.array(block_irreps)
         return type(self)(self._row_reps, self._col_reps, blocks, block_irreps)
 
     def __sub__(self, other):
@@ -246,7 +245,6 @@ class SymmetricTensor:
             else:
                 i2 += 1
 
-        block_irreps = np.array(block_irreps)
         return type(self)(self._row_reps, other._col_reps, blocks, block_irreps)
 
     ####################################################################################

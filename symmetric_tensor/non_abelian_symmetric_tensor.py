@@ -131,7 +131,6 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
                 i1 += 1
             else:
                 i2 += 1
-        block_irreps = np.array(block_irreps)
         return blocks, block_irreps
 
     def to_raw_data(self):
