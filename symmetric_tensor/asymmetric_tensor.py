@@ -38,7 +38,7 @@ class AsymmetricTensor(SymmetricTensor):
 
     @staticmethod
     def representation_dimension(rep):
-        return rep
+        return rep[()]
 
     ####################################################################################
     # Symmetry specific methods with fixed signature
