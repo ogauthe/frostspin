@@ -35,7 +35,6 @@ def _numba_reduce_to_blocks(m, row_irreps, col_irreps):
             b = _numba_fill_block(m, ri, ci)  # parallel
             blocks.append(b)
             block_irreps.append(sorted_row_irreps[row_blocks[rbi]])
-    block_irreps = np.array(block_irreps)
     return blocks, block_irreps
 
 
@@ -245,7 +244,6 @@ def _numba_abelian_transpose(
             blocks.append(new_blocks[i])
             block_irreps.append(unique_row_irreps[i])
 
-    block_irreps = np.array(block_irreps)
     return blocks, block_irreps
 
 
