@@ -5,6 +5,7 @@ import scipy.linalg as lg
 
 from symmetric_tensor.asymmetric_tensor import AsymmetricTensor
 from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
+from symmetric_tensor.su2_symmetric_tensor import SU2_SymmetricTensor
 from ctmrg.ctmrg import CTMRG
 
 
@@ -99,5 +100,73 @@ for (x, y) in ctmAs.neq_coords:
     assert eq_st(ctmAs._env.get_T2(x, y), ctm2._env.get_T2(x, y))
     assert eq_st(ctmAs._env.get_T3(x, y), ctm2._env.get_T3(x, y))
     assert eq_st(ctmAs._env.get_T4(x, y), ctm2._env.get_T4(x, y))
+
+
+########################################################################################
+# Test CTMRG on RVB SU(2) wavefunction
+########################################################################################
+# current implementation fails with half-integer spin
+tRVB = np.zeros((3, 1, 4, 4, 4, 4))
+tRVB[0, 0, 0, 0, 0, 1] = 1.0
+tRVB[0, 0, 0, 0, 1, 0] = 1.0
+tRVB[0, 0, 0, 1, 0, 0] = 1.0
+tRVB[0, 0, 1, 0, 0, 0] = 1.0
+tRVB[1, 0, 0, 0, 0, 2] = 1.0
+tRVB[1, 0, 0, 0, 2, 0] = 1.0
+tRVB[1, 0, 0, 2, 0, 0] = 1.0
+tRVB[1, 0, 2, 0, 0, 0] = 1.0
+tRVB[2, 0, 0, 0, 0, 3] = 1.0
+tRVB[2, 0, 0, 0, 3, 0] = 1.0
+tRVB[2, 0, 0, 3, 0, 0] = 1.0
+tRVB[2, 0, 3, 0, 0, 0] = 1.0
+
+rep_d_asym = np.array(3)
+rep_a_asym = np.array(1)
+rep_D_asym = np.array(4)
+
+rep_d_U1 = np.array([2, 0, -2], dtype=np.int8)
+rep_a_U1 = np.array([0], dtype=np.int8)
+rep_D_U1 = np.array([0, 2, 0, -2], dtype=np.int8)
+
+rep_d_SU2 = np.array([[1], [3]])
+rep_a_SU2 = np.array([[1], [1]])
+rep_D_SU2 = np.array([[1, 1], [1, 3]])
+
+tRVB_asym = AsymmetricTensor.from_array(
+    tRVB, (rep_d_asym, rep_a_asym), (rep_D_asym,) * 4
+)
+tRVB_U1 = U1_SymmetricTensor.from_array(
+    tRVB, (rep_d_U1, rep_a_U1), (rep_D_U1,) * 4, conjugate_columns=False
+)
+tRVB_SU2 = SU2_SymmetricTensor.from_array(
+    tRVB, (rep_d_SU2, rep_a_SU2), (rep_D_SU2,) * 4
+)
+
+print(lg.norm(tRVB_asym.toarray() - tRVB))
+print(lg.norm(tRVB_U1.toarray() - tRVB))
+print(lg.norm(tRVB_SU2.toarray() - tRVB))
+
+a0 = np.tensordot(tRVB, tRVB, ((0, 1), (0, 1)))
+a_asym = tRVB_asym.H @ tRVB_asym
+a_U1 = tRVB_U1.H @ tRVB_U1
+a_SU2 = tRVB_SU2.H @ tRVB_SU2
+print(f"asym:  {lg.norm(a_asym.toarray() - a0):.1e}")
+print(f"U(1):  {lg.norm(a_U1.toarray() - a0):.1e}")
+print(f"SU(2): {lg.norm(a_SU2.toarray() - a0):.1e}")
+del a0, a_asym, a_U1, a_SU2
+
+tensorsAs = (tRVB_asym,)
+tensorsU1 = (tRVB_U1, tRVB_U1.group_conjugated())
+tensorsSU2 = (tRVB_SU2,)
+ctmAs = CTMRG.from_elementary_tensors("A", tensorsAs, 20, verbosity=100)
+ctmU1 = CTMRG.from_elementary_tensors("AB\nBA", tensorsU1, 20, verbosity=100)
+ctmSU2 = CTMRG.from_elementary_tensors("A", tensorsSU2, 15, verbosity=100)
+
+rdmAs = ctmAs.compute_rdm2x1(0, 0)
+rdmU1 = ctmU1.compute_rdm2x1(0, 0)
+rdmSU2 = ctmSU2.compute_rdm2x1(0, 0)
+print(lg.eigvalsh(rdmAs), f" {lg.norm(rdmAs-rdmAs.T.conj()):.0e}")
+print(lg.eigvalsh(rdmU1), f" {lg.norm(rdmU1-rdmU1.T.conj()):.0e}")
+print(lg.eigvalsh(rdmSU2), f" {lg.norm(rdmSU2-rdmSU2.T.conj()):.0e}")
 
 print("Completed")
