@@ -104,10 +104,7 @@ def rdm_1x2(C1, T1l, T1r, C2, T4, Al, Ar, T2, C4, T3l, T3r, C3):
     right = right @ T3r.permutate((0, 1, 2), (3,))
     right = right.permutate((0, 1), (2, 3, 4, 5))
     rdm = left @ right.T
-    del left, right
-    rdm = rdm.toarray()
-    rdm = rdm.swapaxes(1, 2)
-    rdm = rdm.reshape(Al.shape[0] * Ar.shape[0], Al.shape[0] * Ar.shape[0])
+    rdm = rdm.permutate((0, 2), (1, 3)).toarray(as_matrix=True)
     rdm /= rdm.trace()
     return rdm
 
@@ -182,9 +179,7 @@ def rdm_diag_dr(C1, T1l, ur, T4u, Aul, dl, Adr, T2d, T3r, C3):
     #   7-------
     dr = dr.permutate((0, 1), (2, 3, 4, 5, 6, 7))  # memory peak: 3*d**2*chi**2*D**4
     rdm = rdm @ dr.T
-    rdm = rdm.toarray()
-    rdm = rdm.swapaxes(1, 2)
-    rdm = rdm.reshape(Aul.shape[0] * Adr.shape[0], Aul.shape[0] * Adr.shape[0])
+    rdm = rdm.permutate((0, 2), (1, 3)).toarray(as_matrix=True)
     rdm /= rdm.trace()
     return rdm
 
