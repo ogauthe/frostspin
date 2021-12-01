@@ -122,21 +122,20 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
     target = sorted(set(repL.irreps).intersection(repR.irreps))
     if not target:
         raise ValueError("Representations have no common irrep")
-    repL = repL.truncated(target[-1])
-    repR = repR.truncated(target[-1])
-    if target != list(repL.irreps) or target != list(repR.irreps):  # TODO
-        raise NotImplementedError("TODO: remove irreps that will not fuse")
 
+    indL = repL.irreps.searchsorted(target)
+    indR = repR.irreps.searchsorted(target)
     row = []
     col = []
     data = []
-    shiftL = 0
-    shiftR = 0
+    shiftL = np.hstack((0, repL.degen * repL.irreps)).cumsum()
+    shiftR = np.hstack((0, repR.degen * repR.irreps)).cumsum()
     shift_out = 0
     for i, irr in enumerate(target):
-        degenR = repR.degen[i]
-        matR = projR[:, shiftR : shiftR + degenR * irr].reshape(-1, irr) / np.sqrt(irr)
-        matR = matR.T.tocsr()
+        degenL = repL.degen[indL[i]]
+        degenR = repR.degen[indR[i]]
+        matR = projR[:, shiftR[indR[i]] : shiftR[indR[i] + 1]]
+        matR = (matR.reshape(-1, irr).T / np.sqrt(irr)).tocsr()
         if not conj_right:
             sing_proj = ssp.csr_matrix(SU2_Representation.irrep(irr).get_conjugator())
             matR = sing_proj @ matR
@@ -145,18 +144,16 @@ def construct_matrix_projector(rep_left_enum, rep_right_enum, conj_right=False):
         # memory). It also requires some sparse transpose. Using csc just puts the
         # problem on matR instead of matL. So to save memory, slice projL irrep by irrep
         # instead of taking all of them with degenL * irr. Slower but memory efficient.
-        for j in range(repL.degen[i]):
-            matLR = projL[:, shiftL : shiftL + irr].tocsr()  # avoid large indptr
+        for j in range(shiftL[indL[i]], shiftL[indL[i]] + degenL * irr, irr):
+            matLR = projL[:, j : j + irr].tocsr()  # avoid large indptr
             matLR = matLR @ matR
             matLR = matLR.tocoo().reshape(dimLR, degenR)  # force coo cast
             row.extend(matLR.row)
             col.extend(shift_out + matLR.col)
             data.extend(matLR.data)
-            shiftL += irr
             shift_out += degenR
-        shiftR += degenR * irr
 
-    assert shift_out == repL.degen @ repR.degen
+    assert shift_out == repL.degen[indL] @ repR.degen[indR]
     full_proj = ssp.csr_matrix((data, (row, col)), shape=(dimLR, shift_out))
     return full_proj
 
