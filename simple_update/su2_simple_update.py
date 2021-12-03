@@ -298,7 +298,7 @@ class SU2_SimpleUpdate:
         -------
         tensors : tuple of size _n_tensors
             Optimized dense tensors, with sqrt(weights) on all virtual legs. Virtual
-            legs are sorted by weights magnitude, not by SU(2) irreps.
+            legs are sorted according to SU(2) irreps, not by weight magnitude.
         mz : tuple of size _n_tensors
             mz values for each axis of each tensor.
         """
@@ -749,20 +749,16 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         -------
         (A, B) : tuple of 2 ndarrays
             Optimized dense tensors, with sqrt(weights) on all virtual legs. Virtual
-            legs are sorted by weights magnitude, not by SU(2) irreps.
+            legs are sorted according to SU(2) irreps, not by weight magnitude.
         (colorsA, colorsB) : tuple of tuple
             Sz eigenvalues for each axis of each tensor.
         """
         w1, w2, w3, w4 = [1.0 / np.sqrt(w) for w in self.get_dense_weights(sort=False)]
-        so1 = w1.argsort()
-        so2 = w2.argsort()
-        so3 = w3.argsort()
-        so4 = w4.argsort()
         sz_val0 = self._phys.get_Sz()
-        sz_val1 = self._bond_representations[0].get_Sz()[so1]
-        sz_val2 = self._bond_representations[1].get_Sz()[so2]
-        sz_val3 = self._bond_representations[2].get_Sz()[so3]
-        sz_val4 = self._bond_representations[3].get_Sz()[so4]
+        sz_val1 = self._bond_representations[0].get_Sz()
+        sz_val2 = self._bond_representations[1].get_Sz()
+        sz_val3 = self._bond_representations[2].get_Sz()
+        sz_val4 = self._bond_representations[3].get_Sz()
 
         D1 = w1.size
         D2 = w2.size
@@ -782,17 +778,11 @@ class SU2_SimpleUpdate1x2(SU2_SimpleUpdate):
         gammaA = proj @ self._tensors_data[0]
         gammaA = gammaA.reshape(D1, self._d, D2, D3, D4, self._a)
         gammaA = np.einsum("uprdla,u,r,d,l->paurdl", gammaA, w1, w2, w3, w4)
-        gammaA = gammaA[
-            :, :, so1[:, None, None, None], so2[:, None, None], so3[:, None], so4
-        ]
         gammaA /= np.amax(gammaA)
 
         gammaB = proj @ self._tensors_data[1]
         gammaB = gammaB.reshape(D1, self._d, D2, D3, D4, self._a)
         gammaB = np.einsum("dplura,u,r,d,l->paurdl", gammaB, w3, w4, w1, w2)
-        gammaB = gammaB[
-            :, :, so3[:, None, None, None], so4[:, None, None], so1[:, None], so2
-        ]
         gammaB /= np.amax(gammaB)
         return (
             (gammaA, gammaB),
@@ -1092,16 +1082,13 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
         -------
         (A, B, C, D) : tuple of 4 ndarrays
             Optimized dense tensors, with sqrt(weights) on all virtual legs. Virtual
-            legs are sorted by weights magnitude, not by SU(2) irreps.
+            legs are sorted according to SU(2) irreps, not by weight magnitude.
         (colorsA, colorsB, colorsC, colorsD) : tuple of tuple
             Sz eigenvalues for each axis of each tensor.
         """
         sqw = [1.0 / np.sqrt(w) for w in self.get_dense_weights(sort=False)]
-        so_all = [sqw.argsort() for sqw in sqw]
         sz_phys = self._phys.get_Sz()
-        sz_vals = [
-            rep.get_Sz()[so] for (rep, so) in zip(self._bond_representations, so_all)
-        ]
+        sz_vals = [rep.get_Sz() for rep in self._bond_representations]
 
         # su must be in state 1, after an update on bond 1. This is always true after
         # an evolve call.
@@ -1124,14 +1111,6 @@ class SU2_SimpleUpdate2x2(SU2_SimpleUpdate):
             gamma = np.einsum(
                 "uprdla,u,r,d,l->paurdl", gamma, sqw[i1], sqw[i2], sqw[i3], sqw[i4]
             )
-            gamma = gamma[
-                :,
-                :,
-                so_all[i1][:, None, None, None],
-                so_all[i2][:, None, None],
-                so_all[i3][:, None],
-                so_all[i4],
-            ]
             tensors[i] = gamma / np.amax(gamma)
             conj = 1 - (i // 2 + i % 2) % 2 * 2
             sz_tensors[i] = (
