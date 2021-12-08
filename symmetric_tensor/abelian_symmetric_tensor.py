@@ -285,7 +285,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
         blocks, block_irreps = _numba_reduce_to_blocks(M, row_irreps, col_irreps)
         assert (
             abs((n := lg.norm(arr)) - np.sqrt(sum(lg.norm(b) ** 2 for b in blocks)))
-            <= 1e-13 * n  # allows for arr = 0
+            <= 2e-13 * n  # allows for arr = 0
         )
         return cls(row_reps, col_reps, blocks, block_irreps)
 
