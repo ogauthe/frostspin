@@ -181,6 +181,7 @@ class SU2_SymmetricTensor(NonAbelianSymmetricTensor):
             matR = projR[:, shiftR[indR[i]] : shiftR[indR[i] + 1]]
             matR = (matR.reshape(-1, irr).T / np.sqrt(irr)).tocsr()
             if not conjugate_columns:
+                # TODO inline: in coo, row = nrow - row, data *= row%2*2-1 / sqrt(irr)
                 sing_proj = ssp.csr_matrix(np.diag(1.0 - np.arange(irr) % 2 * 2)[::-1])
                 matR = sing_proj @ matR
             # it is not memory efficient to contract directly with the full matL: in
