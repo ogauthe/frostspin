@@ -106,31 +106,27 @@ for (x, y) in ctmAs.neq_coords:
 # Test CTMRG on RVB SU(2) wavefunction
 ########################################################################################
 # current implementation fails with half-integer spin
-tRVB = np.zeros((3, 1, 4, 4, 4, 4))
-tRVB[0, 0, 0, 0, 0, 1] = 1.0
-tRVB[0, 0, 0, 0, 1, 0] = 1.0
-tRVB[0, 0, 0, 1, 0, 0] = 1.0
-tRVB[0, 0, 1, 0, 0, 0] = 1.0
-tRVB[1, 0, 0, 0, 0, 2] = 1.0
-tRVB[1, 0, 0, 0, 2, 0] = 1.0
-tRVB[1, 0, 0, 2, 0, 0] = 1.0
-tRVB[1, 0, 2, 0, 0, 0] = 1.0
-tRVB[2, 0, 0, 0, 0, 3] = 1.0
-tRVB[2, 0, 0, 0, 3, 0] = 1.0
-tRVB[2, 0, 0, 3, 0, 0] = 1.0
-tRVB[2, 0, 3, 0, 0, 0] = 1.0
+d = 2
+D = d + 1
 
-rep_d_asym = np.array(3)
+tRVB = np.zeros((d, 1, D, D, D, D))
+for i in range(d):
+    tRVB[i, 0, 0, 0, 0, i + 1] = 1.0
+    tRVB[i, 0, 0, 0, i + 1, 0] = 1.0
+    tRVB[i, 0, 0, i + 1, 0, 0] = 1.0
+    tRVB[i, 0, i + 1, 0, 0, 0] = 1.0
+
+rep_d_asym = np.array(d)
 rep_a_asym = np.array(1)
-rep_D_asym = np.array(4)
+rep_D_asym = np.array(D)
 
-rep_d_U1 = np.array([2, 0, -2], dtype=np.int8)
+rep_d_U1 = np.arange(d - 1, -d, -2, dtype=np.int8)
 rep_a_U1 = np.array([0], dtype=np.int8)
-rep_D_U1 = np.array([0, 2, 0, -2], dtype=np.int8)
+rep_D_U1 = np.array([0, *rep_d_U1], dtype=np.int8)
 
-rep_d_SU2 = np.array([[1], [3]])
+rep_d_SU2 = np.array([[1], [d]])
 rep_a_SU2 = np.array([[1], [1]])
-rep_D_SU2 = np.array([[1, 1], [1, 3]])
+rep_D_SU2 = np.array([[1, 1], [1, d]])
 
 tRVB_asym = AsymmetricTensor.from_array(
     tRVB, (rep_d_asym, rep_a_asym), (rep_D_asym,) * 4
@@ -142,18 +138,30 @@ tRVB_SU2 = SU2_SymmetricTensor.from_array(
     tRVB, (rep_d_SU2, rep_a_SU2), (rep_D_SU2,) * 4
 )
 
-print(lg.norm(tRVB_asym.toarray() - tRVB))
-print(lg.norm(tRVB_U1.toarray() - tRVB))
-print(lg.norm(tRVB_SU2.toarray() - tRVB))
+assert lg.norm(tRVB_asym.toarray() - tRVB) < 1e-13
+assert lg.norm(tRVB_U1.toarray() - tRVB) < 1e-13
+assert lg.norm(tRVB_SU2.toarray() - tRVB) < 1e-13
 
 a0 = np.tensordot(tRVB, tRVB, ((0, 1), (0, 1)))
 a_asym = tRVB_asym.H @ tRVB_asym
 a_U1 = tRVB_U1.H @ tRVB_U1
 a_SU2 = tRVB_SU2.H @ tRVB_SU2
-print(f"asym:  {lg.norm(a_asym.toarray() - a0):.1e}")
-print(f"U(1):  {lg.norm(a_U1.toarray() - a0):.1e}")
-print(f"SU(2): {lg.norm(a_SU2.toarray() - a0):.1e}")
-del a0, a_asym, a_U1, a_SU2
+assert lg.norm(a_asym.toarray() - a0) < 1e-13
+assert lg.norm(a_U1.toarray() - a0) < 1e-13
+assert lg.norm(a_SU2.toarray() - a0) < 1e-13
+
+a1 = a0.transpose(0, 4, 1, 5, 2, 6, 3, 7)
+a1_asym = a_asym.permutate((0, 4, 1, 5), (2, 6, 3, 7))
+a1_U1 = a_U1.permutate((0, 4, 1, 5), (2, 6, 3, 7))
+a1_SU2 = a_SU2.permutate((0, 4, 1, 5), (2, 6, 3, 7))
+# need to adjust conjugator when bra / ket legs are swapped
+c = np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0.0]])
+temp = a1_SU2.toarray()
+temp = np.einsum("abcdefgh,bB,dD,eE,gG->aBcDEfGh", temp, c.T, c.T, c, c)
+assert lg.norm(a1_asym.toarray() - a1) < 1e-13
+assert lg.norm(a1_U1.toarray() - a1) < 1e-13
+assert lg.norm(temp - a1) < 1e-13
+del a0, a_asym, a_U1, a_SU2, a1, a1_asym, a1_U1, a1_SU2, temp, c
 
 tensorsAs = (tRVB_asym,)
 tensorsU1 = (tRVB_U1, tRVB_U1.group_conjugated())
