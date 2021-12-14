@@ -305,10 +305,10 @@ class SymmetricTensor:
         Parameters
         ----------
         diag_blocks : enum of 1D array
-            Must have same length as _n_blocks
+            Must have same length as _nblocks
         left : bool
         """
-        if len(diag_blocks) != self._n_blocks:
+        if len(diag_blocks) != self._nblocks:
             raise ValueError("Diagonal blocks do not match tensor")
         if left:
             for b, diag in zip(self._blocks, diag_blocks):
