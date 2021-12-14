@@ -132,12 +132,18 @@ class SimpleUpdate:
             Level of log verbosity. Default is no log.
         """
         h0 = hamiltonians[0]
+        ST = type(h0)
         phys = h0.row_reps[0]
         d = h0.shape[0]
         t0 = np.eye(d).reshape(d, d, 1, 1, 1, 1)
         # singlet may not be irrep 0 (it is irrep 1 for SU(2)), workaround with hamilt
-        sing = h0.init_representation(np.array([1]), h0.block_irreps[0])
-        t = h0.from_array(t0, (phys,), (phys, sing, sing, sing, sing))
+        if issubclass(ST, NonAbelianSymmetricTensor):
+            sing = ST.init_representation(np.array([1]), np.array([1]))
+        else:
+            sing = ST.init_representation(np.array([1]), np.array([0]))
+        t = ST.from_array(
+            t0, (phys,), (phys, sing, sing, sing, sing), conjugate_columns=False
+        )
         return cls(
             Dx,
             0.0,
@@ -300,7 +306,7 @@ class SimpleUpdate:
         """
         raise NotImplementedError
 
-    def update_first_neighbor(self, left, right, weights, virt_mid, gate):
+    def update_first_neighbor(self, left, right, weights, gate):
         r"""
         Update given bond by applying gate, computing the SVD and truncate the result.
         A 1D geometry is considered for clarity, the function being direction-agnostic.
@@ -313,8 +319,6 @@ class SimpleUpdate:
             "Right" matrix, tree structure is defined below.
         weights : numpy array
             Bond weights before update.
-        virt_mid : ndarray
-            Group representation before update.
         gate : SymmetricTensor
             Gate to apply on the bond.
 
