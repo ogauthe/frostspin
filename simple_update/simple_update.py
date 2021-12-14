@@ -80,8 +80,8 @@ class SimpleUpdate:
 
         self.Dx = Dx
         self._beta = beta
-        self._tensor_list = list(tensors)
-        self._hamilt_list = list(hamiltonians)
+        self._tensors = list(tensors)
+        self._hamilts = list(hamiltonians)
         self.tau = tau  # also set gates
         self.rcutoff = rcutoff
         self._bond_representations = bond_representations
@@ -246,9 +246,9 @@ class SimpleUpdate:
         if self.verbosity > 0:
             print(f"set tau to {tau}")
         self._tau = tau
-        self._gates = [(-tau * h).expm() for h in self._hamilt_list]
-        self._sqrt_gates = [(-0.5 * tau * h).expm() for h in self._hamilt_list]
-        self._squared_gates = [(-2 * tau * h).expm() for h in self._hamilt_list]
+        self._gates = [(-tau * h).expm() for h in self._hamilts]
+        self._sqrt_gates = [(-0.5 * tau * h).expm() for h in self._hamilts]
+        self._squared_gates = [(-2 * tau * h).expm() for h in self._hamilts]
         self._dbeta = 4 * tau  # 2nd order Trotter Suzuki + rho is quadratic in psi
 
     @property
