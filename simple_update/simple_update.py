@@ -290,23 +290,28 @@ class SimpleUpdate:
 
         Parameters
         ----------
-        matL0 : SU2_Matrix
-            "Left" matrix, tree structure is defined below.
-        matR0 : SU2_Matrix
-            "Right" matrix, tree structure is defined below.
-        weights : numpy array
-            Bond weights before update.
+        left : SymmetricTensor
+            "Left" tensor.
+        right : SymmetricTensor
+            "Right" tensor.
+        weights : enumerable of numpy array
+            Bond weights before update, as obtained by SymmetricTensor SVD
         gate : SymmetricTensor
             Gate to apply on the bond.
 
+        Leg structures must be:
 
-            matL0              matR0
-            /  \                /  \
-           /    \              /    \
-          /     /\            /\     \
-        left   p mid        mid p    right
+            left                right               gate
+            /  \                /  \               /    \
+           /    \              /    \             /      \
+         ///    /\            /\    \\\          /\      /\
+        auxL   pL mid       mid pR   auxR       pL pR   pL pR
+
+        auxL and auxR can be anything, with any number of leg inside. They will be cut
+        and stay inside cstL and cstR, unaffected by the gate. pL and pR are the left
+        and right physical variables. mid is the virtual bond to be updated.
         """
-        # cut L and R between const and effective parts
+        # cut left and right between const and effective parts
         cstL, svL, effL = left.svd()  # auxL-effL=p,m
         effL.diagonal_imul(svL, left=True)
         effR, svR, cstR = right.svd()  # m,p=effR-auxR
@@ -314,7 +319,7 @@ class SimpleUpdate:
 
         # change tensor structure to contract mid
         effL = effL.permutate((0, 1), (2,))  # auxL,p=effL-m
-        effL.diagonal_imul([1 / w for w in weights])
+        effL.diagonal_imul([1.0 / w for w in weights])
         effR = effR.permutate((0,), (1, 2))  # m-effR=p,auxR
 
         # construct matrix theta and apply gate
@@ -323,7 +328,7 @@ class SimpleUpdate:
         theta = theta @ gate
 
         # transpose back LxR, compute SVD and truncate
-        theta = theta.permutate((0, 2), (3, 1))  # auxL, pL = theta = pR, auxR
+        theta = theta.permutate((0, 2), (1, 3))  # auxL, pL = theta = auxR, pR
         effL, new_weights, effR = theta.truncated_svd(self.Dx, rcutoff=self.rcutoff)
 
         # normalize weights and apply them to new left and new right
@@ -333,7 +338,7 @@ class SimpleUpdate:
 
         # reshape to initial tree structure
         effL = effL.permutate((0,), (1, 2))  # auxL - effL = pL,m
-        effR = effR.permutate((0, 1), (2,))  # m, pR = effR - auxR
+        effR = effR.permutate((0, 2), (1,))  # m, pR = effR - auxR
 
         # reconnect with const parts
         newL = cstL @ effL
@@ -341,58 +346,63 @@ class SimpleUpdate:
 
         return newL, newR, new_weights
 
-    def update_through_proxy(self, left0, mid0, right0, weightsL, weightsR, gate):
+    def update_through_proxy(self, left, mid, right, weightsL, weightsR, gate):
         r"""
         Apply gate between two tensors through a proxy (either 2nd ord 3rd neighbor)
         A 1D geometry is considered for clarity, the function being direction-agnostic.
 
         Parameters
         ----------
-        left0 : SymmetricTensor
+        left : SymmetricTensor
             "Left" tensor
-        mid0 : SymmetricTensor
+        mid : SymmetricTensor
             "Middle" tensor
-        right0 : SymmetricTensor
+        right : SymmetricTensor
             "Right" tensor
-        weightsL : numpy array
+        weightsL : enumerable of numpy array
             Left bond weights before update.
-        weightsR : numpy array
+        weightsR : enumerable of numpy array
             Right bond weights before update.
         gate : SymmetricTensor
-            Gate to apply on the bond. Tree structure must be
-            (self._d * self._d, self._d * self._d)
+            Gate to apply on the bond.
 
+        Leg structures must be:
 
-            matL0            mat_mid0         matR0
-            /  \             /    \           /  \
-           /    \           /\     \         /    \
-          /     /\         /  \     \       /\     \
-        auxL   p repL    repL repR auxm   repR p  auxR
+            left            mid            right              gate
+            /  \           /   \           /   \             /    \
+           /    \         /\    \         /     \           /      \
+         ///    /\       /  \   \\\      /\     \\\        /\      /\
+        auxL   pL mL    mL  mR  auxm    mR pR   auxR     pL pR    pL pR
+
+        auxL, auxm and auxR can be anything, with any number of leg inside. They will be
+        cut and stay inside constant parts, unaffected by the gate. pL and pR are the
+        left and right physical variables. mL and mR are the left and right virtual
+        bonds to be updated.
         """
         # 1) SVD cut between constant tensors and effective tensors to update
         #     \|        \|
         #     -L-    -> -cstL==effL-lambda_L-
         #      |\        |       \
-        cstL, svL, effL, auxL = left0.svd()
+        cstL, svL, effL, auxL = left.svd()
         effL.diagonal_imul(svL, left=True)
-        effL = effL.permutate((0, 1), (2,))
-        effL.diagonal_imul([1 / w for w in weightsL])
+        effL = effL.permutate((0, 1), (2,))  # auxL,pL = effL - mL
+        effL.diagonal_imul([1.0 / w for w in weightsL])
 
         #                       \|/|
         #                       cstM
         #     \|                 ||
         #     -M-   ->        --effM--
         #      |\
-        eff_m, sv_m, cst_m, aux_m = mid0.svd()
+        eff_m, sv_m, cst_m, aux_m = mid.svd()
         eff_m.diagonal_imul(sv_m)
-        eff_m = eff_m.permutate((0,), (1, 2))
+        eff_m = eff_m.permutate((0,), (1, 2))  # mL - effm = mR, auxm
 
         #     \|                         \|
         #     -R-   ->    lambda_R-effR==cstR
         #      |\                         |\
-        effR, svR, cstR, auxR = right0.svd()
+        effR, svR, cstR, auxR = right.svd()
         effR.diagonal_imul(svR, left=True)
-        effR = effR.permutate((0,), (1, 2))
+        effR = effR.permutate((0,), (1, 2))  # mR - effR = pR, auxR
         effR.diagonal_imul([1 / w for w in weightsR], left=True)
 
         # contract tensor network
@@ -400,35 +410,30 @@ class SimpleUpdate:
         #    =effL-lambdaL -- eff_mid -- lambdaR-effR=
         #         \                             /
         #          \----------- gate ----------/
-        theta = effL @ eff_m
-        theta = theta.permutate((0, 1, 3), (2,))
-        theta = theta @ effR
-        theta = theta.permutate((0, 2, 4), (1, 3))
+        theta = effL @ eff_m  # auxL, pL = theta = mR, auxm
+        theta = theta.permutate((0, 1, 3), (2,))  # auxL, pL, auxm = theta - mR
+        theta = theta @ effR  # auxL, pL, auxm = theta = pR, auxR
+        theta = theta.permutate((0, 2, 4), (1, 3))  # auxL, auxm, auxR = theta = pL, pR
         theta = theta @ gate
 
         # 1st SVD
-        #     theta
-        #    /     \
-        #  0,1,2   3, 4
-        #  L M R   pL, pR
-        theta = theta.permutate((0, 1, 3), (4, 2))
+        theta = theta.permutate((0, 3, 1), (4, 2))  # auxL, pL, auxm = theta = pR, auxR
         theta, new_weightsR, effR = theta.truncated_svd(self.Dx, rcutoff=self.rcutoff)
         new_weightsR = self._normalized_weights(new_weightsR, effR.row_reps[0])
-        effR.diagonal_imul(new_weightsR, left=True)
+        effR.diagonal_imul(new_weightsR, left=True)  # mR - effR = pR, auxR
 
         # 2nd SVD
-        theta.diagonal_imul(new_weightsR)
-        theta = theta.permutate((0, 1), (2, 3))
-
+        theta.diagonal_imul(new_weightsR)  # auxL, pL, auxm = theta = mR
+        theta = theta.permutate((0, 1), (2, 3))  # auxL, pL = theta = auxm, mR
         effL, new_weightsL, eff_m = theta.truncated_svd(self.Dx, rcutoff=self.rcutoff)
         new_weightsL = self._normalized_weights(new_weightsL, effL.row_reps[0])
-        eff_m.diagonal_imul(new_weightsL, left=True)
-        effL.diagonal_imul(new_weightsL)
+        eff_m.diagonal_imul(new_weightsL, left=True)  # mL - effm = auxm, mR
+        effL.diagonal_imul(new_weightsL)  # auxL, pL = effL - mL
 
         # reshape to initial tree structure
-        effL = effL.permutate((0,), (1, 2))
-        eff_m = eff_m.permutate((0, 1), (2,))
-        effR = effR.permutate((0, 1), (2,))
+        effL = effL.permutate((0,), (1, 2))  # auxL - effL = pL, mL
+        eff_m = eff_m.permutate((0, 2), (1,))  # mL, mR = eff_m - auxm
+        effR = effR.permutate((0, 1), (2,))  # mR, pR = effR - auxR
 
         # reconnect with const parts
         newL = cstL @ effL
