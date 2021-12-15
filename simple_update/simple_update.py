@@ -92,7 +92,7 @@ class SimpleUpdate:
         if issubclass(self._ST, NonAbelianSymmetricTensor):
 
             def normalized_weights(weights, rep):
-                assert len(weights) == len(rep)
+                assert len(weights) == rep.shape[1]
                 x = 0
                 for i, w in enumerate(weights):
                     x += self._ST.irrep_dimension(rep[1, i]) * w.sum()
