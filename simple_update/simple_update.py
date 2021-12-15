@@ -95,7 +95,7 @@ class SimpleUpdate:
                 assert len(weights) == len(rep)
                 x = 0
                 for i, w in enumerate(weights):
-                    x += self._ST.irrep_dimension(rep[i][1]) * w.sum()
+                    x += self._ST.irrep_dimension(rep[1, i]) * w.sum()
                 return [w / x for w in weights]
 
         else:
@@ -131,30 +131,7 @@ class SimpleUpdate:
         verbosity : int
             Level of log verbosity. Default is no log.
         """
-        h0 = hamiltonians[0]
-        ST = type(h0)
-        phys = h0.row_reps[0]
-        d = h0.shape[0]
-        t0 = np.eye(d).reshape(d, d, 1, 1, 1, 1)
-        # singlet may not be irrep 0 (it is irrep 1 for SU(2)), workaround with hamilt
-        if issubclass(ST, NonAbelianSymmetricTensor):
-            sing = ST.init_representation(np.array([1]), np.array([1]))
-        else:
-            sing = ST.init_representation(np.array([1]), np.array([0]))
-        t = ST.from_array(
-            t0, (phys,), (phys, sing, sing, sing, sing), conjugate_columns=False
-        )
-        return cls(
-            Dx,
-            0.0,
-            tau,
-            rcutoff,
-            [t] * cls._n_tensors,
-            hamiltonians,
-            [sing] * cls._n_bonds,
-            [np.ones(1)] * cls._n_bonds,
-            verbosity,
-        )
+        raise NotImplementedError
 
     @classmethod
     def load_from_file(cls, savefile, verbosity=0):
@@ -330,23 +307,23 @@ class SimpleUpdate:
         left   p mid        mid p    right
         """
         # cut L and R between const and effective parts
-        cstL, svL, effL = left.svd()
+        cstL, svL, effL = left.svd()  # auxL-effL=p,m
         effL.diagonal_imul(svL, left=True)
-        effR, svR, cstR = right.svd()
+        effR, svR, cstR = right.svd()  # m,p=effR-auxR
         effR.diagonal_imul(svR)
 
         # change tensor structure to contract mid
-        effL = effL.permutate((0, 1), (2,))
+        effL = effL.permutate((0, 1), (2,))  # auxL,p=effL-m
         effL.diagonal_imul([1 / w for w in weights])
-        effR = effR.permutate((0,), (1, 2))
+        effR = effR.permutate((0,), (1, 2))  # m-effR=p,auxR
 
         # construct matrix theta and apply gate
-        theta = effL @ effR
-        theta = theta.permutate((0, 3), (1, 2))
+        theta = effL @ effR  # auxL,pL=theta=p,auxR
+        theta = theta.permutate((0, 3), (1, 2))  # auxL, auxR = theta = pL, pR
         theta = theta @ gate
 
         # transpose back LxR, compute SVD and truncate
-        theta = theta.permutate((0, 2), (1, 3))
+        theta = theta.permutate((0, 2), (3, 1))  # auxL, pL = theta = pR, auxR
         effL, new_weights, effR = theta.truncated_svd(self.Dx, rcutoff=self.rcutoff)
 
         # normalize weights and apply them to new left and new right
@@ -355,8 +332,8 @@ class SimpleUpdate:
         effR.diagonal_imul(new_weights, left=True)
 
         # reshape to initial tree structure
-        effL = effL.permutate((0,), (1, 2))
-        effR = effR.permutate((0, 1), (2,))
+        effL = effL.permutate((0,), (1, 2))  # auxL - effL = pL,m
+        effR = effR.permutate((0, 1), (2,))  # m, pR = effR - auxR
 
         # reconnect with const parts
         newL = cstL @ effL
