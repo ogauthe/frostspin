@@ -68,12 +68,9 @@ class SimpleUpdate:
 
         self.verbosity = verbosity
         self._symmetry = tensors[0].symmetry
-        self._d = hamiltonians[0].shape[0]
-        self._a = self._d
         if self.verbosity > 0:
             print(
                 f"Construct SimpleUpdate with {self._symmetry} symmetry.",
-                f"d = {self._d}, D* = {Dx},",
                 f"beta = {beta:.6g}",
             )
             print(f"unit cell:\n{self._unit_cell}")
@@ -227,14 +224,6 @@ class SimpleUpdate:
         self._sqrt_gates = [(-0.5 * tau * h).expm() for h in self._hamilts]
         self._squared_gates = [(-2 * tau * h).expm() for h in self._hamilts]
         self._dbeta = 4 * tau  # 2nd order Trotter Suzuki + rho is quadratic in psi
-
-    @property
-    def d(self):
-        return self._d
-
-    @property
-    def a(self):
-        return self._a
 
     @property
     def beta(self):

@@ -102,7 +102,7 @@ class SimpleUpdate1x2(SimpleUpdate):
         )
 
     def __repr__(self):
-        return f"SimpleUpdate1x2 with d = {self._d}"
+        return f"SimpleUpdate1x2 with {self._symmetry} symmetry"
 
     def evolve(self, beta_evolve):
         """
