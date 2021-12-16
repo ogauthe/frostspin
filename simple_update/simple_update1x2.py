@@ -101,6 +101,20 @@ class SimpleUpdate1x2(SimpleUpdate):
             verbosity,
         )
 
+    def get_tensors(self):
+        # adding 1/sqrt(weights) is simpler in dense form
+        sw1, sw2, sw3, sw4 = [1.0 / np.sqrt(w) for w in self.get_weights(sort=False)]
+        A0 = self._tensors[0]
+        A = np.einsum("paurdl,u,r,d,l->paurdl", A0.toarray(), sw1, sw2, sw3, sw4)
+        B0 = self._tensors[1]
+        B = np.einsum("paurdl,u,r,d,l->paurdl", B0.toarray(), sw3, sw4, sw1, sw2)
+        # same problem as in from_infinite_temperature: conjugate_columns has differen
+        # effect between U(1) and SU(2) from_array.
+        cc = self._ST.symmetry == "SU(2)"
+        A = self._ST.from_array(A, A0._row_reps, A0._col_reps, conjugate_columns=cc)
+        B = self._ST.from_array(B, B0._row_reps, B0._col_reps, conjugate_columns=cc)
+        return A, B
+
     def __repr__(self):
         return f"SimpleUpdate1x2 with {self._symmetry} symmetry"
 
@@ -160,18 +174,17 @@ class SimpleUpdate1x2(SimpleUpdate):
             self._update_bond(3, self._gates[0], self._lperm[4], self._rperm[4])
             self._update_bond(2, self._gates[0], self._lperm[5], self._rperm[5])
             self._update_bond(1, self._squared_gates[0], self._lperm[6], self._rperm[6])
-            self._beta += self._dbeta
         self._update_bond(2, self._gates[0], self._lperm[1], self._rperm[1])
         self._update_bond(3, self._gates[0], self._lperm[2], self._rperm[2])
         self._update_bond(4, self._gates[0], self._lperm[3], self._rperm[3])
         self._update_bond(3, self._gates[0], self._lperm[4], self._rperm[4])
         self._update_bond(2, self._gates[0], self._lperm[5], self._rperm[5])
         self._update_bond(1, self._gates[0], self._lperm[6], self._rperm[6])
-        self._beta += self._dbeta
+        self._beta += niter * self._dbeta
 
         # reset default leg structure
-        self._tensors[0].permutate(*self._lperm[7])
-        self._tensors[1].permutate(*self._rperm[7])
+        self._tensors[0] = self._tensors[0].permutate(*self._lperm[7])
+        self._tensors[1] = self._tensors[1].permutate(*self._rperm[7])
 
     def _update_bond(self, i, gate, lperm, rperm):
         """
