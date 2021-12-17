@@ -108,7 +108,7 @@ class SimpleUpdate:
 
     @classmethod
     def from_infinite_temperature(
-        cls, Dx, tau, hamiltonians, rcutoff=1e-11, verbosity=0
+        cls, Dx, tau, hamiltonians, rcutoff=1e-10, verbosity=0
     ):
         """
         Initialize simple update at beta = 0 product state.
