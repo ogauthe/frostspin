@@ -243,17 +243,19 @@ class SimpleUpdate:
         Return simple update weights for each bond with degeneracies.
         """
         if issubclass(self._ST, NonAbelianSymmetricTensor):
+            # self._weights is a list of size self._n_bonds
+            # self._weights[i] is a tuple of numpy arrays, as produced by ST.svd
+            # self._weights[i][j] is a numpy array of shape (deg,), corresponding to
+            # irrep irr, where deg and irr are given by self._bond_representations[i].
             weights = []
-            for (w, rep) in zip(self._weights, self._bond_representations):
+            for (wt, rep) in zip(self._weights, self._bond_representations):
                 dw = np.empty(self._ST.representation_dimension(rep))
-                w_index = 0
-                dw_index = 0
-                for (deg, irr) in zip(rep[0], rep[1]):
+                k = 0
+                for (w, deg, irr) in zip(wt, rep[0], rep[1]):
                     dim = self._ST.irrep_dimension(irr)
                     for i in range(deg):
-                        dw[dw_index : dw_index + dim] = w[w_index]
-                        w_index += 1
-                        dw_index += dim
+                        dw[k : k + dim] = w[i]
+                        k += dim
                 weights.append(dw)
         else:
             weights = [np.concatenate(w) for w in self._weights]
