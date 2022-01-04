@@ -10,6 +10,10 @@ from simple_update.simple_update1x2 import SimpleUpdate1x2
 from ctmrg.ctmrg import CTMRG
 
 d = 2
+tau = 0.01
+beta = 1.0
+
+
 SdS_22 = np.array(
     [
         [0.25, 0.0, 0.0, 0.0],
@@ -60,6 +64,9 @@ hff = [None, None, SdS_22, SdS_33]
 hfc = [None, None, SdS_22b, SdS_33b]
 SdS = hff[d]
 SdSb = hfc[d]
+print(f"Test SimpleUpdate1x2 for SU(2) irrep {d}")
+print("Benchmark Asymmetric, U1_Symmetric and SU2_Symmetric results")
+print(f"evolve from beta = 0 to beta = {beta} with tau = {tau}, keeping 2 multiplets")
 
 repd_As = np.array(d)
 repd_U1 = np.arange(d - 1, -d, -2, dtype=np.int8)
@@ -80,15 +87,15 @@ hAs = [
     )
 ]
 
-tau = 0.01
 suU1 = SimpleUpdate1x2.from_infinite_temperature(4, tau, hU1)
 suAs = SimpleUpdate1x2.from_infinite_temperature(4, tau, hAs)
 suSU2 = SimpleUpdate1x2.from_infinite_temperature(2, tau, hSU2)
 
-suAs.evolve(1.0)
-suU1.evolve(1.0)
-suSU2.evolve(1.0)
+suAs.evolve(beta)
+suU1.evolve(beta)
+suSU2.evolve(beta)
 
+print(f"simple update at beta = {beta}")
 print("suAs weights:", *suAs._weights, sep="\n")
 print("suU1 weights:", *suU1._weights, sep="\n")
 print("suSU2 weights:", *suSU2._weights, sep="\n")
@@ -102,11 +109,14 @@ ctmAs = CTMRG.from_elementary_tensors(til, tensorsAs, 27, degen_ratio=0.99)
 ctmU1 = CTMRG.from_elementary_tensors(til, tensorsU1, 27, degen_ratio=0.99)
 ctmSU2 = CTMRG.from_elementary_tensors(til, tensorsSU2, 15, degen_ratio=0.99)
 
-for i in range(10):
+ctm_iter = 10
+print(f"Run CTMRG for {ctm_iter} iterations...")
+for i in range(ctm_iter):
     ctmAs.iterate()
     ctmU1.iterate()
     ctmSU2.iterate()
 
+print("Compute rdm2x1 and check spectra")
 rdmAs = ctmAs.compute_rdm2x1(0, 0)
 rdmU1 = ctmU1.compute_rdm2x1(0, 0)
 rdmSU2 = ctmSU2.compute_rdm2x1(0, 0)
