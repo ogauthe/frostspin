@@ -278,6 +278,7 @@ class SimpleUpdate:
         r"""
         Update given bond by applying gate, computing the SVD and truncate the result.
         A 1D geometry is considered for clarity, the function being direction-agnostic.
+        Left and right leg initial ordering is the same for simplicity.
 
         Parameters
         ----------
@@ -295,8 +296,8 @@ class SimpleUpdate:
             left                right               gate
             /  \                /  \               /    \
            /    \              /    \             /      \
-         ///    /\            /\    \\\          /\      /\
-        auxL   pL mid       mid pR   auxR       pL pR   pL pR
+         ///    /\           ///    /\           /\      /\
+        auxL   pL mid       auxR   pR mid      pL pR   pL pR
 
         auxL and auxR can be anything, with any number of leg inside. They will be cut
         and stay inside cstL and cstR, unaffected by the gate. pL and pR are the left
@@ -305,17 +306,17 @@ class SimpleUpdate:
         # cut left and right between const and effective parts
         cstL, svL, effL = left.svd()  # auxL-effL=p,m
         effL.diagonal_imul(svL, left=True)
-        effR, svR, cstR = right.svd()  # m,p=effR-auxR
-        effR.diagonal_imul(svR)
+        cstR, svR, effR = right.svd()  # auxR-effR=p,m
+        effR.diagonal_imul(svR, left=True)
 
         # change tensor structure to contract mid
         effL = effL.permutate((0, 1), (2,))  # auxL,p=effL-m
         effL.diagonal_imul([1.0 / w for w in weights])
-        effR = effR.permutate((0,), (1, 2))  # m-effR=p,auxR
+        effR = effR.permutate((2,), (0, 1))  # m-effR=auxR,p
 
         # construct matrix theta and apply gate
-        theta = effL @ effR  # auxL,pL=theta=p,auxR
-        theta = theta.permutate((0, 3), (1, 2))  # auxL, auxR = theta = pL, pR
+        theta = effL @ effR  # auxL,pL=theta=auxR,pR
+        theta = theta.permutate((0, 2), (1, 3))  # auxL, auxR = theta = pL, pR
         theta = theta @ gate
 
         # transpose back LxR, compute SVD and truncate
@@ -329,11 +330,11 @@ class SimpleUpdate:
 
         # reshape to initial tree structure
         effL = effL.permutate((0,), (1, 2))  # auxL - effL = pL,m
-        effR = effR.permutate((0, 2), (1,))  # m, pR = effR - auxR
+        effR = effR.permutate((1,), (2, 0))  # auxR - effR = pR,m
 
         # reconnect with const parts
         newL = cstL @ effL
-        newR = effR @ cstR
+        newR = cstR @ effR
 
         return newL, newR, new_weights
 

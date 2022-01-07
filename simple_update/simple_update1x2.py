@@ -26,28 +26,6 @@ class SimpleUpdate1x2(SimpleUpdate):
     _n_hamiltonians = 1
     _n_tensors = 2
 
-    _lperm = (
-        ((1, 3, 4, 5), (0, 2)),
-        ((0, 5, 2, 3), (4, 1)),
-        ((0, 1, 5, 3), (4, 2)),
-        ((0, 1, 2, 5), (4, 3)),
-        ((0, 1, 2, 5), (4, 3)),
-        ((0, 1, 5, 3), (4, 2)),
-        ((0, 5, 2, 3), (4, 1)),
-        ((4, 0), (5, 1, 2, 3)),
-    )
-
-    _rperm = (
-        ((4, 0), (1, 5, 2, 3)),
-        ((3, 1), (2, 0, 4, 5)),
-        ((4, 1), (2, 3, 0, 5)),
-        ((5, 1), (2, 3, 4, 0)),
-        ((5, 1), (2, 3, 4, 0)),
-        ((4, 1), (2, 3, 0, 5)),
-        ((3, 1), (2, 0, 4, 5)),
-        ((1, 2), (4, 5, 0, 3)),
-    )
-
     @classmethod
     def from_infinite_temperature(
         cls, Dx, tau, hamiltonians, rcutoff=1e-10, verbosity=0
@@ -89,6 +67,12 @@ class SimpleUpdate1x2(SimpleUpdate):
             sing = np.array([[1], [1]])
             left = ST.from_array(t0, (phys,), (phys, sing, sing, sing, sing))
 
+        left = left.permutate((1, 3, 4, 5), (0, 2))
+        #       left                right
+        #       /  \                /  \
+        #      /    \              /    \
+        #    ////   /\           ///    /\
+        #   a234   p  1         a234   p  1
         return cls(
             Dx,
             0.0,
@@ -105,14 +89,16 @@ class SimpleUpdate1x2(SimpleUpdate):
         # adding 1/sqrt(weights) is simpler in dense form
         sw1, sw2, sw3, sw4 = [1.0 / np.sqrt(w) for w in self.get_weights(sort=False)]
         A0 = self._tensors[0]
-        A = np.einsum("paurdl,u,r,d,l->paurdl", A0.toarray(), sw1, sw2, sw3, sw4)
+        A = np.einsum("ardlpu,u,r,d,l->ardlpu", A0.toarray(), sw1, sw2, sw3, sw4)
         B0 = self._tensors[1]
-        B = np.einsum("paurdl,u,r,d,l->paurdl", B0.toarray(), sw3, sw4, sw1, sw2)
+        B = np.einsum("alurpd,u,r,d,l->alurpd", B0.toarray(), sw3, sw4, sw1, sw2)
         # same problem as in from_infinite_temperature: conjugate_columns has differen
         # effect between U(1) and SU(2) from_array.
         cc = self._ST.symmetry == "SU(2)"
         A = self._ST.from_array(A, A0._row_reps, A0._col_reps, conjugate_columns=cc)
         B = self._ST.from_array(B, B0._row_reps, B0._col_reps, conjugate_columns=cc)
+        A = A.permutate((4, 0), (5, 1, 2, 3))
+        B = B.permutate((4, 0), (2, 3, 5, 1))
         return A, B
 
     def __repr__(self):
@@ -135,61 +121,43 @@ class SimpleUpdate1x2(SimpleUpdate):
             return  # else evolve for 1 step out of niter loop
         niter = round(beta_evolve / self._dbeta)  # 2nd order: evolve 2*tau by step
 
-        # tensors A and B start from the default state
+        # tensors A and B start from the default state corresponding to update 1
         #      A,B
         #     /   \
-        #    /\   /\\\
-        #   p a   1 234
+        #   ///   /\
+        #  a234  p  1
         #
-        # cast them to structure required for update 1, then before each update
-        # permutate them to the next one.
+        # before each update, permutate them to required structure
+        # note that they always have the same structure
 
-        # for tensor A, this means start from ((p,a), (1,2,3,4))
-        # -> ((a,2,3,4), (p,1))     swap = ((1,3,4,5), (0,2))
+        # this means start from ((a, 2, 3, 4), (p, 1))
+        # -> ((a,2,3,4), (p,1))     swap = ((0,1,2,3), (4,5)) = nothing
         # -> ((a,1,3,4), (p,2))     swap = ((0,5,2,3), (4,1))
         # -> ((a,1,2,4), (p,3))     swap = ((0,1,5,3), (4,2))
         # -> ((a,1,2,3), (p,4))     swap = ((0,1,2,5), (4,3))
         # -> ((a,1,2,4), (p,3))     swap = ((0,1,2,5), (4,3))
         # -> ((a,1,3,4), (p,2))     swap = ((0,1,5,3), (4,2))
         # -> ((a,2,3,4), (p,1))     swap = ((0,5,2,3), (4,1))
-        # ...
-        # -> ((p,a), (1,2,3,4))     swap = ((4,0), (5,1,2,3))
 
-        # for tensor B, this means start from ((p,a), (3,4,1,2))
-        # -> ((1,p), (3,4,p,1))     swap = ((4,0), (1,5,2,3))
-        # -> ((2,p), (3,4,p,2))     swap = ((3,1), (2,0,4,5))
-        # -> ((3,p), (2,4,p,3))     swap = ((4,1), (2,3,0,5))
-        # -> ((4,p), (2,3,p,4))     swap = ((5,1), (2,3,4,0))
-        # -> ((3,p), (2,4,p,3))     swap = ((5,1), (2,3,4,0))
-        # -> ((2,p), (3,4,p,2))     swap = ((4,1), (2,3,0,5))
-        # -> ((1,p), (3,4,p,1))     swap = ((3,1), (2,0,4,5))
-        # ...
-        # -> ((p,a), (3,4,1,2))     swap = ((1,2), (4,5,0,3))
-
-        self._update_bond(1, self._gates[0], self._lperm[0], self._rperm[0])
+        self._update_bond(1, self._gates[0], ((0, 1, 2, 3), (4, 5)))
         for i in range(niter - 1):  # there is 1 step out of the loop
-            self._update_bond(2, self._gates[0], self._lperm[1], self._rperm[1])
-            self._update_bond(3, self._gates[0], self._lperm[2], self._rperm[2])
-            self._update_bond(4, self._squared_gates[0], self._lperm[3], self._rperm[3])
-            self._update_bond(3, self._gates[0], self._lperm[4], self._rperm[4])
-            self._update_bond(2, self._gates[0], self._lperm[5], self._rperm[5])
-            self._update_bond(1, self._squared_gates[0], self._lperm[6], self._rperm[6])
-        self._update_bond(2, self._gates[0], self._lperm[1], self._rperm[1])
-        self._update_bond(3, self._gates[0], self._lperm[2], self._rperm[2])
-        self._update_bond(4, self._gates[0], self._lperm[3], self._rperm[3])
-        self._update_bond(3, self._gates[0], self._lperm[4], self._rperm[4])
-        self._update_bond(2, self._gates[0], self._lperm[5], self._rperm[5])
-        self._update_bond(1, self._gates[0], self._lperm[6], self._rperm[6])
+            self._update_bond(2, self._gates[0], ((0, 5, 2, 3), (4, 1)))
+            self._update_bond(3, self._gates[0], ((0, 1, 5, 3), (4, 2)))
+            self._update_bond(4, self._squared_gates[0], ((0, 1, 2, 5), (4, 3)))
+            self._update_bond(3, self._gates[0], ((0, 1, 2, 5), (4, 3)))
+            self._update_bond(2, self._gates[0], ((0, 1, 5, 3), (4, 2)))
+            self._update_bond(1, self._squared_gates[0], ((0, 5, 2, 3), (4, 1)))
+        self._update_bond(2, self._gates[0], ((0, 5, 2, 3), (4, 1)))
+        self._update_bond(3, self._gates[0], ((0, 1, 5, 3), (4, 2)))
+        self._update_bond(4, self._gates[0], ((0, 1, 2, 5), (4, 3)))
+        self._update_bond(3, self._gates[0], ((0, 1, 2, 5), (4, 3)))
+        self._update_bond(2, self._gates[0], ((0, 1, 5, 3), (4, 2)))
+        self._update_bond(1, self._gates[0], ((0, 5, 2, 3), (4, 1)))
         self._beta += niter * self._dbeta
 
-        # reset default leg structure
-        self._tensors[0] = self._tensors[0].permutate(*self._lperm[7])
-        self._tensors[1] = self._tensors[1].permutate(*self._rperm[7])
-
-    def _update_bond(self, i, gate, lperm, rperm):
+    def _update_bond(self, i, gate, swap):
         """
         Update bond i between tensors A and B.
-        Tranpose tensors A and B, assuming default leg ordering.
         """
         # bond indices start at 1: -1 shit to get corresponding element in array
         if self.verbosity > 2:
@@ -197,8 +165,8 @@ class SimpleUpdate1x2(SimpleUpdate):
                 f"update bond {i}: rep {i} = {self._bond_representations[i - 1]},",
             )
 
-        left = self._tensors[0].permutate(*lperm)
-        right = self._tensors[1].permutate(*rperm)
+        left = self._tensors[0].permutate(*swap)
+        right = self._tensors[1].permutate(*swap)
         nl, nr, nw = self.update_first_neighbor(left, right, self._weights[i - 1], gate)
 
         self._bond_representations[i - 1] = left.col_reps[1]
