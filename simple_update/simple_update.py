@@ -360,11 +360,11 @@ class SimpleUpdate:
 
         Leg structures must be:
 
-            left            mid            right              gate
-            /  \           /   \           /   \             /    \
-           /    \         /\    \         /     \           /      \
-         ///    /\       /  \   \\\      /\     \\\        /\      /\
-        auxL   pL mL    mL  mR  auxm    mR pR   auxR     pL pR    pL pR
+            left            mid             right             gate
+            /  \           /   \            /   \            /    \
+           /    \         /\    \          /     \          /      \
+         ///    /\       /  \   \\\      ///     /\        /\      /\
+        auxL   pL mL    mL  mR  auxm    auxR    pR mR     pL pR    pL pR
 
         auxL, auxm and auxR can be anything, with any number of leg inside. They will be
         cut and stay inside constant parts, unaffected by the gate. pL and pR are the
@@ -381,9 +381,9 @@ class SimpleUpdate:
         effm.diagonal_imul(svm)
         effm = effm.permutate((0,), (1, 2))  # mL - effm = mR, auxm
 
-        effR, svR, cstR, auxR = right.svd()  # mR, pR = effR - auxR
+        cstR, svR, effR, auxR = right.svd()  # auxR - effR = pR, mR
         effR.diagonal_imul(svR, left=True)
-        effR = effR.permutate((0,), (1, 2))  # mR - effR = pR, auxR
+        effR = effR.permutate((2,), (1, 0))  # mR - effR = pR, auxR
         effR.diagonal_imul([1 / w for w in weightsR], left=True)
 
         # contract tensor network
@@ -414,10 +414,10 @@ class SimpleUpdate:
         # reshape to initial tree structure
         effL = effL.permutate((0,), (1, 2))  # auxL - effL = pL, mL
         effm = effm.permutate((0, 2), (1,))  # mL, mR = effm - auxm
-        effR = effR.permutate((0, 1), (2,))  # mR, pR = effR - auxR
+        effR = effR.permutate((2,), (1, 0))  # auxR - effR = pR, mR
 
         # reconnect with const parts
         newL = cstL @ effL
         new_mid = effm @ cstm
-        newR = effR @ cstR
+        newR = cstR @ effR
         return newL, new_mid, newR, new_weightsL, new_weightsR
