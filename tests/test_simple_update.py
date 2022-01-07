@@ -12,6 +12,7 @@ from ctmrg.ctmrg import CTMRG
 d = 2
 tau = 0.01
 beta = 1.0
+params = {"degen_ratio": 0.99, "cutoff": 1e-10}
 
 
 SdS_22 = np.array(
@@ -105,9 +106,9 @@ tensorsU1 = suU1.get_tensors()
 tensorsSU2 = suSU2.get_tensors()
 til = "AB\nBA"
 
-ctmAs = CTMRG.from_elementary_tensors(til, tensorsAs, 27, degen_ratio=0.99)
-ctmU1 = CTMRG.from_elementary_tensors(til, tensorsU1, 27, degen_ratio=0.99)
-ctmSU2 = CTMRG.from_elementary_tensors(til, tensorsSU2, 15, degen_ratio=0.99)
+ctmAs = CTMRG.from_elementary_tensors(til, tensorsAs, 35, **params)
+ctmU1 = CTMRG.from_elementary_tensors(til, tensorsU1, 35, **params)
+ctmSU2 = CTMRG.from_elementary_tensors(til, tensorsSU2, 13, **params)
 
 ctm_iter = 10
 print(f"Run CTMRG for {ctm_iter} iterations...")
@@ -116,6 +117,15 @@ for i in range(ctm_iter):
     ctmU1.iterate()
     ctmSU2.iterate()
 
+print("done.", "#" * 79, sep="\n")
+print("Asymmetric CTMRG:")
+print(ctmAs)
+print("\nU(1) CTMRG:")
+print(ctmU1)
+print("\nSU(2) CTMRG:")
+print(ctmSU2)
+
+print("", "#" * 79, sep="\n")
 print("Compute rdm2x1 and check spectra")
 rdmAs = ctmAs.compute_rdm2x1(0, 0)
 rdmU1 = ctmU1.compute_rdm2x1(0, 0)
@@ -131,3 +141,15 @@ rdmSU2 = ctmSU2.compute_rdm1x2(0, 0)
 print(lg.eigvalsh(rdmAs), f" {lg.norm(rdmAs-rdmAs.T.conj()):.0e}")
 print(lg.eigvalsh(rdmU1), f" {lg.norm(rdmU1-rdmU1.T.conj()):.0e}")
 print(lg.eigvalsh(rdmSU2), f" {lg.norm(rdmSU2-rdmSU2.T.conj()):.0e}")
+
+xihAs = ctmAs.compute_corr_length_h()
+xivAs = ctmAs.compute_corr_length_v()
+xihU1 = ctmU1.compute_corr_length_h()
+xivU1 = ctmU1.compute_corr_length_v()
+xihSU2 = ctmSU2.compute_corr_length_h()
+xivSU2 = ctmSU2.compute_corr_length_v()
+
+print("\nCorrelation lengths:")
+print(f"xiAs: ({xihAs:.3f}, {xivAs:.3f})")
+print(f"xiU1: ({xihU1:.3f}, {xivU1:.3f})")
+print(f"xiSU2: ({xihSU2:.3f}, {xivSU2:.3f})")
