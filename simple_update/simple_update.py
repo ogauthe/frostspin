@@ -27,7 +27,6 @@ class SimpleUpdate:
         rcutoff,
         tensors,
         hamiltonians,
-        bond_representations,
         weights,
         verbosity,
     ):
@@ -61,8 +60,6 @@ class SimpleUpdate:
             raise ValueError("Invalid number of tensors")
         if len(hamiltonians) != self._n_hamiltonians:
             raise ValueError("Invalid number of Hamiltonians")
-        if len(bond_representations) != self._n_bonds:
-            raise ValueError("Invalid number of representations")
         if len(weights) != self._n_bonds:
             raise ValueError("Invalid number of weights")
 
@@ -81,7 +78,6 @@ class SimpleUpdate:
         self._hamilts = list(hamiltonians)
         self.tau = tau  # also set gates
         self.rcutoff = rcutoff
-        self._bond_representations = bond_representations
         self._weights = weights
 
         # quick and dirty: define on the fly method to normalize weights
@@ -204,7 +200,6 @@ class SimpleUpdate:
             data |= t.get_data_dic(prefix=f"_SimpleUpdate_tensor_{i}")
 
         for i in range(self._n_bonds):
-            data[f"_SimpleUpdate_bond_rep_{i}"] = self._bond_representations[i]
             data[f"_SimpleUpdate_weights_{i}"] = self._weights[i]
 
         np.savez_compressed(savefile, **data, **additional_data)
@@ -229,12 +224,16 @@ class SimpleUpdate:
     def beta(self):
         return self._beta
 
+    def get_bond_representations(self):
+        raise NotImplementedError("Must be defined in derived class")
+
     def bond_entanglement_entropy(self):
         """
         Compute the entanglement entropy on every bonds as s_ent = -sum_i p_i log_p_i
         """
         s_ent = np.empty(self._n_bonds)
-        for i, (w, rep) in enumerate(zip(self._weights, self._bond_representations)):
+        bond_rep = self.get_bond_representations()
+        for i, (w, rep) in enumerate(zip(self._weights, bond_rep)):
             s_ent[i] = -w * np.log(w) @ rep.get_multiplet_structure()
         return s_ent
 
@@ -246,9 +245,9 @@ class SimpleUpdate:
             # self._weights is a list of size self._n_bonds
             # self._weights[i] is a tuple of numpy arrays, as produced by ST.svd
             # self._weights[i][j] is a numpy array of shape (deg,), corresponding to
-            # irrep irr, where deg and irr are given by self._bond_representations[i].
+            # irrep irr, where deg and irr are given by get_bond_representations[i].
             weights = []
-            for (wt, rep) in zip(self._weights, self._bond_representations):
+            for (wt, rep) in zip(self._weights, self.get_bond_representations()):
                 dw = np.empty(self._ST.representation_dimension(rep))
                 k = 0
                 for (w, deg, irr) in zip(wt, rep[0], rep[1]):

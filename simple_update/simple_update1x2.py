@@ -4,7 +4,7 @@ from simple_update.simple_update import SimpleUpdate
 
 
 class SimpleUpdate1x2(SimpleUpdate):
-    """
+    r"""
     Simple update algorithm on plaquette AB, with
     - 4 bonds
     - 1 Hamiltonian
@@ -19,6 +19,13 @@ class SimpleUpdate1x2(SimpleUpdate):
           3     1
 
     Notice that leg index starts at 1, a -1 shift is required to get array index.
+
+    Out of evolve method, leg structure is:
+            A                   B
+           /  \                /  \
+          /    \              /    \
+        ////   /\           ///    /\
+       a234   p  1         a234   p  1
     """
 
     _unit_cell = "AB"
@@ -80,10 +87,17 @@ class SimpleUpdate1x2(SimpleUpdate):
             rcutoff,
             [left, left.group_conjugated().copy()],
             hamiltonians,
-            [sing] * cls._n_bonds,
             [np.ones(1)] * cls._n_bonds,
             verbosity,
         )
+
+    def get_bond_representations(self):
+        left = self._tensors[0]
+        r1 = self._ST.conjugate_representation(left.col_reps[1])
+        r2 = left.row_reps[1]
+        r3 = left.row_reps[2]
+        r4 = left.row_reps[3]
+        return r1, r2, r3, r4
 
     def get_tensors(self):
         # adding 1/sqrt(weights) is simpler in dense form
@@ -160,16 +174,10 @@ class SimpleUpdate1x2(SimpleUpdate):
         Update bond i between tensors A and B.
         """
         # bond indices start at 1: -1 shit to get corresponding element in array
-        if self.verbosity > 2:
-            print(
-                f"update bond {i}: rep {i} = {self._bond_representations[i - 1]},",
-            )
-
         left = self._tensors[0].permutate(*swap)
         right = self._tensors[1].permutate(*swap)
         nl, nr, nw = self.update_first_neighbor(left, right, self._weights[i - 1], gate)
 
-        self._bond_representations[i - 1] = left.col_reps[1]
         self._weights[i - 1] = nw
         self._tensors[0] = nl
         self._tensors[1] = nr
