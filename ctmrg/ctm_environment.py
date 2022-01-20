@@ -37,11 +37,28 @@ def _initialize_env(A):
     C3 = init_C(A.permutate((0, 1, 3, 4), (2, 5)))
     C4 = init_C(A.permutate((0, 1, 4, 5), (2, 3)))
 
+    # merging is trivial for abelian symmetries, however for non-abelian symmetries
+    # one must be careful not to change tree structure. With current tree structure
+    #       singlets
+    #       /     /
+    #      /\    /\
+    #     /\ \  /\ \
+    #
+    # only first 2 legs of either rows or columns can be merged: merging legs 1 and 2
+    # creates different tree strucutre
+    #    /
+    #   /\
+    #  / /\
+    #
+    # to avoid this, additional leg permutation are added so that legs to be merged are
+    # always 0 and 1 in row or columns. Additional cost is very low, just add one
+    # permutation on T with total size D^6.
     temp = A.permutate((0, 1, 2), (3, 4, 5))
     temp = temp.H @ temp
-    temp = temp.permutate((3, 0), (4, 1, 5, 2))
-    repT1 = (combine(caxes[1], axes[1]), axes[2], caxes[2], combine(axes[3], caxes[3]))
+    temp = temp.permutate((3, 0), (5, 2, 4, 1))
+    repT1 = (combine(caxes[1], axes[1]), combine(axes[3], caxes[3]), axes[2], caxes[2])
     T1 = type(A)(repT1[:1], repT1[1:], temp.blocks, temp.block_irreps)
+    T1 = T1.permutate((0,), (2, 3, 1))
 
     temp = A.permutate((0, 1, 3), (2, 4, 5))
     temp = temp.H @ temp
@@ -51,15 +68,17 @@ def _initialize_env(A):
 
     temp = A.permutate((0, 1, 4), (2, 3, 5))
     temp = temp.H @ temp
-    temp = temp.permutate((3, 0, 4, 1), (5, 2))
-    repT3 = (caxes[0], axes[0], combine(caxes[1], axes[1]), combine(axes[3], caxes[3]))
-    T3 = type(A)(repT3[:3], repT3[3:], temp.blocks, temp.block_irreps)
+    temp = temp.permutate((4, 1), (5, 2, 3, 0))
+    repT3 = (combine(caxes[1], axes[1]), combine(axes[3], caxes[3]), axes[0], caxes[0])
+    T3 = type(A)(repT3[:1], repT3[1:], temp.blocks, temp.block_irreps)
+    T3 = T3.permutate((2, 3, 0), (1,))
 
     temp = A.permutate((0, 1, 5), (2, 3, 4))
     temp = temp.H @ temp
-    temp = temp.permutate((3, 0), (4, 1, 5, 2))
-    repT4 = (combine(caxes[0], axes[0]), axes[1], caxes[1], combine(axes[2], caxes[2]))
+    temp = temp.permutate((3, 0), (5, 2, 4, 1))
+    repT4 = (combine(caxes[0], axes[0]), combine(axes[2], caxes[2]), axes[1], caxes[1])
     T4 = type(A)(repT4[:1], repT4[1:], temp.blocks, temp.block_irreps)
+    T4 = T4.permutate((0,), (2, 3, 1))
 
     return C1, T1, C2, T2, C3, T3, C4, T4
 
