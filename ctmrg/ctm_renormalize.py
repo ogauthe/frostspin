@@ -70,6 +70,7 @@ def construct_projectors(
     ind4 = corner4.block_irreps.searchsorted(shared)
 
     # first loop: compute SVD for all blocks
+    r_blocks, rt_blocks = [[None] * n_blocks for i in range(2)]
     u_blocks, s_blocks, v_blocks = [[None] * n_blocks for i in range(3)]
 
     # CTMRG is a fixed point algorithm: expect symmetry sectors to converge very fast.
@@ -85,30 +86,30 @@ def construct_projectors(
     block_chi = np.minimum(chi, block_chi)
 
     for bi in range(n_blocks):  # SVD only for shared blocks
-        c1 = corner1.blocks[ind1[bi]]
-        c2 = corner2.blocks[ind2[bi]]
-        c3 = corner3.blocks[ind3[bi]]
-        c4 = corner4.blocks[ind4[bi]]
-        if max(max(c.shape for c in (c1, c2, c3, c4))) < max(100, 6 * block_chi[bi]):
-            m = c1 @ c2 @ c3 @ c4  # full matrix product and svd for small blocks
+        r = corner1.blocks[ind1[bi]] @ corner2.blocks[ind2[bi]]
+        rt = corner3.blocks[ind3[bi]] @ corner4.blocks[ind4[bi]]
+        if max(r.shape + rt.shape) < max(100, 6 * block_chi[bi]):
+            m = r @ rt  # full matrix product and svd for small blocks
             u, s, v = lg.svd(m, full_matrices=False, overwrite_a=True)
-        else:  # never construct R, Rt and R @ Rt for large blocks
-            c1H, c2H, c3H, c4H = c1.conj().T, c2.conj().T, c3.conj().T, c4.conj().T
-            n = c1.shape[0]
+        else:  # never construct R @ Rt for large blocks
+            rH, rtH = r.conj().T, rt.conj().T
+            n = r.shape[0]
 
             def corner_XHX(x):
-                return c4H @ (c3H @ (c2H @ (c1H @ (c1 @ (c2 @ (c3 @ (c4 @ x)))))))
+                return rtH @ (rH @ (r @ (rt @ x)))
 
-            op = slg.LinearOperator(matvec=corner_XHX, shape=(n, n), dtype=c1.dtype)
+            op = slg.LinearOperator(matvec=corner_XHX, shape=(n, n), dtype=r.dtype)
             # a good precision is required for singular values, especially with pseudo
             # inverse. If precision is not good enough, reduced density matrix are less
             # hermitian. This requires a large number of computed vectors (ncv).
             ncv = int(ncv_ratio * block_chi[bi])
             eigvals, eigvec = slg.eigsh(op, k=block_chi[bi], ncv=ncv, maxiter=1000)
-            u = c1 @ (c2 @ (c3 @ (c4 @ eigvec)))
+            u = r @ (rt @ eigvec)
             u, s, v = lg.svd(u, full_matrices=False, overwrite_a=True)
             v = v @ eigvec.T.conj()
 
+        r_blocks[bi] = r
+        rt_blocks[bi] = rt
         u_blocks[bi] = u
         s_blocks[bi] = s
         v_blocks[bi] = v
@@ -122,16 +123,11 @@ def construct_projectors(
     pt_blocks = []
     non_empty = block_cuts.nonzero()[0]
     # construct P.T blocks to avoid conjugating any representation
-    # never construct large matrices R and Rt, contract with truncated matrix first
     for bi in non_empty:
         cut = block_cuts[bi]
         s12 = 1.0 / np.sqrt(s_blocks[bi][:cut])
-        p = s12[:, None] * u_blocks[bi][:, :cut].T.conj()
-        p = p @ corner1.blocks[ind1[bi]] @ corner2.blocks[ind2[bi]]
-        pt = v_blocks[bi][:cut].T.conj() * s12
-        pt = corner3.blocks[ind3[bi]] @ (corner4.blocks[ind4[bi]] @ pt)
-        p_blocks.append(p)
-        pt_blocks.append(pt)
+        p_blocks.append(s12[:, None] * u_blocks[bi][:, :cut].T.conj() @ r_blocks[bi])
+        pt_blocks.append(rt_blocks[bi] @ v_blocks[bi][:cut].T.conj() * s12)
 
     block_irreps = corner2.block_irreps[ind2[non_empty]]
     mid_rep = corner2.init_representation(block_cuts[non_empty], block_irreps)
