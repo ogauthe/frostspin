@@ -70,7 +70,6 @@ def construct_projectors(
     ind4 = corner4.block_irreps.searchsorted(shared)
 
     # first loop: compute SVD for all blocks
-    r_blocks, rt_blocks = [[None] * n_blocks for i in range(2)]
     u_blocks, s_blocks, v_blocks = [[None] * n_blocks for i in range(3)]
 
     # CTMRG is a fixed point algorithm: expect symmetry sectors to converge very fast.
