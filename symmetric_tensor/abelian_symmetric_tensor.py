@@ -286,7 +286,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
         assert (
             abs((n := lg.norm(arr)) - np.sqrt(sum(lg.norm(b) ** 2 for b in blocks)))
             <= 2e-13 * n  # allows for arr = 0
-        )
+        ), "norm is not conserved in AbelianSymmetricTensor cast"
         return cls(row_reps, col_reps, blocks, block_irreps)
 
     def _toarray(self):
