@@ -173,6 +173,16 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
             cls.combine_representations(*row_reps),
             cls.combine_representations(*col_reps),
         )
+        assert abs(
+            (n := lg.norm(arr))
+            - np.sqrt(
+                sum(
+                    cls.irrep_dimension(irr) * lg.norm(b) ** 2
+                    for (irr, b) in zip(block_irreps, blocks)
+                )
+            )
+            <= 2e-13 * n  # allows for arr = 0
+        ), "norm is not conserved in SymmetricTensor cast"
         return cls(row_reps, col_reps, blocks, block_irreps)
 
     def _toarray(self):
