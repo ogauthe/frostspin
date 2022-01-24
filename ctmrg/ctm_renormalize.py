@@ -88,23 +88,17 @@ def construct_projectors(
     for bi in range(n_blocks):  # SVD only for shared blocks
         r = corner1.blocks[ind1[bi]] @ corner2.blocks[ind2[bi]]
         rt = corner3.blocks[ind3[bi]] @ corner4.blocks[ind4[bi]]
-        if max(r.shape + rt.shape) < max(100, 6 * block_chi[bi]):
-            m = r @ rt  # full matrix product and svd for small blocks
+        m = r @ rt
+        if max(r.shape + rt.shape) < max(100, 6 * block_chi[bi]):  # small blocks: dense
             u, s, v = lg.svd(m, full_matrices=False, overwrite_a=True)
-        else:  # never construct R @ Rt for large blocks
-            rH, rtH = r.conj().T, rt.conj().T
-            n = r.shape[0]
-
-            def corner_XHX(x):
-                return rtH @ (rH @ (r @ (rt @ x)))
-
-            op = slg.LinearOperator(matvec=corner_XHX, shape=(n, n), dtype=r.dtype)
+        else:
+            m2 = m.conj().T @ m  # faster constructing full mH @ m than on the fly prod
             # a good precision is required for singular values, especially with pseudo
             # inverse. If precision is not good enough, reduced density matrix are less
             # hermitian. This requires a large number of computed vectors (ncv).
             ncv = int(ncv_ratio * block_chi[bi])
-            eigvals, eigvec = slg.eigsh(op, k=block_chi[bi], ncv=ncv, maxiter=1000)
-            u = r @ (rt @ eigvec)
+            eigvals, eigvec = slg.eigsh(m2, k=block_chi[bi], ncv=ncv, maxiter=1000)
+            u = m @ eigvec
             u, s, v = lg.svd(u, full_matrices=False, overwrite_a=True)
             v = v @ eigvec.T.conj()
 
