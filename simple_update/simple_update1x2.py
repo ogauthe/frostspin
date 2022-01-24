@@ -63,7 +63,7 @@ class SimpleUpdate1x2(SimpleUpdate):
 
         # quick and dirty. Need singlet as symmetry member.
         if ST.symmetry == "trivial":
-            sing = np.array(1)
+            sing = np.array([1])
             left = ST.from_array(t0, (phys,), (phys, sing, sing, sing, sing))
         elif ST.symmetry == "U(1)":
             sing = np.array([0], dtype=np.int8)

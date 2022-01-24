@@ -193,7 +193,7 @@ class SimpleUpdate:
             "_SimpleUpdate_tau": self._tau,
             "_SimpleUpdate_rcutoff": self.rcutoff,
         }
-        for i, h in enumerate(self._hamiltonians):
+        for i, h in enumerate(self._hamilts):
             data |= h.get_data_dic(prefix=f"_SimpleUpdate_hamiltonian_{i}")
 
         for i, t in enumerate(self._tensors):
@@ -232,9 +232,8 @@ class SimpleUpdate:
         Compute the entanglement entropy on every bonds as s_ent = -sum_i p_i log_p_i
         """
         s_ent = np.empty(self._n_bonds)
-        bond_rep = self.get_bond_representations()
-        for i, (w, rep) in enumerate(zip(self._weights, bond_rep)):
-            s_ent[i] = -w * np.log(w) @ rep.get_multiplet_structure()
+        dw = self.get_weights()  # dense
+        s_ent = np.array([-w @ np.log(w) for w in dw])
         return s_ent
 
     def get_weights(self, sort=True):
