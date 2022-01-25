@@ -129,14 +129,14 @@ class SimpleUpdate2x2(SimpleUpdate):
             1.0 / np.sqrt(w) for w in self.get_weights(sort=False)
         ]
         A0 = self._tensors[0]
-        A = np.einsum("paurdl,u,r,d,l->paurdl", A0.toarray(), sw1, sw2, sw3, sw4)
+        A = np.einsum("ardlpu,u,r,d,l->paurdl", A0.toarray(), sw1, sw2, sw3, sw4)
         B0 = self._tensors[1]
-        B = np.einsum("paurdl,u,r,d,l->paurdl", B0.toarray(), sw5, sw4, sw6, sw2)
+        B = np.einsum("aurdpl,u,r,d,l->paurdl", B0.toarray(), sw5, sw4, sw6, sw2)
         C0 = self._tensors[2]
-        C = np.einsum("paurdl,u,r,d,l->paurdl", C0.toarray(), sw3, sw7, sw1, sw8)
+        C = np.einsum("aurlpd,u,r,d,l->paurdl", C0.toarray(), sw3, sw7, sw1, sw8)
         D0 = self._tensors[3]
-        D = np.einsum("paurdl,u,r,d,l->paurdl", D0.toarray(), sw6, sw8, sw5, sw7)
-        # same problem as in from_infinite_temperature: conjugate_columns has differen
+        D = np.einsum("aurlpd,u,r,d,l->paurdl", D0.toarray(), sw6, sw8, sw5, sw7)
+        # same problem as in from_infinite_temperature: conjugate_columns has different
         # effect between U(1) and SU(2) from_array.
         cc = self._ST.symmetry == "SU(2)"
         A = self._ST.from_array(A, A0._row_reps, A0._col_reps, conjugate_columns=cc)
@@ -148,15 +148,14 @@ class SimpleUpdate2x2(SimpleUpdate):
     def get_bond_representations(self):
         A = self._tensors[0]
         D = self._tensors[3]
-        r1 = self._ST.conjugate_representation(A.col_reps[1])
-        r2 = A.row_reps[1]
-        r3 = A.row_reps[2]
-        r4 = A.row_reps[3]
-        r5 = D.row_reps[1]
-        r6 = D.row_reps[2]
-        r7 = D.row_reps[3]
-        r8 = D.row_reps[3]
-        raise NotImplementedError("TODO")
+        r1 = A.conjugate_representation(A.col_reps[1])  # u
+        r2 = A.row_reps[1]  # r
+        r3 = A.row_reps[2]  # d
+        r4 = A.row_reps[3]  # l
+        r5 = D.conjugate_representation(D.col_reps[1])  # d
+        r6 = D.row_reps[1]  # u
+        r7 = D.row_reps[3]  # l
+        r8 = D.row_reps[2]  # r
         return r1, r2, r3, r4, r5, r6, r7, r8
 
     def __repr__(self):
