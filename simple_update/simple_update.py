@@ -358,11 +358,11 @@ class SimpleUpdate:
 
         Leg structures must be:
 
-            left            mid             right             gate
-            /  \           /   \            /   \            /    \
-           /    \         /\    \          /     \          /      \
-         ///    /\       /  \   \\\      ///     /\        /\      /\
-        auxL   pL mL    mL  mR  auxm    auxR    pR mR     pL pR    pL pR
+            left             mid             right             gate
+            /  \            /   \            /   \            /    \
+           /    \          /     \          /     \          /      \
+         ///    /\       ///     /\       ///     /\        /\      /\
+        auxL   pL mL    auxm   mL mR     auxR    pR mR     pL pR    pL pR
 
         auxL, auxm and auxR can be anything, with any number of leg inside. They will be
         cut and stay inside constant parts, unaffected by the gate. pL and pR are the
@@ -375,9 +375,9 @@ class SimpleUpdate:
         effL = effL.permutate((0, 1), (2,))  # auxL,pL = effL - mL
         effL.diagonal_imul([1.0 / w for w in weightsL])
 
-        effm, svm, cstm, aux_m = mid.svd()  # mL, mR = effm - auxm
-        effm.diagonal_imul(svm)
-        effm = effm.permutate((0,), (1, 2))  # mL - effm = mR, auxm
+        cstm, svm, effm, aux_m = mid.svd()  # auxm - effm = mL, mR
+        effm.diagonal_imul(svm, left=True)
+        effm = effm.permutate((1,), (2, 0))  # mL - effm = mR, auxm
 
         cstR, svR, effR, auxR = right.svd()  # auxR - effR = pR, mR
         effR.diagonal_imul(svR, left=True)
@@ -411,11 +411,11 @@ class SimpleUpdate:
 
         # reshape to initial tree structure
         effL = effL.permutate((0,), (1, 2))  # auxL - effL = pL, mL
-        effm = effm.permutate((0, 2), (1,))  # mL, mR = effm - auxm
+        effm = effm.permutate((1,), (0, 2))  # auxm - effm = mL, mR
         effR = effR.permutate((2,), (1, 0))  # auxR - effR = pR, mR
 
         # reconnect with const parts
         newL = cstL @ effL
-        new_mid = effm @ cstm
+        new_mid = cstm @ effm
         newR = cstR @ effR
         return newL, new_mid, newR, new_weightsL, new_weightsR
