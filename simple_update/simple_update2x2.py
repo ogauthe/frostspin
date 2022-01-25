@@ -111,14 +111,23 @@ class SimpleUpdate2x2(SimpleUpdate):
             t0 = ST.from_array(t0, (phys,), (phys, sing, sing, sing, sing))
 
         t1 = t0.group_conjugated()
+        #        A              B              C             D
+        #       /  \           /  \           / \           / \
+        #      /    \         /    \         /   \         /   \
+        #    ////   /\      ///    /\      ///   /\      ///   /\
+        #   a234   p  1    a546   p  2    a378  p  1    a687  p  5
+        A = t0.permutate((1, 3, 4, 5), (0, 2))
+        B = t1.permutate((1, 2, 3, 4), (0, 5))
+        C = t1.permutate((1, 2, 3, 5), (0, 4))
+        D = t0.permutate((1, 2, 3, 5), (0, 4))
+
         return cls(
             Dx,
             0.0,
             tau,
             rcutoff,
-            [t0, t1, t1.copy(), t0.copy()],
+            [A, B, C, D],
             hamiltonians,
-            [sing] * cls._n_bonds,
             [np.ones(1)] * cls._n_bonds,
             verbosity,
         )
