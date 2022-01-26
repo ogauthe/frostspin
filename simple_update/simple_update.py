@@ -405,7 +405,7 @@ class SimpleUpdate:
         theta.diagonal_imul(new_weightsR)  # auxL, pL, auxm = theta = mR
         theta = theta.permutate((0, 1), (2, 3))  # auxL, pL = theta = auxm, mR
         effL, new_weightsL, effm = theta.truncated_svd(self.Dx, rcutoff=self.rcutoff)
-        new_weightsL = self._normalized_weights(new_weightsL, effL.row_reps[0])
+        new_weightsL = self._normalized_weights(new_weightsL, effL.col_reps[0])
         effm.diagonal_imul(new_weightsL, left=True)  # mL - effm = auxm, mR
         effL.diagonal_imul(new_weightsL)  # auxL, pL = effL - mL
 
