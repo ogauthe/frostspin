@@ -138,20 +138,24 @@ class SimpleUpdate2x2(SimpleUpdate):
             1.0 / np.sqrt(w) for w in self.get_weights(sort=False)
         ]
         A0 = self._tensors[0]
-        A = np.einsum("ardlpu,u,r,d,l->paurdl", A0.toarray(), sw1, sw2, sw3, sw4)
+        A = np.einsum("ardlpu,u,r,d,l->ardlpu", A0.toarray(), sw1, sw2, sw3, sw4)
         B0 = self._tensors[1]
-        B = np.einsum("aurdpl,u,r,d,l->paurdl", B0.toarray(), sw5, sw4, sw6, sw2)
+        B = np.einsum("aurdpl,u,r,d,l->aurdpl", B0.toarray(), sw5, sw4, sw6, sw2)
         C0 = self._tensors[2]
-        C = np.einsum("aurlpd,u,r,d,l->paurdl", C0.toarray(), sw3, sw7, sw1, sw8)
+        C = np.einsum("aurlpd,u,r,d,l->aurlpd", C0.toarray(), sw3, sw7, sw1, sw8)
         D0 = self._tensors[3]
-        D = np.einsum("aurlpd,u,r,d,l->paurdl", D0.toarray(), sw6, sw8, sw5, sw7)
+        D = np.einsum("aurlpd,u,r,d,l->aurlpd", D0.toarray(), sw6, sw8, sw5, sw7)
         # same problem as in from_infinite_temperature: conjugate_columns has different
         # effect between U(1) and SU(2) from_array.
         cc = self._ST.symmetry == "SU(2)"
         A = self._ST.from_array(A, A0._row_reps, A0._col_reps, conjugate_columns=cc)
+        A = A.permutate((4, 0), (5, 1, 2, 3))
         B = self._ST.from_array(B, B0._row_reps, B0._col_reps, conjugate_columns=cc)
+        B = B.permutate((4, 0), (1, 2, 3, 5))
         C = self._ST.from_array(C, C0._row_reps, C0._col_reps, conjugate_columns=cc)
+        C = C.permutate((4, 0), (1, 2, 5, 3))
         D = self._ST.from_array(D, D0._row_reps, D0._col_reps, conjugate_columns=cc)
+        D = D.permutate((4, 0), (1, 2, 5, 3))
         return A, B, C, D
 
     def get_bond_representations(self):
@@ -191,6 +195,7 @@ class SimpleUpdate2x2(SimpleUpdate):
         for i in range(niter - 1):  # there is 1 step out of the loop
             self._2nd_order_step_no1()
             self._update_bond(1, 0, 2, self._squared_gates[0], self._r2u, self._u2d)
+        self._2nd_order_step_no1()
         self._update_bond(1, 0, 2, self._gates[0], self._r2u, self._u2d)
         self._beta += niter * self._dbeta
 

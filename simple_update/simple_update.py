@@ -370,16 +370,16 @@ class SimpleUpdate:
         bonds to be updated.
         """
         # 1) SVD cut between constant tensors and effective tensors to update
-        cstL, svL, effL, auxL = left.svd()  # auxL - effL = pL, mL
+        cstL, svL, effL = left.svd()  # auxL - effL = pL, mL
         effL.diagonal_imul(svL, left=True)
         effL = effL.permutate((0, 1), (2,))  # auxL,pL = effL - mL
         effL.diagonal_imul([1.0 / w for w in weightsL])
 
-        cstm, svm, effm, aux_m = mid.svd()  # auxm - effm = mL, mR
+        cstm, svm, effm = mid.svd()  # auxm - effm = mL, mR
         effm.diagonal_imul(svm, left=True)
         effm = effm.permutate((1,), (2, 0))  # mL - effm = mR, auxm
 
-        cstR, svR, effR, auxR = right.svd()  # auxR - effR = pR, mR
+        cstR, svR, effR = right.svd()  # auxR - effR = pR, mR
         effR.diagonal_imul(svR, left=True)
         effR = effR.permutate((2,), (1, 0))  # mR - effR = pR, auxR
         effR.diagonal_imul([1 / w for w in weightsR], left=True)
