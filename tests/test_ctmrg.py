@@ -69,10 +69,10 @@ rdm2x1_cellAs, rdm1x2_cellAs = ctmAs.compute_rdm_1st_neighbor_cell()
 rdm_dr_cellU1, rdm_ur_cellU1 = ctmU1.compute_rdm_2nd_neighbor_cell()
 rdm_dr_cellAs, rdm_ur_cellAs = ctmAs.compute_rdm_2nd_neighbor_cell()
 for i in range(2):  # precision is pretty low
-    assert lg.norm(rdm2x1_cellU1[i] - rdm2x1_cellAs[i]) < 3e-5
-    assert lg.norm(rdm1x2_cellU1[i] - rdm1x2_cellAs[i]) < 3e-5
-    assert lg.norm(rdm_dr_cellU1[i] - rdm_dr_cellAs[i]) < 3e-5
-    assert lg.norm(rdm_ur_cellU1[i] - rdm_ur_cellAs[i]) < 3e-5
+    assert lg.norm(rdm2x1_cellU1[i] - rdm2x1_cellAs[i]) < 2e-4
+    assert lg.norm(rdm1x2_cellU1[i] - rdm1x2_cellAs[i]) < 2e-4
+    assert lg.norm(rdm_dr_cellU1[i] - rdm_dr_cellAs[i]) < 2e-4
+    assert lg.norm(rdm_ur_cellU1[i] - rdm_ur_cellAs[i]) < 2e-4
 
 # check save and load once tensors != init
 ctmU1.save_to_file("data_test_ctmrg_U1.npz")
