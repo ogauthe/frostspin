@@ -67,7 +67,7 @@ class SimpleUpdate:
         self._symmetry = tensors[0].symmetry
         if self.verbosity > 0:
             print(
-                f"Construct SimpleUpdate with {self._symmetry} symmetry.",
+                f"Construct SimpleUpdate with {self._symmetry} symmetry,",
                 f"beta = {beta:.6g}",
             )
             print(f"unit cell:\n{self._unit_cell}")
@@ -101,6 +101,11 @@ class SimpleUpdate:
 
         if self.verbosity > 1:
             print(self)
+
+    def __str__(self):
+        s = repr(self)
+        s = s + f"\nD = {self.Dx}, tau = {self._tau}, rcutoff = {self.rcutoff}"
+        return s
 
     @classmethod
     def from_infinite_temperature(
