@@ -69,7 +69,7 @@ print(f"Test SimpleUpdate1x2 for SU(2) irrep {d}")
 print("Benchmark Asymmetric, U1_Symmetric and SU2_Symmetric results")
 print(f"evolve from beta = 0 to beta = {beta} with tau = {tau}, keeping 2 multiplets")
 
-repd_As = np.array(d)
+repd_As = np.array([d])
 repd_U1 = np.arange(d - 1, -d, -2, dtype=np.int8)
 repd_SU2 = np.array([[1], [d]])
 hU1 = [
