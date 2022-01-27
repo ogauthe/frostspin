@@ -307,6 +307,9 @@ class SymmetricTensor:
         diag_blocks : enum of 1D array
             Must have same length as _nblocks
         left : bool
+
+        THIS METHOD IS DANGEROUS, NO CHECK IS MADE THAT IRREPS MATCH. IRREPS MAY BE
+        CONJUGATE IF TRANSPOSE OCCURRED.
         """
         if len(diag_blocks) != self._nblocks:
             raise ValueError("Diagonal blocks do not match tensor")

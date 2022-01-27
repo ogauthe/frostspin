@@ -209,97 +209,106 @@ class SimpleUpdate2x2(SimpleUpdate):
         self._update_bond(7, 3, 2, self._gates[0], self._u2l, self._u2r)
         self._update_bond(8, 3, 2, self._gates[0], self._l2r, self._r2l)
         self.update_bond_proxy(
-            1, 8, 0, 2, 3, self._sqrt_gates[1], self._l2u, self._l2dl, self._r2r
+            1, 8, 0, 2, 3, self._sqrt_gates[1], self._l2u, self._l2dl, self._r2r, False
         )
         self.update_bond_proxy(
-            5, 4, 3, 1, 0, self._sqrt_gates[1], self._r2d, self._d2ur, self._u2l
+            5, 4, 3, 1, 0, self._sqrt_gates[1], self._r2d, self._d2ur, self._u2l, False
         )
         self.update_bond_proxy(
-            7, 1, 3, 2, 0, self._sqrt_gates[1], self._d2l, self._dl2rd, self._l2u
+            7, 1, 3, 2, 0, self._sqrt_gates[1], self._d2l, self._dl2rd, self._l2u, False
         )
         self.update_bond_proxy(
-            2, 5, 0, 1, 3, self._sqrt_gates[1], self._u2r, self._ur2lu, self._l2d
+            2, 5, 0, 1, 3, self._sqrt_gates[1], self._u2r, self._ur2lu, self._l2d, False
         )
         self.update_bond_proxy(
-            6, 2, 3, 1, 0, self._sqrt_gates[1], self._d2u, self._lu2dl, self._r2r
+            6, 2, 3, 1, 0, self._sqrt_gates[1], self._d2u, self._lu2dl, self._r2r, False
         )
         self.update_bond_proxy(
-            3, 7, 0, 2, 3, self._sqrt_gates[1], self._r2d, self._rd2ur, self._u2l
+            3, 7, 0, 2, 3, self._sqrt_gates[1], self._r2d, self._rd2ur, self._u2l, False
         )
         self.update_bond_proxy(
-            8, 3, 3, 2, 0, self._sqrt_gates[1], self._l2r, self._ur2lu, self._d2d
+            8, 3, 3, 2, 0, self._sqrt_gates[1], self._l2r, self._ur2lu, self._d2d, False
         )
         self.update_bond_proxy(
-            4, 6, 0, 1, 3, self._sqrt_gates[1], self._d2l, self._dl2rd, self._r2u
+            4, 6, 0, 1, 3, self._sqrt_gates[1], self._d2l, self._dl2rd, self._r2u, False
         )
         self.update_bond_proxy(
-            5, 7, 1, 3, 2, self._sqrt_gates[1], self._rd2u, self._u2dl, self._lu2r
+            5, 7, 1, 3, 2, self._sqrt_gates[1], self._rd2u, self._u2dl, self._lu2r, True
         )
         self.update_bond_proxy(
-            1, 2, 2, 0, 1, self._sqrt_gates[1], self._r2d, self._l2ur, self._u2l
+            1, 2, 2, 0, 1, self._sqrt_gates[1], self._r2d, self._l2ur, self._u2l, True
         )
         self.update_bond_proxy(
-            4, 1, 1, 0, 2, self._sqrt_gates[1], self._l2r, self._ur2lu, self._d2d
+            4, 1, 1, 0, 2, self._sqrt_gates[1], self._l2r, self._ur2lu, self._d2d, True
         )
         self.update_bond_proxy(
-            8, 5, 2, 3, 1, self._sqrt_gates[1], self._d2l, self._dl2rd, self._r2u
+            8, 5, 2, 3, 1, self._sqrt_gates[1], self._d2l, self._dl2rd, self._r2u, True
         )
         self.update_bond_proxy(
-            6, 8, 1, 3, 2, self._sqrt_gates[1], self._u2d, self._rd2ur, self._l2l
+            6, 8, 1, 3, 2, self._sqrt_gates[1], self._u2d, self._rd2ur, self._l2l, True
         )
         self.update_bond_proxy(
-            3, 4, 2, 0, 1, self._sqrt_gates[1], self._l2u, self._lu2dl, self._d2r
+            3, 4, 2, 0, 1, self._sqrt_gates[1], self._l2u, self._lu2dl, self._d2r, True
         )
         self.update_bond_proxy(
-            2, 3, 1, 0, 2, self._sqrt_gates[1], self._r2l, self._dl2rd, self._u2u
+            2, 3, 1, 0, 2, self._sqrt_gates[1], self._r2l, self._dl2rd, self._u2u, True
         )
         self.update_bond_proxy(
-            7, 6, 2, 3, 1, self._gates[1], self._u2r, self._ur2lu, self._l2d
+            7, 6, 2, 3, 1, self._gates[1], self._u2r, self._ur2lu, self._l2d, True
         )
         self.update_bond_proxy(
-            2, 3, 1, 0, 2, self._sqrt_gates[1], self._d2l, self._rd2rd, self._r2u
+            2, 3, 1, 0, 2, self._sqrt_gates[1], self._d2l, self._rd2rd, self._r2u, True
         )
         self.update_bond_proxy(
-            3, 4, 2, 0, 1, self._sqrt_gates[1], self._u2u, self._rd2dl, self._l2r
+            3, 4, 2, 0, 1, self._sqrt_gates[1], self._u2u, self._rd2dl, self._l2r, True
         )
         self.update_bond_proxy(
-            6, 8, 1, 3, 2, self._sqrt_gates[1], self._r2d, self._lu2ur, self._u2l
+            6, 8, 1, 3, 2, self._sqrt_gates[1], self._r2d, self._lu2ur, self._u2l, True
         )
         self.update_bond_proxy(
-            8, 5, 2, 3, 1, self._sqrt_gates[1], self._l2l, self._ur2rd, self._d2u
+            8, 5, 2, 3, 1, self._sqrt_gates[1], self._l2l, self._ur2rd, self._d2u, True
         )
         self.update_bond_proxy(
-            4, 1, 1, 0, 2, self._sqrt_gates[1], self._u2r, self._dl2lu, self._l2d
+            4, 1, 1, 0, 2, self._sqrt_gates[1], self._u2r, self._dl2lu, self._l2d, True
         )
         self.update_bond_proxy(
-            1, 2, 2, 0, 1, self._sqrt_gates[1], self._d2d, self._lu2ur, self._r2l
+            1, 2, 2, 0, 1, self._sqrt_gates[1], self._d2d, self._lu2ur, self._r2l, True
         )
         self.update_bond_proxy(
-            5, 7, 1, 3, 2, self._sqrt_gates[1], self._l2u, self._rd2dl, self._d2r
+            5, 7, 1, 3, 2, self._sqrt_gates[1], self._l2u, self._rd2dl, self._d2r, True
         )
         self.update_bond_proxy(
-            4, 6, 0, 1, 3, self._sqrt_gates[1], self._ur2l, self._u2rd, self._dl2u
+            4,
+            6,
+            0,
+            1,
+            3,
+            self._sqrt_gates[1],
+            self._ur2l,
+            self._u2rd,
+            self._dl2u,
+            False,
         )
         self.update_bond_proxy(
-            8, 3, 3, 2, 0, self._sqrt_gates[1], self._u2r, self._r2lu, self._l2d
+            8, 3, 3, 2, 0, self._sqrt_gates[1], self._u2r, self._r2lu, self._l2d, False
         )
         self.update_bond_proxy(
-            3, 7, 0, 2, 3, self._sqrt_gates[1], self._d2d, self._lu2ur, self._r2l
+            3, 7, 0, 2, 3, self._sqrt_gates[1], self._d2d, self._lu2ur, self._r2l, False
         )
         self.update_bond_proxy(
-            6, 2, 3, 1, 0, self._sqrt_gates[1], self._l2u, self._rd2dl, self._d2r
+            6, 2, 3, 1, 0, self._sqrt_gates[1], self._l2u, self._rd2dl, self._d2r, False
         )
         self.update_bond_proxy(
-            2, 5, 0, 1, 3, self._sqrt_gates[1], self._r2r, self._dl2lu, self._u2d
+            2, 5, 0, 1, 3, self._sqrt_gates[1], self._r2r, self._dl2lu, self._u2d, False
         )
         self.update_bond_proxy(
-            7, 1, 3, 2, 0, self._sqrt_gates[1], self._d2l, self._ur2rd, self._r2u
+            7, 1, 3, 2, 0, self._sqrt_gates[1], self._d2l, self._ur2rd, self._r2u, False
         )
         self.update_bond_proxy(
-            5, 4, 3, 1, 0, self._sqrt_gates[1], self._l2d, self._lu2ur, self._u2l
+            5, 4, 3, 1, 0, self._sqrt_gates[1], self._l2d, self._lu2ur, self._u2l, False
         )
         self.update_bond_proxy(
-            1, 8, 0, 2, 3, self._sqrt_gates[1], self._l2u, self._rd2dl, self._d2r
+            1, 8, 0, 2, 3, self._sqrt_gates[1], self._l2u, self._rd2dl, self._d2r, False
         )
         self._update_bond(8, 3, 2, self._gates[0], self._r2r, self._dl2l)
         self._update_bond(7, 3, 2, self._gates[0], self._r2l, self._l2r)
@@ -311,7 +320,7 @@ class SimpleUpdate2x2(SimpleUpdate):
 
     def _update_bond(self, bond, iL, iR, gate, lperm, rperm):
         """
-        Update bond i between tensors iL and iR.
+        Update bond between tensors iL and iR.
         """
         # bond indices start at 1: -1 shit to get corresponding element in array
         left = self._tensors[iL].permutate(*lperm)
@@ -324,16 +333,34 @@ class SimpleUpdate2x2(SimpleUpdate):
         self._tensors[iL] = nl
         self._tensors[iR] = nr
 
-    def update_bond_proxy(self, bond1, bond2, iL, im, iR, gate, lperm, mperm, rperm):
+    def update_bond_proxy(
+        self, bond1, bond2, iL, im, iR, gate, lperm, mperm, rperm, conj
+    ):
+        """
+        Update bonds bond1 and bond2 between tensors iL and iR through tensor im.
+        """
         left = self._tensors[iL].permutate(*lperm)
         mid = self._tensors[im].permutate(*mperm)
         right = self._tensors[iR].permutate(*rperm)
-        nl, nm, nr, nw1, nw2 = self.update_through_proxy(
+
+        # iL and iR belong to the same sublattice. If it is sublattice B,
+        # representations are conjugate. To avoid troubles with weights (which
+        # are silently labelled by irreps) and with gates, it is more convenient to
+        # conjugate sublattice B to get same representations as on lattice A
+        if conj:
+            left = left.group_conjugated()
+            mid = mid.group_conjugated()
+            right = right.group_conjugated()
+        left, mid, right, nw1, nw2 = self.update_through_proxy(
             left, mid, right, self._weights[bond1 - 1], self._weights[bond2 - 1], gate
         )
 
+        if conj:  # come back to sublattice B conventions
+            left = left.group_conjugated()
+            mid = mid.group_conjugated()
+            right = right.group_conjugated()
         self._weights[bond1 - 1] = nw1
         self._weights[bond2 - 1] = nw2
-        self._tensors[iL] = nl
-        self._tensors[im] = nm
-        self._tensors[iR] = nr
+        self._tensors[iL] = left
+        self._tensors[im] = mid
+        self._tensors[iR] = right

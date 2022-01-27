@@ -310,7 +310,7 @@ class SimpleUpdate:
 
         # change tensor structure to contract mid
         effL = effL.permutate((0, 1), (2,))  # auxL,p=effL-m
-        effL.diagonal_imul([1.0 / w for w in weights])
+        effL.diagonal_imul([1.0 / w for w in weights])  # apply *on effL right*
         effR = effR.permutate((2,), (0, 1))  # m-effR=auxR,p
 
         # construct matrix theta and apply gate
@@ -320,6 +320,7 @@ class SimpleUpdate:
 
         # transpose back LxR, compute SVD and truncate
         theta = theta.permutate((0, 2), (1, 3))  # auxL, pL = theta = auxR, pR
+        # define new_weights *on effL right*
         effL, new_weights, effR = theta.truncated_svd(self.Dx, rcutoff=self.rcutoff)
 
         # normalize weights and apply them to new left and new right
@@ -370,6 +371,11 @@ class SimpleUpdate:
         left and right physical variables. mL and mR are the left and right virtual
         bonds to be updated.
         """
+        # one must be careful with group representation conventions for weights. SVD of
+        # M and M.T yields the same singular values, but not the same sorting due to
+        # singular value irreps being conjugate. Always define new weights with singular
+        # values *on the right* of effL and effR, and apply 1/weights *on the right*.
+
         # 1) SVD cut between constant tensors and effective tensors to update
         cstL, svL, effL = left.svd()  # auxL - effL = pL, mL
         effL.diagonal_imul(svL, left=True)
@@ -382,8 +388,8 @@ class SimpleUpdate:
 
         cstR, svR, effR = right.svd()  # auxR - effR = pR, mR
         effR.diagonal_imul(svR, left=True)
-        effR = effR.permutate((2,), (1, 0))  # mR - effR = pR, auxR
-        effR.diagonal_imul([1 / w for w in weightsR], left=True)
+        effR = effR.permutate((0, 1), (2,))  # auR, pR = effR - mR
+        effR.diagonal_imul([1 / w for w in weightsR])
 
         # contract tensor network
         #                         ||
@@ -392,19 +398,19 @@ class SimpleUpdate:
         #          \----------- gate ----------/
         theta = effL @ effm  # auxL, pL = theta = mR, auxm
         theta = theta.permutate((0, 1, 3), (2,))  # auxL, pL, auxm = theta - mR
-        theta = theta @ effR  # auxL, pL, auxm = theta = pR, auxR
-        theta = theta.permutate((0, 2, 4), (1, 3))  # auxL, auxm, auxR = theta = pL, pR
+        theta = theta @ effR.T  # auxL, pL, auxm = theta = auxR, pR
+        theta = theta.permutate((0, 2, 3), (1, 4))  # auxL, auxm, auxR = theta = pL, pR
         theta = theta @ gate
 
         # 1st SVD
-        theta = theta.permutate((0, 3, 1), (4, 2))  # auxL, pL, auxm = theta = pR, auxR
-        theta, new_weightsR, effR = theta.truncated_svd(self.Dx, rcutoff=self.rcutoff)
-        new_weightsR = self._normalized_weights(new_weightsR, effR.row_reps[0])
-        effR.diagonal_imul(new_weightsR, left=True)  # mR - effR = pR, auxR
+        theta = theta.permutate((4, 2), (0, 3, 1))  # pR, auxR = theta = auxL, pL, auxm
+        effR, new_weightsR, theta = theta.truncated_svd(self.Dx, rcutoff=self.rcutoff)
+        new_weightsR = self._normalized_weights(new_weightsR, effR.col_reps[0])
+        effR.diagonal_imul(new_weightsR)  # pR, auxR = effR - mR
 
         # 2nd SVD
-        theta.diagonal_imul(new_weightsR)  # auxL, pL, auxm = theta = mR
-        theta = theta.permutate((0, 1), (2, 3))  # auxL, pL = theta = auxm, mR
+        theta.diagonal_imul(new_weightsR, left=True)  # mR - theta = auL, pL, auxm
+        theta = theta.permutate((1, 2), (3, 0))  # auxL, pL = theta = auxm, mR
         effL, new_weightsL, effm = theta.truncated_svd(self.Dx, rcutoff=self.rcutoff)
         new_weightsL = self._normalized_weights(new_weightsL, effL.col_reps[0])
         effm.diagonal_imul(new_weightsL, left=True)  # mL - effm = auxm, mR
@@ -413,7 +419,7 @@ class SimpleUpdate:
         # reshape to initial tree structure
         effL = effL.permutate((0,), (1, 2))  # auxL - effL = pL, mL
         effm = effm.permutate((1,), (0, 2))  # auxm - effm = mL, mR
-        effR = effR.permutate((2,), (1, 0))  # auxR - effR = pR, mR
+        effR = effR.permutate((1,), (0, 2))  # auxR - effR = pR, mR
 
         # reconnect with const parts
         newL = cstL @ effL
