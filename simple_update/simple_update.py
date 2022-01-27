@@ -159,10 +159,9 @@ class SimpleUpdate:
             ]
 
             weights = [None] * cls._n_bonds
-            bond_representations = [None] * cls._n_bonds
             for i in range(cls._n_bonds):
-                bond_representations[i] = fin[f"_SimpleUpdate_bond_rep_{i}"]
-                weights[i] = fin[f"_SimpleUpdate_weights_{i}"]
+                n = fin[f"_SimpleUpdate_nw{i}"]
+                weights[i] = [fin[f"_SimpleUpdate_weights_{i}_{j}"] for j in range(n)]
 
         return cls(
             Dx,
@@ -171,7 +170,6 @@ class SimpleUpdate:
             rcutoff,
             tensors,
             hamiltonians,
-            bond_representations,
             weights,
             verbosity,
         )
@@ -200,7 +198,10 @@ class SimpleUpdate:
             data |= t.get_data_dic(prefix=f"_SimpleUpdate_tensor_{i}")
 
         for i in range(self._n_bonds):
-            data[f"_SimpleUpdate_weights_{i}"] = self._weights[i]
+            n = len(self._weights[i])
+            data[f"_SimpleUpdate_nw{i}"] = n
+            for j in range(n):
+                data[f"_SimpleUpdate_weights_{i}_{j}"] = self._weights[i][j]
 
         np.savez_compressed(savefile, **data, **additional_data)
         if self.verbosity > 0:
