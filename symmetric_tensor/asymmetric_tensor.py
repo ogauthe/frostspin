@@ -71,3 +71,6 @@ class AsymmetricTensor(SymmetricTensor):
 
     def norm(self):
         return lg.norm(self._blocks[0])
+
+    def toabelian(self):
+        return self

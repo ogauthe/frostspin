@@ -83,6 +83,13 @@ class SymmetricTensor:
         """
         raise NotImplementedError("Must be defined in derived class")
 
+    def toabelian(self):
+        """
+        Return a SymmetricTensor with largest possible abelian symmetry.
+        AsymmetricTensor and AbelianSymmetricTensor are left unchanged.
+        """
+        raise NotImplementedError("Must be defined in derived class")
+
     ####################################################################################
     # Initializer
     ####################################################################################

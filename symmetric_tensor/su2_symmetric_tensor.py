@@ -3,6 +3,7 @@ import scipy.sparse as ssp
 import numba
 
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
+from .u1_symmetric_tensor import U1_SymmetricTensor
 from groups.su2_representation import SU2_Representation  # TODO remove me
 
 
@@ -208,3 +209,29 @@ class SU2_SymmetricTensor(NonAbelianSymmetricTensor):
     ####################################################################################
     def group_conjugated(self):
         return self  # every SU(2) representations are self-conjugate
+
+    def toabelian(self):
+        arr = self.toarray()
+        row_reps = []
+        for r in self._row_reps:
+            sz = np.empty((r[0] @ r[1],), dtype=np.int8)
+            k = 0
+            for (d, irr) in zip(r[0], r[1]):
+                sz_irr = -np.arange(-irr + 1, irr, 2, dtype=np.int8)
+                for i in range(d):
+                    sz[k : k + irr] = sz_irr
+                    k += irr
+            row_reps.append(sz)
+
+        col_reps = []
+        for r in self._col_reps:
+            sz = np.empty((r[0] @ r[1],), dtype=np.int8)
+            k = 0
+            for (d, irr) in zip(r[0], r[1]):
+                sz_irr = np.arange(-irr + 1, irr, 2, dtype=np.int8)
+                for i in range(d):
+                    sz[k : k + irr] = sz_irr
+                    k += irr
+            col_reps.append(sz)
+
+        return U1_SymmetricTensor.from_array(arr, row_reps, col_reps)

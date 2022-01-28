@@ -351,3 +351,6 @@ class AbelianSymmetricTensor(SymmetricTensor):
 
     def norm(self):
         return np.sqrt(sum(lg.norm(b) ** 2 for b in self._blocks))
+
+    def toabelian(self):
+        return self
