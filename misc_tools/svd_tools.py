@@ -6,8 +6,7 @@ import numba
 from groups.toolsU1 import default_color, svdU1
 
 
-@numba.njit
-def numba_find_chi_largest(block_s, chi, rcutoff=0.0, degen_ratio=1.0):
+def find_chi_largest(block_s, chi, dims, rcutoff=0.0, degen_ratio=1.0):
     """
     Find chi largest values from a tuple of blockwise, decreasing singular values.
     Assume number of blocks is small: block_max_val is never sorted and elements
@@ -15,10 +14,13 @@ def numba_find_chi_largest(block_s, chi, rcutoff=0.0, degen_ratio=1.0):
 
     Parameters
     ----------
-    block_s: tuple of 1D ndarray sorted by decreasing values
-        Sorted values by block
+    block_s: enumerable of 1D ndarray sorted by decreasing values
+        Sorted values by block.
     chi: int
-        number of values to keep
+        Number of values to keep. This is a target, the actual value may be bigger to
+        conserve multiplets.
+    dims: array of integer
+        Dimension of each block. If None, assumed to be 1 everywhere.
     rcutoff: float
         relative cutoff on small values. Default to 0 (no cutoff)
     degen_ratio: float
@@ -28,33 +30,33 @@ def numba_find_chi_largest(block_s, chi, rcutoff=0.0, degen_ratio=1.0):
     -------
     block_cuts: integer ndarray
         Number of values to keep in each block.
-
-    Note that numba requires block_s to be a tuple, a list is not accepted.
     """
+    block_s = tuple(block_s)
+    dims = np.asarray(dims)
+    assert dims.shape == (len(block_s),)
+    assert degen_ratio <= 1.0
+    return _numba_find_chi_largest(block_s, chi, dims, rcutoff, degen_ratio)
+
+
+@numba.njit
+def _numba_find_chi_largest(block_s, chi, dims, rcutoff, degen_ratio):
     # numba issue #7394
     block_max_vals = np.array([block_s[bi][0] for bi in range(len(block_s))])
     cutoff = block_max_vals.max() * rcutoff
     block_cuts = np.zeros((len(block_s),), dtype=np.int64)
-    for kept in range(chi - 1):
-        bi = block_max_vals.argmax()
-        if block_max_vals[bi] < cutoff:
-            break
-        block_cuts[bi] += 1
-        if block_cuts[bi] < block_s[bi].size:
-            block_max_vals[bi] = block_s[bi][block_cuts[bi]]
-        else:
-            block_max_vals[bi] = -1.0  # in case cutoff = 0
-
-    # keep last multiplet
+    kept = 0
     bi = block_max_vals.argmax()
-    cutoff = max(cutoff, degen_ratio * block_max_vals[bi])
-    while block_max_vals[bi] >= cutoff:
-        block_cuts[bi] += 1
-        if block_cuts[bi] < block_s[bi].size:
-            block_max_vals[bi] = block_s[bi][block_cuts[bi]]
-        else:
-            block_max_vals[bi] = -1.0
-        bi = block_max_vals.argmax()
+    while block_max_vals[bi] > cutoff and kept < chi:
+        c = degen_ratio * block_max_vals[bi]
+        while block_max_vals[bi] >= c:  # take all quasi-degenerated values together
+            block_cuts[bi] += 1
+            kept += dims[bi]
+            if block_cuts[bi] < block_s[bi].size:
+                block_max_vals[bi] = block_s[bi][block_cuts[bi]]
+            else:
+                block_max_vals[bi] = -1.0
+            bi = block_max_vals.argmax()
+
     return block_cuts
 
 

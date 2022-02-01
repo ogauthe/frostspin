@@ -269,6 +269,10 @@ class AbelianSymmetricTensor(SymmetricTensor):
     def representation_dimension(rep):
         return rep.size
 
+    @staticmethod
+    def irrep_dimension(rep):
+        return 1
+
     ####################################################################################
     # Symmetry specific methods with fixed signature
     ####################################################################################

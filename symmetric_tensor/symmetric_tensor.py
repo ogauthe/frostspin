@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.linalg as lg
 
-from misc_tools.svd_tools import sparse_svd, numba_find_chi_largest
+from misc_tools.svd_tools import sparse_svd, find_chi_largest
 
 
 # choices are made to make code light and fast:
@@ -46,6 +46,10 @@ class SymmetricTensor:
 
     @staticmethod
     def representation_dimension(rep):
+        raise NotImplementedError("Must be defined in derived class")
+
+    @staticmethod
+    def irrep_dimension(rep):
         raise NotImplementedError("Must be defined in derived class")
 
     ####################################################################################
@@ -441,7 +445,8 @@ class SymmetricTensor:
         u_blocks = []
         s_values = []
         v_blocks = []
-        block_cuts = numba_find_chi_largest(tuple(raw_s), cut, rcutoff, degen_ratio)
+        dims = np.array([self.irrep_dimension(r) for r in self._block_irreps])
+        block_cuts = find_chi_largest(raw_s, cut, dims, rcutoff, degen_ratio)
         non_empty = block_cuts.nonzero()[0]
         for bi in non_empty:
             bcut = block_cuts[bi]
