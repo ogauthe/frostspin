@@ -71,14 +71,14 @@ class SimpleUpdate2x2(SimpleUpdate):
 
     @classmethod
     def from_infinite_temperature(
-        cls, Dx, tau, hamiltonians, rcutoff=1e-10, verbosity=0
+        cls, D, tau, hamiltonians, rcutoff=1e-10, verbosity=0
     ):
         """
         Initialize simple update at beta = 0 product state.
 
         Parameters
         ----------
-        Dx : int
+        D : int
             Maximal number of independent multiplets to keep when truncating bonds. For
             abelian symmetries, this is the same as the bond dimension D.
         tau : float
@@ -111,22 +111,22 @@ class SimpleUpdate2x2(SimpleUpdate):
             t0 = ST.from_array(t0, (phys,), (phys, sing, sing, sing, sing))
 
         t1 = t0.group_conjugated()
-        #        A              B              C             D
+        #        tA             tB             tC            tD
         #       /  \           /  \           / \           / \
         #      /    \         /    \         /   \         /   \
         #    ////   /\      ///    /\      ///   /\      ///   /\
         #   a234   p  1    a546   p  2    a378  p  1    a687  p  5
-        A = t0.permutate((1, 3, 4, 5), (0, 2))
-        B = t1.permutate((1, 2, 3, 4), (0, 5))
-        C = t1.permutate((1, 2, 3, 5), (0, 4))
-        D = t0.permutate((1, 2, 3, 5), (0, 4))
+        tA = t0.permutate((1, 3, 4, 5), (0, 2))
+        tB = t1.permutate((1, 2, 3, 4), (0, 5))
+        tC = t1.permutate((1, 2, 3, 5), (0, 4))
+        tD = t0.permutate((1, 2, 3, 5), (0, 4))
 
         return cls(
-            Dx,
+            D,
             0.0,
             tau,
             rcutoff,
-            [A, B, C, D],
+            [tA, tB, tC, tD],
             hamiltonians,
             [np.ones(1)] * cls._n_bonds,
             verbosity,
@@ -172,7 +172,7 @@ class SimpleUpdate2x2(SimpleUpdate):
         return r1, r2, r3, r4, r5, r6, r7, r8
 
     def __repr__(self):
-        return f"SimpleUpdate2x2 with {self._symmetry} symmetry"
+        return f"SimpleUpdate2x2 with {self._symmetry} symmetry and D = {self.D}"
 
     def evolve(self, beta_evolve):
         """

@@ -71,7 +71,7 @@ class CTMRG:
     def __init__(
         self,
         env,
-        chi_setpoint,
+        chi,
         block_chi_ratio,
         ncv_ratio,
         cutoff,
@@ -86,11 +86,11 @@ class CTMRG:
         ----------
         env: CTM_Environment
             Environment object, as construced by from_file or from_elementary_tensors.
-        chi_setpoint : integer
-            Maximal corner dimension. This is a setpoint, actual corner dimension
-            may be smaller due to cutoff or slightly larger to keep multiplets.
+        chi : integer
+            Maximal corner dimension. This is a target, actual maximal corner dimension
+            chi_max may differ due to cutoff or multiplets.
         block_chi_ratio: float
-            Compute min(chi_setpoint, block_chi_ratio * last_block_chi) singular values
+            Compute min(chi, block_chi_ratio * last_block_chi) singular values
             in each symmetry block during projector construction, where last_block_chi
             is the number of singular values in this block last iteration.
         ncv_ratio : float
@@ -109,7 +109,7 @@ class CTMRG:
         if self.verbosity > 0:
             print(f"initalize CTMRG with verbosity = {self.verbosity}")
         self._env = env
-        self.chi_setpoint = chi_setpoint
+        self.chi = chi
         self.block_chi_ratio = block_chi_ratio
         self.ncv_ratio = ncv_ratio
         self.cutoff = cutoff
@@ -121,8 +121,8 @@ class CTMRG:
             if self.verbosity > 2:
                 self.print_tensor_shapes()
 
-        if self.chi_setpoint < 2:
-            raise ValueError("chi_setpoint must be greater than 2")
+        if self.chi < 2:
+            raise ValueError("chi must be greater than 2")
         if self.block_chi_ratio < 1.0:
             raise ValueError("block_chi_ratio must be greater than 1.0")
         if not (0.0 <= self.cutoff < 1.0):
@@ -135,7 +135,7 @@ class CTMRG:
         cls,
         tiling,
         tensors,
-        chi_setpoint,
+        chi,
         block_chi_ratio=1.2,
         ncv_ratio=3.0,
         cutoff=1e-11,
@@ -152,11 +152,11 @@ class CTMRG:
             Elementary tensors of unit cell, from left to right from top to bottom.
         tiling : string
             String defining the shape of the unit cell, typically "A" or "AB\nCD".
-        chi_setpoint : integer
-            Maximal corner dimension. This is a setpoint, actual corner dimension
-            may be smaller due to cutoff or slightly larger to keep multiplets.
+        chi : integer
+            Maximal corner dimension. This is a target, actual maximal corner dimension
+            chi_max may differ due to cutoff or multiplets.
         block_chi_ratio: float
-            Compute min(chi_setpoint, block_chi_ratio * last_block_chi) singular values
+            Compute min(chi, block_chi_ratio * last_block_chi) singular values
             in each symmetry block during projector construction, where last_block_chi
             is the number of singular values in this block last iteration.
         ncv_ratio : float
@@ -176,7 +176,7 @@ class CTMRG:
         env = CTM_Environment.from_elementary_tensors(tiling, tensors)
         return cls(
             env,
-            chi_setpoint,
+            chi,
             block_chi_ratio,
             ncv_ratio,
             cutoff,
@@ -210,7 +210,7 @@ class CTMRG:
         with np.load(filename) as fin:
             block_chi_ratio = float(fin["_CTM_block_chi_ratio"])
             ncv_ratio = float(fin["_CTM_ncv_ratio"])
-            chi_setpoint = int(fin["_CTM_chi_setpoint"])
+            chi = int(fin["_CTM_chi"])
             cutoff = float(fin["_CTM_cutoff"])
             degen_ratio = float(fin["_CTM_degen_ratio"])
         # better to open and close savefile twice (here and in env) to have env __init__
@@ -218,7 +218,7 @@ class CTMRG:
         env = CTM_Environment.from_file(filename)
         return cls(
             env,
-            chi_setpoint,
+            chi,
             block_chi_ratio,
             ncv_ratio,
             cutoff,
@@ -238,7 +238,7 @@ class CTMRG:
             Data to store together with environment data. Keys have to be string type.
         """
         data = {
-            "_CTM_chi_setpoint": self.chi_setpoint,
+            "_CTM_chi": self.chi,
             "_CTM_block_chi_ratio": self.block_chi_ratio,
             "_CTM_ncv_ratio": self.ncv_ratio,
             "_CTM_cutoff": self.cutoff,
@@ -278,7 +278,7 @@ class CTMRG:
         return self._env.Dmax
 
     @property
-    def chi_max(self):  # maximal corner dimension, may differ from chi_setpoint
+    def chi_max(self):  # maximal corner dimension, may differ from chi
         return self._env.chi_max
 
     def __repr__(self):
@@ -291,7 +291,7 @@ class CTMRG:
         return "\n".join(
             (
                 repr(self),
-                f"chi_setpoint = {self.chi_setpoint}",
+                f"chi = {self.chi}",
                 f"block_chi_ratio = {self.block_chi_ratio}",
                 f"ncv_ratio = {self.ncv_ratio}",
                 f"cutoff = {self.cutoff}",
@@ -324,7 +324,7 @@ class CTMRG:
         # So we renormalize bond between corners, without inserting edge tensors
         # basically the same thing as a standard move, without absorption.
         if self.verbosity > 0:
-            print(f"Truncate corners to chi = {self.chi_setpoint}")
+            print(f"Truncate corners to chi = {self.chi}")
         self.up_move_no_absorb()
         self.right_move_no_absorb()
         self.down_move_no_absorb()
@@ -648,7 +648,7 @@ class CTMRG:
                 self.construct_reduced_ur(x, y, free_memory=True),
                 self.construct_reduced_ul(x, y, free_memory=True),
                 self.construct_reduced_dl(x, y),
-                self.chi_setpoint,
+                self.chi,
                 self.block_chi_ratio,
                 self.ncv_ratio,
                 self.cutoff,
@@ -698,7 +698,7 @@ class CTMRG:
                 self.construct_reduced_dr(x, y, free_memory=True),
                 self.construct_reduced_ur(x, y, free_memory=True),
                 self.construct_reduced_ul(x, y),
-                self.chi_setpoint,
+                self.chi,
                 self.block_chi_ratio,
                 self.ncv_ratio,
                 self.cutoff,
@@ -745,7 +745,7 @@ class CTMRG:
                 self.construct_reduced_dl(x, y, free_memory=True),
                 self.construct_reduced_dr(x, y, free_memory=True),
                 self.construct_reduced_ur(x, y),
-                self.chi_setpoint,
+                self.chi,
                 self.block_chi_ratio,
                 self.ncv_ratio,
                 self.cutoff,
@@ -792,7 +792,7 @@ class CTMRG:
                 self.construct_reduced_ul(x, y, free_memory=True),
                 self.construct_reduced_dl(x, y, free_memory=True),
                 self.construct_reduced_dr(x, y),
-                self.chi_setpoint,
+                self.chi,
                 self.block_chi_ratio,
                 self.ncv_ratio,
                 self.cutoff,
@@ -836,7 +836,7 @@ class CTMRG:
                 C2,
                 self._env.get_C1(x, y),
                 self._env.get_C4(x, y + 1),
-                self.chi_setpoint,
+                self.chi,
                 self.block_chi_ratio,
                 self.ncv_ratio,
                 self.cutoff,
@@ -865,7 +865,7 @@ class CTMRG:
                 C3,
                 self._env.get_C2(x + 1, y),
                 self._env.get_C1(x, y),
-                self.chi_setpoint,
+                self.chi,
                 self.block_chi_ratio,
                 self.ncv_ratio,
                 self.cutoff,
@@ -893,7 +893,7 @@ class CTMRG:
                 C4,
                 self._env.get_C3(x + 1, y + 1).T,
                 self._env.get_C2(x + 1, y),
-                self.chi_setpoint,
+                self.chi,
                 self.block_chi_ratio,
                 self.ncv_ratio,
                 self.cutoff,
@@ -921,7 +921,7 @@ class CTMRG:
                 C1,
                 self._env.get_C4(x, y + 1),
                 self._env.get_C3(x + 1, y + 1).T,
-                self.chi_setpoint,
+                self.chi,
                 self.block_chi_ratio,
                 self.ncv_ratio,
                 self.cutoff,

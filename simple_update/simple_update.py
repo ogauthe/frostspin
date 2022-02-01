@@ -21,7 +21,7 @@ class SimpleUpdate:
 
     def __init__(
         self,
-        Dx,
+        D,
         beta,
         tau,
         rcutoff,
@@ -36,9 +36,9 @@ class SimpleUpdate:
 
         Parameters
         ----------
-        Dx : int
-            Maximal number of independent multiplets to keep when truncating bonds. For
-            abelian symmetries, this is the same as the bond dimension D.
+        D : int
+            Bond dimension to keep when renormalizing bonds. This is a target, the
+            actual largest value Dmax may differ due to cutoff or degeneracies.
         beta : float
             Inverse temperature.
         tau : float
@@ -72,7 +72,7 @@ class SimpleUpdate:
             )
             print(f"unit cell:\n{self._unit_cell}")
 
-        self.Dx = Dx
+        self.D = D
         self._beta = beta
         self._tensors = list(tensors)
         self._hamilts = list(hamiltonians)
@@ -104,19 +104,19 @@ class SimpleUpdate:
 
     def __str__(self):
         s = repr(self)
-        s = s + f"\nD = {self.Dx}, tau = {self._tau}, rcutoff = {self.rcutoff}"
+        s = s + f"\nDmax = {self.Dmax}, tau = {self._tau}, rcutoff = {self.rcutoff}"
         return s
 
     @classmethod
     def from_infinite_temperature(
-        cls, Dx, tau, hamiltonians, rcutoff=1e-10, verbosity=0
+        cls, D, tau, hamiltonians, rcutoff=1e-10, verbosity=0
     ):
         """
         Initialize simple update at beta = 0 product state.
 
         Parameters
         ----------
-        Dx : int
+        D : int
             Maximal number of independent multiplets to keep when truncating bonds. For
             abelian symmetries, this is the same as the bond dimension D.
         tau : float
@@ -148,7 +148,7 @@ class SimpleUpdate:
         with np.load(savefile) as fin:
             if cls._unit_cell != fin["_SimpleUpdate_unit_cell"]:
                 raise ValueError("Savefile is incompatible with class unit cell")
-            Dx = fin["_SimpleUpdate_Dx"][()]
+            D = fin["_SimpleUpdate_D"][()]
             beta = fin["_SimpleUpdate_beta"][()]
             tau = fin["_SimpleUpdate_tau"][()]
             rcutoff = fin["_SimpleUpdate_rcutoff"][()]
@@ -169,7 +169,7 @@ class SimpleUpdate:
                 weights[i] = [fin[f"_SimpleUpdate_weights_{i}_{j}"] for j in range(n)]
 
         return cls(
-            Dx,
+            D,
             beta,
             tau,
             rcutoff,
@@ -191,7 +191,7 @@ class SimpleUpdate:
         data = {
             "_SimpleUpdate_symmetry": self._symmetry,
             "_SimpleUpdate_unit_cell": self._unit_cell,
-            "_SimpleUpdate_Dx": self.Dx,
+            "_SimpleUpdate_D": self.D,
             "_SimpleUpdate_beta": self._beta,
             "_SimpleUpdate_tau": self._tau,
             "_SimpleUpdate_rcutoff": self.rcutoff,
@@ -229,6 +229,11 @@ class SimpleUpdate:
     @property
     def beta(self):
         return self._beta
+
+    @property
+    def Dmax(self):
+        br = self.get_bond_representations()
+        return max(self._ST.representation_dimension(r) for r in br)
 
     def get_bond_representations(self):
         raise NotImplementedError("Must be defined in derived class")
@@ -326,7 +331,7 @@ class SimpleUpdate:
         # transpose back LxR, compute SVD and truncate
         theta = theta.permutate((0, 2), (1, 3))  # auxL, pL = theta = auxR, pR
         # define new_weights *on effL right*
-        effL, new_weights, effR = theta.truncated_svd(self.Dx, rcutoff=self.rcutoff)
+        effL, new_weights, effR = theta.truncated_svd(self.D, rcutoff=self.rcutoff)
 
         # normalize weights and apply them to new left and new right
         new_weights = self._normalized_weights(new_weights, effL.col_reps[0])
@@ -409,14 +414,14 @@ class SimpleUpdate:
 
         # 1st SVD
         theta = theta.permutate((4, 2), (0, 3, 1))  # pR, auxR = theta = auxL, pL, auxm
-        effR, new_weightsR, theta = theta.truncated_svd(self.Dx, rcutoff=self.rcutoff)
+        effR, new_weightsR, theta = theta.truncated_svd(self.D, rcutoff=self.rcutoff)
         new_weightsR = self._normalized_weights(new_weightsR, effR.col_reps[0])
         effR.diagonal_imul(new_weightsR)  # pR, auxR = effR - mR
 
         # 2nd SVD
         theta.diagonal_imul(new_weightsR, left=True)  # mR - theta = auL, pL, auxm
         theta = theta.permutate((1, 2), (3, 0))  # auxL, pL = theta = auxm, mR
-        effL, new_weightsL, effm = theta.truncated_svd(self.Dx, rcutoff=self.rcutoff)
+        effL, new_weightsL, effm = theta.truncated_svd(self.D, rcutoff=self.rcutoff)
         new_weightsL = self._normalized_weights(new_weightsL, effL.col_reps[0])
         effm.diagonal_imul(new_weightsL, left=True)  # mL - effm = auxm, mR
         effL.diagonal_imul(new_weightsL)  # auxL, pL = effL - mL

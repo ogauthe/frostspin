@@ -35,14 +35,14 @@ class SimpleUpdate1x2(SimpleUpdate):
 
     @classmethod
     def from_infinite_temperature(
-        cls, Dx, tau, hamiltonians, rcutoff=1e-10, verbosity=0
+        cls, D, tau, hamiltonians, rcutoff=1e-10, verbosity=0
     ):
         """
         Initialize simple update at beta = 0 product state.
 
         Parameters
         ----------
-        Dx : int
+        D : int
             Maximal number of independent multiplets to keep when truncating bonds. For
             abelian symmetries, this is the same as the bond dimension D.
         tau : float
@@ -81,7 +81,7 @@ class SimpleUpdate1x2(SimpleUpdate):
         #    ////   /\           ///    /\
         #   a234   p  1         a234   p  1
         return cls(
-            Dx,
+            D,
             0.0,
             tau,
             rcutoff,
@@ -116,7 +116,7 @@ class SimpleUpdate1x2(SimpleUpdate):
         return A, B
 
     def __repr__(self):
-        return f"SimpleUpdate1x2 with {self._symmetry} symmetry"
+        return f"SimpleUpdate1x2 with {self._symmetry} symmetry and D = {self.D}"
 
     def evolve(self, beta_evolve):
         """

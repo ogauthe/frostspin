@@ -90,7 +90,7 @@ hAs = [
 
 suU1 = SimpleUpdate1x2.from_infinite_temperature(4, tau, hU1)
 suAs = SimpleUpdate1x2.from_infinite_temperature(4, tau, hAs)
-suSU2 = SimpleUpdate1x2.from_infinite_temperature(2, tau, hSU2)
+suSU2 = SimpleUpdate1x2.from_infinite_temperature(4, tau, hSU2)
 
 suAs.evolve(beta)
 suU1.evolve(beta)
@@ -106,9 +106,9 @@ tensorsU1 = suU1.get_tensors()
 tensorsSU2 = suSU2.get_tensors()
 til = "AB\nBA"
 
-ctmAs = CTMRG.from_elementary_tensors(til, tensorsAs, 35, **params)
-ctmU1 = CTMRG.from_elementary_tensors(til, tensorsU1, 35, **params)
-ctmSU2 = CTMRG.from_elementary_tensors(til, tensorsSU2, 13, **params)
+ctmAs = CTMRG.from_elementary_tensors(til, tensorsAs, 30, **params)
+ctmU1 = CTMRG.from_elementary_tensors(til, tensorsU1, 30, **params)
+ctmSU2 = CTMRG.from_elementary_tensors(til, tensorsSU2, 30, **params)
 
 ctm_iter = 10
 print(f"Run CTMRG for {ctm_iter} iterations...")
