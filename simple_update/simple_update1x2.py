@@ -35,7 +35,7 @@ class SimpleUpdate1x2(SimpleUpdate):
 
     @classmethod
     def from_infinite_temperature(
-        cls, D, tau, hamiltonians, rcutoff=1e-10, verbosity=0
+        cls, D, tau, hamiltonians, rcutoff=1e-10, degen_ratio=1.0, verbosity=0
     ):
         """
         Initialize simple update at beta = 0 product state.
@@ -52,6 +52,9 @@ class SimpleUpdate1x2(SimpleUpdate):
         rcutoff : float, optional.
             Singular values smaller than cutoff = rcutoff * sv[0] are set to zero to
             improve stability.
+        degen_ratio : float
+            Consider singular values degenerate if their quotient is above degen_ratio.
+            Default is 1.0, exact degeneracy.
         verbosity : int
             Level of log verbosity. Default is no log.
         """
@@ -85,6 +88,7 @@ class SimpleUpdate1x2(SimpleUpdate):
             0.0,
             tau,
             rcutoff,
+            degen_ratio,
             [left, left.group_conjugated().copy()],
             hamiltonians,
             [np.ones(1)] * cls._n_bonds,

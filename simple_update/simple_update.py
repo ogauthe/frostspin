@@ -25,6 +25,7 @@ class SimpleUpdate:
         beta,
         tau,
         rcutoff,
+        degen_ratio,
         tensors,
         hamiltonians,
         weights,
@@ -46,6 +47,8 @@ class SimpleUpdate:
         rcutoff : float
             Singular values smaller than cutoff = rcutoff * sv[0] are set to zero to
             improve stability.
+        degen_ratio : float
+            Consider singular values degenerate if their quotient is above degen_ratio.
         tensors : enumerable of SymmetricTensor
             List of tensors in the unit cell.
         hamiltonians : enumerable of SymmetricTensor
@@ -78,6 +81,7 @@ class SimpleUpdate:
         self._hamilts = list(hamiltonians)
         self.tau = tau  # also set gates
         self.rcutoff = rcutoff
+        self.degen_ratio = degen_ratio
         self._weights = weights
 
         # quick and dirty: define on the fly method to normalize weights
@@ -104,12 +108,13 @@ class SimpleUpdate:
 
     def __str__(self):
         s = repr(self)
-        s = s + f"\nDmax = {self.Dmax}, tau = {self._tau}, rcutoff = {self.rcutoff}"
+        s = s + f"\nDmax = {self.Dmax}, tau = {self._tau}, rcutoff = {self.rcutoff}, "
+        s = s + "degen_ratio = {self.degen_ratio}"
         return s
 
     @classmethod
     def from_infinite_temperature(
-        cls, D, tau, hamiltonians, rcutoff=1e-10, verbosity=0
+        cls, D, tau, hamiltonians, rcutoff, degen_ratio, verbosity
     ):
         """
         Initialize simple update at beta = 0 product state.
@@ -126,6 +131,8 @@ class SimpleUpdate:
         rcutoff : float, optional.
             Singular values smaller than cutoff = rcutoff * sv[0] are set to zero to
             improve stability.
+        degen_ratio : float
+            Consider singular values degenerate if their quotient is above degen_ratio.
         verbosity : int
             Level of log verbosity. Default is no log.
         """
@@ -152,6 +159,7 @@ class SimpleUpdate:
             beta = fin["_SimpleUpdate_beta"][()]
             tau = fin["_SimpleUpdate_tau"][()]
             rcutoff = fin["_SimpleUpdate_rcutoff"][()]
+            degen_ratio = fin["_SimpleUpdate_degen_ratio"][()]
 
             ST = get_symmetric_tensor_type(fin["_SimpleUpdate_symmetry"][()])
             hamiltonians = [
@@ -173,6 +181,7 @@ class SimpleUpdate:
             beta,
             tau,
             rcutoff,
+            degen_ratio,
             tensors,
             hamiltonians,
             weights,
@@ -195,6 +204,7 @@ class SimpleUpdate:
             "_SimpleUpdate_beta": self._beta,
             "_SimpleUpdate_tau": self._tau,
             "_SimpleUpdate_rcutoff": self.rcutoff,
+            "_SimpleUpdate_degen_ratio": self.degen_ratio,
         }
         for i, h in enumerate(self._hamilts):
             data |= h.get_data_dic(prefix=f"_SimpleUpdate_hamiltonian_{i}")
@@ -331,7 +341,9 @@ class SimpleUpdate:
         # transpose back LxR, compute SVD and truncate
         theta = theta.permutate((0, 2), (1, 3))  # auxL, pL = theta = auxR, pR
         # define new_weights *on effL right*
-        effL, new_weights, effR = theta.truncated_svd(self.D, rcutoff=self.rcutoff)
+        effL, new_weights, effR = theta.truncated_svd(
+            self.D, rcutoff=self.rcutoff, degen_ratio=self.degen_ratio
+        )
 
         # normalize weights and apply them to new left and new right
         new_weights = self._normalized_weights(new_weights, effL.col_reps[0])
@@ -414,14 +426,18 @@ class SimpleUpdate:
 
         # 1st SVD
         theta = theta.permutate((4, 2), (0, 3, 1))  # pR, auxR = theta = auxL, pL, auxm
-        effR, new_weightsR, theta = theta.truncated_svd(self.D, rcutoff=self.rcutoff)
+        effR, new_weightsR, theta = theta.truncated_svd(
+            self.D, rcutoff=self.rcutoff, degen_ratio=self.degen_ratio
+        )
         new_weightsR = self._normalized_weights(new_weightsR, effR.col_reps[0])
         effR.diagonal_imul(new_weightsR)  # pR, auxR = effR - mR
 
         # 2nd SVD
         theta.diagonal_imul(new_weightsR, left=True)  # mR - theta = auL, pL, auxm
         theta = theta.permutate((1, 2), (3, 0))  # auxL, pL = theta = auxm, mR
-        effL, new_weightsL, effm = theta.truncated_svd(self.D, rcutoff=self.rcutoff)
+        effL, new_weightsL, effm = theta.truncated_svd(
+            self.D, rcutoff=self.rcutoff, degen_ratio=self.degen_ratio
+        )
         new_weightsL = self._normalized_weights(new_weightsL, effL.col_reps[0])
         effm.diagonal_imul(new_weightsL, left=True)  # mL - effm = auxm, mR
         effL.diagonal_imul(new_weightsL)  # auxL, pL = effL - mL
