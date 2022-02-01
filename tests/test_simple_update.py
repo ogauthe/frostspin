@@ -101,6 +101,10 @@ print("suAs weights:", *suAs._weights, sep="\n")
 print("suU1 weights:", *suU1._weights, sep="\n")
 print("suSU2 weights:", *suSU2._weights, sep="\n")
 
+suU1.save_to_file("save_su.npz")
+su2 = SimpleUpdate1x2.load_from_file("save_su.npz")
+
+
 tensorsAs = suAs.get_tensors()
 tensorsU1 = suU1.get_tensors()
 tensorsSU2 = suSU2.get_tensors()

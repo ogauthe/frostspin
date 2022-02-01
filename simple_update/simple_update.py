@@ -163,11 +163,11 @@ class SimpleUpdate:
 
             ST = get_symmetric_tensor_type(fin["_SimpleUpdate_symmetry"][()])
             hamiltonians = [
-                ST.load_from_dic(fin, prefix=f"_SimpleUpdate_h_{i}")
+                ST.load_from_dic(fin, prefix=f"_SimpleUpdate_hamiltonian_{i}")
                 for i in range(cls._n_hamiltonians)
             ]
             tensors = [
-                ST.load_from_dic(fin, prefix=f"_SimpleUpdate_t_{i}")
+                ST.load_from_dic(fin, prefix=f"_SimpleUpdate_tensor_{i}")
                 for i in range(cls._n_tensors)
             ]
 
