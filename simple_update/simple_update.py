@@ -109,7 +109,7 @@ class SimpleUpdate:
     def __str__(self):
         s = repr(self)
         s = s + f"\nDmax = {self.Dmax}, tau = {self._tau}, rcutoff = {self.rcutoff}, "
-        s = s + "degen_ratio = {self.degen_ratio}"
+        s = s + f"degen_ratio = {self.degen_ratio}"
         return s
 
     @classmethod

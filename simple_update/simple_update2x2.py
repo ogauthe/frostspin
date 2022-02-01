@@ -104,12 +104,12 @@ class SimpleUpdate2x2(SimpleUpdate):
         if ST.symmetry == "trivial":
             sing = np.array(1)
             t0 = ST.from_array(t0, (phys,), (phys, sing, sing, sing, sing))
-        elif ST.symmetry == "U(1)":
+        elif ST.symmetry == "U1":
             sing = np.array([0], dtype=np.int8)
             t0 = ST.from_array(
                 t0, (-phys,), (-phys, sing, sing, sing, sing), conjugate_columns=False
             )
-        elif ST.symmetry == "SU(2)":
+        elif ST.symmetry == "SU2":
             sing = np.array([[1], [1]])
             t0 = ST.from_array(t0, (phys,), (phys, sing, sing, sing, sing))
 
@@ -151,7 +151,7 @@ class SimpleUpdate2x2(SimpleUpdate):
         D = np.einsum("aurlpd,u,r,d,l->aurlpd", D0.toarray(), sw6, sw8, sw5, sw7)
         # same problem as in from_infinite_temperature: conjugate_columns has different
         # effect between U(1) and SU(2) from_array.
-        cc = self._ST.symmetry == "SU(2)"
+        cc = self._ST.symmetry == "SU2"
         A = self._ST.from_array(A, A0._row_reps, A0._col_reps, conjugate_columns=cc)
         A = A.permutate((4, 0), (5, 1, 2, 3))
         B = self._ST.from_array(B, B0._row_reps, B0._col_reps, conjugate_columns=cc)
