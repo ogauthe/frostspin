@@ -1,8 +1,7 @@
 import numpy as np
 import scipy.linalg as lg
-import scipy.sparse.linalg as slg
 
-from misc_tools.svd_tools import numba_find_chi_largest
+from misc_tools.svd_tools import sparse_svd, numba_find_chi_largest
 from ctmrg.ctm_contract import add_a_bilayer
 
 
@@ -85,25 +84,30 @@ def construct_projectors(
     block_chi = np.maximum(block_chi + 10, (block_chi_ratio * block_chi).astype(int))
     block_chi = np.minimum(chi, block_chi)
 
-    for bi in range(n_blocks):  # SVD only for shared blocks
-        r = corner1.blocks[ind1[bi]] @ corner2.blocks[ind2[bi]]
-        rt = corner3.blocks[ind3[bi]] @ corner4.blocks[ind4[bi]]
-        m = r @ rt
-        if max(r.shape + rt.shape) < max(100, 6 * block_chi[bi]):  # small blocks: dense
-            u, s, v = lg.svd(m, full_matrices=False, overwrite_a=True)
+    for bi in range(n_blocks):  # compute SVD on the fly
+        r_blocks[bi] = corner1.blocks[ind1[bi]] @ corner2.blocks[ind2[bi]]
+        rt_blocks[bi] = corner3.blocks[ind3[bi]] @ corner4.blocks[ind4[bi]]
+        m = r_blocks[bi] @ rt_blocks[bi]
+        if min(m.shape) < max(100, 6 * block_chi[bi]):  # use full svd for small blocks
+            try:
+                u, s, v = lg.svd(m, full_matrices=False, overwrite_a=True)
+            except lg.LinAlgError as err:
+                print("Error in scipy dense SVD:", err)
+                m = r_blocks[bi] @ rt_blocks[bi]  # overwrite_a=True may have erased it
+                u, s, v = lg.svd(
+                    m,
+                    full_matrices=False,
+                    overwrite_a=True,
+                    check_finite=False,
+                    lapack_driver="gesvd",
+                )
         else:
-            m2 = m.conj().T @ m  # faster constructing full mH @ m than on the fly prod
             # a good precision is required for singular values, especially with pseudo
             # inverse. If precision is not good enough, reduced density matrix are less
             # hermitian. This requires a large number of computed vectors (ncv).
             ncv = int(ncv_ratio * block_chi[bi])
-            eigvals, eigvec = slg.eigsh(m2, k=block_chi[bi], ncv=ncv, maxiter=1000)
-            u = m @ eigvec
-            u, s, v = lg.svd(u, full_matrices=False, overwrite_a=True)
-            v = v @ eigvec.T.conj()
+            u, s, v = sparse_svd(m, k=block_chi[bi], ncv=ncv, maxiter=1000)
 
-        r_blocks[bi] = r
-        rt_blocks[bi] = rt
         u_blocks[bi] = u
         s_blocks[bi] = s
         v_blocks[bi] = v
