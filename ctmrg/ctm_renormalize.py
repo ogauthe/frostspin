@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.linalg as lg
 
-from misc_tools.svd_tools import sparse_svd, numba_find_chi_largest
+from misc_tools.svd_tools import sparse_svd, find_chi_largest
 from ctmrg.ctm_contract import add_a_bilayer
 
 
@@ -84,10 +84,12 @@ def construct_projectors(
     block_chi = np.maximum(block_chi + 10, (block_chi_ratio * block_chi).astype(int))
     block_chi = np.minimum(chi, block_chi)
 
+    dims = []
     for bi in range(n_blocks):  # compute SVD on the fly
         r_blocks[bi] = corner1.blocks[ind1[bi]] @ corner2.blocks[ind2[bi]]
         rt_blocks[bi] = corner3.blocks[ind3[bi]] @ corner4.blocks[ind4[bi]]
         m = r_blocks[bi] @ rt_blocks[bi]
+        dims.append(corner2.irrep_dimension(corner2.block_irreps[ind2[bi]]))
         if min(m.shape) < max(100, 6 * block_chi[bi]):  # use full svd for small blocks
             try:
                 u, s, v = lg.svd(m, full_matrices=False, overwrite_a=True)
@@ -113,8 +115,7 @@ def construct_projectors(
         v_blocks[bi] = v
 
     # keep chi largest singular values + last multiplet
-    s_blocks = tuple(s_blocks)
-    block_cuts = numba_find_chi_largest(s_blocks, chi, rcutoff, degen_ratio)
+    block_cuts = find_chi_largest(s_blocks, chi, dims, rcutoff, degen_ratio)
 
     # second loop: construct projectors
     p_blocks = []

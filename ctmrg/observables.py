@@ -182,7 +182,7 @@ def compute_mps_rdm(up_mps_list, down_mps_list, ncell=1):
             left_edge = mps_tranfer_open_leg(left_edge, up, down)
 
     nt = len(up_mps_list) * ncell
-    left_edge = left_edge.swapaxes(0, 1).reshape(d ** (2 * nt), D ** 2)
+    left_edge = left_edge.swapaxes(0, 1).reshape(d ** (2 * nt), D**2)
     tmT = construct_mps_transfer_matrix(up_mps_list, down_mps_list, transpose=True)
     (rval,), right_edge = slg.eigs(tmT, k=1)
     if abs(rval.imag / rval.real) > 1e-6:
@@ -195,7 +195,7 @@ def compute_mps_rdm(up_mps_list, down_mps_list, ncell=1):
 
     rdm = left_edge @ right_edge
     perm = tuple(range(0, 2 * nt, 2)) + tuple(range(1, 2 * nt, 2))
-    rdm = rdm.reshape((d,) * (2 * nt)).transpose(perm).reshape(d ** nt, d ** nt)
+    rdm = rdm.reshape((d,) * (2 * nt)).transpose(perm).reshape(d**nt, d**nt)
     rdm /= rdm.trace()
     return rdm
 

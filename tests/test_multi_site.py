@@ -99,7 +99,7 @@ print(((axes1 == axes1[:, None]).all(axis=2) == np.eye(nx, dtype=bool)).all())
 print((axes1 == -axes1[:, None]).all(axis=2).sum() == 0)
 
 # bilayer with sign swap
-axes2 = (axes1[:, :, None] - axes1[:, None]).reshape(nx, d ** 2)
+axes2 = (axes1[:, :, None] - axes1[:, None]).reshape(nx, d**2)
 print(((axes2 == axes2[:, None]).all(axis=2) == np.eye(nx, dtype=bool)).all())
 print((axes2 == -axes2[:, None]).all(axis=2).sum() == 0)
 

@@ -4,8 +4,8 @@ from .su2_symmetric_tensor import SU2_SymmetricTensor
 
 symmetric_tensor_types = {
     "trivial": AsymmetricTensor,
-    "U(1)": U1_SymmetricTensor,
-    "SU(2)": SU2_SymmetricTensor,
+    "U1": U1_SymmetricTensor,
+    "SU2": SU2_SymmetricTensor,
 }
 
 
@@ -17,7 +17,7 @@ def get_symmetric_tensor_type(symmetry):
     ----------
     symmetry : str
         Symmetry group. Must match implemented symmetry. Currently implemented
-        symmetries are 'trivial', 'U(1)' and 'SU(2)'.
+        symmetries are 'trivial', 'U1' and 'SU2'.
     """
     try:
         st_type = symmetric_tensor_types[symmetry]

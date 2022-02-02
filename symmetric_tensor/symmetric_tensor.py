@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.linalg as lg
 
-from misc_tools.svd_tools import sparse_svd, numba_find_chi_largest
+from misc_tools.svd_tools import sparse_svd, find_chi_largest
 
 
 # choices are made to make code light and fast:
@@ -48,6 +48,10 @@ class SymmetricTensor:
     def representation_dimension(rep):
         raise NotImplementedError("Must be defined in derived class")
 
+    @staticmethod
+    def irrep_dimension(rep):
+        raise NotImplementedError("Must be defined in derived class")
+
     ####################################################################################
     # Symmetry specific methods with fixed signature
     # These methods must be defined in subclasses to set SymmetricTensor behavior
@@ -80,6 +84,13 @@ class SymmetricTensor:
     def norm(self):
         """
         Tensor Frobenius norm.
+        """
+        raise NotImplementedError("Must be defined in derived class")
+
+    def toabelian(self):
+        """
+        Return a SymmetricTensor with largest possible abelian symmetry.
+        AsymmetricTensor and AbelianSymmetricTensor are left unchanged.
         """
         raise NotImplementedError("Must be defined in derived class")
 
@@ -307,6 +318,9 @@ class SymmetricTensor:
         diag_blocks : enum of 1D array
             Must have same length as _nblocks
         left : bool
+
+        THIS METHOD IS DANGEROUS, NO CHECK IS MADE THAT IRREPS MATCH. IRREPS MAY BE
+        CONJUGATE IF TRANSPOSE OCCURRED.
         """
         if len(diag_blocks) != self._nblocks:
             raise ValueError("Diagonal blocks do not match tensor")
@@ -431,7 +445,8 @@ class SymmetricTensor:
         u_blocks = []
         s_values = []
         v_blocks = []
-        block_cuts = numba_find_chi_largest(tuple(raw_s), cut, rcutoff, degen_ratio)
+        dims = np.array([self.irrep_dimension(r) for r in self._block_irreps])
+        block_cuts = find_chi_largest(raw_s, cut, dims, rcutoff, degen_ratio)
         non_empty = block_cuts.nonzero()[0]
         for bi in non_empty:
             bcut = block_cuts[bi]
