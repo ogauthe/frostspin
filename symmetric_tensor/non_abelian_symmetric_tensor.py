@@ -2,6 +2,7 @@ import bisect
 
 import numpy as np
 import scipy.linalg as lg
+import scipy.sparse as ssp
 
 from .symmetric_tensor import SymmetricTensor
 
@@ -49,6 +50,44 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
             N the singlet space dimension.
         """
         raise NotImplementedError("Must be defined in derived class")
+
+    @classmethod
+    def load_unitaries(cls, savefile):
+        root = "_ST_unitary_"
+        with np.load(savefile) as fin:
+            if fin["_ST_symmetry"] != cls.symmetry:
+                raise ValueError("Savefile symmetry do not match SymmetricTensor")
+            keys = fin[root + "keys"]
+            for k in keys:
+                words = k.split(";")
+                w0 = int(words[0])
+                w1 = tuple(int(w) for w in words[1][1:-1].split(",") if w)
+                w2 = tuple(int(w) for w in words[2][1:-1].split(",") if w)
+                t = tuple(np.array(w.split(), dtype=int).tobytes() for w in words[3:])
+                nk = (w0, w1, w2) + t
+                data = fin[root + k + "_data"]
+                indices = fin[root + k + "_indices"]
+                indptr = fin[root + k + "_indptr"]
+                sh = fin[root + k + "_shape"]
+                cls._unitary_dic[nk] = ssp.csr_matrix((data, indices, indptr), shape=sh)
+
+    @classmethod
+    def save_unitaries(cls, savefile):
+        data = {"_ST_symmetry": cls.symmetry}
+        keys = []
+        root = "_ST_unitary_"
+        # cannot use dict key directly as savefile keyword: it has to be a valid zip
+        # filename, which decoded bytes are not (some values are not allowed)
+        for (k, v) in cls._unitary_dic.items():
+            nk = ";".join([str(np.frombuffer(b, dtype=int))[1:-1] for b in k[3:]])
+            nk = f"{k[0]};{k[1]};{k[2]};" + nk
+            keys.append(nk)
+            data[root + nk + "_data"] = v.data
+            data[root + nk + "_indices"] = v.indices
+            data[root + nk + "_indptr"] = v.indptr
+            data[root + nk + "_shape"] = v.shape
+        data[root + "keys"] = np.array(keys)
+        np.savez_compressed(savefile, **data)
 
     ####################################################################################
     # Non-abelian shared symmetry implementation
@@ -210,7 +249,7 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
         # if hash is too slow, can be decomposed: at init, set dic corresponding to
         # representations, then permutate only needs hash from row_axes and col_axes
         key = tuple(r.tobytes() for r in self._row_reps + self._col_reps)
-        key = key + (len(self._row_reps), row_axes, col_axes)
+        key = (len(self._row_reps), row_axes, col_axes) + key
         try:
             unitary = self._unitary_dic[key]
         except KeyError:
