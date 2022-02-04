@@ -29,6 +29,7 @@ class SimpleUpdate1x2(SimpleUpdate):
     """
 
     _unit_cell = "AB"
+    _classname = "SimpleUpdate1x2"  # used in save/load to check consistency
     _n_bonds = 4
     _n_hamiltonians = 1
     _n_tensors = 2

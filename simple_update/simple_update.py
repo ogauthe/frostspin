@@ -15,6 +15,7 @@ class SimpleUpdate:
     """
 
     _unit_cell = NotImplemented
+    _classname = NotImplemented  # used in save/load to check consistency
     _n_bonds = NotImplemented
     _n_hamiltonians = NotImplemented
     _n_tensors = NotImplemented
@@ -153,8 +154,9 @@ class SimpleUpdate:
         if verbosity > 0:
             print("Restart SimpleUpdate back from file", savefile)
         with np.load(savefile) as fin:
-            if cls._unit_cell != fin["_SimpleUpdate_unit_cell"]:
-                raise ValueError("Savefile is incompatible with class unit cell")
+            if fin["_SimpleUpdate_classname"] != cls._classname:
+                msg = f"Savefile '{savefile}' does not match class '{cls._classname}'"
+                raise ValueError(msg)
             D = fin["_SimpleUpdate_D"][()]
             beta = fin["_SimpleUpdate_beta"][()]
             tau = fin["_SimpleUpdate_tau"][()]
@@ -199,7 +201,7 @@ class SimpleUpdate:
         """
         data = {
             "_SimpleUpdate_symmetry": self._symmetry,
-            "_SimpleUpdate_unit_cell": self._unit_cell,
+            "_SimpleUpdate_classname": self._classname,
             "_SimpleUpdate_D": self.D,
             "_SimpleUpdate_beta": self._beta,
             "_SimpleUpdate_tau": self._tau,
