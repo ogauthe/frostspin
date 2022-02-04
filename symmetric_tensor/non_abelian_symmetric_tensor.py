@@ -53,40 +53,39 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
 
     @classmethod
     def load_unitaries(cls, savefile):
-        root = "_ST_unitary_"
         with np.load(savefile) as fin:
             if fin["_ST_symmetry"] != cls.symmetry:
                 raise ValueError("Savefile symmetry do not match SymmetricTensor")
-            keys = fin[root + "keys"]
-            for k in keys:
-                words = k.split(";")
-                w0 = int(words[0])
-                w1 = tuple(int(w) for w in words[1][1:-1].split(",") if w)
-                w2 = tuple(int(w) for w in words[2][1:-1].split(",") if w)
-                t = tuple(np.array(w.split(), dtype=int).tobytes() for w in words[3:])
-                nk = (w0, w1, w2) + t
-                data = fin[root + k + "_data"]
-                indices = fin[root + k + "_indices"]
-                indptr = fin[root + k + "_indptr"]
-                sh = fin[root + k + "_shape"]
-                cls._unitary_dic[nk] = ssp.csr_matrix((data, indices, indptr), shape=sh)
+            n = fin["_ST_n_unitary"]
+            for i in range(n):
+                legs = fin[f"_ST_unitary_{i}_legs"]
+                k = (legs[0], tuple(legs[2 : legs[1] + 2]), tuple(legs[legs[1] + 2 :]))
+                reps = [fin[f"_ST_unitary_{i}_rep_{j}"] for j in range(legs.size - 2)]
+                k = k + tuple(r.tobytes() for r in reps)
+                data = fin[f"_ST_unitary_{i}_data"]
+                indices = fin[f"_ST_unitary_{i}_indices"]
+                indptr = fin[f"_ST_unitary_{i}_indptr"]
+                shape = fin[f"_ST_unitary_{i}_shape"]
+                v = ssp.csr_matrix((data, indices, indptr), shape=shape)
+                cls._unitary_dic[k] = v
 
     @classmethod
     def save_unitaries(cls, savefile):
-        data = {"_ST_symmetry": cls.symmetry}
-        keys = []
-        root = "_ST_unitary_"
+        data = {"_ST_symmetry": cls.symmetry, "_ST_n_unitary": len(cls._unitary_dic)}
         # cannot use dict key directly as savefile keyword: it has to be a valid zip
         # filename, which decoded bytes are not (some values are not allowed)
-        for (k, v) in cls._unitary_dic.items():
-            nk = ";".join([str(np.frombuffer(b, dtype=int))[1:-1] for b in k[3:]])
-            nk = f"{k[0]};{k[1]};{k[2]};" + nk
-            keys.append(nk)
-            data[root + nk + "_data"] = v.data
-            data[root + nk + "_indices"] = v.indices
-            data[root + nk + "_indptr"] = v.indptr
-            data[root + nk + "_shape"] = v.shape
-        data[root + "keys"] = np.array(keys)
+        # can use workardound with cast to string, but keys becomes very long, may get
+        # trouble if larger than 250 char. Just use dumb count and save reps as arrays.
+        for i, (k, v) in enumerate(cls._unitary_dic.items()):
+            legs = np.array([k[0], len(k[1]), *k[1], *k[2]])
+            reps = [np.frombuffer(b, dtype=int) for b in k[3:]]
+            for (j, repj) in enumerate(reps):
+                data[f"_ST_unitary_{i}_rep_{j}"] = repj
+            data[f"_ST_unitary_{i}_legs"] = legs
+            data[f"_ST_unitary_{i}_data"] = v.data
+            data[f"_ST_unitary_{i}_indices"] = v.indices
+            data[f"_ST_unitary_{i}_indptr"] = v.indptr
+            data[f"_ST_unitary_{i}_shape"] = v.shape
         np.savez_compressed(savefile, **data)
 
     ####################################################################################
