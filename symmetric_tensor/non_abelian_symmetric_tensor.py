@@ -125,14 +125,12 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
         # so, now we have initial shape projector and output shape projector. We need to
         # transpose rows to contract them. Since there is no bra/ket exchange, this can
         # be done by pure advanced slicing, without calling heavier sparse_transpose.
-        nsh = tuple(
-            self.representation_dimension(rep) for rep in new_row_reps + new_col_reps
-        )
+        reps = new_row_reps + new_col_reps
+        nsh = tuple(self.representation_dimension(r) for r in reps)
         strides1 = np.array((1,) + self._shape[:0:-1]).cumprod()[::-1]
         strides2 = np.array((1,) + nsh[:0:-1]).cumprod()[::-1]
-        perm = (np.arange(proj1.shape[0])[:, None] // strides1 % self._shape)[
-            :, axes
-        ] @ strides2
+        n = proj1.shape[0]
+        perm = (np.arange(n)[:, None] // strides1 % self._shape)[:, axes] @ strides2
 
         proj2 = proj2[perm].T.tocsr()
         unitary = proj2 @ proj1
@@ -174,10 +172,7 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
         row_rep = self.get_row_representation()
         col_rep = self.get_column_representation()
         shared, indL, indR = np.intersect1d(  # bruteforce numpy > clever python
-            row_rep[1],
-            col_rep[1],
-            assume_unique=True,
-            return_indices=True,
+            row_rep[1], col_rep[1], assume_unique=True, return_indices=True
         )
         data = np.zeros(row_rep[0, indL] @ col_rep[0, indR])
         k = 0
