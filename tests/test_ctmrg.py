@@ -33,8 +33,8 @@ axesA = (rp, ra, ru, rr, rd, rl)
 axesB = (-rp, -ra, -rd, -rl, -ru, -rr)
 A_U1 = U1_SymmetricTensor.random(axesA[:2], axesA[2:], rng=rng)
 B_U1 = U1_SymmetricTensor.random(axesB[:2], axesB[2:], rng=rng)
-axesA = tuple(np.array(t.size) for t in axesA)
-axesB = tuple(np.array(t.size) for t in axesB)
+axesA = tuple(np.array([t.size]) for t in axesA)
+axesB = tuple(np.array([t.size]) for t in axesB)
 A_as = AsymmetricTensor.from_array(A_U1.toarray(), axesA[:2], axesA[2:])
 B_as = AsymmetricTensor.from_array(B_U1.toarray(), axesB[:2], axesB[2:])
 
@@ -116,9 +116,9 @@ for i in range(d):
     tRVB[i, 0, 0, i + 1, 0, 0] = 1.0
     tRVB[i, 0, i + 1, 0, 0, 0] = 1.0
 
-rep_d_asym = np.array(d)
-rep_a_asym = np.array(1)
-rep_D_asym = np.array(D)
+rep_d_asym = np.array([d])
+rep_a_asym = np.array([1])
+rep_D_asym = np.array([D])
 
 rep_d_U1 = np.arange(d - 1, -d, -2, dtype=np.int8)
 rep_a_U1 = np.array([0], dtype=np.int8)
@@ -168,7 +168,7 @@ tensorsU1 = (tRVB_U1, tRVB_U1.group_conjugated())
 tensorsSU2 = (tRVB_SU2,)
 ctmAs = CTMRG.from_elementary_tensors("A", tensorsAs, 20, verbosity=100)
 ctmU1 = CTMRG.from_elementary_tensors("AB\nBA", tensorsU1, 20, verbosity=100)
-ctmSU2 = CTMRG.from_elementary_tensors("A", tensorsSU2, 15, verbosity=100)
+ctmSU2 = CTMRG.from_elementary_tensors("A", tensorsSU2, 20, verbosity=100)
 
 rdmAs = ctmAs.compute_rdm2x1(0, 0)
 rdmU1 = ctmU1.compute_rdm2x1(0, 0)

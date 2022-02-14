@@ -3,10 +3,11 @@ import scipy.sparse as ssp
 import numba
 
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
+from .u1_symmetric_tensor import U1_SymmetricTensor
 from groups.su2_representation import SU2_Representation  # TODO remove me
 
 
-def _get_projector(in1, in2, max_irrep=2 ** 30):
+def _get_projector(in1, in2, max_irrep=2**30):
     # max_irrep cannot be set to None since irr3 loop depends on it
     degen, irreps = _numba_elementary_combine_SU2(in1[0], in1[1], in2[0], in2[1])
     trunc = irreps.searchsorted(max_irrep + 1)
@@ -33,7 +34,7 @@ def _get_projector(in1, in2, max_irrep=2 ** 30):
                 sh = (irr1, d2, irr2, d2, irr3)
                 temp = np.zeros(sh)
                 temp[:, ar, :, ar] = p123
-                temp = temp.reshape(irr1, d2 ** 2 * irr2 * irr3)
+                temp = temp.reshape(irr1, d2**2 * irr2 * irr3)
                 row123, col123 = temp.nonzero()
                 data123 = temp[row123, col123]
                 shift1 = cs1[i1]
@@ -83,7 +84,7 @@ def _get_projector_chained(*rep_in, singlet_only=False):
             forwards[-i - 2] = forwards[-i][:, : forwards[1].searchsorted(trunc + 1)]
             truncations.append(trunc)
     else:
-        truncations = [2 ** 30] * n
+        truncations = [2**30] * n
 
     proj = _get_projector(forwards[0], rep_in[1], max_irrep=truncations[-2])
     for (f, rep, trunc) in zip(forwards[1:], rep_in[2:], reversed(truncations[:-2])):
@@ -124,7 +125,7 @@ class SU2_SymmetricTensor(NonAbelianSymmetricTensor):
     @classmethod
     @property
     def symmetry(cls):
-        return "SU(2)"
+        return "SU2"
 
     @staticmethod
     def combine_representations(*reps):
@@ -208,3 +209,29 @@ class SU2_SymmetricTensor(NonAbelianSymmetricTensor):
     ####################################################################################
     def group_conjugated(self):
         return self  # every SU(2) representations are self-conjugate
+
+    def toabelian(self):
+        arr = self.toarray()
+        row_reps = []
+        for r in self._row_reps:
+            sz = np.empty((r[0] @ r[1],), dtype=np.int8)
+            k = 0
+            for (d, irr) in zip(r[0], r[1]):
+                sz_irr = -np.arange(-irr + 1, irr, 2, dtype=np.int8)
+                for i in range(d):
+                    sz[k : k + irr] = sz_irr
+                    k += irr
+            row_reps.append(sz)
+
+        col_reps = []
+        for r in self._col_reps:
+            sz = np.empty((r[0] @ r[1],), dtype=np.int8)
+            k = 0
+            for (d, irr) in zip(r[0], r[1]):
+                sz_irr = np.arange(-irr + 1, irr, 2, dtype=np.int8)
+                for i in range(d):
+                    sz[k : k + irr] = sz_irr
+                    k += irr
+            col_reps.append(sz)
+
+        return U1_SymmetricTensor.from_array(arr, row_reps, col_reps)

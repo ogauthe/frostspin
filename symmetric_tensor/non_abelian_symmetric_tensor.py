@@ -2,6 +2,7 @@ import bisect
 
 import numpy as np
 import scipy.linalg as lg
+import scipy.sparse as ssp
 
 from .symmetric_tensor import SymmetricTensor
 
@@ -50,6 +51,43 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
         """
         raise NotImplementedError("Must be defined in derived class")
 
+    @classmethod
+    def load_unitaries(cls, savefile):
+        with np.load(savefile) as fin:
+            if fin["_ST_symmetry"] != cls.symmetry:
+                raise ValueError("Savefile symmetry do not match SymmetricTensor")
+            n = fin["_ST_n_unitary"]
+            for i in range(n):
+                legs = fin[f"_ST_unitary_{i}_legs"]
+                k = (legs[0], tuple(legs[2 : legs[1] + 2]), tuple(legs[legs[1] + 2 :]))
+                reps = [fin[f"_ST_unitary_{i}_rep_{j}"] for j in range(legs.size - 2)]
+                k = k + tuple(r.tobytes() for r in reps)
+                data = fin[f"_ST_unitary_{i}_data"]
+                indices = fin[f"_ST_unitary_{i}_indices"]
+                indptr = fin[f"_ST_unitary_{i}_indptr"]
+                shape = fin[f"_ST_unitary_{i}_shape"]
+                v = ssp.csr_matrix((data, indices, indptr), shape=shape)
+                cls._unitary_dic[k] = v
+
+    @classmethod
+    def save_unitaries(cls, savefile):
+        data = {"_ST_symmetry": cls.symmetry, "_ST_n_unitary": len(cls._unitary_dic)}
+        # cannot use dict key directly as savefile keyword: it has to be a valid zip
+        # filename, which decoded bytes are not (some values are not allowed)
+        # can use workardound with cast to string, but keys becomes very long, may get
+        # trouble if larger than 250 char. Just use dumb count and save reps as arrays.
+        for i, (k, v) in enumerate(cls._unitary_dic.items()):
+            legs = np.array([k[0], len(k[1]), *k[1], *k[2]])
+            reps = [np.frombuffer(b, dtype=int) for b in k[3:]]
+            for (j, repj) in enumerate(reps):
+                data[f"_ST_unitary_{i}_rep_{j}"] = repj
+            data[f"_ST_unitary_{i}_legs"] = legs
+            data[f"_ST_unitary_{i}_data"] = v.data
+            data[f"_ST_unitary_{i}_indices"] = v.indices
+            data[f"_ST_unitary_{i}_indptr"] = v.indptr
+            data[f"_ST_unitary_{i}_shape"] = v.shape
+        np.savez_compressed(savefile, **data)
+
     ####################################################################################
     # Non-abelian shared symmetry implementation
     ####################################################################################
@@ -87,14 +125,12 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
         # so, now we have initial shape projector and output shape projector. We need to
         # transpose rows to contract them. Since there is no bra/ket exchange, this can
         # be done by pure advanced slicing, without calling heavier sparse_transpose.
-        nsh = tuple(
-            self.representation_dimension(rep) for rep in new_row_reps + new_col_reps
-        )
+        reps = new_row_reps + new_col_reps
+        nsh = tuple(self.representation_dimension(r) for r in reps)
         strides1 = np.array((1,) + self._shape[:0:-1]).cumprod()[::-1]
         strides2 = np.array((1,) + nsh[:0:-1]).cumprod()[::-1]
-        perm = (np.arange(proj1.shape[0])[:, None] // strides1 % self._shape)[
-            :, axes
-        ] @ strides2
+        n = proj1.shape[0]
+        perm = (np.arange(n)[:, None] // strides1 % self._shape)[:, axes] @ strides2
 
         proj2 = proj2[perm].T.tocsr()
         unitary = proj2 @ proj1
@@ -136,10 +172,7 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
         row_rep = self.get_row_representation()
         col_rep = self.get_column_representation()
         shared, indL, indR = np.intersect1d(  # bruteforce numpy > clever python
-            row_rep[1],
-            col_rep[1],
-            assume_unique=True,
-            return_indices=True,
+            row_rep[1], col_rep[1], assume_unique=True, return_indices=True
         )
         data = np.zeros(row_rep[0, indL] @ col_rep[0, indR])
         k = 0
@@ -173,6 +206,16 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
             cls.combine_representations(*row_reps),
             cls.combine_representations(*col_reps),
         )
+        assert abs(
+            (n := lg.norm(arr))
+            - np.sqrt(
+                sum(
+                    cls.irrep_dimension(irr) * lg.norm(b) ** 2
+                    for (irr, b) in zip(block_irreps, blocks)
+                )
+            )
+            <= 2e-13 * n  # allows for arr = 0
+        ), "norm is not conserved in SymmetricTensor cast"
         return cls(row_reps, col_reps, blocks, block_irreps)
 
     def _toarray(self):
@@ -200,7 +243,7 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
         # if hash is too slow, can be decomposed: at init, set dic corresponding to
         # representations, then permutate only needs hash from row_axes and col_axes
         key = tuple(r.tobytes() for r in self._row_reps + self._col_reps)
-        key = key + (len(self._row_reps), row_axes, col_axes)
+        key = (len(self._row_reps), row_axes, col_axes) + key
         try:
             unitary = self._unitary_dic[key]
         except KeyError:

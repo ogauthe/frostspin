@@ -22,11 +22,11 @@ class AsymmetricTensor(SymmetricTensor):
     def symmetry(cls):
         return "trivial"
 
-    _irrep = np.zeros((1,), dtype=np.int8)
+    _irrep = np.zeros([1], dtype=np.int8)
 
     @staticmethod
     def combine_representations(*reps):
-        return np.prod([r for r in reps])
+        return np.prod([r for r in reps], axis=0)
 
     @staticmethod
     def conjugate_representation(rep):
@@ -34,11 +34,15 @@ class AsymmetricTensor(SymmetricTensor):
 
     @staticmethod
     def init_representation(degen, irreps):
-        return degen.reshape([])
+        return degen.reshape((1,))
 
     @staticmethod
     def representation_dimension(rep):
-        return rep[()]
+        return rep[0]
+
+    @staticmethod
+    def irrep_dimension(rep):
+        return 1
 
     ####################################################################################
     # Symmetry specific methods with fixed signature
@@ -54,8 +58,8 @@ class AsymmetricTensor(SymmetricTensor):
 
     def _permutate(self, row_axes, col_axes):
         arr = self._blocks[0].reshape(self._shape).transpose(row_axes + col_axes)
-        row_reps = tuple(np.array(d) for d in arr.shape[: len(row_axes)])
-        col_reps = tuple(np.array(d) for d in arr.shape[len(row_axes) :])
+        row_reps = tuple(np.array([d]) for d in arr.shape[: len(row_axes)])
+        col_reps = tuple(np.array([d]) for d in arr.shape[len(row_axes) :])
         return type(self).from_array(arr, row_reps, col_reps)
 
     def group_conjugated(self):
@@ -71,3 +75,6 @@ class AsymmetricTensor(SymmetricTensor):
 
     def norm(self):
         return lg.norm(self._blocks[0])
+
+    def toabelian(self):
+        return self
