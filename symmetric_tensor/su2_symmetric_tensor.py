@@ -64,24 +64,27 @@ def _get_projector_chained(*rep_in, singlet_only=False):
             /  \   \
            1    2   3 ...
     """
-    forwards, backwards = [[rep_in[0]], [rep_in[-1]]]
+    forwards = [rep_in[0]]
     n = len(rep_in)
     if n == 1:
         return ssp.eye(rep_in[0][0] @ rep_in[0][1]).tocsc()
 
     for i in range(1, n):
         forwards.append(_numba_combine_SU2(forwards[i - 1], rep_in[i]))
-        backwards.append(_numba_combine_SU2(backwards[i - 1], rep_in[-i - 1]))
 
     if singlet_only:
-        # projection is made only on singlet. Remove irreps that wont fuse to 1.
         if forwards[-1][1, 0] != 1:
             raise ValueError("No singlet in product")
+        # projection is made only on singlet. Remove irreps that wont fuse to 1.
+        backwards = [rep_in[-1]]
+        for i in range(1, n):
+            backwards.append(_numba_combine_SU2(backwards[i - 1], rep_in[-i - 1]))
         truncations = [1]
-        forwards[-1] = forwards[-1][:, : forwards[1].searchsorted(2)]
+        forwards[-1] = forwards[-1][:, : forwards[-1][1].searchsorted(2)]
         for i in range(n - 1):
             trunc = backwards[i][1, -1]
-            forwards[-i - 2] = forwards[-i][:, : forwards[1].searchsorted(trunc + 1)]
+            cut = forwards[-i - 2][1].searchsorted(trunc + 1)
+            forwards[-i - 2] = forwards[-i - 2][:, :cut]
             truncations.append(trunc)
     else:
         truncations = [2**30] * n
