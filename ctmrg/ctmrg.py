@@ -525,9 +525,10 @@ class CTMRG:
         """
         Compute maximal horizontal correlation length in row between y and y+1.
         """
-        _, v2 = self.compute_transfer_spectrum_h(
+        v1, v2 = self.compute_transfer_spectrum_h(
             2, y, v0=v0, ncv=ncv, maxiter=maxiter, tol=tol
         )
+        assert abs(v1 - 1.0) < 1e-11
         xi = -self.Lx / np.log(np.abs(v2))
         return xi
 
@@ -535,9 +536,10 @@ class CTMRG:
         """
         Compute maximal vertical correlation length in column between x and x+1.
         """
-        _, v2 = self.compute_transfer_spectrum_v(
+        v1, v2 = self.compute_transfer_spectrum_v(
             2, x, v0=v0, ncv=ncv, maxiter=maxiter, tol=tol
         )
+        assert abs(v1 - 1.0) < 1e-11
         xi = -self.Ly / np.log(np.abs(v2))
         return xi
 

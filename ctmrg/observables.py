@@ -245,13 +245,19 @@ def compute_mps_transfer_spectrum(
             tol=tol,
             return_eigenvectors=False,
         )
-        if np.linalg.norm(vals.imag) / np.linalg.norm(vals.real) > 1e-6:
-            print("Error: eigenvalues are not real")
-            vals = np.nan * np.ones(nval)
-        else:
-            vals = vals.real[np.abs(vals).argsort()[::-1]]
-            vals = vals / vals[0]
     except slg.ArpackNoConvergence as err:
         print("ARPACK did not converge", err)
-        vals = np.nan * np.ones(nval)
+        vals = err.eigenvalues
+        print(f"Keep {vals.size} converged eigenvalues")
+
+    vals = vals[np.abs(vals).argsort()[::-1]]
+    vals /= vals[0]
+
+    if np.linalg.norm(vals.imag) < 1e-6:  # norm(vals.real) ~ 1
+        vals = vals.real
+    else:
+        # complex eigenvalues mean wavector != (m*pi/Lx, n*pi/Ly)
+        # this happens if correlation do not match unit cell size, which is always the
+        # case for incommensurate correlations.
+        print("Warning: transfer matrix eigenvalues are not real")
     return vals
