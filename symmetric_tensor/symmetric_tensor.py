@@ -173,6 +173,9 @@ class SymmetricTensor:
     ####################################################################################
     # Magic methods
     ####################################################################################
+    def __repr__(self):
+        return f"{self.symmetry} SymmetricTensor with shape {self._shape}"
+
     def __add__(self, other):
         assert self.match_representations(other)
         # need to take into account possibly missing block in self or other
