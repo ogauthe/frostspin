@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.sparse as sp
 import numba
 
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
@@ -11,9 +12,7 @@ def _numba_combine_O2(*reps):
     # 0e x n = n
     # n x n = 2n + 0e + 0o
     # n x m = (n+m) + |n-m|
-    combined = reps[0]
-    for r in reps[1:]:
-        combined = (combined.reshape(-1, 1) + r).ravel()
+    combined = None  # TODO
     return combined
 
 
@@ -38,8 +37,95 @@ def _O2_rep_to_U1(r):
     return ru1
 
 
+@numba.njit
+def _get_coo_proj(signs, so):
+    ecoeff = []
+    erows = []
+    ecols = []
+    ocoeff = []
+    orows = []
+    ocols = []
+    ie, io = 0, 0
+    state_indices = set(range(so.size))
+    while state_indices:
+        i = state_indices.pop()
+        j = so[i]
+        isign = signs[i]
+        if i == j:  # fixed point
+            if isign == 1:  # even
+                ecoeff.append(1.0)
+                erows.append(ie)
+                ecols.append(i)
+                ie += 1
+            else:  # odd
+                ocoeff.append(1.0)
+                orows.append(io)
+                ocols.append(i)
+                io += 1
+        else:
+            state_indices.remove(j)
+            ecoeff.append(1.0 / np.sqrt(2))
+            erows.append(ie)
+            ecols.append(i)
+            ecoeff.append(isign / np.sqrt(2))
+            erows.append(ie)
+            ecols.append(j)
+            ocoeff.append(1.0 / np.sqrt(2))
+            orows.append(io)
+            ocols.append(i)
+            ocoeff.append(-isign / np.sqrt(2))
+            orows.append(io)
+            ocols.append(j)
+            ie += 1
+            io += 1
+
+    return ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols
+
+
 def _oe_blocks_from_b0(b0, row_reps, col_reps):
-    b0o, b0e = None, None
+    """
+    Construct 0odd and 0even blocks from U(1) block b0.
+
+    This is done by constructing separetly row and columns projectors on both even and
+    odd sectors.
+    """
+
+    shr = np.array([O2_SymmetricTensor.representation_dimension(r) for r in row_reps])
+    row_cp = np.array([1, *shr[1:]]).cumprod()[::-1]
+
+    rsz_mat = (_O2_rep_to_U1(row_reps) == 0).nonzero()[0]  # find Sz=0 states
+    rsz_t = (rsz_mat // row_cp[:, None]).T % shr  # multi-index form
+    # rszb_t = rmap[rsz_t]  # map all indices to their spin reversed  # TODO
+    rszb_t = None * rsz_t
+    rszb_mat = rszb_t @ row_cp  # back to matrix form
+    rso = rszb_mat.argsort()  # imposed sorted block indices in U(1) => argsort
+    # rsign = raxis_signs[rsz_t].prod(axis=1)  # row signs  # TODO
+    rsign = None
+    ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols = _get_coo_proj(rsign, rso)
+    pre = sp.coo_matrix((ecoeff, (erows, ecols)), shape=(ie, rso.size))
+    pro = sp.coo_matrix((ocoeff, (orows, ocols)), shape=(io, rso.size))
+    pre = pre.tocsr()
+    pro = pro.tocsr()
+
+    # same operation for columns
+    shc = [O2_SymmetricTensor.representation_dimension(r) for r in col_reps]
+    col_cp = np.array([1, *shc[1:]]).cumprod()[::-1]
+    csz_mat = (_O2_rep_to_U1(col_reps) == 0).nonzero()[0]
+    csz_t = (csz_mat // col_cp[:, None]).T % shc
+    # cszb_t = cmap[csz_t]  # TODO
+    cszb_t = None * csz_t
+    cszb_mat = cszb_t @ col_cp
+    cso = cszb_mat.argsort()
+    # csign = caxis_signs[csz_t].prod(axis=1)  # TODO
+    csign = None
+    ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols = _get_coo_proj(csign, cso)
+    pce = sp.coo_matrix((ecoeff, (erows, ecols)), shape=(ie, cso.size))
+    pco = sp.coo_matrix((ocoeff, (orows, ocols)), shape=(io, cso.size))
+    pce = pce.T.tocsr()
+    pco = pco.T.tocsr()
+
+    b0e = pre @ b0 @ pce
+    b0o = pro @ b0 @ pco
     return b0o, b0e
 
 
