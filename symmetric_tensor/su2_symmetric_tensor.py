@@ -2,7 +2,7 @@ import numpy as np
 import scipy.sparse as ssp
 import numba
 
-from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
+from .lie_group_symmetric_tensor import LieGroupSymmetricTensor
 from .u1_symmetric_tensor import U1_SymmetricTensor
 from groups.su2_representation import SU2_Representation  # TODO remove me
 
@@ -116,7 +116,7 @@ def _numba_combine_SU2(*reps):
     return np.concatenate((degen, irreps)).reshape(2, -1)
 
 
-class SU2_SymmetricTensor(NonAbelianSymmetricTensor):
+class SU2_SymmetricTensor(LieGroupSymmetricTensor):
     """
     Irreps are 2D arrays with int dtype. First row is degen, second row is irrep
     dimension = 2 * s + 1
@@ -141,23 +141,17 @@ class SU2_SymmetricTensor(NonAbelianSymmetricTensor):
         return rep
 
     @staticmethod
-    def init_representation(degen, irreps):
-        assert degen.ndim == 1
-        assert irreps.shape == (degen.size,)
-        return np.vstack((degen, irreps))
-
-    @staticmethod
     def representation_dimension(rep):
         return rep[0] @ rep[1]
+
+    @classmethod
+    def irrep_dimension(cls, irr):
+        return irr
 
     ####################################################################################
     # Non-abelian specific symmetry implementation
     ####################################################################################
     _unitary_dic = {}
-
-    @classmethod
-    def irrep_dimension(cls, irr):
-        return irr
 
     @classmethod
     def construct_matrix_projector(cls, row_reps, col_reps, conjugate_columns=False):
