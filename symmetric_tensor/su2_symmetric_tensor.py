@@ -208,6 +208,9 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         return self  # every SU(2) representations are self-conjugate
 
     def toabelian(self):
+        return self.toU1()
+
+    def toU1(self):
         arr = self.toarray()
         row_reps = []
         for r in self._row_reps:
