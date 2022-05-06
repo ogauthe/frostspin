@@ -82,12 +82,10 @@ def _get_coo_proj(signs, so):
     return ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols
 
 
-def _oe_blocks_from_b0(b0, row_reps, col_reps):
+def _get_b0_projectors(row_reps, col_reps):
     """
-    Construct 0odd and 0even blocks from U(1) block b0.
-
-    This is done by constructing separetly row and columns projectors on both even and
-    odd sectors.
+    Construct 0odd and 0even projectors. They allow to decompose U(1) Sz=0 sector into
+    0odd (aka -1) and 0even (aka 0) sectors.
     """
 
     shr = np.array([O2_SymmetricTensor.representation_dimension(r) for r in row_reps])
@@ -124,9 +122,7 @@ def _oe_blocks_from_b0(b0, row_reps, col_reps):
     pce = pce.T.tocsr()
     pco = pco.T.tocsr()
 
-    b0e = pre @ b0 @ pce
-    b0o = pro @ b0 @ pco
-    return b0o, b0e
+    return pro, pre, pco, pce
 
 
 class O2_SymmetricTensor(NonAbelianSymmetricTensor):
@@ -213,15 +209,45 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         if tu1.block_irreps[i0] == 0:
             block_irreps.append(-1)
             block_irreps.append(0)
-            b0o, b0e = _oe_blocks_from_b0(tu1.blocks[i0], row_reps, col_reps)
-            blocks.append(b0o)
-            blocks.append(b0e)
+            pro, pre, pco, pce = _get_b0_projectors(row_reps, col_reps)
+            blocks.append(pro @ tu1.blocks[i0] @ pco)
+            blocks.append(pre @ tu1.blocks[i0] @ pce)
         block_irreps.extend(tu1.block_irreps[i0:])
         blocks.extend(tu1.block[i0:])
         return cls(row_reps, col_reps, blocks, block_irreps)
 
     def _toarray(self):
         return self.toU1().toarray()
+
+    def toabelian(self):
+        return self.toU1()
+
+    def toU1(self):
+        u1_row_reps = []
+        for r in self._row_reps:
+            u1_row_reps.append(_O2_rep_to_U1(r))
+        u1_col_reps = []
+        for r in self._col_reps:
+            u1_col_reps.append(_O2_rep_to_U1(r))
+
+        blocks = []
+        block_irreps = []
+        # generate Sz < 0 blocks
+        # TODO
+
+        # block 0 may not exist
+        i0 = (self._block_irreps > 0).nonzero()[0][0]
+        if i0 > 0:
+            pro, pre, pco, pce = _get_b0_projectors(self._row_reps, self._col_reps)
+            b0 = pro.T @ self._blocks[0] @ pco.T + pre.T @ self._blocks[1] @ pce.T
+            blocks.append(b0)
+            block_irreps.append(0)
+
+        # add Sz > 0 blocks
+        blocks.extend(self._blocks[i0:])
+        block_irreps.extend(self._block_irreps[i0:])
+
+        return U1_SymmetricTensor(u1_row_reps, u1_col_reps, blocks, block_irreps)
 
     def _permutate(self, row_axes, col_axes):
         # inefficient implementation: cast to U(1), permutate, then cast back to O(2)
