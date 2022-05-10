@@ -12,28 +12,41 @@ def _numba_combine_O2(*reps):
     # 0e x n = n
     # n x n = 2n + 0e + 0o
     # n x m = (n+m) + |n-m|
-    combined = None  # TODO
+    combined = np.array([], dtype=np.int8)  # TODO
     return combined
 
 
+@numba.njit
+def _O2_representation_dimension(r):
+    return (r[0] * ((r[1] > 0).astype(np.int64) + 1)).sum()
+
+
+@numba.njit
 def _O2_rep_to_U1(r):
-    assert (r[1] > -2).all()
-    ru1 = np.empty((O2_SymmetricTensor.representation_dimension(r),), dtype=np.int8)
+    """
+    Map O(2) representation to U(1) representation
+    O(2) representations starts with irreps 0odd, 0even which map to U(1) 0
+    then O(2) irreps merge +n and -n U(1) for n>0
+    maps to U(1) irrep +n and -n, with contiguous +n and -n sectors
+
+    ex: [[1, 2, 1, 2], [-1, 0, 1, 2]] is mapped to [0, 0, 0, 1, -1, 2, 2, -2, -2]
+    """
+    ru1 = np.empty((_O2_representation_dimension(r),), dtype=np.int8)
     i = 0
     k = 0
-    if ru1[1, 0] == -1:
+    if r[1, 0] == -1:
         ru1[: r[0, 0]] = 0
         k += r[0, 0]
         i += 1
-    if ru1[1, i] == 0:
-        ru1[k : r[0, i]] = 0
+    if r[1, i] == 0:
+        ru1[k : k + r[0, i]] = 0
         k += r[0, i]
         i += 1
-    for j in range(i, r.shape[0]):
-        ru1[k : k + r[0, i]] = r[1, i]
-        k += r[0, i]
-        ru1[k : k + r[0, i]] = -r[1, i]
-        k += r[0, i]
+    for j in range(i, r.shape[1]):
+        ru1[k : k + r[0, j]] = r[1, j]
+        k += r[0, j]
+        ru1[k : k + r[0, j]] = -r[1, j]
+        k += r[0, j]
     return ru1
 
 
@@ -82,23 +95,53 @@ def _get_coo_proj(signs, so):
     return ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols
 
 
+@numba.njit
+def _get_reflection_perm_sign(rep):
+    """
+    Construct basis permutation mapping vectors into their reflected form.
+
+    Parameters
+    ----------
+    rep: O(2) representation
+    """
+    d = _O2_representation_dimension(rep)
+    perm = np.empty((d,), dtype=np.int64)
+    sign = np.ones((d,), dtype=np.int64)
+    i1 = np.searchsorted(rep[1], 1)
+    k = rep[0, :i1].sum()
+    perm[:k] = np.arange(k)  # sectors -1 and 1 are self-conjugate
+    if rep[1, 0] == -1:
+        sign[: rep[0, 0]] = -1
+    for i in range(i1, rep.shape[1]):
+        d = rep[0, i]
+        perm[k : k + d] = np.arange(k + d, k + 2 * d)
+        perm[k + d : k + 2 * d] = np.arange(k, k + d)
+        if rep[1, i1] % 2:  # -1 sign for Sz<0 to Sz>0
+            sign[k + d : k + 2 * d] = -1
+        k += 2 * d
+    return perm, sign
+
+
 def _get_b0_projectors(row_reps, col_reps):
     """
     Construct 0odd and 0even projectors. They allow to decompose U(1) Sz=0 sector into
     0odd (aka -1) and 0even (aka 0) sectors.
     """
 
-    shr = np.array([O2_SymmetricTensor.representation_dimension(r) for r in row_reps])
+    shr = np.array([_O2_representation_dimension(r) for r in row_reps])
     row_cp = np.array([1, *shr[1:]]).cumprod()[::-1]
-
-    rsz_mat = (_O2_rep_to_U1(row_reps) == 0).nonzero()[0]  # find Sz=0 states
+    u1_row_reps = tuple(_O2_rep_to_U1(r) for r in row_reps)
+    u1_combined = U1_SymmetricTensor.combine_representations(*u1_row_reps)
+    rsz_mat = (u1_combined == 0).nonzero()[0]  # find Sz=0 states
     rsz_t = (rsz_mat // row_cp[:, None]).T % shr  # multi-index form
-    # rszb_t = rmap[rsz_t]  # map all indices to their spin reversed  # TODO
-    rszb_t = None * rsz_t
-    rszb_mat = rszb_t @ row_cp  # back to matrix form
+    rszb_mat = np.zeros(rsz_mat.size, dtype=int)
+    rsign = np.ones((rsz_mat.size,), dtype=int)
+    for i, r in enumerate(row_reps):
+        rmap, sign = _get_reflection_perm_sign(r)
+        rszb_mat += rmap[rsz_t[:, i]] * row_cp[i]  # map all indices to spin reversed
+        rsign *= sign[rsz_t[:, i]]
+
     rso = rszb_mat.argsort()  # imposed sorted block indices in U(1) => argsort
-    # rsign = raxis_signs[rsz_t].prod(axis=1)  # row signs  # TODO
-    rsign = None
     ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols = _get_coo_proj(rsign, rso)
     pre = sp.coo_matrix((ecoeff, (erows, ecols)), shape=(ie, rso.size))
     pro = sp.coo_matrix((ocoeff, (orows, ocols)), shape=(io, rso.size))
@@ -106,16 +149,20 @@ def _get_b0_projectors(row_reps, col_reps):
     pro = pro.tocsr()
 
     # same operation for columns
-    shc = [O2_SymmetricTensor.representation_dimension(r) for r in col_reps]
+    shc = [_O2_representation_dimension(r) for r in col_reps]
     col_cp = np.array([1, *shc[1:]]).cumprod()[::-1]
-    csz_mat = (_O2_rep_to_U1(col_reps) == 0).nonzero()[0]
-    csz_t = (csz_mat // col_cp[:, None]).T % shc
-    # cszb_t = cmap[csz_t]  # TODO
-    cszb_t = None * csz_t
-    cszb_mat = cszb_t @ col_cp
-    cso = cszb_mat.argsort()
-    # csign = caxis_signs[csz_t].prod(axis=1)  # TODO
-    csign = None
+    u1_col_reps = tuple(_O2_rep_to_U1(r) for r in col_reps)
+    u1_combined = U1_SymmetricTensor.combine_representations(*u1_col_reps)
+    csz_mat = (u1_combined == 0).nonzero()[0]  # find Sz=0 states
+    csz_t = (csz_mat // col_cp[:, None]).T % shc  # multi-index form
+    cszb_mat = np.zeros(csz_mat.size, dtype=int)
+    csign = np.ones((csz_mat.size,), dtype=int)
+    for i, r in enumerate(col_reps):
+        cmap, sign = _get_reflection_perm_sign(r)
+        cszb_mat += rmap[csz_t[:, i]] * col_cp[i]  # map all indices to spin reversed
+        csign *= sign[csz_t[:, i]]
+
+    cso = cszb_mat.argsort()  # imposed sorted block indices in U(1) => argsort
     ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols = _get_coo_proj(csign, cso)
     pce = sp.coo_matrix((ecoeff, (erows, ecols)), shape=(ie, cso.size))
     pco = sp.coo_matrix((ocoeff, (orows, ocols)), shape=(io, cso.size))
@@ -166,7 +213,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
 
     @staticmethod
     def representation_dimension(rep):
-        return rep[0] @ ((rep[1] > 0).astype(int) + 1)
+        return _O2_representation_dimension(rep)
 
     @staticmethod
     def irrep_dimension(irrep):
