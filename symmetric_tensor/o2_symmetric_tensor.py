@@ -282,19 +282,23 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
 
     @classmethod
     def from_U1(cls, tu1, row_reps, col_reps):
+        """
+        Assume tu1 has O(2) symmetry and its irreps are sorted according to O(2) rules.
+        """
         assert len(tu1.row_reps) == len(row_reps)
         assert all(
             (_O2_rep_to_U1(r) == tu1.row_reps[i]).all() for i, r in enumerate(row_reps)
         )
         assert len(tu1.col_reps) == len(col_reps)
         assert all(
-            (_O2_rep_to_U1(r) == tu1.col_reps[i]).all() for i, r in enumerate(col_reps)
+            (_O2_rep_to_U1(r) == -tu1.col_reps[i]).all() for i, r in enumerate(col_reps)
         )
 
         blocks = []
         block_irreps = []
         i0 = tu1.block_irreps.searchsorted(0)
         if tu1.nblocks > i0 and tu1.block_irreps[i0] == 0:
+            i1 = i0 + 1
             pro, pre, pco, pce = _get_b0_projectors(row_reps, col_reps)
             if pro.shape[0] > 0 and pco.shape[1] > 0:
                 block_irreps.append(-1)
@@ -302,8 +306,10 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             if pre.shape[0] > 0 and pce.shape[1] > 0:
                 block_irreps.append(0)
                 blocks.append(pre @ tu1.blocks[i0] @ pce)
-        block_irreps.extend(tu1.block_irreps[i0:])
-        blocks.extend(tu1.block[i0:])
+        else:
+            i1 = i0
+        block_irreps.extend(tu1.block_irreps[i1:])
+        blocks.extend(tu1.blocks[i1:])
         return cls(row_reps, col_reps, blocks, block_irreps)
 
     def _toarray(self):
@@ -367,7 +373,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
 
             cso = cszb_mat.argsort()  # imposed sorted block indices in U(1) => argsort
             b = (rsign[:, None] * self._blocks[isz] * csign)[rso[:, None], cso]
-            block_irreps.append(sz)
+            block_irreps.append(-sz)
             blocks.append(b)
             isz -= 1
 
@@ -415,12 +421,16 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
     def check_blocks_fit_representations(self):
         assert self._block_irreps.size == self._nblocks
         assert len(self._blocks) == self._nblocks
-        row_irreps = self.get_row_representation()
-        col_irreps = self.get_column_representation()
-        for (irr, b) in zip(self._block_irreps, self._blocks):
-            nr = (row_irreps == irr).sum()
-            nc = (col_irreps == irr).sum()
+        row_rep = self.get_row_representation()
+        col_rep = self.get_column_representation()
+        r_indices = row_rep[1].searchsorted(self._block_irreps)
+        c_indices = col_rep[1].searchsorted(self._block_irreps)
+        assert (row_rep[1, r_indices] == self._block_irreps).all()
+        assert (col_rep[1, c_indices] == self._block_irreps).all()
+        for bi in range(self._nblocks):
+            nr = row_rep[0, r_indices[bi]]
+            nc = col_rep[0, c_indices[bi]]
             assert nr > 0
             assert nc > 0
-            assert b.shape == (nr, nc)
+            assert self._blocks[bi].shape == (nr, nc)
         return True
