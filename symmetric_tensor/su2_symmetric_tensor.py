@@ -4,6 +4,7 @@ import numba
 
 from .lie_group_symmetric_tensor import LieGroupSymmetricTensor
 from .u1_symmetric_tensor import U1_SymmetricTensor
+from .o2_symmetric_tensor import O2_SymmetricTensor
 from groups.su2_representation import SU2_Representation  # TODO remove me
 
 
@@ -235,3 +236,6 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
             col_reps.append(sz)
 
         return U1_SymmetricTensor.from_array(arr, row_reps, col_reps)
+
+    def toO2(self):
+        return O2_SymmetricTensor.from_SU2(self)
