@@ -128,8 +128,10 @@ def _get_b0_projectors(row_reps, col_reps):
     0odd (aka -1) and 0even (aka 0) sectors.
     """
 
+    # TODO have only rsig, rso, csign, cso as input
+    # reuse these for all Sz to generate -Sz block
     shr = np.array([_O2_representation_dimension(r) for r in row_reps])
-    row_cp = np.array([1, *shr[1:]]).cumprod()[::-1]
+    row_cp = np.array([1, *shr[-1:0:-1]]).cumprod()[::-1]
     u1_row_reps = tuple(_O2_rep_to_U1(r) for r in row_reps)
     u1_combined = U1_SymmetricTensor.combine_representations(*u1_row_reps)
     rsz_mat = (u1_combined == 0).nonzero()[0]  # find Sz=0 states
@@ -150,7 +152,7 @@ def _get_b0_projectors(row_reps, col_reps):
 
     # same operation for columns
     shc = [_O2_representation_dimension(r) for r in col_reps]
-    col_cp = np.array([1, *shc[1:]]).cumprod()[::-1]
+    col_cp = np.array([1, *shc[-1:0:-1]]).cumprod()[::-1]
     u1_col_reps = tuple(_O2_rep_to_U1(r) for r in col_reps)
     u1_combined = U1_SymmetricTensor.combine_representations(*u1_col_reps)
     csz_mat = (u1_combined == 0).nonzero()[0]  # find Sz=0 states
@@ -159,7 +161,7 @@ def _get_b0_projectors(row_reps, col_reps):
     csign = np.ones((csz_mat.size,), dtype=int)
     for i, r in enumerate(col_reps):
         cmap, sign = _get_reflection_perm_sign(r)
-        cszb_mat += rmap[csz_t[:, i]] * col_cp[i]  # map all indices to spin reversed
+        cszb_mat += cmap[csz_t[:, i]] * col_cp[i]  # map all indices to spin reversed
         csign *= sign[csz_t[:, i]]
 
     cso = cszb_mat.argsort()  # imposed sorted block indices in U(1) => argsort
@@ -238,13 +240,8 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         # then split sector 0 into 0even and 0odd
         # discard sectors with n < 0
         # keep sectors with n > 0 as they are
-        u1_row_reps = []
-        for r in row_reps:
-            u1_row_reps.append(_O2_rep_to_U1(r))
-        u1_col_reps = []
-        for r in col_reps:
-            u1_col_reps.append(_O2_rep_to_U1(r))
-
+        u1_row_reps = tuple(_O2_rep_to_U1(r) for r in row_reps)
+        u1_col_reps = tuple(_O2_rep_to_U1(r) for r in col_reps)
         tu1 = U1_SymmetricTensor.from_array(arr, u1_row_reps, u1_col_reps)
         return cls.from_U1(tu1, row_reps, col_reps)
 
