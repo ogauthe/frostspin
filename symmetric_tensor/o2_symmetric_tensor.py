@@ -247,15 +247,26 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
 
     @classmethod
     def from_U1(cls, tu1, row_reps, col_reps):
+        assert len(tu1.row_reps) == len(row_reps)
+        assert all(
+            (_O2_rep_to_U1(r) == tu1.row_reps[i]).all() for i, r in enumerate(row_reps)
+        )
+        assert len(tu1.col_reps) == len(col_reps)
+        assert all(
+            (_O2_rep_to_U1(r) == tu1.col_reps[i]).all() for i, r in enumerate(col_reps)
+        )
+
         blocks = []
         block_irreps = []
         i0 = tu1.block_irreps.searchsorted(0)
-        if tu1.block_irreps[i0] == 0:
-            block_irreps.append(-1)
-            block_irreps.append(0)
+        if tu1.nblocks > i0 and tu1.block_irreps[i0] == 0:
             pro, pre, pco, pce = _get_b0_projectors(row_reps, col_reps)
-            blocks.append(pro @ tu1.blocks[i0] @ pco)
-            blocks.append(pre @ tu1.blocks[i0] @ pce)
+            if pro.shape[0] > 0 and pco.shape[1] > 0:
+                block_irreps.append(-1)
+                blocks.append(pro @ tu1.blocks[i0] @ pco)
+            if pre.shape[0] > 0 and pce.shape[1] > 0:
+                block_irreps.append(0)
+                blocks.append(pre @ tu1.blocks[i0] @ pce)
         block_irreps.extend(tu1.block_irreps[i0:])
         blocks.extend(tu1.block[i0:])
         return cls(row_reps, col_reps, blocks, block_irreps)
@@ -267,29 +278,75 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         return self.toU1()
 
     def toU1(self):
-        u1_row_reps = []
-        for r in self._row_reps:
-            u1_row_reps.append(_O2_rep_to_U1(r))
-        u1_col_reps = []
-        for r in self._col_reps:
-            u1_col_reps.append(_O2_rep_to_U1(r))
+        nr = len(self._row_reps)
+        u1_row_reps = [None] * nr
+        rmaps = [None] * nr
+        rsigns = [None] * nr
+        for i, r in enumerate(self._row_reps):
+            u1_row_reps[i] = _O2_rep_to_U1(r)
+            rmaps[i], rsigns[i] = _get_reflection_perm_sign(r)
+
+        shr = np.array(self.shape[:nr])
+        row_cp = np.array([1, *shr[1:]]).cumprod()[::-1]
+        u1_combined_row = U1_SymmetricTensor.combine_representations(*u1_row_reps)
+
+        nc = len(self._col_reps)
+        u1_col_reps = [None] * nc
+        cmaps = [None] * nc
+        csigns = [None] * nc
+        for i, r in enumerate(self._col_reps):
+            u1_col_reps[i] = _O2_rep_to_U1(r)
+            cmaps[i], csigns[i] = _get_reflection_perm_sign(r)
+
+        shc = np.array(self.shape[nr:])
+        col_cp = np.array([1, *shc[1:]]).cumprod()[::-1]
+        u1_combined_col = U1_SymmetricTensor.combine_representations(*u1_col_reps)
 
         blocks = []
         block_irreps = []
+
         # generate Sz < 0 blocks
-        # TODO
+        isz = self._nblocks - 1
+        while isz > -1 and self._block_irreps[isz] > 0:
+            sz = self._block_irreps[isz]
+            # could factorize Sz-reflection, but implies doing operation for all Sz
+            # better to map to Sz-reflected inside loop, only for Sz<0?
+            # or numpy will make things faster?
+            rsz_mat = (u1_combined_row == sz).nonzero()[0]  # find Sz states
+            rsz_t = (rsz_mat // row_cp[:, None]).T % shr  # multi-index form
+            rszb_mat = np.zeros(rsz_mat.size, dtype=int)
+            rsign = np.ones((rsz_mat.size,), dtype=int)
+            for i, r in enumerate(self._row_reps):
+                rszb_mat += rmaps[i][rsz_t[:, i]] * row_cp[i]  # map to spin reversed
+                rsign *= rsigns[i][rsz_t[:, i]]
+
+            rso = rszb_mat.argsort()  # imposed sorted block indices in U(1) => argsort
+
+            csz_mat = (u1_combined_col == sz).nonzero()[0]  # find Sz states
+            csz_t = (csz_mat // col_cp[:, None]).T % shc  # multi-index form
+            cszb_mat = np.zeros(csz_mat.size, dtype=int)
+            csign = np.ones((csz_mat.size,), dtype=int)
+            for i, r in enumerate(self._col_reps):
+                cszb_mat += cmaps[i][csz_t[:, i]] * col_cp[i]  # map to spin reversed
+                csign *= csigns[i][csz_t[:, i]]
+
+            cso = cszb_mat.argsort()  # imposed sorted block indices in U(1) => argsort
+            b = (rsign[:, None] * self._blocks[isz] * csign)[rso[:, None], cso]
+            block_irreps.append(sz)
+            blocks.append(b)
+            isz -= 1
 
         # block 0 may not exist
-        i0 = (self._block_irreps > 0).nonzero()[0][0]
-        if i0 > 0:
+        if self._block_irreps[0] < 1:
+            # TODO optimize
             pro, pre, pco, pce = _get_b0_projectors(self._row_reps, self._col_reps)
             b0 = pro.T @ self._blocks[0] @ pco.T + pre.T @ self._blocks[1] @ pce.T
             blocks.append(b0)
             block_irreps.append(0)
 
         # add Sz > 0 blocks
-        blocks.extend(self._blocks[i0:])
-        block_irreps.extend(self._block_irreps[i0:])
+        blocks.extend(self._blocks[isz + 1 :])
+        block_irreps.extend(self._block_irreps[isz + 1 :])
 
         return U1_SymmetricTensor(u1_row_reps, u1_col_reps, blocks, block_irreps)
 
