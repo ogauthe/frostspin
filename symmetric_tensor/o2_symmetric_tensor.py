@@ -8,12 +8,47 @@ from .u1_symmetric_tensor import U1_SymmetricTensor
 
 @numba.njit
 def _numba_combine_O2(*reps):
+    degen, irreps = reps[0]
+    for r in reps[1:]:
+        degen, irreps = _numba_elementary_combine_O2(degen, irreps, r[0], r[1])
+    return np.concatenate((degen, irreps)).reshape(2, -1)
+
+
+@numba.njit
+def _numba_elementary_combine_O2(degen1, irreps1, degen2, irreps2):
+    # 0o x 0o = 0e
+    # 0e x 0e = 0e
+    # 0e x 0o = 0o
+    # 0o x 0e = 0o
     # 0o x n = n
     # 0e x n = n
     # n x n = 2n + 0e + 0o
     # n x m = (n+m) + |n-m|
-    combined = np.array([], dtype=np.int8)  # TODO
-    return combined
+    nmax = max(irreps1[-1], 0) + max(irreps2[-1], 0)
+    degen = np.zeros((nmax + 2,), dtype=np.int64)
+
+    for (d1, irr1) in zip(degen1, irreps1):
+        for (d2, irr2) in zip(degen2, irreps2):
+            d = d1 * d2
+            if irr1 < 1:
+                if irr2 < 1:
+                    degen[(irr1 + irr2 + 1) % 2] += d
+                else:
+                    degen[irr2 + 1] += d
+            else:
+                if irr2 < 1:
+                    degen[irr1 + 1] += d
+                elif irr1 == irr2:
+                    degen[0] += d
+                    degen[1] += d
+                    degen[2 * irr1 + 1] += d
+                else:
+                    degen[irr1 + irr2 + 1] += d
+                    degen[abs(irr1 - irr2) + 1] += d
+
+    irreps = np.arange(-1, nmax + 1)
+    nnz = degen.nonzero()[0]
+    return degen[nnz], irreps[nnz]
 
 
 @numba.njit
