@@ -285,7 +285,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         """
         Assume tu1 has O(2) symmetry and its irreps are sorted according to O(2) rules.
         """
-        assert len(tu1.row_reps) == len(row_reps)
+        assert tu1._nrr == len(row_reps)
         assert all(
             (_O2_rep_to_U1(r) == tu1.row_reps[i]).all() for i, r in enumerate(row_reps)
         )
@@ -319,27 +319,26 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         return self.toU1()
 
     def toU1(self):
-        nr = len(self._row_reps)
-        u1_row_reps = [None] * nr
-        rmaps = [None] * nr
-        rsigns = [None] * nr
+        u1_row_reps = [None] * self._nrr
+        rmaps = [None] * self._nrr
+        rsigns = [None] * self._nrr
         for i, r in enumerate(self._row_reps):
             u1_row_reps[i] = _O2_rep_to_U1(r)
             rmaps[i], rsigns[i] = _get_reflection_perm_sign(r)
 
-        shr = np.array(self.shape[:nr])
+        shr = np.array(self.shape[: self._nrr])
         row_cp = np.array([1, *shr[1:]]).cumprod()[::-1]
         u1_combined_row = U1_SymmetricTensor.combine_representations(*u1_row_reps)
 
-        nc = len(self._col_reps)
-        u1_col_reps = [None] * nc
-        cmaps = [None] * nc
-        csigns = [None] * nc
+        ncr = len(self._col_reps)
+        u1_col_reps = [None] * ncr
+        cmaps = [None] * ncr
+        csigns = [None] * ncr
         for i, r in enumerate(self._col_reps):
             u1_col_reps[i] = _O2_rep_to_U1(r)
             cmaps[i], csigns[i] = _get_reflection_perm_sign(r)
 
-        shc = np.array(self.shape[nr:])
+        shc = np.array(self.shape[self._nrr :])
         col_cp = np.array([1, *shc[1:]]).cumprod()[::-1]
         u1_combined_col = U1_SymmetricTensor.combine_representations(*u1_col_reps)
 
@@ -396,19 +395,20 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         # TODO implement efficient specific permutate
 
         # construt new axes, conjugate if axis changes between row adnd column
-        nrr = len(self._row_reps)
         row_reps = []
         for ax in row_axes:
-            if ax < nrr:
+            if ax < self._nrr:
                 row_reps.append(self._row_reps[ax])
             else:
-                row_reps.append(self.conjugate_representation(self._col_reps[ax - nrr]))
+                row_reps.append(
+                    self.conjugate_representation(self._col_reps[ax - self._nrr])
+                )
         col_reps = []
         for ax in col_axes:
-            if ax < nrr:
+            if ax < self._nrr:
                 col_reps.append(self.conjugate_representation(self._row_reps[ax]))
             else:
-                col_reps.append(self._col_reps[ax - nrr])
+                col_reps.append(self._col_reps[ax - self._nrr])
 
         tu1 = self.toU1()._permutate(row_axes, col_axes)
         return self.from_U1(tu1, row_reps, col_reps)

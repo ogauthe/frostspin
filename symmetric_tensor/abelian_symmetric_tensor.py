@@ -303,19 +303,20 @@ class AbelianSymmetricTensor(SymmetricTensor):
 
     def _permutate(self, row_axes, col_axes):
         # construt new axes, conjugate if axis changes between row adnd column
-        nrr = len(self._row_reps)
         row_reps = []
         for ax in row_axes:
-            if ax < nrr:
+            if ax < self._nrr:
                 row_reps.append(self._row_reps[ax])
             else:
-                row_reps.append(self.conjugate_representation(self._col_reps[ax - nrr]))
+                row_reps.append(
+                    self.conjugate_representation(self._col_reps[ax - self._nrr])
+                )
         col_reps = []
         for ax in col_axes:
-            if ax < nrr:
+            if ax < self._nrr:
                 col_reps.append(self.conjugate_representation(self._row_reps[ax]))
             else:
-                col_reps.append(self._col_reps[ax - nrr])
+                col_reps.append(self._col_reps[ax - self._nrr])
 
         # construct new blocks by swapping coeff
         blocks, block_irreps = _numba_abelian_transpose(
@@ -324,7 +325,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
             self._block_irreps,
             self.get_row_representation(),
             self.get_column_representation(),
-            nrr,
+            self._nrr,
             row_axes + col_axes,
             self.combine_representations(*row_reps),
             self.combine_representations(*col_reps),

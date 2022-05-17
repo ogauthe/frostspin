@@ -104,6 +104,7 @@ class SymmetricTensor:
             self.representation_dimension(r) for r in self._row_reps + self._col_reps
         )
         self._ndim = len(self._shape)
+        self._nrr = len(row_reps)
         self._nblocks = len(blocks)
         if all(b.flags["C"] for b in blocks):
             self._blocks = tuple(blocks)
@@ -139,8 +140,7 @@ class SymmetricTensor:
 
     @property
     def matrix_shape(self):
-        nrr = len(self._row_reps)
-        return (np.prod(self._shape[:nrr]), np.prod(self._shape[nrr:]))
+        return (np.prod(self._shape[: self._nrr]), np.prod(self._shape[self._nrr :]))
 
     @property
     def dtype(self):
@@ -239,9 +239,7 @@ class SymmetricTensor:
         associated irrep does not appear in the contracted bond.
         """
         assert type(self) == type(other)
-        assert (
-            self._shape[len(self._row_reps) :] == other._shape[: len(other._row_reps)]
-        )
+        assert self._shape[self._nrr :] == other._shape[: other._nrr]
         assert all((r == r2).all() for (r, r2) in zip(self._col_reps, other._row_reps))
 
         i1 = 0
@@ -282,8 +280,8 @@ class SymmetricTensor:
             if as_matrix:
                 return self.T._toarray().T
             arr = self.T.toarray()
-            k = len(self._col_reps)
-            return arr.transpose(*range(k, self._ndim), *range(k))
+            ncr = self._ndim - self._nrr
+            return arr.transpose(*range(ncr, self._ndim), *range(ncr))
         m = self._toarray()
         if as_matrix:
             return m
@@ -376,18 +374,21 @@ class SymmetricTensor:
         Permutate axes, changing tensor structure.
         """
         assert sorted(row_axes + col_axes) == list(range(self._ndim))
-        nrr = len(self._row_reps)
 
         # return early for identity or matrix transpose
-        if row_axes == tuple(range(nrr)) and col_axes == tuple(range(nrr, self._ndim)):
+        if row_axes == tuple(range(self._nrr)) and col_axes == tuple(
+            range(self._nrr, self._ndim)
+        ):
             return self
-        if row_axes == tuple(range(nrr, self._ndim)) and col_axes == tuple(range(nrr)):
+        if row_axes == tuple(range(self._nrr, self._ndim)) and col_axes == tuple(
+            range(self._nrr)
+        ):
             return self.T
 
         # only permutate C-array (numba bug with tuple of F-array)
         if self._f_contiguous:
-            row_axes_T = tuple((ax - nrr) % self._ndim for ax in row_axes)
-            col_axes_T = tuple((ax - nrr) % self._ndim for ax in col_axes)
+            row_axes_T = tuple((ax - self._nrr) % self._ndim for ax in row_axes)
+            col_axes_T = tuple((ax - self._nrr) % self._ndim for ax in col_axes)
             return self.T._permutate(row_axes_T, col_axes_T)
 
         return self._permutate(row_axes, col_axes)
@@ -486,8 +487,8 @@ class SymmetricTensor:
         # prefixes.
         data = {
             prefix + "_symmetry": self.symmetry,
-            prefix + "_n_row_reps": len(self._row_reps),
-            prefix + "_n_col_reps": len(self._col_reps),
+            prefix + "_n_row_reps": self._nrr,
+            prefix + "_n_col_reps": self._ndim - self._nrr,
             prefix + "_block_irreps": self._block_irreps,
         }
         for ri, r in enumerate(self._row_reps):

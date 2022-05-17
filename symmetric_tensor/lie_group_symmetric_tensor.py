@@ -228,24 +228,25 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         return arr.reshape(self.matrix_shape)
 
     def _permutate(self, row_axes, col_axes):
-        nx0 = len(self._row_reps)
         row_reps = []
         for ax in row_axes:
-            if ax < nx0:
+            if ax < self._nrr:
                 row_reps.append(self._row_reps[ax])
             else:
-                row_reps.append(self.conjugate_representation(self._col_reps[ax - nx0]))
+                row_reps.append(
+                    self.conjugate_representation(self._col_reps[ax - self._nrr])
+                )
         col_reps = []
         for ax in col_axes:
-            if ax < nx0:
+            if ax < self._nrr:
                 col_reps.append(self.conjugate_representation(self._row_reps[ax]))
             else:
-                col_reps.append(self._col_reps[ax - nx0])
+                col_reps.append(self._col_reps[ax - self._nrr])
 
         # if hash is too slow, can be decomposed: at init, set dic corresponding to
         # representations, then permutate only needs hash from row_axes and col_axes
         key = tuple(r.tobytes() for r in self._row_reps + self._col_reps)
-        key = (len(self._row_reps), row_axes, col_axes) + key
+        key = (self._nrr, row_axes, col_axes) + key
         try:
             unitary = self._unitary_dic[key]
         except KeyError:
