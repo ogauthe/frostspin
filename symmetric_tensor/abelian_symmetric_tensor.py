@@ -277,10 +277,24 @@ class AbelianSymmetricTensor(SymmetricTensor):
     # Symmetry specific methods with fixed signature
     ####################################################################################
     @classmethod
-    def from_array(cls, arr, row_reps, col_reps, conjugate_columns=True):
-        assert arr.shape == tuple(r.size for r in row_reps + col_reps)
-        if conjugate_columns:
-            col_reps = tuple(cls.conjugate_representation(r) for r in col_reps)
+    def from_array(cls, arr, row_reps0, col_reps0, signature=None):
+        assert arr.shape == tuple(r.size for r in row_reps0 + col_reps0)
+        if signature is None:
+            row_reps = row_reps0
+            col_reps = tuple(cls.conjugate_representation(r) for r in col_reps0)
+            signature = np.zeros((len(row_reps) + len(col_reps)), dtype=bool)
+            signature[len(row_reps) :] = True
+        else:
+            assert signature.shape == (len(row_reps0) + len(col_reps0),)
+            row_reps = list(row_reps0)
+            for i, r in enumerate(row_reps0):
+                if signature[i]:
+                    row_reps[i] = cls.conjugate_representation(r)
+            col_reps = list(col_reps0)
+            for i, r in enumerate(col_reps0):
+                if ~signature[i + len(row_reps)]:
+                    col_reps[i] = cls.conjugate_representation(r)
+
         row_irreps = cls.combine_representations(*row_reps)
         col_irreps = cls.combine_representations(*col_reps)
         # requires copy if arr is not contiguous
@@ -291,7 +305,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
             abs((n := lg.norm(arr)) - np.sqrt(sum(lg.norm(b) ** 2 for b in blocks)))
             <= 2e-13 * n  # allows for arr = 0
         ), "norm is not conserved in AbelianSymmetricTensor cast"
-        return cls(row_reps, col_reps, blocks, block_irreps)
+        return cls(row_reps0, col_reps0, blocks, block_irreps, signature)
 
     def _toarray(self):
         return _numba_blocks_to_array(
@@ -303,20 +317,25 @@ class AbelianSymmetricTensor(SymmetricTensor):
 
     def _permutate(self, row_axes, col_axes):
         # construt new axes, conjugate if axis changes between row adnd column
+        signature = []
         row_reps = []
         for ax in row_axes:
             if ax < self._nrr:
                 row_reps.append(self._row_reps[ax])
+                signature.append(self._signature[ax])
             else:
                 row_reps.append(
                     self.conjugate_representation(self._col_reps[ax - self._nrr])
                 )
+                signature.append(~self._signature[ax])
         col_reps = []
         for ax in col_axes:
             if ax < self._nrr:
                 col_reps.append(self.conjugate_representation(self._row_reps[ax]))
+                signature.append(~self._signature[ax])
             else:
                 col_reps.append(self._col_reps[ax - self._nrr])
+                signature.append(self._signature[ax])
 
         # construct new blocks by swapping coeff
         blocks, block_irreps = _numba_abelian_transpose(
@@ -330,16 +349,17 @@ class AbelianSymmetricTensor(SymmetricTensor):
             self.combine_representations(*row_reps),
             self.combine_representations(*col_reps),
         )
-        return type(self)(row_reps, col_reps, blocks, block_irreps)
+        return type(self)(row_reps, col_reps, blocks, block_irreps, signature)
 
     def group_conjugated(self):
         conj_irreps = self.conjugate_representation(self._block_irreps)  # abelian only
         so = conj_irreps.argsort()
         block_irreps = conj_irreps[so]
         blocks = tuple(self._blocks[i] for i in so)
-        row_reps = tuple(self.conjugate_representation(r) for r in self._row_reps)
-        col_reps = tuple(self.conjugate_representation(r) for r in self._col_reps)
-        return type(self)(row_reps, col_reps, blocks, block_irreps)
+        signature = ~self._signature
+        return type(self)(
+            self._row_reps, self._col_reps, blocks, block_irreps, signature
+        )
 
     def check_blocks_fit_representations(self):
         assert self._block_irreps.size == self._nblocks
