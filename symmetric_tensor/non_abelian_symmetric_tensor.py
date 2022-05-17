@@ -14,6 +14,11 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
     ####################################################################################
     @staticmethod
     def init_representation(degen, irreps):
+        # current format for non-abelian representation:
+        # irreps are indexed by 1 integer
+        # representations are just 2-row integer array
+        # 1st row = degen
+        # 2nd row = irrep
         assert degen.ndim == 1
         assert irreps.shape == (degen.size,)
         return np.vstack((degen, irreps))
