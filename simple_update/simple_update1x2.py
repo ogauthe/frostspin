@@ -68,16 +68,12 @@ class SimpleUpdate1x2(SimpleUpdate):
         # quick and dirty. Need singlet as symmetry member.
         if ST.symmetry == "trivial":
             sing = np.array([1])
-            left = ST.from_array(t0, (phys,), (phys, sing, sing, sing, sing))
         elif ST.symmetry == "U1":
             sing = np.array([0], dtype=np.int8)
-            left = ST.from_array(
-                t0, (-phys,), (-phys, sing, sing, sing, sing), conjugate_columns=False
-            )
         elif ST.symmetry == "SU2":
             sing = np.array([[1], [1]])
-            left = ST.from_array(t0, (phys,), (phys, sing, sing, sing, sing))
 
+        left = ST.from_array(t0, (phys,), (phys, sing, sing, sing, sing))
         left = left.permutate((1, 3, 4, 5), (0, 2))
         #       left                right
         #       /  \                /  \
@@ -111,11 +107,8 @@ class SimpleUpdate1x2(SimpleUpdate):
         A = np.einsum("ardlpu,u,r,d,l->ardlpu", A0.toarray(), sw1, sw2, sw3, sw4)
         B0 = self._tensors[1]
         B = np.einsum("alurpd,u,r,d,l->alurpd", B0.toarray(), sw3, sw4, sw1, sw2)
-        # same problem as in from_infinite_temperature: conjugate_columns has differen
-        # effect between U(1) and SU(2) from_array.
-        cc = self._ST.symmetry == "SU2"
-        A = self._ST.from_array(A, A0._row_reps, A0._col_reps, conjugate_columns=cc)
-        B = self._ST.from_array(B, B0._row_reps, B0._col_reps, conjugate_columns=cc)
+        A = self._ST.from_array(A, A0._row_reps, A0._col_reps, signature=A0.signature)
+        B = self._ST.from_array(B, B0._row_reps, B0._col_reps, signature=B0.signature)
         A = A.permutate((4, 0), (5, 1, 2, 3))
         B = B.permutate((4, 0), (2, 3, 5, 1))
         return A, B
