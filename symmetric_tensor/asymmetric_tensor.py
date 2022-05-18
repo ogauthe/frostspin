@@ -54,7 +54,7 @@ class AsymmetricTensor(SymmetricTensor):
             signature[len(row_reps) :] = True
         assert arr.shape == tuple(row_reps) + tuple(col_reps)
         block = arr.reshape(np.prod(row_reps), np.prod(col_reps))
-        return cls(row_reps, col_reps, (block,), cls._irrep)
+        return cls(row_reps, col_reps, (block,), cls._irrep, signature)
 
     def _toarray(self):
         return self._blocks[0]
@@ -69,7 +69,7 @@ class AsymmetricTensor(SymmetricTensor):
 
     def group_conjugated(self):
         return type(self)(
-            self._row_reps, self._col_reps, self._block, self._irrep, ~self._signature
+            self._row_reps, self._col_reps, self._blocks, self._irrep, ~self._signature
         )
 
     def check_blocks_fit_representations(self):
