@@ -104,16 +104,12 @@ class SimpleUpdate2x2(SimpleUpdate):
         # quick and dirty. Need singlet as symmetry member.
         if ST.symmetry == "trivial":
             sing = np.array(1)
-            t0 = ST.from_array(t0, (phys,), (phys, sing, sing, sing, sing))
         elif ST.symmetry == "U1":
             sing = np.array([0], dtype=np.int8)
-            t0 = ST.from_array(
-                t0, (-phys,), (-phys, sing, sing, sing, sing), conjugate_columns=False
-            )
         elif ST.symmetry == "SU2":
             sing = np.array([[1], [1]])
-            t0 = ST.from_array(t0, (phys,), (phys, sing, sing, sing, sing))
 
+        t0 = ST.from_array(t0, (phys,), (phys, sing, sing, sing, sing))
         t1 = t0.group_conjugated()
         #        tA             tB             tC            tD
         #       /  \           /  \           / \           / \
@@ -150,16 +146,13 @@ class SimpleUpdate2x2(SimpleUpdate):
         C = np.einsum("aurlpd,u,r,d,l->aurlpd", C0.toarray(), sw3, sw7, sw1, sw8)
         D0 = self._tensors[3]
         D = np.einsum("aurlpd,u,r,d,l->aurlpd", D0.toarray(), sw6, sw8, sw5, sw7)
-        # same problem as in from_infinite_temperature: conjugate_columns has different
-        # effect between U(1) and SU(2) from_array.
-        cc = self._ST.symmetry == "SU2"
-        A = self._ST.from_array(A, A0._row_reps, A0._col_reps, conjugate_columns=cc)
+        A = self._ST.from_array(A, A0._row_reps, A0._col_reps, signature=A0.signature)
         A = A.permutate((4, 0), (5, 1, 2, 3))
-        B = self._ST.from_array(B, B0._row_reps, B0._col_reps, conjugate_columns=cc)
+        B = self._ST.from_array(B, B0._row_reps, B0._col_reps, signature=B0.signature)
         B = B.permutate((4, 0), (1, 2, 3, 5))
-        C = self._ST.from_array(C, C0._row_reps, C0._col_reps, conjugate_columns=cc)
+        C = self._ST.from_array(C, C0._row_reps, C0._col_reps, signature=C0.signature)
         C = C.permutate((4, 0), (1, 2, 5, 3))
-        D = self._ST.from_array(D, D0._row_reps, D0._col_reps, conjugate_columns=cc)
+        D = self._ST.from_array(D, D0._row_reps, D0._col_reps, signature=D0.signature)
         D = D.permutate((4, 0), (1, 2, 5, 3))
         return A, B, C, D
 
