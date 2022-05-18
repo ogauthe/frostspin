@@ -63,7 +63,7 @@ class SimpleUpdate1x2(SimpleUpdate):
         ST = type(h0)
         phys = h0.row_reps[0]
         d = h0.shape[0]
-        t0 = np.eye(d).reshape(d, d, 1, 1, 1, 1)
+        t0 = np.eye(d).reshape(d, 1, 1, 1, d, 1)
 
         # quick and dirty. Need singlet as symmetry member.
         if ST.symmetry == "trivial":
@@ -73,20 +73,25 @@ class SimpleUpdate1x2(SimpleUpdate):
         elif ST.symmetry == "SU2":
             sing = np.array([[1], [1]])
 
-        left = ST.from_array(t0, (phys,), (phys, sing, sing, sing, sing))
-        left = left.permutate((1, 3, 4, 5), (0, 2))
+        # left and right carry the same representations.
+        # use same signature for physical and ancilla legs
+        # however virtual legs need to have opposite signatures
+        #
         #       left                right
         #       /  \                /  \
         #      /    \              /    \
         #    ////   /\           ///    /\
         #   a234   p  1         a234   p  1
+        left = ST.from_array(t0, (phys, sing, sing, sing), (phys, sing))
+        s = np.array([0, 1, 1, 1, 1, 0], dtype=bool)
+        right = ST.from_array(t0, (phys, sing, sing, sing), (phys, sing), signature=s)
         return cls(
             D,
             0.0,
             tau,
             rcutoff,
             degen_ratio,
-            [left, left.group_conjugated().copy()],
+            [left, right],
             hamiltonians,
             [np.ones(1)] * cls._n_bonds,
             verbosity,
@@ -94,7 +99,7 @@ class SimpleUpdate1x2(SimpleUpdate):
 
     def get_bond_representations(self):
         left = self._tensors[0]
-        r1 = self._ST.conjugate_representation(left.col_reps[1])
+        r1 = self._ST.conjugate_representation(left.col_reps[1])  # signature
         r2 = left.row_reps[1]
         r3 = left.row_reps[2]
         r4 = left.row_reps[3]

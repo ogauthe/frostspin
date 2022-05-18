@@ -24,14 +24,6 @@ SdS_22 = np.array(
         [0.0, 0.0, 0.0, 0.25],
     ]
 )
-SdS_22b = np.array(
-    [
-        [-0.25, 0.0, 0.0, -0.5],
-        [0.0, 0.25, 0.0, 0.0],
-        [0.0, 0.0, 0.25, 0.0],
-        [-0.5, 0.0, 0.0, -0.25],
-    ]
-)
 
 SdS_33 = np.array(
     [
@@ -48,24 +40,8 @@ SdS_33 = np.array(
 )
 
 
-SdS_33b = np.array(
-    [
-        [-1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0],
-        [-1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0],
-        [0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0],
-    ]
-)
-
 hff = [None, None, SdS_22, SdS_33]
-hfc = [None, None, SdS_22b, SdS_33b]
-SdS = hff[d]
-SdSb = hfc[d].reshape(d, d, d, d)
+SdS = hff[d].reshape(d, d, d, d)
 print(f"Test SimpleUpdate1x2 for SU(2) irrep {d}")
 print("Benchmark Asymmetric, U1_Symmetric and SU2_Symmetric results")
 print(f"evolve from beta = 0 to beta = {beta} with tau = {tau}, keeping 2 multiplets")
@@ -73,9 +49,8 @@ print(f"evolve from beta = 0 to beta = {beta} with tau = {tau}, keeping 2 multip
 reps_As = (np.array([d]),) * 2
 reps_U1 = (np.arange(d - 1, -d, -2, dtype=np.int8),) * 2
 reps_SU2 = (np.array([[1], [d]]),) * 2
-signature = np.array([1, 0, 0, 1], dtype=bool)
-hU1 = [U1_SymmetricTensor.from_array(SdSb, reps_U1, reps_U1, signature=signature)]
-hAs = [AsymmetricTensor.from_array(SdSb, reps_As, reps_As, signature=signature)]
+hU1 = [U1_SymmetricTensor.from_array(SdS, reps_U1, reps_U1)]
+hAs = [AsymmetricTensor.from_array(SdS, reps_As, reps_As)]
 # hSU2 = [SU2_SymmetricTensor.from_array(SdSb, reps_SU2, reps_SU2, signature=signature)]
 
 suU1 = SimpleUpdate1x2.from_infinite_temperature(4, tau, hU1)
