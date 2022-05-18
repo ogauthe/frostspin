@@ -58,6 +58,19 @@ class SymmetricTensor:
     ####################################################################################
     @classmethod
     def from_array(cls, arr, row_reps, col_reps, signature=None):
+        """
+        Parameters
+        ----------
+        arr : ndarray
+            Dense array to cast to symmetric blocks.
+        row_reps : tuple of arrays
+            Representations for the rows.
+        row_reps : tuple of arrays
+            Representations for the columns.
+        signature : 1D boolean array
+            Signature of each representation. If None, assumed to be False for rows and
+            True for columns.
+        """
         raise NotImplementedError("Must be defined in derived class")
 
     def _toarray(self):
@@ -118,7 +131,7 @@ class SymmetricTensor:
             self._f_contiguous = False
         self._block_irreps = np.asarray(block_irreps)
         self._ncoeff = sum(b.size for b in blocks)
-        assert self._nblocks > 0
+        # assert self._nblocks > 0
         assert 0 < self._nrr < self._ndim
         assert self._signature.shape == (self.ndim,)
         assert self._block_irreps.size == self._nblocks
@@ -252,8 +265,8 @@ class SymmetricTensor:
         """
         assert type(self) == type(other)
         assert self._shape[self._nrr :] == other._shape[: other._nrr]
-        assert all((r == r2).all() for (r, r2) in zip(self._col_reps, other._row_reps))
         assert (self._signature[self._nrr :] ^ other._signature[: other._nrr]).all()
+        assert all((r == r2).all() for (r, r2) in zip(self._col_reps, other._row_reps))
 
         i1 = 0
         i2 = 0

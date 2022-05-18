@@ -279,20 +279,21 @@ class AbelianSymmetricTensor(SymmetricTensor):
     @classmethod
     def from_array(cls, arr, row_reps0, col_reps0, signature=None):
         assert arr.shape == tuple(r.size for r in row_reps0 + col_reps0)
+        nrr = len(row_reps0)
         if signature is None:
             row_reps = row_reps0
-            col_reps = tuple(cls.conjugate_representation(r) for r in col_reps0)
-            signature = np.zeros((len(row_reps) + len(col_reps)), dtype=bool)
-            signature[len(row_reps) :] = True
+            col_reps = col_reps0
+            signature = np.arange(nrr + len(col_reps)) >= nrr
         else:
-            assert signature.shape == (len(row_reps0) + len(col_reps0),)
+            signature = np.ascontiguousarray(signature, dtype=bool)
+            assert signature.shape == (nrr + len(col_reps0),)
             row_reps = list(row_reps0)
             for i, r in enumerate(row_reps0):
                 if signature[i]:
                     row_reps[i] = cls.conjugate_representation(r)
             col_reps = list(col_reps0)
             for i, r in enumerate(col_reps0):
-                if ~signature[i + len(row_reps)]:
+                if ~signature[i + nrr]:
                     col_reps[i] = cls.conjugate_representation(r)
 
         row_irreps = cls.combine_representations(*row_reps)
@@ -320,22 +321,21 @@ class AbelianSymmetricTensor(SymmetricTensor):
         signature = []
         row_reps = []
         for ax in row_axes:
+            signature.append(self._signature[ax])
             if ax < self._nrr:
                 row_reps.append(self._row_reps[ax])
-                signature.append(self._signature[ax])
             else:
-                row_reps.append(
-                    self.conjugate_representation(self._col_reps[ax - self._nrr])
-                )
-                signature.append(~self._signature[ax])
+                row_reps.append(self._col_reps[ax - self._nrr])
         col_reps = []
         for ax in col_axes:
+            signature.append(self._signature[ax])
             if ax < self._nrr:
-                col_reps.append(self.conjugate_representation(self._row_reps[ax]))
-                signature.append(~self._signature[ax])
+                col_reps.append((self._row_reps[ax]))
             else:
                 col_reps.append(self._col_reps[ax - self._nrr])
-                signature.append(self._signature[ax])
+
+        # TODO clean this
+        perm = type(self)(row_reps, col_reps, [], [], signature)
 
         # construct new blocks by swapping coeff
         blocks, block_irreps = _numba_abelian_transpose(
@@ -346,10 +346,17 @@ class AbelianSymmetricTensor(SymmetricTensor):
             self.get_column_representation(),
             self._nrr,
             row_axes + col_axes,
-            self.combine_representations(*row_reps),
-            self.combine_representations(*col_reps),
+            perm.get_row_representation(),
+            perm.get_column_representation(),
         )
-        return type(self)(row_reps, col_reps, blocks, block_irreps, signature)
+        assert (
+            abs(self.norm() - np.sqrt(sum(lg.norm(b) ** 2 for b in blocks)))
+            < 1e-12 * self.norm()
+        )
+        perm._blocks = tuple(blocks)
+        perm._block_irreps = np.ascontiguousarray(block_irreps)
+        # return type(self)(row_reps, col_reps, blocks, block_irreps, signature)
+        return perm.copy()
 
     def group_conjugated(self):
         conj_irreps = self.conjugate_representation(self._block_irreps)  # abelian only
