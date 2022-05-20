@@ -62,6 +62,13 @@ suU1.evolve(beta)
 # suSU2.evolve(beta)
 
 print(f"simple update at beta = {beta}")
+print("Asymmetric bond representations =")
+print(*suAs.get_bond_representations(), sep="\n")
+print("U(1) bond representations =")
+print(*suU1.get_bond_representations(), sep="\n")
+# print("SU(2) bond representations =")
+# print(*suSU2.get_bond_representations(), sep="\n", end="\n\n")
+
 print("suAs weights:", *suAs._weights, sep="\n")
 print("suU1 weights:", *suU1._weights, sep="\n")
 # print("suSU2 weights:", *suSU2._weights, sep="\n")
