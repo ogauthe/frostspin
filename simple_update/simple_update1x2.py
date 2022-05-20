@@ -108,7 +108,7 @@ class SimpleUpdate1x2(SimpleUpdate):
             degen_ratio,
             [left, right],
             hamiltonians,
-            [np.ones(1)] * cls._n_bonds,
+            [[np.ones((1,))] for i in range(cls._n_bonds)],
             verbosity,
         )
 
