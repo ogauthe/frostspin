@@ -354,30 +354,43 @@ class SymmetricTensor:
                 rc[i] = self.conjugate_representation(rc[i])
         return self.combine_representations(*rc)
 
-    def diagonal_imul(self, diag_blocks, left=False):
+    def diagonal_mul(self, diag_blocks, left=False):
         """
         Matrix product with a diagonal matrix with matching symmetry. If left is True,
         matrix multiplication is from the left.
 
-        This is an in-place operation.
+        Convention: diag_blocks is understood as diagonal weights coming from a SVD in
+        terms of representation and signature. Therefore it can only be added to the
+        right if self has only one column leg and its signature is True and added to the
+        left if self has only one row leg with signature False. If this is not the case,
+        then self is transposed, weights are added on the other side and the result is
+        transposed back to initial shape.
 
         Parameters
         ----------
         diag_blocks : enum of 1D array
             Must have same length as _nblocks
         left : bool
-
-        THIS METHOD IS DANGEROUS, NO CHECK IS MADE THAT IRREPS MATCH. IRREPS MAY BE
-        CONJUGATE IF TRANSPOSE OCCURRED.
+            Whether to multiply from the right (default) or from the left.
         """
         if len(diag_blocks) != self._nblocks:
             raise ValueError("Diagonal blocks do not match tensor")
+        blocks = []
         if left:
+            assert self._nrr == 1
+            if self._signature[0]:
+                return self.T.diagonal_mul(diag_blocks).T
             for b, diag in zip(self._blocks, diag_blocks):
-                b[:] *= diag[:, None]
+                blocks.append(b * diag[:, None])
         else:
+            assert self._ndim - self._nrr == 1
+            if not self._signature[-1]:
+                return self.T.diagonal_mul(diag_blocks, left=True).T
             for b, diag in zip(self._blocks, diag_blocks):
-                b[:] *= diag
+                blocks.append(b * diag)
+        return type(self)(
+            self._row_reps, self._col_reps, blocks, self._block_irreps, self._signature
+        )
 
     ####################################################################################
     # transpose and permutate
