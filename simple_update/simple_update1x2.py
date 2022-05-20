@@ -65,6 +65,11 @@ class SimpleUpdate1x2(SimpleUpdate):
         d = h0.shape[0]
         t0 = np.eye(d).reshape(d, 1, 1, 1, d, 1)
 
+        # for simplicity, impose all Hamiltonians to have standard signature
+        s = np.array([False, False, True, True])
+        if not all((h.signature == s).all() for h in hamiltonians):
+            raise ValueError(f"Hamiltonians must have signature {s}")
+
         # quick and dirty. Need singlet as symmetry member.
         if ST.symmetry == "trivial":
             sing = np.array([1])
@@ -72,6 +77,14 @@ class SimpleUpdate1x2(SimpleUpdate):
             sing = np.array([0], dtype=np.int8)
         elif ST.symmetry == "SU2":
             sing = np.array([[1], [1]])
+
+        # use same signature for physical and ancilla legs on all tensors:
+        # True for physical
+        # False for ancilla
+        # for easy contraction with Hamiltonian
+        # however virtual legs need to have opposite signatures on 2 sublattices
+        # choose signature so that weights are always applied on the side where they
+        # were cut: right for A, left for B.
 
         # left and right carry the same representations.
         # use same signature for physical and ancilla legs
@@ -82,9 +95,11 @@ class SimpleUpdate1x2(SimpleUpdate):
         #      /    \              /    \
         #    ////   /\           ///    /\
         #   a234   p  1         a234   p  1
-        left = ST.from_array(t0, (phys, sing, sing, sing), (phys, sing))
-        s = np.array([0, 1, 1, 1, 1, 0], dtype=bool)
-        right = ST.from_array(t0, (phys, sing, sing, sing), (phys, sing), signature=s)
+        #   -+++   +  +         ----   +  -
+        sl = np.array([0, 1, 1, 1, 1, 1], dtype=bool)
+        left = ST.from_array(t0, (phys, sing, sing, sing), (phys, sing), signature=sl)
+        sr = np.array([0, 0, 0, 0, 1, 0], dtype=bool)
+        right = ST.from_array(t0, (phys, sing, sing, sing), (phys, sing), signature=sr)
         return cls(
             D,
             0.0,
@@ -99,7 +114,7 @@ class SimpleUpdate1x2(SimpleUpdate):
 
     def get_bond_representations(self):
         left = self._tensors[0]
-        r1 = self._ST.conjugate_representation(left.col_reps[1])  # signature
+        r1 = left.col_reps[1]
         r2 = left.row_reps[1]
         r3 = left.row_reps[2]
         r4 = left.row_reps[3]

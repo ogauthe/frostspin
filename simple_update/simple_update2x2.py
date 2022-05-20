@@ -101,29 +101,39 @@ class SimpleUpdate2x2(SimpleUpdate):
         d = h0.shape[0]
         t0 = np.eye(d).reshape(d, d, 1, 1, 1, 1)
 
+        # for simplicity, impose all Hamiltonians to have standard signature
+        s = np.array([False, False, True, True])
+        if not all((h.signature == s).all() for h in hamiltonians):
+            raise ValueError(f"Hamiltonians must have signature {s}")
+
         # quick and dirty. Need singlet as symmetry member.
         if ST.symmetry == "trivial":
-            sing = np.array(1)
+            sing = np.array([1])
         elif ST.symmetry == "U1":
             sing = np.array([0], dtype=np.int8)
         elif ST.symmetry == "SU2":
             sing = np.array([[1], [1]])
 
-        # use same signature for physical and ancilla legs
+        # use same signature for physical and ancilla legs on all tensors:
+        # True for physical
+        # False for ancilla
+        # for easy contraction with Hamiltonian
         # however virtual legs need to have opposite signatures on 2 sublattices
 
-        t0 = ST.from_array(t0, (phys,), (phys, sing, sing, sing, sing))
-        s = np.array([0, 1, 0, 0, 0, 0], dtype=bool)
-        t1 = ST.from_array(t0, (phys,), (phys, sing, sing, sing, sing), signature=s)
+        s1 = np.array([1, 0, 1, 1, 1, 1], dtype=bool)
+        t1 = ST.from_array(t0, (phys,), (phys, sing, sing, sing, sing), signature=s1)
+        s2 = np.array([1, 0, 0, 0, 0, 0], dtype=bool)
+        t2 = ST.from_array(t0, (phys,), (phys, sing, sing, sing, sing), signature=s2)
         #        tA             tB             tC            tD
         #       /  \           /  \           / \           / \
         #      /    \         /    \         /   \         /   \
         #    ////   /\      ///    /\      ///   /\      ///   /\
         #   a234   p  1    a546   p  2    a378  p  1    a687  p  5
-        tA = t0.permutate((1, 3, 4, 5), (0, 2))
-        tB = t1.permutate((1, 2, 3, 4), (0, 5))
-        tC = t1.permutate((1, 2, 3, 5), (0, 4))
-        tD = t0.permutate((1, 2, 3, 5), (0, 4))
+        #   -+++   +  +    ----   +  -    ----  +  -    -+++  +  +
+        tA = t1.permutate((1, 3, 4, 5), (0, 2))
+        tB = t2.permutate((1, 2, 3, 4), (0, 5))
+        tC = t2.permutate((1, 2, 3, 5), (0, 4))
+        tD = t1.permutate((1, 2, 3, 5), (0, 4))
 
         return cls(
             D,
@@ -163,11 +173,11 @@ class SimpleUpdate2x2(SimpleUpdate):
     def get_bond_representations(self):
         A = self._tensors[0]
         D = self._tensors[3]
-        r1 = A.conjugate_representation(A.col_reps[1])  # u
+        r1 = A.col_reps[1]  # u
         r2 = A.row_reps[1]  # r
         r3 = A.row_reps[2]  # d
         r4 = A.row_reps[3]  # l
-        r5 = D.conjugate_representation(D.col_reps[1])  # d
+        r5 = D.col_reps[1]  # d
         r6 = D.row_reps[1]  # u
         r7 = D.row_reps[3]  # l
         r8 = D.row_reps[2]  # r
