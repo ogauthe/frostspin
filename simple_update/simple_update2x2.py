@@ -96,7 +96,6 @@ class SimpleUpdate2x2(SimpleUpdate):
             Level of log verbosity. Default is no log.
         """
         h0 = hamiltonians[0]
-        ST = type(h0)
         phys = h0.row_reps[0]
         d = h0.shape[0]
         t0 = np.eye(d).reshape(d, d, 1, 1, 1, 1)
@@ -107,12 +106,7 @@ class SimpleUpdate2x2(SimpleUpdate):
             raise ValueError(f"Hamiltonians must have signature {s}")
 
         # quick and dirty. Need singlet as symmetry member.
-        if ST.symmetry == "trivial":
-            sing = np.array([1])
-        elif ST.symmetry == "U1":
-            sing = np.array([0], dtype=np.int8)
-        elif ST.symmetry == "SU2":
-            sing = np.array([[1], [1]])
+        sing = h0.init_representation(np.array([1]), np.array([0]))
 
         # use same signature for physical and ancilla legs on all tensors:
         # True for physical
@@ -121,9 +115,9 @@ class SimpleUpdate2x2(SimpleUpdate):
         # however virtual legs need to have opposite signatures on 2 sublattices
 
         s1 = np.array([1, 0, 1, 1, 1, 1], dtype=bool)
-        t1 = ST.from_array(t0, (phys,), (phys, sing, sing, sing, sing), signature=s1)
+        t1 = h0.from_array(t0, (phys,), (phys, sing, sing, sing, sing), signature=s1)
         s2 = np.array([1, 0, 0, 0, 0, 0], dtype=bool)
-        t2 = ST.from_array(t0, (phys,), (phys, sing, sing, sing, sing), signature=s2)
+        t2 = h0.from_array(t0, (phys,), (phys, sing, sing, sing, sing), signature=s2)
         #        tA             tB             tC            tD
         #       /  \           /  \           / \           / \
         #      /    \         /    \         /   \         /   \
