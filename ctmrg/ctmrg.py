@@ -69,14 +69,7 @@ class CTMRG:
     """
 
     def __init__(
-        self,
-        env,
-        chi,
-        block_chi_ratio,
-        ncv_ratio,
-        cutoff,
-        degen_ratio,
-        verbosity,
+        self, env, chi, block_chi_ratio, ncv_ratio, cutoff, degen_ratio, verbosity
     ):
         """
         Constructor for totally asymmetric CTMRG algorithm. Consider using from_file or
@@ -174,15 +167,7 @@ class CTMRG:
         if verbosity > 0:
             print("Start CTMRG from elementary tensors")
         env = CTM_Environment.from_elementary_tensors(tiling, tensors)
-        return cls(
-            env,
-            chi,
-            block_chi_ratio,
-            ncv_ratio,
-            cutoff,
-            degen_ratio,
-            verbosity,
-        )
+        return cls(env, chi, block_chi_ratio, ncv_ratio, cutoff, degen_ratio, verbosity)
 
     def set_tensors(self, tensors):
         """
@@ -216,15 +201,7 @@ class CTMRG:
         # better to open and close savefile twice (here and in env) to have env __init__
         # outside of file opening block.
         env = CTM_Environment.from_file(filename)
-        return cls(
-            env,
-            chi,
-            block_chi_ratio,
-            ncv_ratio,
-            cutoff,
-            degen_ratio,
-            verbosity,
-        )
+        return cls(env, chi, block_chi_ratio, ncv_ratio, cutoff, degen_ratio, verbosity)
 
     def save_to_file(self, filename, additional_data={}):
         """
