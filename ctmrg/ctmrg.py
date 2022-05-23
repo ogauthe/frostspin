@@ -471,11 +471,11 @@ class CTMRG:
             print(
                 "Compute reduced density matrix for every cell nearest neighbor sites"
             )
-        rdm2x1_cell = []  # avoid import of specific array lib
-        rdm1x2_cell = []  # + allow for different d in cell
+        rdm1x2_cell = []
+        rdm2x1_cell = []
         for x, y in self._neq_coords:
-            rdm2x1_cell.append(self.compute_rdm2x1(x, y))
             rdm1x2_cell.append(self.compute_rdm1x2(x, y))
+            rdm2x1_cell.append(self.compute_rdm2x1(x, y))
         return rdm2x1_cell, rdm1x2_cell
 
     def compute_rdm_2nd_neighbor_cell(self):
