@@ -42,8 +42,8 @@ def eq_st(st1, st2):
 
 
 # use same physical and ancila for all sites
-ap = np.array([-1, 1], dtype=np.int8)
-aa = np.array([-1, 1], dtype=np.int8)
+ap = np.array([1, -1], dtype=np.int8)
+aa = np.array([1, -1], dtype=np.int8)
 
 axes1 = np.array(
     [
@@ -105,42 +105,45 @@ print((axes2 == -axes2[:, None]).all(axis=2).sum() == 0)
 
 reps = (
     (ap, aa, axes1[0], axes1[1], axes1[2], axes1[3]),
-    (-ap, -aa, -axes1[4], -axes1[5], -axes1[6], -axes1[1]),
+    (ap, aa, axes1[4], axes1[5], axes1[6], axes1[1]),
     (ap, aa, axes1[7], axes1[8], axes1[9], axes1[5]),
-    (-ap, -aa, -axes1[10], -axes1[3], -axes1[11], -axes1[8]),
-    (-ap, -aa, -axes1[2], -axes1[12], -axes1[13], -axes1[14]),
+    (ap, aa, axes1[10], axes1[3], axes1[11], axes1[8]),
+    (ap, aa, axes1[2], axes1[12], axes1[13], axes1[14]),
     (ap, aa, axes1[6], axes1[15], axes1[16], axes1[12]),
-    (-ap, -aa, -axes1[9], -axes1[17], -axes1[18], -axes1[15]),
+    (ap, aa, axes1[9], axes1[17], axes1[18], axes1[15]),
     (ap, aa, axes1[11], axes1[14], axes1[19], axes1[17]),
     (ap, aa, axes1[13], axes1[20], axes1[21], axes1[22]),
-    (-ap, -aa, -axes1[16], -axes1[23], -axes1[24], -axes1[20]),
+    (ap, aa, axes1[16], axes1[23], axes1[24], axes1[20]),
     (ap, aa, axes1[18], axes1[25], axes1[26], axes1[23]),
-    (-ap, -aa, -axes1[19], -axes1[22], -axes1[27], -axes1[25]),
-    (-ap, -aa, -axes1[21], -axes1[28], -axes1[0], -axes1[29]),
+    (ap, aa, axes1[19], axes1[22], axes1[27], axes1[25]),
+    (ap, aa, axes1[21], axes1[28], axes1[0], axes1[29]),
     (ap, aa, axes1[24], axes1[30], axes1[4], axes1[28]),
-    (-ap, -aa, -axes1[26], -axes1[31], -axes1[7], -axes1[30]),
+    (ap, aa, axes1[26], axes1[31], axes1[7], axes1[30]),
     (ap, aa, axes1[27], axes1[29], axes1[10], axes1[31]),
 )
 
 rng = np.random.default_rng(42)
-t00 = U1_SymmetricTensor.random(reps[0][:2], reps[0][2:], rng=rng)
-t01 = U1_SymmetricTensor.random(reps[1][:2], reps[1][2:], rng=rng)
-t02 = U1_SymmetricTensor.random(reps[2][:2], reps[2][2:], rng=rng)
-t03 = U1_SymmetricTensor.random(reps[3][:2], reps[3][2:], rng=rng)
 
-t10 = U1_SymmetricTensor.random(reps[4][:2], reps[4][2:], rng=rng)
+# signature on sublattice B
+sB = np.array([True, True, False, False, False, False])
+t00 = U1_SymmetricTensor.random(reps[0][:2], reps[0][2:], rng=rng)
+t01 = U1_SymmetricTensor.random(reps[1][:2], reps[1][2:], rng=rng, signature=sB)
+t02 = U1_SymmetricTensor.random(reps[2][:2], reps[2][2:], rng=rng)
+t03 = U1_SymmetricTensor.random(reps[3][:2], reps[3][2:], rng=rng, signature=sB)
+
+t10 = U1_SymmetricTensor.random(reps[4][:2], reps[4][2:], rng=rng, signature=sB)
 t11 = U1_SymmetricTensor.random(reps[5][:2], reps[5][2:], rng=rng)
-t12 = U1_SymmetricTensor.random(reps[6][:2], reps[6][2:], rng=rng)
+t12 = U1_SymmetricTensor.random(reps[6][:2], reps[6][2:], rng=rng, signature=sB)
 t13 = U1_SymmetricTensor.random(reps[7][:2], reps[7][2:], rng=rng)
 
 t20 = U1_SymmetricTensor.random(reps[8][:2], reps[8][2:], rng=rng)
-t21 = U1_SymmetricTensor.random(reps[9][:2], reps[9][2:], rng=rng)
+t21 = U1_SymmetricTensor.random(reps[9][:2], reps[9][2:], rng=rng, signature=sB)
 t22 = U1_SymmetricTensor.random(reps[10][:2], reps[10][2:], rng=rng)
-t23 = U1_SymmetricTensor.random(reps[11][:2], reps[11][2:], rng=rng)
+t23 = U1_SymmetricTensor.random(reps[11][:2], reps[11][2:], rng=rng, signature=sB)
 
-t30 = U1_SymmetricTensor.random(reps[12][:2], reps[12][2:], rng=rng)
+t30 = U1_SymmetricTensor.random(reps[12][:2], reps[12][2:], rng=rng, signature=sB)
 t31 = U1_SymmetricTensor.random(reps[13][:2], reps[13][2:], rng=rng)
-t32 = U1_SymmetricTensor.random(reps[14][:2], reps[14][2:], rng=rng)
+t32 = U1_SymmetricTensor.random(reps[14][:2], reps[14][2:], rng=rng, signature=sB)
 t33 = U1_SymmetricTensor.random(reps[15][:2], reps[15][2:], rng=rng)
 
 tensors = (
