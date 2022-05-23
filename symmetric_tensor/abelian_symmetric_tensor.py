@@ -386,3 +386,19 @@ class AbelianSymmetricTensor(SymmetricTensor):
 
     def toabelian(self):
         return self
+
+    def set_signature(self, signature):
+        signature = np.asarray(signature, dtype=bool)
+        assert signature.shape == (self._ndim,)
+        row_reps = list(self._row_reps)
+        col_reps = list(self._col_reps)
+        for i in (self._signature ^ signature).nonzero()[0]:
+            if i < self._nrr:
+                row_reps[i] = self.conjugate_representation(row_reps[i])
+            else:
+                j = i - self._nrr
+                col_reps[j] = self.conjugate_representation(col_reps[j])
+        self._row_resp = tuple(row_reps)
+        self._col_resp = tuple(col_reps)
+        self._signature = signature
+        assert self.check_blocks_fit_representations()

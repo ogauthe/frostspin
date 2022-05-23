@@ -107,6 +107,12 @@ class SymmetricTensor:
         """
         raise NotImplementedError("Must be defined in derived class")
 
+    def set_signature(self, signature):
+        """
+        Set signature. This is an in-place operation.
+        """
+        raise NotImplementedError("Must be defined in derived class")
+
     ####################################################################################
     # Initializer
     ####################################################################################
@@ -416,10 +422,8 @@ class SymmetricTensor:
         are group conjugated.
         """
         conj = self.group_conjugated()
-        blocks = tuple(b.conj() for b in conj._blocks)
-        return type(self)(
-            conj._row_reps, conj._col_reps, blocks, conj._block_irreps, conj._signature
-        )
+        conj._blocks = tuple(b.conj() for b in conj._blocks)
+        return conj
 
     @property
     def H(self):
@@ -456,6 +460,24 @@ class SymmetricTensor:
             return self.T._permutate(row_axes_T, col_axes_T)
 
         return self._permutate(row_axes, col_axes)
+
+    def merge_legs(self, i1, i2):
+        assert self._signature[i1] == self._signature[i2]
+        if i2 < self._nrr:
+            assert 0 < i1 + 1 == i2
+            r = self.combine_representations(self._row_reps[i1], self._row_reps[i2])
+            row_reps = self._row_reps[:i1] + (r,) + self._row_reps[i2 + 1 :]
+            col_reps = self._col_reps
+        else:
+            assert self._nrr < i1 + 1 == i2 < self._ndim
+            j = i1 - self._nrr
+            r = self.combine_representations(self._col_reps[j], self._col_reps[j + 1])
+            col_reps = self._col_reps[:j] + (r,) + self._col_reps[j + 2 :]
+            row_reps = self._row_reps
+        signature = np.hstack((self._signature[:i1], self._signature[i2:]))
+        return type(self)(
+            row_reps, col_reps, self._blocks, self._block_irreps, signature
+        )
 
     ####################################################################################
     # Linear algebra

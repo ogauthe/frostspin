@@ -85,3 +85,8 @@ class AsymmetricTensor(SymmetricTensor):
 
     def toabelian(self):
         return self
+
+    def set_signature(self, signature):
+        signature = np.asarray(signature, dtype=bool)
+        self._signature = signature
+        assert self.check_blocks_fit_representations()
