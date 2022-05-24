@@ -398,7 +398,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
             else:
                 j = i - self._nrr
                 col_reps[j] = self.conjugate_representation(col_reps[j])
-        self._row_resp = tuple(row_reps)
-        self._col_resp = tuple(col_reps)
+        self._row_reps = tuple(row_reps)
+        self._col_reps = tuple(col_reps)
         self._signature = signature
         assert self.check_blocks_fit_representations()
