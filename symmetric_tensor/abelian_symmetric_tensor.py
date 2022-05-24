@@ -277,27 +277,27 @@ class AbelianSymmetricTensor(SymmetricTensor):
     # Symmetry specific methods with fixed signature
     ####################################################################################
     @classmethod
-    def from_array(cls, arr, row_reps0, col_reps0, signature=None):
-        assert arr.shape == tuple(r.size for r in row_reps0 + col_reps0)
-        nrr = len(row_reps0)
+    def from_array(cls, arr, row_reps, col_reps, signature=None):
+        assert arr.shape == tuple(r.size for r in row_reps + col_reps)
+        nrr = len(row_reps)
         if signature is None:
-            row_reps = row_reps0
-            col_reps = col_reps0
-            signature = np.arange(nrr + len(col_reps)) >= nrr
+            row_reps1 = row_reps
+            col_reps1 = col_reps
+            signature = np.arange(nrr + len(col_reps1)) >= nrr
         else:
             signature = np.ascontiguousarray(signature, dtype=bool)
-            assert signature.shape == (nrr + len(col_reps0),)
-            row_reps = list(row_reps0)
-            for i, r in enumerate(row_reps0):
+            assert signature.shape == (nrr + len(col_reps),)
+            row_reps1 = list(row_reps)
+            for i, r in enumerate(row_reps):
                 if signature[i]:
-                    row_reps[i] = cls.conjugate_representation(r)
-            col_reps = list(col_reps0)
-            for i, r in enumerate(col_reps0):
+                    row_reps1[i] = cls.conjugate_representation(r)
+            col_reps1 = list(col_reps)
+            for i, r in enumerate(col_reps):
                 if ~signature[i + nrr]:
-                    col_reps[i] = cls.conjugate_representation(r)
+                    col_reps1[i] = cls.conjugate_representation(r)
 
-        row_irreps = cls.combine_representations(*row_reps)
-        col_irreps = cls.combine_representations(*col_reps)
+        row_irreps = cls.combine_representations(*row_reps1)
+        col_irreps = cls.combine_representations(*col_reps1)
         # requires copy if arr is not contiguous
         # using flatiter on non-contiguous is too slow, no other way
         M = arr.reshape(row_irreps.size, col_irreps.size)
@@ -306,7 +306,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
             abs((n := lg.norm(arr)) - np.sqrt(sum(lg.norm(b) ** 2 for b in blocks)))
             <= 2e-13 * n  # allows for arr = 0
         ), "norm is not conserved in AbelianSymmetricTensor cast"
-        return cls(row_reps0, col_reps0, blocks, block_irreps, signature)
+        return cls(row_reps, col_reps, blocks, block_irreps, signature)
 
     def _toarray(self):
         return _numba_blocks_to_array(
