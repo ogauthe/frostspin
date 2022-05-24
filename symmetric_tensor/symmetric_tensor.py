@@ -504,9 +504,9 @@ class SymmetricTensor:
 
         degen = np.array([s.size for s in s_blocks])
         mid_rep = self.init_representation(degen, self._block_irreps)
-        usign = np.hstack((self._signature[: self._nrr], np.ones((1,), dtype=bool)))
+        usign = np.hstack((self._signature[: self._nrr], np.array([True])))
         U = type(self)(self._row_reps, (mid_rep,), u_blocks, self._block_irreps, usign)
-        vsign = np.hstack((np.zeros((1,), dtype=bool), self._signature[self._nrr :]))
+        vsign = np.hstack((np.array([False]), self._signature[self._nrr :]))
         V = type(self)((mid_rep,), self._col_reps, v_blocks, self._block_irreps, vsign)
         return U, s_blocks, V
 
@@ -552,9 +552,9 @@ class SymmetricTensor:
 
         block_irreps = self._block_irreps[non_empty]
         mid_rep = self.init_representation(block_cuts[non_empty], block_irreps)
-        usign = np.hstack((self._signature[: self._nrr], np.ones((1,), dtype=bool)))
+        usign = np.hstack((self._signature[: self._nrr], np.array([True])))
         U = type(self)(self._row_reps, (mid_rep,), u_blocks, block_irreps, usign)
-        vsign = np.hstack((np.zeros((1,), dtype=bool), self._signature[self._nrr :]))
+        vsign = np.hstack((np.array([False]), self._signature[self._nrr :]))
         V = type(self)((mid_rep,), self._col_reps, v_blocks, block_irreps, vsign)
         return U, s_values, V
 
