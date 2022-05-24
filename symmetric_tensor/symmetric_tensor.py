@@ -156,6 +156,10 @@ class SymmetricTensor:
         return self._ndim
 
     @property
+    def n_row_reps(self):
+        return self._nrr
+
+    @property
     def shape(self):
         return self._shape
 
