@@ -19,22 +19,31 @@ def _initialize_env(A):
     #   |        ||        |
     #   C4-1   3-T3-2   1-C3
 
-    # merge axes quick and dirty
-    combine = A.combine_representations
-    axes = A.col_reps
-    caxes = tuple(A.conjugate_representation(r) for r in axes)
+    # leg ordering is set according to diagram upside
+    # all functions using edge T use some transpose to fix n_row_reps
+    # so there can be no error associates with it
+    # however signature matter.
+    # convention: corners C1, C2 and C4 have standard matrix signature ->-C->-
+    # ie 0 for row and 1 for column
+    # it is not possible to impose the same convention for C3
+    # edges signature for corner legs have to obey
+    # note that this convention may change through iteration, but SVD always produce
+    # isometries with matching signatures.
+    # for edges legs merging with center A, signature must respect A.signature
+    # no assumption is made on it.
+    corner_sign = np.array([False, False, True, True])
 
     def init_C(At):
-        temp = At.H @ At
-        temp = temp.permutate((2, 0), (3, 1))
-        row_reps = (combine(*temp.row_reps),)
-        col_reps = (combine(*temp.col_reps),)
-        C = type(At)(row_reps, col_reps, temp.blocks, temp.block_irreps)
+        C = At.H @ At
+        C = C.permutate((2, 0), (3, 1))
+        C.set_signature(corner_sign)
+        C = C.merge_legs(2, 3).merge_legs(0, 1)
         return C
 
     C1 = init_C(A.permutate((0, 1, 2, 5), (3, 4)))
     C2 = init_C(A.permutate((0, 1, 2, 3), (4, 5)))
     C3 = init_C(A.permutate((0, 1, 3, 4), (2, 5)))
+    C3.set_signature(~C3.signature)
     C4 = init_C(A.permutate((0, 1, 4, 5), (2, 3)))
 
     # merging is trivial for abelian symmetries, however for non-abelian symmetries
@@ -54,30 +63,37 @@ def _initialize_env(A):
     # always 0 and 1 in row or columns. Additional cost is very low, just add one
     # permutation on T with total size D^6.
     temp = A.permutate((0, 1, 2), (3, 4, 5))
-    temp = temp.H @ temp
-    temp = temp.permutate((3, 0), (5, 2, 4, 1))
-    repT1 = (combine(caxes[1], axes[1]), combine(axes[3], caxes[3]), axes[2], caxes[2])
-    T1 = type(A)(repT1[:1], repT1[1:], temp.blocks, temp.block_irreps)
+    T1 = temp.H @ temp
+    T1 = T1.permutate((3, 0), (5, 2, 4, 1))
+    b = A.signature[4]
+    st1 = np.array([False, False, True, True, b, ~b])
+    T1.set_signature(st1)
+    T1 = T1.merge_legs(2, 3).merge_legs(0, 1)
     T1 = T1.permutate((0,), (2, 3, 1))
 
     temp = A.permutate((0, 1, 3), (2, 4, 5))
-    temp = temp.H @ temp
-    temp = temp.permutate((3, 0), (4, 1, 5, 2))
-    repT2 = (combine(caxes[0], axes[0]), combine(axes[2], caxes[2]), axes[3], caxes[3])
-    T2 = type(A)(repT2[:1], repT2[1:], temp.blocks, temp.block_irreps)
+    T2 = temp.H @ temp
+    T2 = T2.permutate((3, 0), (4, 1, 5, 2))
+    b = A.signature[5]
+    st2 = np.array([True, True, False, False, b, ~b])
+    T2.set_signature(st2)
+    T2 = T2.merge_legs(2, 3).merge_legs(0, 1)
 
     temp = A.permutate((0, 1, 4), (2, 3, 5))
-    temp = temp.H @ temp
-    temp = temp.permutate((4, 1), (5, 2, 3, 0))
-    repT3 = (combine(caxes[1], axes[1]), combine(axes[3], caxes[3]), axes[0], caxes[0])
-    T3 = type(A)(repT3[:1], repT3[1:], temp.blocks, temp.block_irreps)
+    T3 = temp.H @ temp
+    T3 = T3.permutate((4, 1), (5, 2, 3, 0))
+    b = A.signature[2]
+    st3 = np.array([True, True, False, False, b, ~b])
+    T3.set_signature(st3)
+    T3 = T3.merge_legs(2, 3).merge_legs(0, 1)
     T3 = T3.permutate((2, 3, 0), (1,))
 
     temp = A.permutate((0, 1, 5), (2, 3, 4))
-    temp = temp.H @ temp
-    temp = temp.permutate((3, 0), (5, 2, 4, 1))
-    repT4 = (combine(caxes[0], axes[0]), combine(axes[2], caxes[2]), axes[1], caxes[1])
-    T4 = type(A)(repT4[:1], repT4[1:], temp.blocks, temp.block_irreps)
+    T4 = temp.H @ temp
+    T4 = T4.permutate((3, 0), (5, 2, 4, 1))
+    b = A.signature[3]
+    T4.set_signature([False, False, True, True, b, ~b])
+    T4 = T4.merge_legs(2, 3).merge_legs(0, 1)
     T4 = T4.permutate((0,), (2, 3, 1))
 
     return C1, T1, C2, T2, C3, T3, C4, T4
