@@ -159,9 +159,9 @@ class CTM_Environment:
         for (x, y) in self._neq_coords:
             axes = self.get_A(x, y).group_conjugated().col_reps
             if not (axes[0] == self.get_A(x, y - 1).col_reps[2]).all():
-                raise ValueError("Vertical bond does not match at coord {(x,y)}")
+                raise ValueError(f"Vertical bond does not match at coord {(x,y)}")
             if not (axes[1] == self.get_A(x + 1, y).col_reps[3]).all():
-                raise ValueError("Horizontal bond does not match at coord {(x,y)}")
+                raise ValueError(f"Horizontal bond does not match at coord {(x,y)}")
 
         # 5) init enlarged corner and projectors lists
         self._corners_ul = [None] * self._Nneq
