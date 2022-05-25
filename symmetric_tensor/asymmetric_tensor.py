@@ -25,7 +25,7 @@ class AsymmetricTensor(SymmetricTensor):
     _irrep = np.zeros([1], dtype=np.int8)
 
     @staticmethod
-    def combine_representations(*reps):
+    def combine_representations(reps, signature):
         return np.prod([r for r in reps], axis=0)
 
     @staticmethod

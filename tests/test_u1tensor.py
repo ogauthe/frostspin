@@ -28,11 +28,8 @@ def random_U1_tensor(row_reps, col_reps, signature, rng=None):
     """
     if rng is None:
         rng = np.random.default_rng()
-    reps = list(row_reps) + list(col_reps)
-    for i, s in enumerate(signature):
-        if s:
-            reps[i] = -reps[i]
-    irreps1D = U1_SymmetricTensor.combine_representations(*reps)
+    reps = row_reps + col_reps
+    irreps1D = U1_SymmetricTensor.combine_representations(reps, signature)
     nnz = (irreps1D == 0).nonzero()[0]
     t0 = np.zeros(irreps1D.size)
     t0[nnz] = rng.random(nnz.size) - 0.5
@@ -73,5 +70,5 @@ temp = temp.permutate((3, 0, 2), (1, 4))
 assert (temp.toarray() == t0.transpose(3, 0, 2, 1, 4)).all()
 
 u, s, v = tu1.svd()
-u.diagonal_imul(s)
+u = u.diagonal_mul(s)
 assert (tu1 - u @ v).norm() < 1e-12

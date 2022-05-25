@@ -33,7 +33,7 @@ class SymmetricTensor:
         raise NotImplementedError("Must be defined in derived class")
 
     @staticmethod
-    def combine_representations(*reps):
+    def combine_representations(reps, signature):
         raise NotImplementedError("Must be defined in derived class")
 
     @staticmethod
@@ -351,18 +351,14 @@ class SymmetricTensor:
         )
 
     def get_row_representation(self):
-        rr = list(self._row_reps)
-        for i in range(self._nrr):
-            if self._signature[i]:
-                rr[i] = self.conjugate_representation(rr[i])
-        return self.combine_representations(*rr)
+        return self.combine_representations(
+            self._row_reps, self._signature[: self._nrr]
+        )
 
     def get_column_representation(self):
-        rc = list(self._col_reps)
-        for i in range(self._ndim - self._nrr):
-            if ~self._signature[i + self._nrr]:
-                rc[i] = self.conjugate_representation(rc[i])
-        return self.combine_representations(*rc)
+        return self.combine_representations(
+            self._col_reps, ~self._signature[self._nrr :]
+        )
 
     def diagonal_mul(self, diag_blocks, left=False):
         """
@@ -467,15 +463,20 @@ class SymmetricTensor:
 
     def merge_legs(self, i1, i2):
         assert self._signature[i1] == self._signature[i2]
+        s = np.array([False, False])
         if i2 < self._nrr:
             assert 0 < i1 + 1 == i2
-            r = self.combine_representations(self._row_reps[i1], self._row_reps[i2])
+            r = self.combine_representations(
+                (self._row_reps[i1], self._row_reps[i2]), s
+            )
             row_reps = self._row_reps[:i1] + (r,) + self._row_reps[i2 + 1 :]
             col_reps = self._col_reps
         else:
             assert self._nrr < i1 + 1 == i2 < self._ndim
             j = i1 - self._nrr
-            r = self.combine_representations(self._col_reps[j], self._col_reps[j + 1])
+            r = self.combine_representations(
+                (self._col_reps[j], self._col_reps[j + 1]), s
+            )
             col_reps = self._col_reps[:j] + (r,) + self._col_reps[j + 2 :]
             row_reps = self._row_reps
         signature = np.hstack((self._signature[:i1], self._signature[i2:]))
