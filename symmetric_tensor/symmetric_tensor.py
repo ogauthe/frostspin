@@ -142,7 +142,7 @@ class SymmetricTensor:
             self._f_contiguous = False
         self._block_irreps = np.asarray(block_irreps)
         self._ncoeff = sum(b.size for b in blocks)
-        # assert self._nblocks > 0
+        assert self._nblocks > 0
         assert 0 < self._nrr < self._ndim
         assert self._signature.shape == (self.ndim,)
         assert self._block_irreps.size == self._nblocks
