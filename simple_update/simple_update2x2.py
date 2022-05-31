@@ -105,15 +105,12 @@ class SimpleUpdate2x2(SimpleUpdate):
         if not all((h.signature == s).all() for h in hamiltonians):
             raise ValueError(f"Hamiltonians must have signature {s}")
 
-        # quick and dirty. Need singlet as symmetry member.
-        sing = h0.init_representation(np.array([1]), np.array([0]))
-
         # use same signature for physical and ancilla legs on all tensors:
         # True for physical
         # False for ancilla
         # for easy contraction with Hamiltonian
         # however virtual legs need to have opposite signatures on 2 sublattices
-
+        sing = h0.singlet
         s1 = np.array([1, 0, 1, 1, 1, 1], dtype=bool)
         t1 = h0.from_array(t0, (phys,), (phys, sing, sing, sing, sing), signature=s1)
         s2 = np.array([1, 0, 0, 0, 0, 0], dtype=bool)

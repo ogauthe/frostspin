@@ -69,9 +69,6 @@ class SimpleUpdate1x2(SimpleUpdate):
         if not all((h.signature == s).all() for h in hamiltonians):
             raise ValueError(f"Hamiltonians must have signature {s}")
 
-        # quick and dirty. Need singlet as symmetry member.
-        sing = h0.init_representation(np.array([1]), np.array([0]))
-
         # use same signature for physical and ancilla legs on all tensors:
         # True for physical
         # False for ancilla
@@ -90,6 +87,7 @@ class SimpleUpdate1x2(SimpleUpdate):
         #    ////   /\           ///    /\
         #   a234   p  1         a234   p  1
         #   -+++   +  +         ----   +  -
+        sing = h0.singlet
         sl = np.array([0, 1, 1, 1, 1, 1], dtype=bool)
         left = h0.from_array(t0, (phys, sing, sing, sing), (phys, sing), signature=sl)
         sr = np.array([0, 0, 0, 0, 1, 0], dtype=bool)

@@ -24,6 +24,11 @@ class AsymmetricTensor(SymmetricTensor):
 
     _irrep = np.zeros([1], dtype=np.int8)
 
+    @classmethod
+    @property
+    def singlet(cls):
+        return np.ones((1,), dtype=int)
+
     @staticmethod
     def combine_representations(reps, signature):
         return np.prod([r for r in reps], axis=0)

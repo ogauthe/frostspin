@@ -131,6 +131,11 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
     def symmetry(cls):
         return "SU2"
 
+    @classmethod
+    @property
+    def singlet(cls):
+        return np.array([[1], [1]])
+
     @staticmethod
     def combine_representations(*reps):
         if len(reps) > 1:  # numba issue 7245

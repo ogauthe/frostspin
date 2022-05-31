@@ -32,6 +32,11 @@ class SymmetricTensor:
     def symmetry(cls):
         raise NotImplementedError("Must be defined in derived class")
 
+    @classmethod
+    @property
+    def singlet(cls):
+        raise NotImplementedError("Must be defined in derived class")
+
     @staticmethod
     def combine_representations(reps, signature):
         raise NotImplementedError("Must be defined in derived class")
