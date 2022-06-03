@@ -418,7 +418,8 @@ class SymmetricTensor:
         # be conjugate since row (bra) and columns (ket) are swapped.
         conj = self.group_conjugated()
         blocks = tuple(b.T for b in conj._blocks)
-        s = np.hstack((self.signature[self._nrr :], self._signature[: self._nrr]))
+        perm = np.arange(-self._ndim + self._nrr, self._nrr) % self._ndim
+        s = self._signature[perm]
         return type(self)(self._col_reps, self._row_reps, blocks, conj._block_irreps, s)
 
     def conjugate(self):
