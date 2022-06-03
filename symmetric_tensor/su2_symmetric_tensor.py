@@ -8,7 +8,7 @@ from .o2_symmetric_tensor import O2_SymmetricTensor
 from groups.su2_representation import SU2_Representation  # TODO remove me
 
 
-def _get_projector(in1, in2, max_irrep=2**30):
+def _get_projector(in1, in2, s1, s2, max_irrep=2**30):
     # max_irrep cannot be set to None since irr3 loop depends on it
     degen, irreps = _numba_elementary_combine_SU2(in1[0], in1[1], in2[0], in2[1])
     trunc = irreps.searchsorted(max_irrep + 1)
@@ -26,12 +26,19 @@ def _get_projector(in1, in2, max_irrep=2**30):
     cs1 = [0, *(in1[0] * in1[1]).cumsum()]  # remember where to restart in in1
     cs2 = [0, *(in2[0] * in2[1]).cumsum()]  # remember where to restart in in2
     for i1, irr1 in enumerate(in1[1]):
+        diag1 = (np.arange(irr1 % 2, irr1 + irr1 % 2) % 2 * 2 - 1)[:, None, None]
         for i2, irr2 in enumerate(in2[1]):
+            diag2 = (np.arange(irr2 % 2, irr2 + irr2 % 2) % 2 * 2 - 1)[None, :, None]
             d2 = in2[0, i2]
             ar = np.arange(d2)
             sl2 = np.arange(cs2[i2], cs2[i2] + d2 * irr2)[:, None] * out_dim
             for irr3 in range(abs(irr1 - irr2) + 1, min(irr1 + irr2, max_irrep + 1), 2):
                 p123 = SU2_Representation.elementary_projectors[irr1, irr2, irr3]
+                # apply spin-reversal operator according to signatures
+                if s1:
+                    p123 = p123[::-1] * diag1
+                if s2:
+                    p123 = p123[:, ::-1] * diag2
                 sh = (irr1, d2, irr2, d2, irr3)
                 temp = np.zeros(sh)
                 temp[:, ar, :, ar] = p123
@@ -52,7 +59,7 @@ def _get_projector(in1, in2, max_irrep=2**30):
     return ssp.csr_matrix((data, (row, col)), shape=sh)
 
 
-def _get_projector_chained(*rep_in, singlet_only=False):
+def _get_projector_chained(rep_in, signature, singlet_only=False):
     r"""
     Tree structure: only first leg has depth
                 product
@@ -65,11 +72,11 @@ def _get_projector_chained(*rep_in, singlet_only=False):
             /  \   \
            1    2   3 ...
     """
-    forwards = [rep_in[0]]
     n = len(rep_in)
     if n == 1:
         return ssp.eye(rep_in[0][0] @ rep_in[0][1]).tocsc()
 
+    forwards = [rep_in[0]]
     for i in range(1, n):
         forwards.append(_numba_combine_SU2(forwards[i - 1], rep_in[i]))
 
@@ -90,9 +97,17 @@ def _get_projector_chained(*rep_in, singlet_only=False):
     else:
         truncations = [2**30] * n
 
-    proj = _get_projector(forwards[0], rep_in[1], max_irrep=truncations[-2])
-    for (f, rep, trunc) in zip(forwards[1:], rep_in[2:], reversed(truncations[:-2])):
-        p = _get_projector(f, rep, max_irrep=trunc)
+    proj = _get_projector(
+        forwards[0], rep_in[1], signature[0], signature[1], max_irrep=truncations[-2]
+    )
+    for i in range(1, n - 1):
+        p = _get_projector(
+            forwards[i],
+            rep_in[i + 1],
+            False,
+            signature[i + 1],
+            max_irrep=truncations[-i - 2],
+        )
         proj = proj.reshape(-1, p.shape[0]) @ p
     proj = proj.reshape(-1, forwards[-1][0] @ forwards[-1][1])
     return proj.tocsc()  # need to slice columns
@@ -137,7 +152,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         return np.array([[1], [1]])
 
     @staticmethod
-    def combine_representations(*reps):
+    def combine_representations(reps, signature):
         if len(reps) > 1:  # numba issue 7245
             return _numba_combine_SU2(*reps)
         return reps[0]
@@ -160,12 +175,14 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
     _unitary_dic = {}
 
     @classmethod
-    def construct_matrix_projector(cls, row_reps, col_reps, conjugate_columns=False):
-        repL = cls.combine_representations(*row_reps)
-        repR = cls.combine_representations(*col_reps)
+    def construct_matrix_projector(cls, row_reps, col_reps, signature):
+        nrr = len(row_reps)
+        assert signature.shape == (nrr + len(col_reps),)
+        repL = cls.combine_representations(row_reps, signature[:nrr])
+        repR = cls.combine_representations(col_reps, signature[nrr:])
         dimLR = cls.representation_dimension(repL) * cls.representation_dimension(repR)
-        projL = _get_projector_chained(*row_reps)
-        projR = _get_projector_chained(*col_reps)
+        projL = _get_projector_chained(row_reps, signature[:nrr])
+        projR = _get_projector_chained(col_reps, signature[nrr:])
 
         target = sorted(set(repL[1]).intersection(repR[1]))
         if not target:
@@ -184,10 +201,10 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
             degenR = repR[0, indR[i]]
             matR = projR[:, shiftR[indR[i]] : shiftR[indR[i] + 1]]
             matR = (matR.reshape(-1, irr).T / np.sqrt(irr)).tocsr()
-            if not conjugate_columns:
-                # TODO inline: in coo, row = nrow - row, data *= row%2*2-1 / sqrt(irr)
-                sing_proj = ssp.csr_matrix(np.diag(1.0 - np.arange(irr) % 2 * 2)[::-1])
-                matR = sing_proj @ matR
+            # TODO inline: in coo, row = nrow - row, data *= row%2*2-1 / sqrt(irr)
+            sing_proj = ssp.csr_matrix(np.diag(1.0 - np.arange(irr) % 2 * 2)[::-1])
+            matR = sing_proj @ matR
+
             # it is not memory efficient to contract directly with the full matL: in
             # csr, indptr has size nrows, which would be dimL * degenL, much too large
             # (saturates memory). It also requires some sparse transpose. Using csc just
@@ -211,7 +228,16 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
     # Symmetry specific methods with fixed signature
     ####################################################################################
     def group_conjugated(self):
-        return self  # every SU(2) representations are self-conjugate
+        signature = ~self._signature
+        return type(self)(
+            self._row_reps, self._col_reps, self._blocks, self._block_irreps, signature
+        )
+
+    def set_signature(self, signature):
+        # THIS IS WRONG
+        signature = np.asarray(signature, dtype=bool)
+        assert signature.shape == (self._ndim,)
+        self._signature = signature
 
     def toabelian(self):
         return self.toU1()
@@ -240,7 +266,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
                     k += irr
             col_reps.append(sz)
 
-        return U1_SymmetricTensor.from_array(arr, row_reps, col_reps)
+        return U1_SymmetricTensor.from_array(arr, row_reps, col_reps, self._signature)
 
     def toO2(self):
         return O2_SymmetricTensor.from_SU2(self)

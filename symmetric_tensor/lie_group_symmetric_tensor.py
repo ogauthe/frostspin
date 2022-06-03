@@ -25,7 +25,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
     _unitary_dic = NotImplemented
 
     @classmethod
-    def construct_matrix_projector(row_reps, col_reps, conjugate_columns=False):
+    def construct_matrix_projector(row_reps, col_reps, signature):
         r"""
                     singlet space
                     /          \
@@ -42,8 +42,8 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             Row axis representations.
         col_reps : tuple of ndarray
             Column axis representations.
-        conjugate_columns : bool
-            Whether to add projector on singlet on column axes.
+        signature : 1D bool array or None
+            Leg signatures.
 
         Returns
         -------
@@ -121,8 +121,13 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         axes: tuple of int
             axes permutation
         """
-        proj1 = self.construct_matrix_projector(self._row_reps, self._col_reps)
-        proj2 = self.construct_matrix_projector(new_row_reps, new_col_reps)
+        # THIS MAY BE WRONG
+        # when half-integer and interger spins are mixed, errors may appear
+        signature = np.zeros((self._ndim,), dtype=bool)
+        proj1 = self.construct_matrix_projector(
+            self._row_reps, self._col_reps, signature
+        )
+        proj2 = self.construct_matrix_projector(new_row_reps, new_col_reps, signature)
 
         # so, now we have initial shape projector and output shape projector. We need to
         # transpose rows to contract them. Since there is no bra/ket exchange, this can
@@ -142,6 +147,11 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         unitary.data[np.abs(unitary.data) < 1e-14] = 0.0
         unitary.eliminate_zeros()
         unitary = unitary.sorted_indices()  # copy to get clean data array
+        assert (
+            lg.norm((unitary @ unitary.T.conj() - ssp.eye(unitary.shape[0])).data)
+            / np.sqrt(unitary.shape[0])
+            < 1e-14
+        ), "unitary transformation is not unitary"
         return unitary
 
     @classmethod
@@ -191,22 +201,26 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
     ####################################################################################
     # Symmetry specific methods with fixed signature
+    # TODO FIX ME THERE MAY BE ERRORS
     ####################################################################################
     @classmethod
-    def from_array(cls, arr, row_reps, col_reps, conjugate_columns=True):
+    def from_array(cls, arr, row_reps, col_reps, signature=None):
         assert arr.shape == tuple(
             cls.representation_dimension(rep) for rep in row_reps + col_reps
         )
-        proj = cls.construct_matrix_projector(
-            row_reps, col_reps, conjugate_columns=conjugate_columns
-        )
+        nrr = len(row_reps)
+        if signature is None:
+            signature = np.arange(nrr + len(col_reps)) >= nrr
+        else:
+            signature = np.ascontiguousarray(signature, dtype=bool)
+            assert signature.shape == (arr.ndim,)
+
+        proj = cls.construct_matrix_projector(row_reps, col_reps, signature)
         raw_data = proj.T @ arr.ravel()
-        if conjugate_columns:
-            col_reps = tuple(cls.conjugate_representation(r) for r in col_reps)
         blocks, block_irreps = cls._blocks_from_raw_data(
             raw_data,
-            cls.combine_representations(*row_reps),
-            cls.combine_representations(*col_reps),
+            cls.combine_representations(row_reps, signature[:nrr]),
+            cls.combine_representations(col_reps, signature[nrr:]),
         )
         assert abs(
             (n := lg.norm(arr))
@@ -218,30 +232,27 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             )
             <= 2e-13 * n  # allows for arr = 0
         ), "norm is not conserved in SymmetricTensor cast"
-        return cls(row_reps, col_reps, blocks, block_irreps)
+        return cls(row_reps, col_reps, blocks, block_irreps, signature)
 
     def _toarray(self):
         proj = self.construct_matrix_projector(
-            self._row_reps, self._col_reps, conjugate_columns=True
+            self._row_reps, self._col_reps, self._signature
         )
         arr = proj @ self.to_raw_data()
         return arr.reshape(self.matrix_shape)
 
     def _permutate(self, row_axes, col_axes):
-        row_reps = []
-        for ax in row_axes:
+        axes = row_axes + col_axes
+        nrr = len(row_axes)
+        signature = []
+        reps = []
+        for ax in axes:
+            signature.append(self._signature[ax])
             if ax < self._nrr:
-                row_reps.append(self._row_reps[ax])
+                reps.append(self._row_reps[ax])
             else:
-                row_reps.append(
-                    self.conjugate_representation(self._col_reps[ax - self._nrr])
-                )
-        col_reps = []
-        for ax in col_axes:
-            if ax < self._nrr:
-                col_reps.append(self.conjugate_representation(self._row_reps[ax]))
-            else:
-                col_reps.append(self._col_reps[ax - self._nrr])
+                reps.append(self._col_reps[ax - self._nrr])
+        signature = np.array(signature)
 
         # if hash is too slow, can be decomposed: at init, set dic corresponding to
         # representations, then permutate only needs hash from row_axes and col_axes
@@ -250,14 +261,14 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         try:
             unitary = self._unitary_dic[key]
         except KeyError:
-            unitary = self.construct_unitary(row_reps, col_reps, row_axes + col_axes)
+            unitary = self.construct_unitary(reps[:nrr], reps[nrr:], axes)
             self._unitary_dic[key] = unitary
         # TODO slice unitary to do product blockwise, allowing for missing blocks
         # also include sqrt(dim) in input and output
         raw_data = unitary @ self.to_raw_data()
         blocks, block_irreps = self._blocks_from_raw_data(
             raw_data,
-            self.combine_representations(*row_reps),
-            self.combine_representations(*col_reps),
+            self.combine_representations(reps[:nrr], signature[:nrr]),
+            self.combine_representations(reps[nrr:], signature[nrr:]),
         )
-        return type(self)(row_reps, col_reps, blocks, block_irreps)
+        return type(self)(reps[:nrr], reps[nrr:], blocks, block_irreps, signature)
