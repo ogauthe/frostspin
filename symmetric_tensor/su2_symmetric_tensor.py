@@ -7,8 +7,10 @@ from .u1_symmetric_tensor import U1_SymmetricTensor
 from .o2_symmetric_tensor import O2_SymmetricTensor
 from groups.su2_representation import SU2_Representation  # TODO remove me
 
+_singlet = np.array([[1], [1]])
 
-def _get_projector(in1, in2, max_irrep=2**30):
+
+def _get_projector(in1, in2, s1, s2, max_irrep=2**30):
     # max_irrep cannot be set to None since irr3 loop depends on it
     degen, irreps = _numba_elementary_combine_SU2(in1[0], in1[1], in2[0], in2[1])
     trunc = irreps.searchsorted(max_irrep + 1)
@@ -26,12 +28,19 @@ def _get_projector(in1, in2, max_irrep=2**30):
     cs1 = [0, *(in1[0] * in1[1]).cumsum()]  # remember where to restart in in1
     cs2 = [0, *(in2[0] * in2[1]).cumsum()]  # remember where to restart in in2
     for i1, irr1 in enumerate(in1[1]):
+        diag1 = (np.arange(irr1 % 2, irr1 + irr1 % 2) % 2 * 2 - 1)[:, None, None]
         for i2, irr2 in enumerate(in2[1]):
+            diag2 = (np.arange(irr2 % 2, irr2 + irr2 % 2) % 2 * 2 - 1)[None, :, None]
             d2 = in2[0, i2]
             ar = np.arange(d2)
             sl2 = np.arange(cs2[i2], cs2[i2] + d2 * irr2)[:, None] * out_dim
             for irr3 in range(abs(irr1 - irr2) + 1, min(irr1 + irr2, max_irrep + 1), 2):
                 p123 = SU2_Representation.elementary_projectors[irr1, irr2, irr3]
+                # apply spin-reversal operator according to signatures
+                if s1:
+                    p123 = p123[::-1] * diag1
+                if s2:
+                    p123 = p123[:, ::-1] * diag2
                 sh = (irr1, d2, irr2, d2, irr3)
                 temp = np.zeros(sh)
                 temp[:, ar, :, ar] = p123
@@ -52,7 +61,7 @@ def _get_projector(in1, in2, max_irrep=2**30):
     return ssp.csr_matrix((data, (row, col)), shape=sh)
 
 
-def _get_projector_chained(rep_in, singlet_only=False):
+def _get_projector_chained(rep_in, signature, singlet_only=False):
     r"""
     Tree structure: only first leg has depth
                 product
@@ -67,7 +76,12 @@ def _get_projector_chained(rep_in, singlet_only=False):
     """
     n = len(rep_in)
     if n == 1:
-        return ssp.eye(rep_in[0][0] @ rep_in[0][1]).tocsc()
+        r = rep_in[0]
+        if singlet_only:
+            if r[1, 0] != 1:
+                raise ValueError("No singlet in product")
+            return ssp.eye(r[0] @ r[1], r[0, 0])
+        return _get_projector(r, _singlet, signature[0], False)  # care for conj
 
     forwards = [rep_in[0]]
     for i in range(1, n):
@@ -90,9 +104,17 @@ def _get_projector_chained(rep_in, singlet_only=False):
     else:
         truncations = [2**30] * n
 
-    proj = _get_projector(forwards[0], rep_in[1], max_irrep=truncations[-2])
+    proj = _get_projector(
+        forwards[0], rep_in[1], signature[0], signature[1], max_irrep=truncations[-2]
+    )
     for i in range(1, n - 1):
-        p = _get_projector(forwards[i], rep_in[i + 1], max_irrep=truncations[-i - 2])
+        p = _get_projector(
+            forwards[i],
+            rep_in[i + 1],
+            False,
+            signature[i + 1],
+            max_irrep=truncations[-i - 2],
+        )
         proj = proj.reshape(-1, p.shape[0]) @ p
     proj = proj.reshape(-1, forwards[-1][0] @ forwards[-1][1])
     return proj.tocsc()  # need to slice columns
@@ -134,7 +156,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
     @classmethod
     @property
     def singlet(cls):
-        return np.array([[1], [1]])
+        return _singlet
 
     @staticmethod
     def combine_representations(reps, signature):
@@ -166,26 +188,8 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         repL = cls.combine_representations(row_reps, signature[:nrr])
         repR = cls.combine_representations(col_reps, signature[nrr:])
         dimLR = cls.representation_dimension(repL) * cls.representation_dimension(repR)
-        projL = _get_projector_chained(row_reps)
-        projR = _get_projector_chained(col_reps)
-
-        conjL = ssp.diags([1])
-        for i, rr in enumerate(row_reps):
-            if signature[i]:
-                conj = SU2_Representation(rr[0], rr[1]).get_conjugator()
-            else:
-                conj = ssp.eye(rr[0] @ rr[1])
-            conjL = ssp.kron(conjL, conj)
-        projL = conjL.tocsc() @ projL
-
-        conjR = ssp.diags([1])
-        for i, rc in enumerate(col_reps):
-            if not signature[nrr + i]:
-                conj = SU2_Representation(rc[0], rc[1]).get_conjugator()
-            else:
-                conj = ssp.eye(rc[0] @ rc[1])
-            conjR = ssp.kron(conjR, conj)
-        projR = conjR.tocsc() @ projR
+        projL = _get_projector_chained(row_reps, signature[:nrr])
+        projR = _get_projector_chained(col_reps, ~signature[nrr:])
 
         target = sorted(set(repL[1]).intersection(repR[1]))
         if not target:
