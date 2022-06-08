@@ -96,7 +96,7 @@ class SymmetricTensor:
         """
         raise NotImplementedError("Must be defined in derived class")
 
-    def check_blocks_fit_representation(self):
+    def check_blocks_fit_representations(self):
         raise NotImplementedError("Must be defined in derived class")
 
     def norm(self):
