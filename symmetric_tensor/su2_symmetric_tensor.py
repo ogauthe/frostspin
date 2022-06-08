@@ -180,8 +180,8 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
 
         conjR = ssp.diags([1])
         for i, rc in enumerate(col_reps):
-            if signature[nrr + i]:
-                conj = SU2_Representation(rc[0], rc[1]).get_conjugator().T
+            if not signature[nrr + i]:
+                conj = SU2_Representation(rc[0], rc[1]).get_conjugator()
             else:
                 conj = ssp.eye(rc[0] @ rc[1])
             conjR = ssp.kron(conjR, conj)
@@ -203,12 +203,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
             degenL = repL[0, indL[i]]
             degenR = repR[0, indR[i]]
             matR = projR[:, shiftR[indR[i]] : shiftR[indR[i] + 1]]
-            matR = matR.reshape(-1, irr).T.tocsr()
-            # TODO inline: in coo, row = nrow - row, data *= row%2*2-1 / sqrt(irr)
-            sing_proj = ssp.diags((1 - np.arange(irr) % 2 * 2) / np.sqrt(irr)).tocsr()[
-                ::-1
-            ]
-            matR = sing_proj @ matR
+            matR = matR.reshape(-1, irr).T.tocsr() / np.sqrt(irr)
 
             # it is not memory efficient to contract directly with the full matL: in
             # csr, indptr has size nrows, which would be dimL * degenL, much too large

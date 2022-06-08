@@ -152,10 +152,10 @@ assert lg.norm(tRVB_SU2.toarray() - tRVBzz) < 1e-13
 a0 = np.tensordot(tRVBzz, tRVBzz, ((0, 1), (0, 1)))
 a_asym = tRVB_asym.H @ tRVB_asym
 a_U1 = tRVB_U1.H @ tRVB_U1
-# a_SU2 = tRVB_SU2.H @ tRVB_SU2
+a_SU2 = tRVB_SU2.H @ tRVB_SU2
 assert lg.norm(a_asym.toarray() - a0) < 1e-13
 assert lg.norm(a_U1.toarray() - a0) < 1e-13
-# assert lg.norm(a_SU2.toarray() - a0) < 1e-13  # global sign error
+assert lg.norm(a_SU2.toarray() - a0) < 1e-13
 
 a1 = a0.transpose(0, 4, 1, 5, 2, 6, 3, 7)
 a1_asym = a_asym.permutate((0, 4, 1, 5), (2, 6, 3, 7))
