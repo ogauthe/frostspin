@@ -5,8 +5,7 @@ import scipy.linalg as lg
 
 from symmetric_tensor.asymmetric_tensor import AsymmetricTensor
 from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
-
-# from symmetric_tensor.su2_symmetric_tensor import SU2_SymmetricTensor
+from symmetric_tensor.su2_symmetric_tensor import SU2_SymmetricTensor
 from ctmrg.ctmrg import CTMRG
 
 
@@ -142,13 +141,13 @@ tRVB_asym = AsymmetricTensor.from_array(
 tRVB_U1 = U1_SymmetricTensor.from_array(
     tRVBzz, (rep_d_U1, rep_a_U1), (rep_D_U1, rep_D_U1, rep_D_U1, rep_D_U1), signature=s
 )
-# tRVB_SU2 = SU2_SymmetricTensor.from_array(
-#    tRVB, (rep_d_SU2, rep_a_SU2), (rep_D_SU2,) * 4
-# )
+tRVB_SU2 = SU2_SymmetricTensor.from_array(
+    tRVBzz, (rep_d_SU2, rep_a_SU2), (rep_D_SU2,) * 4, signature=s
+)
 
 assert lg.norm(tRVB_asym.toarray() - tRVBzz) < 1e-13
 assert lg.norm(tRVB_U1.toarray() - tRVBzz) < 1e-13
-# assert lg.norm(tRVB_SU2.toarray() - tRVB) < 1e-13
+assert lg.norm(tRVB_SU2.toarray() - tRVBzz) < 1e-13
 
 a0 = np.tensordot(tRVBzz, tRVBzz, ((0, 1), (0, 1)))
 a_asym = tRVB_asym.H @ tRVB_asym
@@ -156,25 +155,27 @@ a_U1 = tRVB_U1.H @ tRVB_U1
 # a_SU2 = tRVB_SU2.H @ tRVB_SU2
 assert lg.norm(a_asym.toarray() - a0) < 1e-13
 assert lg.norm(a_U1.toarray() - a0) < 1e-13
-# assert lg.norm(a_SU2.toarray() - a0) < 1e-13
+# assert lg.norm(a_SU2.toarray() - a0) < 1e-13  # global sign error
 
 a1 = a0.transpose(0, 4, 1, 5, 2, 6, 3, 7)
 a1_asym = a_asym.permutate((0, 4, 1, 5), (2, 6, 3, 7))
 a1_U1 = a_U1.permutate((0, 4, 1, 5), (2, 6, 3, 7))
 # a1_SU2 = a_SU2.permutate((0, 4, 1, 5), (2, 6, 3, 7))
 # need to adjust conjugator when bra / ket legs are swapped
-c = np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0.0]])
+# c = np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0.0]])
 # temp = a1_SU2.toarray()
 # temp = np.einsum("abcdefgh,bB,dD,eE,gG->aBcDEfGh", temp, c.T, c.T, c, c)
 assert lg.norm(a1_asym.toarray() - a1) < 1e-13
 assert lg.norm(a1_U1.toarray() - a1) < 1e-13
-# assert lg.norm(temp - a1) < 1e-13
+# assert lg.norm(temp - a1) < 1e-13  # something is wrong
 # del a0, a_asym, a_U1, a_SU2, a1, a1_asym, a1_U1, a1_SU2, temp, c
+del a0, a_asym, a_U1, a1, a1_asym, a1_U1
 
-# tensorsSU2 = (tRVB_SU2,)
 ctmAs = CTMRG.from_elementary_tensors("A", (tRVB_asym,), 20, verbosity=100)
 ctmU1 = CTMRG.from_elementary_tensors("A", (tRVB_U1,), 20, verbosity=100)
-# ctmSU2 = CTMRG.from_elementary_tensors("A", tensorsSU2, 20, verbosity=100)
+
+# something is wrong when mixing integer and half-integer spins
+# ctmSU2 = CTMRG.from_elementary_tensors("A", (tRVB_SU2,), 20, verbosity=100)
 
 rdmAs = ctmAs.compute_rdm2x1(0, 0)
 rdmU1 = ctmU1.compute_rdm2x1(0, 0)

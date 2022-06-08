@@ -30,6 +30,8 @@ assert abs(1.0 - st.norm() / nf) < 1e-14
 assert lg.norm(st.toarray() - arr) / nf < 1e-14
 
 stp = st.permutate((0, 1, 2), (3,))
+st2 = stp.permutate((0, 1), (2, 3))
+assert (st - st2).norm() < 1e-14
 
 SdS_22b = np.array(
     [
@@ -51,3 +53,5 @@ assert abs(1.0 - stb.norm() / nf) < 1e-14
 assert lg.norm(stb.toarray() - arrb) / nf < 1e-14
 
 stbp = stb.permutate((0, 1, 2), (3,))
+stb2 = stbp.permutate((0, 1), (2, 3))
+assert (stb - stb2).norm() < 1e-14
