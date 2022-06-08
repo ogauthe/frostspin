@@ -160,16 +160,11 @@ assert lg.norm(a_SU2.toarray() - a0) < 1e-13
 a1 = a0.transpose(0, 4, 1, 5, 2, 6, 3, 7)
 a1_asym = a_asym.permutate((0, 4, 1, 5), (2, 6, 3, 7))
 a1_U1 = a_U1.permutate((0, 4, 1, 5), (2, 6, 3, 7))
-# a1_SU2 = a_SU2.permutate((0, 4, 1, 5), (2, 6, 3, 7))
-# need to adjust conjugator when bra / ket legs are swapped
-# c = np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0.0]])
-# temp = a1_SU2.toarray()
-# temp = np.einsum("abcdefgh,bB,dD,eE,gG->aBcDEfGh", temp, c.T, c.T, c, c)
+a1_SU2 = a_SU2.permutate((0, 4, 1, 5), (2, 6, 3, 7))
 assert lg.norm(a1_asym.toarray() - a1) < 1e-13
 assert lg.norm(a1_U1.toarray() - a1) < 1e-13
-# assert lg.norm(temp - a1) < 1e-13  # something is wrong
-# del a0, a_asym, a_U1, a_SU2, a1, a1_asym, a1_U1, a1_SU2, temp, c
-del a0, a_asym, a_U1, a1, a1_asym, a1_U1
+assert lg.norm(a1_SU2.toarray() - a1) < 1e-13
+del a0, a_asym, a_U1, a_SU2, a1, a1_asym, a1_U1, a1_SU2
 
 ctmAs = CTMRG.from_elementary_tensors("A", (tRVB_asym,), 20, verbosity=100)
 ctmU1 = CTMRG.from_elementary_tensors("A", (tRVB_U1,), 20, verbosity=100)

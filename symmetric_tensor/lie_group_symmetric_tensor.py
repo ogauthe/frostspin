@@ -123,10 +123,10 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         """
         # THIS MAY BE WRONG
         # when half-integer and interger spins are mixed, errors may appear
-        signature = np.zeros((self._ndim,), dtype=bool)
         proj1 = self.construct_matrix_projector(
-            self._row_reps, self._col_reps, signature
+            self._row_reps, self._col_reps, self._signature
         )
+        signature = np.array([self._signature[ax] for ax in axes])
         proj2 = self.construct_matrix_projector(new_row_reps, new_col_reps, signature)
 
         # so, now we have initial shape projector and output shape projector. We need to
@@ -147,11 +147,9 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         unitary.data[np.abs(unitary.data) < 1e-14] = 0.0
         unitary.eliminate_zeros()
         unitary = unitary.sorted_indices()  # copy to get clean data array
-        assert (
-            lg.norm((unitary @ unitary.T.conj() - ssp.eye(unitary.shape[0])).data)
-            / np.sqrt(unitary.shape[0])
-            < 1e-14
-        ), "unitary transformation is not unitary"
+        assert lg.norm(
+            (unitary @ unitary.T.conj() - ssp.eye(unitary.shape[0])).data
+        ) < 1e-14 * np.sqrt(unitary.shape[0]), "unitary transformation is not unitary"
         return unitary
 
     @classmethod
@@ -257,7 +255,8 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         # if hash is too slow, can be decomposed: at init, set dic corresponding to
         # representations, then permutate only needs hash from row_axes and col_axes
         key = tuple(r.tobytes() for r in self._row_reps + self._col_reps)
-        key = (self._nrr, row_axes, col_axes) + key
+        si = int(2 ** np.arange(self._ndim) @ self._signature)
+        key = (si, self._nrr, row_axes, col_axes) + key
         try:
             unitary = self._unitary_dic[key]
         except KeyError:
