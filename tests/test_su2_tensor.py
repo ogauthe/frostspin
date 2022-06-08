@@ -30,10 +30,15 @@ assert abs(1.0 - st.norm() / nf) < 1e-14
 assert lg.norm(st.toarray() - arr) / nf < 1e-14
 
 stp = st.permutate((0, 1, 2), (3,))
+stp2 = SU2_SymmetricTensor.from_array(arr, (r, r, r), (r,), signature=[0, 0, 1, 1])
+assert (stp - stp2).norm() < 1e-14
 st2 = stp.permutate((0, 1), (2, 3))
 assert (st - st2).norm() < 1e-14
 
 stp = st.permutate((3, 0, 2), (1,))
+arrp = arr.transpose((3, 0, 2, 1))
+stp2 = SU2_SymmetricTensor.from_array(arrp, (r, r, r), (r,), signature=[1, 0, 1, 0])
+assert (stp - stp2).norm() < 1e-14
 st2 = stp.permutate((1, 3), (2, 0))
 assert (st - st2).norm() < 1e-14
 
@@ -57,9 +62,14 @@ assert abs(1.0 - stb.norm() / nf) < 1e-14
 assert lg.norm(stb.toarray() - arrb) / nf < 1e-14
 
 stbp = stb.permutate((0, 1, 2), (3,))
+stbp2 = SU2_SymmetricTensor.from_array(arrb, (r, r, r), (r,), signature=[0, 1, 1, 0])
+assert (stbp - stbp2).norm() < 1e-14
 stb2 = stbp.permutate((0, 1), (2, 3))
 assert (stb - stb2).norm() < 1e-14
 
 stbp = stb.permutate((3, 0, 2), (1,))
+arrbp = arrb.transpose((3, 0, 2, 1))
+stbp2 = SU2_SymmetricTensor.from_array(arrbp, (r, r, r), (r,), signature=[0, 0, 1, 1])
+assert (stbp - stbp2).norm() < 1e-14
 stb2 = stbp.permutate((1, 3), (2, 0))
 assert (stb - stb2).norm() < 1e-14
