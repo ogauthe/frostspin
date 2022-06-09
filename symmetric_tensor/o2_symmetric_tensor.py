@@ -142,9 +142,9 @@ def _get_reflection_perm_sign(rep):
     d = _O2_representation_dimension(rep)
     perm = np.empty((d,), dtype=np.int64)
     sign = np.ones((d,), dtype=np.int64)
-    i1 = np.searchsorted(rep[1], 1)
+    i1 = np.searchsorted(rep[1], 1)  # slice containing 0o and 0e if they exist
     k = rep[0, :i1].sum()
-    perm[:k] = np.arange(k)  # sectors -1 and 1 are self-conjugate
+    perm[:k] = np.arange(k)  # sectors 0o and 0e are self-conjugate
     if rep[1, 0] == -1:
         sign[: rep[0, 0]] = -1
     for i in range(i1, rep.shape[1]):
@@ -248,16 +248,21 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
     def symmetry(cls):
         return "O2"
 
+    @classmethod
+    @property
+    def singlet(cls):
+        return np.array([[1], [0]])
+
     @staticmethod
     def representation_dimension(rep):
         return _O2_representation_dimension(rep)
 
     @staticmethod
     def irrep_dimension(irrep):
-        return irrep > 0 + 1
+        return 1 + (irrep > 0)
 
     @staticmethod
-    def combine_representations(*reps):
+    def combine_representations(reps, signature):
         if len(reps) > 1:  # numba issue 7245
             return _numba_combine_O2(*reps)
         return reps[0]
@@ -270,14 +275,14 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
     # Symmetry specific methods with fixed signature
     ####################################################################################
     @classmethod
-    def from_array(cls, arr, row_reps, col_reps, conjugate_columns=True):
+    def from_array(cls, arr, row_reps, col_reps, signature=None):
         # not fully efficient: 1st construct U(1) symmetric tensor to get abelian blocks
         # then split sector 0 into 0even and 0odd
         # discard sectors with n < 0
         # keep sectors with n > 0 as they are
         u1_row_reps = tuple(_O2_rep_to_U1(r) for r in row_reps)
         u1_col_reps = tuple(_O2_rep_to_U1(r) for r in col_reps)
-        tu1 = U1_SymmetricTensor.from_array(arr, u1_row_reps, u1_col_reps)
+        tu1 = U1_SymmetricTensor.from_array(arr, u1_row_reps, u1_col_reps, signature)
         return cls.from_U1(tu1, row_reps, col_reps)
 
     @classmethod
@@ -310,7 +315,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             i1 = i0
         block_irreps.extend(tu1.block_irreps[i1:])
         blocks.extend(tu1.blocks[i1:])
-        return cls(row_reps, col_reps, blocks, block_irreps)
+        return cls(row_reps, col_reps, blocks, block_irreps, tu1.signature)
 
     def _toarray(self):
         return self.toU1().toarray()
@@ -388,35 +393,33 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         blocks.extend(self._blocks[isz + 1 :])
         block_irreps.extend(self._block_irreps[isz + 1 :])
 
-        return U1_SymmetricTensor(u1_row_reps, u1_col_reps, blocks, block_irreps)
+        return U1_SymmetricTensor(
+            u1_row_reps, u1_col_reps, blocks, block_irreps, self._signature
+        )
 
     def _permutate(self, row_axes, col_axes):
         # inefficient implementation: cast to U(1), permutate, then cast back to O(2)
         # TODO implement efficient specific permutate
-
-        # construt new axes, conjugate if axis changes between row adnd column
-        row_reps = []
-        for ax in row_axes:
+        reps = []
+        for ax in row_axes + col_axes:
             if ax < self._nrr:
-                row_reps.append(self._row_reps[ax])
+                reps.append(self._row_reps[ax])
             else:
-                row_reps.append(
-                    self.conjugate_representation(self._col_reps[ax - self._nrr])
-                )
-        col_reps = []
-        for ax in col_axes:
-            if ax < self._nrr:
-                col_reps.append(self.conjugate_representation(self._row_reps[ax]))
-            else:
-                col_reps.append(self._col_reps[ax - self._nrr])
-
+                reps.append(self._col_reps[ax - self._nrr])
         tu1 = self.toU1()._permutate(row_axes, col_axes)
-        return self.from_U1(tu1, row_reps, col_reps)
+        return self.from_U1(tu1, reps[: len(row_axes)], reps[len(row_axes) :])
 
     def group_conjugated(self):
-        # or should block -1 change sign?
-        # should all odd blocks change sign?
-        return self
+        # this operation belongs to the group: coeff should not change
+        signature = ~self._signature
+        return type(self)(
+            self._row_reps, self._col_reps, self._blocks, self._block_irreps, signature
+        )
+
+    def set_signature(self, signature):
+        signature = np.asarray(signature, dtype=bool)
+        assert signature.shape == (self._ndim,)
+        self._signature = signature
 
     def check_blocks_fit_representations(self):
         assert self._block_irreps.size == self._nblocks
