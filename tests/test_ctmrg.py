@@ -131,10 +131,16 @@ rep_a_SU2 = np.array([[1], [1]])
 rep_D_SU2 = np.array([[1, 1], [1, d]])
 
 # we need to reverse arrows to use 1-site unit cell
+s = np.array([False, False, True, True, False, False])
 zD = np.array([[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]])
 tRVBzz = np.einsum("paurdl,dD,lL->paurDL", tRVB, zD, zD)
+tRVB_check = SU2_SymmetricTensor.from_array(
+    tRVB, (rep_d_SU2, rep_a_SU2), (rep_D_SU2,) * 4
+)
+assert lg.norm(tRVB_check.toarray() - tRVB) < 1e-14
+tRVB_check.set_signature(s)
+assert lg.norm(tRVB_check.toarray() - tRVBzz) < 1e-14
 
-s = np.array([False, False, True, True, False, False])
 tRVB_asym = AsymmetricTensor.from_array(
     tRVBzz, (rep_d_asym, rep_a_asym), (rep_D_asym,) * 4, signature=s
 )
@@ -145,25 +151,26 @@ tRVB_SU2 = SU2_SymmetricTensor.from_array(
     tRVBzz, (rep_d_SU2, rep_a_SU2), (rep_D_SU2,) * 4, signature=s
 )
 
-assert lg.norm(tRVB_asym.toarray() - tRVBzz) < 1e-13
-assert lg.norm(tRVB_U1.toarray() - tRVBzz) < 1e-13
-assert lg.norm(tRVB_SU2.toarray() - tRVBzz) < 1e-13
+assert lg.norm(tRVB_asym.toarray() - tRVBzz) < 1e-14
+assert lg.norm(tRVB_U1.toarray() - tRVBzz) < 1e-14
+assert lg.norm(tRVB_SU2.toarray() - tRVBzz) < 1e-14
+assert (tRVB_SU2 - tRVB_check).norm() < 1e-14
 
 a0 = np.tensordot(tRVBzz, tRVBzz, ((0, 1), (0, 1)))
 a_asym = tRVB_asym.H @ tRVB_asym
 a_U1 = tRVB_U1.H @ tRVB_U1
 a_SU2 = tRVB_SU2.H @ tRVB_SU2
-assert lg.norm(a_asym.toarray() - a0) < 1e-13
-assert lg.norm(a_U1.toarray() - a0) < 1e-13
-assert lg.norm(a_SU2.toarray() - a0) < 1e-13
+assert lg.norm(a_asym.toarray() - a0) < 1e-14
+assert lg.norm(a_U1.toarray() - a0) < 1e-14
+assert lg.norm(a_SU2.toarray() - a0) < 1e-14
 
 a1 = a0.transpose(0, 4, 1, 5, 2, 6, 3, 7)
 a1_asym = a_asym.permutate((0, 4, 1, 5), (2, 6, 3, 7))
 a1_U1 = a_U1.permutate((0, 4, 1, 5), (2, 6, 3, 7))
 a1_SU2 = a_SU2.permutate((0, 4, 1, 5), (2, 6, 3, 7))
-assert lg.norm(a1_asym.toarray() - a1) < 1e-13
-assert lg.norm(a1_U1.toarray() - a1) < 1e-13
-assert lg.norm(a1_SU2.toarray() - a1) < 1e-13
+assert lg.norm(a1_asym.toarray() - a1) < 1e-14
+assert lg.norm(a1_U1.toarray() - a1) < 1e-14
+assert lg.norm(a1_SU2.toarray() - a1) < 1e-14
 del a0, a_asym, a_U1, a_SU2, a1, a1_asym, a1_U1, a1_SU2
 
 ctmAs = CTMRG.from_elementary_tensors("A", (tRVB_asym,), 20, verbosity=100)

@@ -238,7 +238,6 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         )
 
     def set_signature(self, signature):
-        # THIS IS WRONG
         signature = np.asarray(signature, dtype=bool)
         assert signature.shape == (self._ndim,)
         self._signature = signature
