@@ -107,7 +107,6 @@ for (x, y) in ctmAs.neq_coords:
 ########################################################################################
 # Test CTMRG on RVB SU(2) wavefunction
 ########################################################################################
-# current implementation fails with half-integer spin
 d = 2
 D = d + 1
 
@@ -132,8 +131,9 @@ rep_D_SU2 = np.array([[1, 1], [1, d]])
 
 # we need to reverse arrows to use 1-site unit cell
 s = np.array([False, False, True, True, False, False])
-zD = np.array([[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]])
-tRVBzz = np.einsum("paurdl,dD,lL->paurDL", tRVB, zD, zD)
+zD = np.eye(D)
+zD[1:, 1:] = np.diag(1 - np.arange(d) % 2 * 2)[::-1]
+tRVBzz = np.einsum("paurdl,Dd,Ll->paurDL", tRVB, zD, zD)
 tRVB_check = SU2_SymmetricTensor.from_array(
     tRVB, (rep_d_SU2, rep_a_SU2), (rep_D_SU2,) * 4
 )
@@ -173,17 +173,28 @@ assert lg.norm(a1_U1.toarray() - a1) < 1e-14
 assert lg.norm(a1_SU2.toarray() - a1) < 1e-14
 del a0, a_asym, a_U1, a_SU2, a1, a1_asym, a1_U1, a1_SU2
 
-ctmAs = CTMRG.from_elementary_tensors("A", (tRVB_asym,), 20, verbosity=100)
-ctmU1 = CTMRG.from_elementary_tensors("A", (tRVB_U1,), 20, verbosity=100)
+ctmAs = CTMRG.from_elementary_tensors("A", (tRVB_asym,), 20)
+ctmU1 = CTMRG.from_elementary_tensors("A", (tRVB_U1,), 20)
+ctmSU2 = CTMRG.from_elementary_tensors("A", (tRVB_SU2,), 20)
 
-# something is wrong when mixing integer and half-integer spins
-# ctmSU2 = CTMRG.from_elementary_tensors("A", (tRVB_SU2,), 20, verbosity=100)
-
+# there is something wrong in the combination of set_signature and merge_legs
+# hence before any iteration SU(2) rdm differs slightly
+# this only appears for half integer spins
 rdmAs = ctmAs.compute_rdm2x1(0, 0)
 rdmU1 = ctmU1.compute_rdm2x1(0, 0)
-# rdmSU2 = ctmSU2.compute_rdm2x1(0, 0)
+rdmSU2 = ctmSU2.compute_rdm2x1(0, 0)
 print(lg.eigvalsh(rdmAs), f" {lg.norm(rdmAs-rdmAs.T.conj()):.0e}")
 print(lg.eigvalsh(rdmU1), f" {lg.norm(rdmU1-rdmU1.T.conj()):.0e}")
-# print(lg.eigvalsh(rdmSU2), f" {lg.norm(rdmSU2-rdmSU2.T.conj()):.0e}")
+print(lg.eigvalsh(rdmSU2), f" {lg.norm(rdmSU2-rdmSU2.T.conj()):.0e}")
+
+# this disappears through iterating: set_signature and merge_legs are called only
+# at init. Everything else is correct.
+print()
+for i in range(10):
+    ctmU1.iterate()
+    ctmSU2.iterate()
+    rdmU1 = ctmU1.compute_rdm2x1(0, 0)
+    rdmSU2 = ctmSU2.compute_rdm2x1(0, 0)
+    print(lg.eigvalsh(rdmU1), lg.eigvalsh(rdmSU2))
 
 print("Completed")
