@@ -233,8 +233,18 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
     ####################################################################################
     def group_conjugated(self):
         signature = ~self._signature
+        p = self.construct_matrix_projector(
+            self._row_reps, self._col_reps, self._signature
+        )
+        p2 = self.construct_matrix_projector(self._row_reps, self._col_reps, signature)
+        # can avoid computing p2 by taking kron( (-1)^(irr+1)) @ p
+        # can also be stored in unitary dic with permutation = Id
+        raw_data = p2.T @ (p @ self.to_raw_data())
+        blocks, block_irreps = self._blocks_from_raw_data(
+            raw_data, self.get_row_representation(), self.get_column_representation()
+        )
         return type(self)(
-            self._row_reps, self._col_reps, self._blocks, self._block_irreps, signature
+            self._row_reps, self._col_reps, blocks, block_irreps, signature
         )
 
     def set_signature(self, signature):
