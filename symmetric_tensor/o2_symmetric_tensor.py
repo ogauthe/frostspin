@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.sparse as sp
+import scipy.linalg as lg
 import numba
 
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
@@ -140,24 +141,23 @@ def _get_reflection_perm_sign(rep):
     rep: O(2) representation
     """
     d = _O2_representation_dimension(rep)
-    perm = np.empty((d,), dtype=np.int64)
+    perm = np.arange(d)
     sign = np.ones((d,), dtype=np.int64)
     i1 = np.searchsorted(rep[1], 1)  # slice containing 0o and 0e if they exist
-    k = rep[0, :i1].sum()
-    perm[:k] = np.arange(k)  # sectors 0o and 0e are self-conjugate
     if rep[1, 0] == -1:
         sign[: rep[0, 0]] = -1
+    k = rep[0, :i1].sum()
     for i in range(i1, rep.shape[1]):
-        d = rep[0, i]
-        perm[k : k + d] = np.arange(k + d, k + 2 * d)
-        perm[k + d : k + 2 * d] = np.arange(k, k + d)
-        if rep[1, i1] % 2:  # -1 sign for Sz<0 to Sz>0
-            sign[k + d : k + 2 * d] = -1
-        k += 2 * d
+        degen = rep[0, i]
+        perm[k : k + degen] = np.arange(k + degen, k + 2 * degen)
+        perm[k + degen : k + 2 * degen] = np.arange(k, k + degen)
+        if rep[1, i] % 2:  # -1 sign for Sz<0 to Sz>0
+            sign[k + degen : k + 2 * degen] = -1
+        k += 2 * degen
     return perm, sign
 
 
-def _get_b0_projectors(row_reps, col_reps):
+def _get_b0_projectors(row_reps, col_reps, signature):
     """
     Construct 0odd and 0even projectors. They allow to decompose U(1) Sz=0 sector into
     0odd (aka -1) and 0even (aka 0) sectors.
@@ -165,10 +165,13 @@ def _get_b0_projectors(row_reps, col_reps):
 
     # TODO have only rsig, rso, csign, cso as input
     # reuse these for all Sz to generate -Sz block
+    nrr = len(row_reps)
     shr = np.array([_O2_representation_dimension(r) for r in row_reps])
     row_cp = np.array([1, *shr[-1:0:-1]]).cumprod()[::-1]
     u1_row_reps = tuple(_O2_rep_to_U1(r) for r in row_reps)
-    u1_combined = U1_SymmetricTensor.combine_representations(*u1_row_reps)
+    u1_combined = U1_SymmetricTensor.combine_representations(
+        u1_row_reps, signature[:nrr]
+    )
     rsz_mat = (u1_combined == 0).nonzero()[0]  # find Sz=0 states
     rsz_t = (rsz_mat // row_cp[:, None]).T % shr  # multi-index form
     rszb_mat = np.zeros(rsz_mat.size, dtype=int)
@@ -189,7 +192,9 @@ def _get_b0_projectors(row_reps, col_reps):
     shc = [_O2_representation_dimension(r) for r in col_reps]
     col_cp = np.array([1, *shc[-1:0:-1]]).cumprod()[::-1]
     u1_col_reps = tuple(_O2_rep_to_U1(r) for r in col_reps)
-    u1_combined = U1_SymmetricTensor.combine_representations(*u1_col_reps)
+    u1_combined = U1_SymmetricTensor.combine_representations(
+        u1_col_reps, ~signature[nrr:]
+    )
     csz_mat = (u1_combined == 0).nonzero()[0]  # find Sz=0 states
     csz_t = (csz_mat // col_cp[:, None]).T % shc  # multi-index form
     cszb_mat = np.zeros(csz_mat.size, dtype=int)
@@ -296,7 +301,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         )
         assert len(tu1.col_reps) == len(col_reps)
         assert all(
-            (_O2_rep_to_U1(r) == -tu1.col_reps[i]).all() for i, r in enumerate(col_reps)
+            (_O2_rep_to_U1(r) == tu1.col_reps[i]).all() for i, r in enumerate(col_reps)
         )
 
         blocks = []
@@ -304,17 +309,32 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         i0 = tu1.block_irreps.searchsorted(0)
         if tu1.nblocks > i0 and tu1.block_irreps[i0] == 0:
             i1 = i0 + 1
-            pro, pre, pco, pce = _get_b0_projectors(row_reps, col_reps)
+            pro, pre, pco, pce = _get_b0_projectors(row_reps, col_reps, tu1.signature)
             if pro.shape[0] > 0 and pco.shape[1] > 0:
                 block_irreps.append(-1)
                 blocks.append(pro @ tu1.blocks[i0] @ pco)
             if pre.shape[0] > 0 and pce.shape[1] > 0:
                 block_irreps.append(0)
                 blocks.append(pre @ tu1.blocks[i0] @ pce)
+            assert abs(
+                np.sqrt(sum(lg.norm(b) ** 2 for b in blocks)) - lg.norm(tu1.blocks[i0])
+            ) <= 1e-14 * lg.norm(tu1.blocks[i0])
         else:
             i1 = i0
         block_irreps.extend(tu1.block_irreps[i1:])
         blocks.extend(tu1.blocks[i1:])
+        assert (
+            abs(
+                np.sqrt(
+                    sum(
+                        (1 + (bi > 0)) * lg.norm(b) ** 2
+                        for bi, b in zip(block_irreps, blocks)
+                    )
+                )
+                - tu1.norm()
+            )
+            <= 1e-14 * tu1.norm()
+        )
         return cls(row_reps, col_reps, blocks, block_irreps, tu1.signature)
 
     def _toarray(self):
@@ -333,7 +353,9 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
 
         shr = np.array(self.shape[: self._nrr])
         row_cp = np.array([1, *shr[1:]]).cumprod()[::-1]
-        u1_combined_row = U1_SymmetricTensor.combine_representations(*u1_row_reps)
+        u1_combined_row = U1_SymmetricTensor.combine_representations(
+            u1_row_reps, self._signature[: self._nrr]
+        )
 
         ncr = len(self._col_reps)
         u1_col_reps = [None] * ncr
@@ -345,7 +367,9 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
 
         shc = np.array(self.shape[self._nrr :])
         col_cp = np.array([1, *shc[1:]]).cumprod()[::-1]
-        u1_combined_col = U1_SymmetricTensor.combine_representations(*u1_col_reps)
+        u1_combined_col = U1_SymmetricTensor.combine_representations(
+            u1_col_reps, ~self._signature[self._nrr :]
+        )
 
         blocks = []
         block_irreps = []
@@ -384,7 +408,9 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         # block 0 may not exist
         if self._block_irreps[0] < 1:
             # TODO optimize
-            pro, pre, pco, pce = _get_b0_projectors(self._row_reps, self._col_reps)
+            pro, pre, pco, pce = _get_b0_projectors(
+                self._row_reps, self._col_reps, self._signature
+            )
             b0 = pro.T @ self._blocks[0] @ pco.T + pre.T @ self._blocks[1] @ pce.T
             blocks.append(b0)
             block_irreps.append(0)
@@ -393,9 +419,11 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         blocks.extend(self._blocks[isz + 1 :])
         block_irreps.extend(self._block_irreps[isz + 1 :])
 
-        return U1_SymmetricTensor(
+        tu1 = U1_SymmetricTensor(
             u1_row_reps, u1_col_reps, blocks, block_irreps, self._signature
         )
+        assert abs(tu1.norm() - self.norm()) <= 1e-14 * self.norm()
+        return tu1
 
     def _permutate(self, row_axes, col_axes):
         # inefficient implementation: cast to U(1), permutate, then cast back to O(2)
@@ -407,7 +435,9 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             else:
                 reps.append(self._col_reps[ax - self._nrr])
         tu1 = self.toU1()._permutate(row_axes, col_axes)
-        return self.from_U1(tu1, reps[: len(row_axes)], reps[len(row_axes) :])
+        tp = self.from_U1(tu1, reps[: len(row_axes)], reps[len(row_axes) :])
+        assert tp.norm() - self.norm() <= 1e-14 * self.norm(), "permutate changes norm"
+        return tp
 
     def group_conjugated(self):
         # this operation belongs to the group: coeff should not change
