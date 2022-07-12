@@ -21,14 +21,14 @@ def _initialize_env(A):
 
     # leg ordering is set according to diagram upside
     # all functions using edge T use some transpose to fix n_row_reps
-    # so there can be no error associates with it
+    # so there can be no error associated with it
     # however signature matter.
     # convention: corners C1, C2 and C4 have standard matrix signature ->-C->-
     # ie 0 for row and 1 for column
     # it is not possible to impose the same convention for C3
     # edges signature for corner legs have to obey
-    # note that this convention may change through iteration, but SVD always produce
-    # isometries with matching signatures.
+    # this convention does not change through iteration. (In any case SVD always
+    # produces isometries with matching signatures)
     # for edges legs merging with center A, signature must respect A.signature
     # no assumption is made on it.
     corner_sign = np.array([False, False, True, True])
