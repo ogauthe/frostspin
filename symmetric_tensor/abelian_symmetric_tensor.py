@@ -373,12 +373,14 @@ class AbelianSymmetricTensor(SymmetricTensor):
     def toabelian(self):
         return self
 
-    def set_signature(self, signature):
-        signature = np.asarray(signature, dtype=bool)
-        assert signature.shape == (self._ndim,)
+    def update_signature(self, sign_update):
+        # in the abelian case, bending an index to the left or to the right makes no
+        # difference, signs can be ignored.
+        up = np.asarray(sign_update, dtype=bool)
+        assert up.shape == (self._ndim,)
         row_reps = list(self._row_reps)
         col_reps = list(self._col_reps)
-        for i in (self._signature ^ signature).nonzero()[0]:
+        for i in up.nonzero()[0]:
             if i < self._nrr:
                 row_reps[i] = self.conjugate_representation(row_reps[i])
             else:
@@ -386,5 +388,5 @@ class AbelianSymmetricTensor(SymmetricTensor):
                 col_reps[j] = self.conjugate_representation(col_reps[j])
         self._row_reps = tuple(row_reps)
         self._col_reps = tuple(col_reps)
-        self._signature = signature
+        self._signature = self._signature ^ up
         assert self.check_blocks_fit_representations()

@@ -112,9 +112,21 @@ class SymmetricTensor:
         """
         raise NotImplementedError("Must be defined in derived class")
 
-    def set_signature(self, signature):
+    def update_signature(self, sign_update):
         """
-        Set signature. This is an in-place operation.
+        Change signature. This is an in-place operation.
+
+        Parameters
+        ----------
+        sign_diff: int array, shape (self._ndim)
+
+        Convention:  0: no change
+                    +1: change signature, no change in coefficients
+                    -1: change in signature with loop
+
+        For abelian symmetries (or asymmetric), this does not alter the blocks and the
+        signs in sign_update have no effect. For non-abelian symmetries, this may change
+        coefficients because a loop appears in structural tensors.
         """
         raise NotImplementedError("Must be defined in derived class")
 

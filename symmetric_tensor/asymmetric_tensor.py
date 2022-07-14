@@ -91,7 +91,9 @@ class AsymmetricTensor(SymmetricTensor):
     def toabelian(self):
         return self
 
-    def set_signature(self, signature):
-        signature = np.asarray(signature, dtype=bool)
-        self._signature = signature
+    def update_signature(self, sign_update):
+        # in the asymmetric case, bending an index to the left or to the right makes no
+        # difference, signs can be ignored.
+        up = np.asarray(sign_update, dtype=bool)
+        self._signature = self._signature ^ up
         assert self.check_blocks_fit_representations()

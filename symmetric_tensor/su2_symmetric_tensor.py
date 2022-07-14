@@ -247,10 +247,51 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
             self._row_reps, self._col_reps, blocks, block_irreps, signature
         )
 
-    def set_signature(self, signature):
-        signature = np.asarray(signature, dtype=bool)
-        assert signature.shape == (self._ndim,)
-        self._signature = signature
+    def update_signature(self, sign_update):
+        # In the non-abelian case, updating signature can be done from the left or from
+        # right, yielding different results.
+        up = np.asarray(sign_update, dtype=np.int8)
+        assert up.shape == (self._ndim,)
+        assert (np.abs(up) < 2).all()
+
+        # only construct projector if needed, ie there is a -1
+        # For this case, add diagonal -1 for half integer spins in legs with a loop
+        if (up < 0).any():
+            p = self.construct_matrix_projector(
+                self._row_reps, self._col_reps, self._signature
+            )
+            diag = ssp.eye(1, format="coo")  # kron operates in coo format
+            for i in range(self._ndim):
+                d = self._shape[i]
+                if up[i] < 0:
+                    inds = np.arange(d)
+                    coeff = np.ones((d,), dtype=int)
+                    if i < self._nrr:
+                        r = self._row_reps[i]
+                    else:
+                        r = self._col_reps[i - self._nrr]
+                    k = 0
+                    for degen, irr in r.T:
+                        if not irr % 2:
+                            coeff[k : k + degen * irr] = -1
+                        k += degen * irr
+                    m = ssp.coo_matrix((coeff, (inds, inds)), shape=(d, d))
+                else:
+                    m = ssp.eye(d, format="coo")
+                diag = ssp.kron(diag, m)
+
+            # could be stored in unitary_dic if too expensive, expect uncommon operation
+            diag = diag.todia()  # we know the matrix is diagonal
+            raw_data = p.T @ (diag @ (p @ self.to_raw_data()))
+            blocks, block_irreps = self._blocks_from_raw_data(
+                raw_data,
+                self.get_row_representation(),
+                self.get_column_representation(),
+            )
+            self._blocks = blocks
+            self._block_irreps = block_irreps
+
+        self._signature = self._signature ^ up.astype(bool)
 
     def toabelian(self):
         return self.toU1()
