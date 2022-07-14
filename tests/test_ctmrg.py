@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 
+import os
+
 import numpy as np
 import scipy.linalg as lg
 
 from symmetric_tensor.asymmetric_tensor import AsymmetricTensor
 from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
-from symmetric_tensor.su2_symmetric_tensor import SU2_SymmetricTensor
 from ctmrg.ctmrg import CTMRG
 
 
@@ -20,6 +21,8 @@ def eq_st(st1, st2):
 # Consider random tensors with each bond having a different representation of different
 # size. CTMRG will crash if any mismatch appears in leg contractions.
 rng = np.random.default_rng(42)
+savefile = "data_test_ctmrg.npz"
+
 
 rp = np.array([1, -1], dtype=np.int8)
 ra = np.array([1, -1, 2], dtype=np.int8)
@@ -43,8 +46,8 @@ B_as = AsymmetricTensor.from_array(B_U1.toarray(), axesB[:2], axesB[2:], signatu
 tensorsU1 = (A_U1, B_U1)
 tensorsAs = (A_as, B_as)
 chi = 20
-ctmU1 = CTMRG.from_elementary_tensors(tiling, tensorsU1, chi, verbosity=100)
-ctmAs = CTMRG.from_elementary_tensors(tiling, tensorsAs, chi, verbosity=100)
+ctmU1 = CTMRG.from_elementary_tensors(tiling, tensorsU1, chi)
+ctmAs = CTMRG.from_elementary_tensors(tiling, tensorsAs, chi)
 
 # check rdm before iterating: due to random tensors they do not stay hermitian
 rdm2x1_cellU1, rdm1x2_cellU1 = ctmU1.compute_rdm_1st_neighbor_cell()
@@ -77,8 +80,8 @@ for i in range(2):  # precision is pretty low
     assert lg.norm(rdm_ur_cellU1[i] - rdm_ur_cellAs[i]) < 2e-4
 
 # check save and load once tensors != init
-ctmU1.save_to_file("data_test_ctmrg_U1.npz")
-ctm2 = CTMRG.from_file("data_test_ctmrg_U1.npz", verbosity=100)
+ctmU1.save_to_file(savefile)
+ctm2 = CTMRG.from_file(savefile)
 for (x, y) in ctmU1.neq_coords:
     assert eq_st(ctmU1._env.get_A(x, y), ctm2._env.get_A(x, y))
     assert eq_st(ctmU1._env.get_C1(x, y), ctm2._env.get_C1(x, y))
@@ -90,8 +93,8 @@ for (x, y) in ctmU1.neq_coords:
     assert eq_st(ctmU1._env.get_T3(x, y), ctm2._env.get_T3(x, y))
     assert eq_st(ctmU1._env.get_T4(x, y), ctm2._env.get_T4(x, y))
 
-ctmAs.save_to_file("data_test_ctmrg_As.npz")
-ctm2 = CTMRG.from_file("data_test_ctmrg_As.npz", verbosity=100)
+ctmAs.save_to_file(savefile)
+ctm2 = CTMRG.from_file(savefile)
 for (x, y) in ctmAs.neq_coords:
     assert eq_st(ctmAs._env.get_A(x, y), ctm2._env.get_A(x, y))
     assert eq_st(ctmAs._env.get_C1(x, y), ctm2._env.get_C1(x, y))
@@ -105,96 +108,205 @@ for (x, y) in ctmAs.neq_coords:
 
 
 ########################################################################################
-# Test CTMRG on RVB SU(2) wavefunction
-########################################################################################
-d = 2
-D = d + 1
+#
+# Exhaustive test for CTMRG unit cell. Construct a 4x4 unit cell with all 32
+# inequivalent bond differ from each other. Use U(1): each bond has dimension 4, but has
+# different quantum numbers and contraction with any other bond will fail. Also consider
+# charge conjugation: conjugate representation does not appear in any other bond.
+#
+#     0     4     7    10
+#     |     |     |     |
+#  3--A--1--B--5--C--8--D--3
+#     |     |     |     |
+#     2     6     9    11
+#     |     |     |     |
+# 14--E-12--F-15--G-17--H-14
+#     |     |     |     |
+#    13    16    18    19
+#     |     |     |     |
+# 22--I-20--J-23--K-25--L-22
+#     |     |     |     |
+#    21    24    26    27
+#     |     |     |     |
+# 29--M-28--N-30--O-31--P-29
+#     |     |     |     |
+#     0     4     7    10
 
-tRVB = np.zeros((d, 1, D, D, D, D))
-for i in range(d):
-    tRVB[i, 0, 0, 0, 0, i + 1] = 1.0
-    tRVB[i, 0, 0, 0, i + 1, 0] = 1.0
-    tRVB[i, 0, 0, i + 1, 0, 0] = 1.0
-    tRVB[i, 0, i + 1, 0, 0, 0] = 1.0
 
-rep_d_asym = np.array([d])
-rep_a_asym = np.array([1])
-rep_D_asym = np.array([D])
+# use same physical and ancila for all sites
+ap = np.array([1, -1], dtype=np.int8)
+aa = np.array([1, -1], dtype=np.int8)
 
-rep_d_U1 = np.arange(d - 1, -d, -2, dtype=np.int8)
-rep_a_U1 = np.array([0], dtype=np.int8)
-rep_D_U1 = np.array([0, *rep_d_U1], dtype=np.int8)
-
-rep_d_SU2 = np.array([[1], [d]])
-rep_a_SU2 = np.array([[1], [1]])
-rep_D_SU2 = np.array([[1, 1], [1, d]])
-
-# we need to reverse arrows to use 1-site unit cell
-s = np.array([False, False, True, True, False, False])
-zD = np.eye(D)
-zD[1:, 1:] = np.diag(1 - np.arange(d) % 2 * 2)[::-1]
-tRVBzz = np.einsum("paurdl,Dd,Ll->paurDL", tRVB, zD, zD)
-tRVB_check = SU2_SymmetricTensor.from_array(
-    tRVB, (rep_d_SU2, rep_a_SU2), (rep_D_SU2,) * 4
+axes1 = np.array(
+    [
+        [0, 0, -1, 1],
+        [0, 0, -2, 2],
+        [0, 1, -1, 0],
+        [0, 1, 0, -1],
+        [0, 2, -2, 0],
+        [0, 2, 0, -2],
+        [-1, 0, 0, 1],
+        [-1, 0, 1, 0],
+        [-1, 1, 0, 0],
+        [-1, -1, 1, 1],
+        [-1, 1, -1, 1],
+        [-1, 1, -2, 2],
+        [-1, 1, 2, -2],
+        [-1, -2, 2, 1],
+        [-1, 2, -2, 1],
+        [-1, -2, 1, 2],
+        [-1, 2, 1, -2],
+        [-2, 0, 0, 2],
+        [-2, 0, 2, 0],
+        [-2, -1, 1, 2],
+        [-2, 1, -1, 2],
+        [-2, -1, 2, 1],
+        [-2, 1, 2, -1],
+        [-2, 2, 0, 0],
+        [-2, -2, 2, 2],
+        [-2, 2, -2, 2],
+        [-2, 2, -1, 1],
+        [-2, 2, 1, -1],
+        [-3, 0, 0, 3],
+        [-3, 0, 3, 0],
+        [-3, -1, 1, 3],
+        [-3, 1, -1, 3],
+        [-3, -1, 3, 1],
+        [-3, 1, 3, -1],
+        [-3, 3, 0, 0],
+        [-3, -3, 3, 3],
+        [-3, 3, -3, 3],
+        [-3, 3, -1, 1],
+        [-3, 3, 1, -1],
+    ],
+    dtype=np.int8,
 )
-assert lg.norm(tRVB_check.toarray() - tRVB) < 1e-14
-tRVB_check.set_signature(s)
-assert lg.norm(tRVB_check.toarray() - tRVBzz) < 1e-14
 
-tRVB_asym = AsymmetricTensor.from_array(
-    tRVBzz, (rep_d_asym, rep_a_asym), (rep_D_asym,) * 4, signature=s
+nx = axes1.shape[0]
+d = axes1.shape[1]
+
+# check no doublet in axes1
+assert ((axes1 == axes1[:, None]).all(axis=2) == np.eye(nx, dtype=bool)).all()
+# check no doublet up to sign
+assert (axes1 == -axes1[:, None]).all(axis=2).sum() == 0
+
+# bilayer with sign swap
+axes2 = (axes1[:, :, None] - axes1[:, None]).reshape(nx, d**2)
+assert ((axes2 == axes2[:, None]).all(axis=2) == np.eye(nx, dtype=bool)).all()
+assert (axes2 == -axes2[:, None]).all(axis=2).sum() == 0
+
+reps = (
+    (ap, aa, axes1[0], axes1[1], axes1[2], axes1[3]),
+    (ap, aa, axes1[4], axes1[5], axes1[6], axes1[1]),
+    (ap, aa, axes1[7], axes1[8], axes1[9], axes1[5]),
+    (ap, aa, axes1[10], axes1[3], axes1[11], axes1[8]),
+    (ap, aa, axes1[2], axes1[12], axes1[13], axes1[14]),
+    (ap, aa, axes1[6], axes1[15], axes1[16], axes1[12]),
+    (ap, aa, axes1[9], axes1[17], axes1[18], axes1[15]),
+    (ap, aa, axes1[11], axes1[14], axes1[19], axes1[17]),
+    (ap, aa, axes1[13], axes1[20], axes1[21], axes1[22]),
+    (ap, aa, axes1[16], axes1[23], axes1[24], axes1[20]),
+    (ap, aa, axes1[18], axes1[25], axes1[26], axes1[23]),
+    (ap, aa, axes1[19], axes1[22], axes1[27], axes1[25]),
+    (ap, aa, axes1[21], axes1[28], axes1[0], axes1[29]),
+    (ap, aa, axes1[24], axes1[30], axes1[4], axes1[28]),
+    (ap, aa, axes1[26], axes1[31], axes1[7], axes1[30]),
+    (ap, aa, axes1[27], axes1[29], axes1[10], axes1[31]),
 )
-tRVB_U1 = U1_SymmetricTensor.from_array(
-    tRVBzz, (rep_d_U1, rep_a_U1), (rep_D_U1, rep_D_U1, rep_D_U1, rep_D_U1), signature=s
+
+rng = np.random.default_rng(42)
+
+# signature on sublattice B
+sB = np.array([True, True, False, False, False, False])
+t00 = U1_SymmetricTensor.random(reps[0][:2], reps[0][2:], rng=rng)
+t01 = U1_SymmetricTensor.random(reps[1][:2], reps[1][2:], rng=rng, signature=sB)
+t02 = U1_SymmetricTensor.random(reps[2][:2], reps[2][2:], rng=rng)
+t03 = U1_SymmetricTensor.random(reps[3][:2], reps[3][2:], rng=rng, signature=sB)
+
+t10 = U1_SymmetricTensor.random(reps[4][:2], reps[4][2:], rng=rng, signature=sB)
+t11 = U1_SymmetricTensor.random(reps[5][:2], reps[5][2:], rng=rng)
+t12 = U1_SymmetricTensor.random(reps[6][:2], reps[6][2:], rng=rng, signature=sB)
+t13 = U1_SymmetricTensor.random(reps[7][:2], reps[7][2:], rng=rng)
+
+t20 = U1_SymmetricTensor.random(reps[8][:2], reps[8][2:], rng=rng)
+t21 = U1_SymmetricTensor.random(reps[9][:2], reps[9][2:], rng=rng, signature=sB)
+t22 = U1_SymmetricTensor.random(reps[10][:2], reps[10][2:], rng=rng)
+t23 = U1_SymmetricTensor.random(reps[11][:2], reps[11][2:], rng=rng, signature=sB)
+
+t30 = U1_SymmetricTensor.random(reps[12][:2], reps[12][2:], rng=rng, signature=sB)
+t31 = U1_SymmetricTensor.random(reps[13][:2], reps[13][2:], rng=rng)
+t32 = U1_SymmetricTensor.random(reps[14][:2], reps[14][2:], rng=rng, signature=sB)
+t33 = U1_SymmetricTensor.random(reps[15][:2], reps[15][2:], rng=rng)
+
+tensors = (
+    t00,
+    t01,
+    t02,
+    t03,
+    t10,
+    t11,
+    t12,
+    t13,
+    t20,
+    t21,
+    t22,
+    t23,
+    t30,
+    t31,
+    t32,
+    t33,
 )
-tRVB_SU2 = SU2_SymmetricTensor.from_array(
-    tRVBzz, (rep_d_SU2, rep_a_SU2), (rep_D_SU2,) * 4, signature=s
+
+tiling = "ABCD\nEFGH\nIJKL\nMNOP"
+ctm = CTMRG.from_elementary_tensors(
+    tiling,
+    tensors,
+    13,
+    block_chi_ratio=1.2,
+    ncv_ratio=2.5,
+    cutoff=1e-10,
+    degen_ratio=1.0,
 )
 
-assert lg.norm(tRVB_asym.toarray() - tRVBzz) < 1e-14
-assert lg.norm(tRVB_U1.toarray() - tRVBzz) < 1e-14
-assert lg.norm(tRVB_SU2.toarray() - tRVBzz) < 1e-14
-assert (tRVB_SU2 - tRVB_check).norm() < 1e-14
+rdm2x1_cell, rdm1x2_cell = ctm.compute_rdm_1st_neighbor_cell()
+for m in rdm2x1_cell:
+    assert lg.norm(m - m.T) < 1e-8
+for m in rdm1x2_cell:
+    assert lg.norm(m - m.T) < 1e-8
 
-a0 = np.tensordot(tRVBzz, tRVBzz, ((0, 1), (0, 1)))
-a_asym = tRVB_asym.H @ tRVB_asym
-a_U1 = tRVB_U1.H @ tRVB_U1
-a_SU2 = tRVB_SU2.H @ tRVB_SU2
-assert lg.norm(a_asym.toarray() - a0) < 1e-14
-assert lg.norm(a_U1.toarray() - a0) < 1e-14
-assert lg.norm(a_SU2.toarray() - a0) < 1e-14
+rdm_dr_cell, rdm_ur_cell = ctm.compute_rdm_2nd_neighbor_cell()
+for m in rdm_dr_cell:
+    assert lg.norm(m - m.T) < 1e-8
+for m in rdm_ur_cell:
+    assert lg.norm(m - m.T) < 1e-8
 
-a1 = a0.transpose(0, 4, 1, 5, 2, 6, 3, 7)
-a1_asym = a_asym.permutate((0, 4, 1, 5), (2, 6, 3, 7))
-a1_U1 = a_U1.permutate((0, 4, 1, 5), (2, 6, 3, 7))
-a1_SU2 = a_SU2.permutate((0, 4, 1, 5), (2, 6, 3, 7))
-assert lg.norm(a1_asym.toarray() - a1) < 1e-14
-assert lg.norm(a1_U1.toarray() - a1) < 1e-14
-assert lg.norm(a1_SU2.toarray() - a1) < 1e-14
-del a0, a_asym, a_U1, a_SU2, a1, a1_asym, a1_U1, a1_SU2
+ctm.iterate()
+ctm.iterate()
 
-ctmAs = CTMRG.from_elementary_tensors("A", (tRVB_asym,), 20)
-ctmU1 = CTMRG.from_elementary_tensors("A", (tRVB_U1,), 20)
-ctmSU2 = CTMRG.from_elementary_tensors("A", (tRVB_SU2,), 20)
+# check truncate_corners succeeds
+ctm.restart_environment()
+ctm.truncate_corners()
+ctm.iterate()
+ctm.iterate()
 
-# there is something wrong in the combination of set_signature and merge_legs
-# hence before any iteration SU(2) rdm differs slightly
-# this only appears for half integer spins
-rdmAs = ctmAs.compute_rdm2x1(0, 0)
-rdmU1 = ctmU1.compute_rdm2x1(0, 0)
-rdmSU2 = ctmSU2.compute_rdm2x1(0, 0)
-print(lg.eigvalsh(rdmAs), f" {lg.norm(rdmAs-rdmAs.T.conj()):.0e}")
-print(lg.eigvalsh(rdmU1), f" {lg.norm(rdmU1-rdmU1.T.conj()):.0e}")
-print(lg.eigvalsh(rdmSU2), f" {lg.norm(rdmSU2-rdmSU2.T.conj()):.0e}")
+# after iterate, rdm are not really hermitian, precision is around 1e-3
+# due to U(1), measure is made on 1 coeff only
+# do not bother check for it, just check computations succeeds
+rdm2x1_cell, rdm1x2_cell = ctm.compute_rdm_1st_neighbor_cell()
+rdm_dr_cell, rdm_ur_cell = ctm.compute_rdm_2nd_neighbor_cell()
 
-# this disappears through iterating: set_signature and merge_legs are called only
-# at init. Everything else is correct.
-print()
-for i in range(10):
-    ctmU1.iterate()
-    ctmSU2.iterate()
-    rdmU1 = ctmU1.compute_rdm2x1(0, 0)
-    rdmSU2 = ctmSU2.compute_rdm2x1(0, 0)
-    print(lg.eigvalsh(rdmU1), lg.eigvalsh(rdmSU2))
+# check save and load once tensors != init
+ctm.save_to_file(savefile)
+ctm2 = CTMRG.from_file(savefile)
+for (x, y) in ctm.neq_coords:
+    assert eq_st(ctm._env.get_A(x, y), ctm2._env.get_A(x, y))
+    assert eq_st(ctm._env.get_C1(x, y), ctm2._env.get_C1(x, y))
+    assert eq_st(ctm._env.get_C2(x, y), ctm2._env.get_C2(x, y))
+    assert eq_st(ctm._env.get_C3(x, y), ctm2._env.get_C3(x, y))
+    assert eq_st(ctm._env.get_C4(x, y), ctm2._env.get_C4(x, y))
+    assert eq_st(ctm._env.get_T1(x, y), ctm2._env.get_T1(x, y))
+    assert eq_st(ctm._env.get_T2(x, y), ctm2._env.get_T2(x, y))
+    assert eq_st(ctm._env.get_T3(x, y), ctm2._env.get_T3(x, y))
+    assert eq_st(ctm._env.get_T4(x, y), ctm2._env.get_T4(x, y))
 
-print("Completed")
+os.remove(savefile)
