@@ -352,7 +352,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             rmaps[i], rsigns[i] = _get_reflection_perm_sign(r)
 
         shr = np.array(self.shape[: self._nrr])
-        row_cp = np.array([1, *shr[1:]]).cumprod()[::-1]
+        row_cp = np.array([1, *shr[-1:0:-1]]).cumprod()[::-1]
         u1_combined_row = U1_SymmetricTensor.combine_representations(
             u1_row_reps, self._signature[: self._nrr]
         )
@@ -366,7 +366,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             cmaps[i], csigns[i] = _get_reflection_perm_sign(r)
 
         shc = np.array(self.shape[self._nrr :])
-        col_cp = np.array([1, *shc[1:]]).cumprod()[::-1]
+        col_cp = np.array([1, *shc[-1:0:-1]]).cumprod()[::-1]
         u1_combined_col = U1_SymmetricTensor.combine_representations(
             u1_col_reps, ~self._signature[self._nrr :]
         )
