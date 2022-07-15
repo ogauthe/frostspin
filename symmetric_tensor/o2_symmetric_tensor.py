@@ -338,12 +338,12 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         return cls(row_reps, col_reps, blocks, block_irreps, tu1.signature)
 
     def _toarray(self):
-        return self.toU1().toarray()
+        return self.toU1()._toarray()
 
     def toabelian(self):
         return self.toU1()
 
-    def toU1(self):
+    def _generate_neg_sz_blocks(self):
         u1_row_reps = [None] * self._nrr
         rmaps = [None] * self._nrr
         rsigns = [None] * self._nrr
@@ -372,9 +372,6 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         )
 
         blocks = []
-        block_irreps = []
-
-        # generate Sz < 0 blocks
         isz = self._nblocks - 1
         while isz > -1 and self._block_irreps[isz] > 0:
             sz = self._block_irreps[isz]
@@ -401,24 +398,44 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
 
             cso = cszb_mat.argsort()  # imposed sorted block indices in U(1) => argsort
             b = (rsign[:, None] * self._blocks[isz] * csign)[rso[:, None], cso]
-            block_irreps.append(-sz)
             blocks.append(b)
             isz -= 1
 
-        # block 0 may not exist
+        return blocks
+
+    def toU1(self):
+        # Sz < 0 blocks
+        blocks = self._generate_neg_sz_blocks()
+        block_irreps = -self._block_irreps[::-1]
+
+        # Sz = 0 blocks (may not exist)
         if self._block_irreps[0] < 1:
-            # TODO optimize
             pro, pre, pco, pce = _get_b0_projectors(
                 self._row_reps, self._col_reps, self._signature
             )
-            b0 = pro.T @ self._blocks[0] @ pco.T + pre.T @ self._blocks[1] @ pce.T
+            if self._block_irreps[0] == 0:  # no 0o block
+                i1 = 1
+                b0 = pre.T @ self._blocks[0] @ pce.T
+                block_irreps = np.hstack((block_irreps, self._block_irreps[1:]))
+            elif self.nblocks > 1 and self._block_irreps[1] > 0:  # no 0e block
+                i1 = 1
+                b0 = pro.T @ self._blocks[0] @ pco.T
+                block_irreps[-1] = 0
+                block_irreps = np.hstack((block_irreps, self._block_irreps[1:]))
+            else:
+                i1 = 2
+                b0 = pro.T @ self._blocks[0] @ pco.T + pre.T @ self._blocks[1] @ pce.T
+                block_irreps = np.hstack((block_irreps[:-1], self._block_irreps[2:]))
             blocks.append(b0)
-            block_irreps.append(0)
+        else:
+            i1 = 0
+            block_irreps = np.hstack((block_irreps, self._block_irreps))
 
-        # add Sz > 0 blocks
-        blocks.extend(self._blocks[isz + 1 :])
-        block_irreps.extend(self._block_irreps[isz + 1 :])
+        # Sz > 0 blocks
+        blocks.extend(self._blocks[i1:])
 
+        u1_row_reps = tuple(_O2_rep_to_U1(r) for r in self._row_reps)
+        u1_col_reps = tuple(_O2_rep_to_U1(r) for r in self._col_reps)
         tu1 = U1_SymmetricTensor(
             u1_row_reps, u1_col_reps, blocks, block_irreps, self._signature
         )
@@ -434,22 +451,36 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
                 reps.append(self._row_reps[ax])
             else:
                 reps.append(self._col_reps[ax - self._nrr])
-        tu1 = self.toU1()._permutate(row_axes, col_axes)
+        tu1 = self.toU1().permutate(row_axes, col_axes)
         tp = self.from_U1(tu1, reps[: len(row_axes)], reps[len(row_axes) :])
         assert tp.norm() - self.norm() <= 1e-14 * self.norm(), "permutate changes norm"
         return tp
 
     def group_conjugated(self):
-        # this operation belongs to the group: coeff should not change
         signature = ~self._signature
+        bm = tuple(self._generate_neg_sz_blocks()[::-1])
+        blocks = self._blocks[: self._block_irreps.searchsorted(1)] + bm
         return type(self)(
-            self._row_reps, self._col_reps, self._blocks, self._block_irreps, signature
+            self._row_reps, self._col_reps, blocks, self._block_irreps, signature
         )
 
-    def set_signature(self, signature):
-        signature = np.asarray(signature, dtype=bool)
-        assert signature.shape == (self._ndim,)
-        self._signature = signature
+    def update_signature(self, sign_update):
+        # same as abelian case, bending an index to the left or to the right makes no
+        # difference, signs can be ignored.
+        up = np.asarray(sign_update, dtype=bool)
+        assert up.shape == (self._ndim,)
+        row_reps = list(self._row_reps)
+        col_reps = list(self._col_reps)
+        for i in up.nonzero()[0]:
+            if i < self._nrr:
+                row_reps[i] = self.conjugate_representation(row_reps[i])
+            else:
+                j = i - self._nrr
+                col_reps[j] = self.conjugate_representation(col_reps[j])
+        self._row_reps = tuple(row_reps)
+        self._col_reps = tuple(col_reps)
+        self._signature = self._signature ^ up
+        assert self.check_blocks_fit_representations()
 
     def check_blocks_fit_representations(self):
         assert self._block_irreps.size == self._nblocks

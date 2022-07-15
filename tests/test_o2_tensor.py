@@ -27,3 +27,8 @@ tpu1 = tu1.permutate(row_axes, col_axes)
 
 assert (tpo2.toU1() - tpu1).norm() < 1e-15
 assert lg.norm(tpo2.toarray() - tpu1.toarray()) < 1e-15
+
+tpo2 = to2.T
+tpu1 = tu1.T
+assert (tpo2.toU1() - tpu1).norm() < 1e-15
+assert lg.norm(tpo2.toarray() - tpu1.toarray()) < 1e-15
