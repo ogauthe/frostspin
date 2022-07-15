@@ -88,6 +88,8 @@ tB_SU2 = SU2_SymmetricTensor.from_array(
 )
 assert lg.norm(tA_SU2.toarray() - tRVB) < 1e-14
 assert lg.norm(tB_SU2.toarray() - tRVB) < 1e-14
+assert (tA_SU2.toU1() - tA_U1).norm() < 1e-14
+assert (tB_SU2.toU1() - tB_U1).norm() < 1e-14
 
 # check bilayer contraction
 a0 = np.tensordot(tRVB, tRVB, ((0, 1), (0, 1)))
@@ -95,12 +97,14 @@ a_U1 = tA_U1.H @ tA_U1
 a_SU2 = tA_SU2.H @ tA_SU2
 assert lg.norm(a_U1.toarray() - a0) < 1e-14
 assert lg.norm(a_SU2.toarray() - a0) < 1e-14
+assert (a_SU2.toU1() - a_U1).norm() < 1e-14
 
 a1 = a0.transpose(0, 4, 1, 5, 2, 6, 3, 7)
 a1_U1 = a_U1.permutate((0, 4, 1, 5), (2, 6, 3, 7))
 a1_SU2 = a_SU2.permutate((0, 4, 1, 5), (2, 6, 3, 7))
 assert lg.norm(a1_U1.toarray() - a1) < 1e-14
 assert lg.norm(a1_SU2.toarray() - a1) < 1e-14
+assert (a1_SU2.toU1() - a1_U1).norm() < 1e-14
 del a0, a_U1, a_SU2, a1, a1_U1, a1_SU2
 
 # check ctm with AB//BA pattern
@@ -128,6 +132,7 @@ tur_SU2 = SU2_SymmetricTensor.from_array(tRVBur, rr_SU2, rc_SU2, signature=s)
 assert lg.norm(tur_U1.toarray() - tRVBur) < 1e-14
 assert lg.norm(tur_SU2.toarray() - tRVBur) < 1e-14
 assert (tur_SU2 - tRVB_check).norm() < 1e-14
+assert (tur_SU2.toU1() - tur_U1).norm() < 1e-14
 
 ctmU1_ur = CTMRG.from_elementary_tensors("A", (tur_U1,), 20)
 ctmSU2_ur = CTMRG.from_elementary_tensors("A", (tur_SU2,), 20)
@@ -143,6 +148,7 @@ tRVB_check.update_signature([0, 0, 0, -1, 1, 0])
 assert lg.norm(tRVB_check.toarray() - tRVBrd) < 1e-14
 trd_U1 = U1_SymmetricTensor.from_array(tRVBrd, rr_U1, rc_U1, signature=s)
 trd_SU2 = SU2_SymmetricTensor.from_array(tRVBrd, rr_SU2, rc_SU2, signature=s)
+assert (trd_SU2.toU1() - trd_U1).norm() < 1e-14
 ctmU1_rd = CTMRG.from_elementary_tensors("A", (trd_U1,), 20)
 ctmSU2_rd = CTMRG.from_elementary_tensors("A", (trd_SU2,), 20)
 check_ctm(ctmU1_rd, ctmSU2_rd)
@@ -157,6 +163,7 @@ tRVB_check.update_signature([0, 0, 0, 0, 1, 1])
 assert lg.norm(tRVB_check.toarray() - tRVBdl) < 1e-14
 tdl_U1 = U1_SymmetricTensor.from_array(tRVBdl, rr_U1, rc_U1, signature=s)
 tdl_SU2 = SU2_SymmetricTensor.from_array(tRVBdl, rr_SU2, rc_SU2, signature=s)
+assert (tdl_SU2.toU1() - tdl_U1).norm() < 1e-14
 ctmU1_dl = CTMRG.from_elementary_tensors("A", (tdl_U1,), 20)
 ctmSU2_dl = CTMRG.from_elementary_tensors("A", (tdl_SU2,), 20)
 check_ctm(ctmU1_dl, ctmSU2_dl)

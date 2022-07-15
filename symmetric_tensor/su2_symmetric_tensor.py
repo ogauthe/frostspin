@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.sparse as ssp
+import scipy.linalg as lg
 import numba
 
 from .lie_group_symmetric_tensor import LieGroupSymmetricTensor
@@ -297,7 +298,8 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         return self.toU1()
 
     def toU1(self):
-        arr = self.toarray()
+        # efficient cast to U(1): project directly raw data to U(1) blocks
+        # 1) construct U(1) representations
         reps = []
         for r in self._row_reps + self._col_reps:
             sz = np.empty((r[0] @ r[1],), dtype=np.int8)
@@ -308,8 +310,43 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
                 k += d * irr
             reps.append(sz)
 
-        return U1_SymmetricTensor.from_array(
-            arr, reps[: self._nrr], reps[self._nrr :], self._signature
+        # 2) combine into row and column
+        row_irreps = U1_SymmetricTensor.combine_representations(
+            reps[: self._nrr], self._signature[: self._nrr]
+        )
+        col_irreps = U1_SymmetricTensor.combine_representations(
+            reps[self._nrr :], ~self._signature[self._nrr :]
+        )
+        nrows, ncols = row_irreps.size, col_irreps.size
+
+        # 3) sort rows and find contiguous blocks
+        row_sort = row_irreps.argsort(kind="stable")
+        row_irreps = row_irreps[row_sort]
+        row_blocks = (
+            [0] + list((row_irreps[:-1] != row_irreps[1:]).nonzero()[0] + 1) + [nrows]
+        )
+
+        # 4) find matching columns and construct U(1) block
+        blocks = []
+        block_irreps = []
+        proj = self.construct_matrix_projector(
+            self._row_reps, self._col_reps, self._signature
+        )
+        raw = self.to_raw_data()
+        for rb1, rb2 in zip(row_blocks[:-1], row_blocks[1:]):
+            ci = (col_irreps == row_irreps[rb1]).nonzero()[0]
+            if ci.size:
+                inds = ncols * row_sort[rb1:rb2][:, None] + ci
+                b = (proj[inds.ravel()] @ raw).reshape(inds.shape)
+                blocks.append(b)
+                block_irreps.append(row_irreps[rb1])
+
+        assert (
+            abs(np.sqrt(sum(lg.norm(b) ** 2 for b in blocks)) - self.norm())
+            < 1e-14 * self.norm()
+        )
+        return U1_SymmetricTensor(
+            reps[: self._nrr], reps[self._nrr :], blocks, block_irreps, self._signature
         )
 
     def toO2(self):
