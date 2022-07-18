@@ -380,7 +380,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             # or numpy will make things faster?
             rsz_mat = (u1_combined_row == sz).nonzero()[0]  # find Sz states
             rsz_t = (rsz_mat // row_cp[:, None]).T % shr  # multi-index form
-            rszb_mat = np.zeros(rsz_mat.size, dtype=int)
+            rszb_mat = np.zeros((rsz_mat.size,), dtype=int)
             rsign = np.ones((rsz_mat.size,), dtype=int)
             for i, r in enumerate(self._row_reps):
                 rszb_mat += rmaps[i][rsz_t[:, i]] * row_cp[i]  # map to spin reversed
@@ -390,7 +390,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
 
             csz_mat = (u1_combined_col == sz).nonzero()[0]  # find Sz states
             csz_t = (csz_mat // col_cp[:, None]).T % shc  # multi-index form
-            cszb_mat = np.zeros(csz_mat.size, dtype=int)
+            cszb_mat = np.zeros((csz_mat.size,), dtype=int)
             csign = np.ones((csz_mat.size,), dtype=int)
             for i, r in enumerate(self._col_reps):
                 cszb_mat += cmaps[i][csz_t[:, i]] * col_cp[i]  # map to spin reversed
