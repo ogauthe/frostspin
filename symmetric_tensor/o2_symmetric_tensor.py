@@ -294,7 +294,13 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
     def from_U1(cls, tu1, row_reps, col_reps):
         """
         Assume tu1 has O(2) symmetry and its irreps are sorted according to O(2) rules.
+
+        No check is made on tensor norm at the end, so that U(1) tensor with only
+        Sz >= 0 blocks may be used to initialize O(2) tensor. Allows to use partial U(1)
+        tensor as intermediate step to construct O(2) without the additional cost of
+        constructing Sz < 0 blocks and benefit from Sz = 0 block splitting.
         """
+
         assert tu1._nrr == len(row_reps)
         assert all(
             (_O2_rep_to_U1(r) == tu1.row_reps[i]).all() for i, r in enumerate(row_reps)
@@ -323,18 +329,6 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             i1 = i0
         block_irreps.extend(tu1.block_irreps[i1:])
         blocks.extend(tu1.blocks[i1:])
-        assert (
-            abs(
-                np.sqrt(
-                    sum(
-                        (1 + (bi > 0)) * lg.norm(b) ** 2
-                        for bi, b in zip(block_irreps, blocks)
-                    )
-                )
-                - tu1.norm()
-            )
-            <= 1e-14 * tu1.norm()
-        )
         return cls(row_reps, col_reps, blocks, block_irreps, tu1.signature)
 
     def _toarray(self):
