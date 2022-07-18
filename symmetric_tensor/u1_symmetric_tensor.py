@@ -39,3 +39,9 @@ class U1_SymmetricTensor(AbelianSymmetricTensor):
     @staticmethod
     def conjugate_representation(rep):
         return -rep
+
+    ####################################################################################
+    # Symmetry specific methods with fixed signature
+    ####################################################################################
+    def toU1(self):
+        return self

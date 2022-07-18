@@ -23,8 +23,8 @@ def _numba_elementary_combine_O2(degen1, irreps1, degen2, irreps2):
     # 0o x 0e = 0o
     # 0o x n = n
     # 0e x n = n
-    # n x n = 2n + 0e + 0o
-    # n x m = (n+m) + |n-m|
+    # n x n = 0o + 0e + 2n
+    # n x m = |n-m| + (n+m)
     nmax = max(irreps1[-1], 0) + max(irreps2[-1], 0)
     degen = np.zeros((nmax + 2,), dtype=np.int64)
 
@@ -67,6 +67,8 @@ def _O2_rep_to_U1(r):
 
     ex: [[1, 2, 1, 2], [-1, 0, 1, 2]] is mapped to [0, 0, 0, 1, -1, 2, 2, -2, -2]
     """
+    # ordering is a bit more complex than consecutive pairs (n,-n)
+    # hope to improve perf with these consecutive U(1) sectors
     ru1 = np.empty((_O2_representation_dimension(r),), dtype=np.int8)
     i = 0
     k = 0
@@ -301,6 +303,9 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         constructing Sz < 0 blocks and benefit from Sz = 0 block splitting.
         """
 
+        # may remove these checks to be able to use U(1) with combined rows and columns
+        # when tu1 is a temporary object
+        # just need signature as input instead of tu1.signature
         assert tu1._nrr == len(row_reps)
         assert all(
             (_O2_rep_to_U1(r) == tu1.row_reps[i]).all() for i, r in enumerate(row_reps)
@@ -396,6 +401,9 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             isz -= 1
 
         return blocks
+
+    def toO2(self):
+        return self
 
     def toU1(self):
         # Sz < 0 blocks

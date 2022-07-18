@@ -294,6 +294,9 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
 
         self._signature = self._signature ^ up.astype(bool)
 
+    def toSU2(self):
+        return self
+
     def toabelian(self):
         return self.toU1()
 
