@@ -317,29 +317,32 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         col_irreps = U1_SymmetricTensor.combine_representations(
             reps[self._nrr :], ~self._signature[self._nrr :]
         )
-        nrows, ncols = row_irreps.size, col_irreps.size
+        ncols = col_irreps.size
 
-        # 3) sort rows and find contiguous blocks
-        row_sort = row_irreps.argsort(kind="stable")
-        row_irreps = row_irreps[row_sort]
-        row_blocks = (
-            [0] + list((row_irreps[:-1] != row_irreps[1:]).nonzero()[0] + 1) + [nrows]
-        )
-
-        # 4) find matching columns and construct U(1) block
-        blocks = []
+        # 3) find non-empty U(1) blocks directly from current block_irreps
+        sze = (self._block_irreps % 2).nonzero()[0]  # integer spins
+        szo = ((self._block_irreps + 1) % 2).nonzero()[0]  # half interger spins
         block_irreps = []
+        if sze.size:
+            sze_maxp1 = self._block_irreps[sze[-1]]
+            block_irreps.extend(np.arange(-sze_maxp1 + 1, sze_maxp1, 2))
+        if szo.size:
+            szo_maxp1 = self._block_irreps[szo[-1]]
+            block_irreps.extend(np.arange(-szo_maxp1 + 1, szo_maxp1, 2))
+        block_irreps = np.sort(block_irreps)
+
+        # 4) construct U(1) block by slicing Clebsh-Gordon projector
+        blocks = []
         proj = self.construct_matrix_projector(
             self._row_reps, self._col_reps, self._signature
         )
         raw = self.to_raw_data()
-        for rb1, rb2 in zip(row_blocks[:-1], row_blocks[1:]):
-            ci = (col_irreps == row_irreps[rb1]).nonzero()[0]
-            if ci.size:
-                inds = ncols * row_sort[rb1:rb2][:, None] + ci
-                b = (proj[inds.ravel()] @ raw).reshape(inds.shape)
-                blocks.append(b)
-                block_irreps.append(row_irreps[rb1])
+        for sz in block_irreps:
+            ri = (row_irreps == sz).nonzero()[0]
+            ci = (col_irreps == sz).nonzero()[0]
+            inds = ncols * ri[:, None] + ci
+            b = (proj[inds.ravel()] @ raw).reshape(inds.shape)
+            blocks.append(b)
 
         assert (
             abs(np.sqrt(sum(lg.norm(b) ** 2 for b in blocks)) - self.norm())
