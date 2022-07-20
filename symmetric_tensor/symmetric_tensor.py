@@ -146,7 +146,7 @@ class SymmetricTensor:
         if all(b.flags["C"] for b in blocks):
             self._blocks = tuple(blocks)
             self._f_contiguous = False
-        elif False and all(b.flags["F"] for b in blocks):
+        elif False and all(b.flags["F"] for b in blocks):  # TODO fix me
             self._blocks = tuple(blocks)
             self._f_contiguous = True
         else:
@@ -483,6 +483,7 @@ class SymmetricTensor:
 
         return self._permutate(row_axes, col_axes)
 
+    # TODO raise NotImplementedError and let subclasses deal with it
     def merge_legs(self, i1, i2):
         assert self._signature[i1] == self._signature[i2]
         s = np.array([False, False])

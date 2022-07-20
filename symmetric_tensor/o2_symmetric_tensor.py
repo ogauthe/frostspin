@@ -500,3 +500,6 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             assert nc > 0
             assert self._blocks[bi].shape == (nr, nc)
         return True
+
+    def merge_legs(self, i1, i2):
+        return NotImplementedError("To do!")
