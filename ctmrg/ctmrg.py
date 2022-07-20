@@ -290,6 +290,17 @@ class CTMRG:
         if self.verbosity > 0:
             print(self)
 
+    def set_symmetry(self, symmetry):
+        """
+        Cast all SymmetricTensor to a new symmetry.
+
+        Parameters
+        ----------
+        symmetry: str
+            Symmetry group
+        """
+        self._env.set_symmetry(symmetry)
+
     def truncate_corners(self):
         """
         Truncate corners C1, C2, C3 and C4 without constructing ul, ur, dl and dr
