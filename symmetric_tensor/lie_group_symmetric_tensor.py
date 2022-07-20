@@ -61,8 +61,13 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             n = fin["_ST_n_unitary"]
             for i in range(n):
                 legs = fin[f"_ST_unitary_{i}_legs"]
-                k = (legs[0], tuple(legs[2 : legs[1] + 2]), tuple(legs[legs[1] + 2 :]))
-                reps = [fin[f"_ST_unitary_{i}_rep_{j}"] for j in range(legs.size - 2)]
+                k = (
+                    legs[0],
+                    legs[1],
+                    tuple(legs[3 : legs[2] + 3]),
+                    tuple(legs[legs[2] + 3 :]),
+                )
+                reps = [fin[f"_ST_unitary_{i}_rep_{j}"] for j in range(legs.size - 3)]
                 k = k + tuple(r.tobytes() for r in reps)
                 data = fin[f"_ST_unitary_{i}_data"]
                 indices = fin[f"_ST_unitary_{i}_indices"]
@@ -79,8 +84,8 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         # can use workardound with cast to string, but keys becomes very long, may get
         # trouble if larger than 250 char. Just use dumb count and save reps as arrays.
         for i, (k, v) in enumerate(cls._unitary_dic.items()):
-            legs = np.array([k[0], len(k[1]), *k[1], *k[2]])
-            reps = [np.frombuffer(b, dtype=int) for b in k[3:]]
+            legs = np.array([k[0], k[1], len(k[2]), *k[2], *k[3]])
+            reps = [np.frombuffer(b, dtype=int) for b in k[4:]]
             for (j, repj) in enumerate(reps):
                 data[f"_ST_unitary_{i}_rep_{j}"] = repj
             data[f"_ST_unitary_{i}_legs"] = legs

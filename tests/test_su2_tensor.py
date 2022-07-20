@@ -73,3 +73,8 @@ stbp2 = SU2_SymmetricTensor.from_array(arrbp, (r, r, r), (r,), signature=[0, 0, 
 assert (stbp - stbp2).norm() < 1e-14
 stb2 = stbp.permutate((1, 3), (2, 0))
 assert (stb - stb2).norm() < 1e-14
+
+# try saving unitaries
+st.save_unitaries("data_test_su2_unitaries.npz")
+# try loading unitaries
+st.load_unitaries("data_test_su2_unitaries.npz")
