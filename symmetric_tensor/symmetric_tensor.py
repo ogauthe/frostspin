@@ -161,6 +161,10 @@ class SymmetricTensor:
         assert sorted(set(block_irreps)) == list(block_irreps)
         assert self.check_blocks_fit_representations()
 
+    def cast(self, symmetry):
+        fn = getattr(self, f"to{symmetry}")
+        return fn()
+
     ####################################################################################
     # getters
     ####################################################################################
