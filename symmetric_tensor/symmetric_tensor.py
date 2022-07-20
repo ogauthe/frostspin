@@ -146,7 +146,7 @@ class SymmetricTensor:
         if all(b.flags["C"] for b in blocks):
             self._blocks = tuple(blocks)
             self._f_contiguous = False
-        elif all(b.flags["F"] for b in blocks):
+        elif False and all(b.flags["F"] for b in blocks):
             self._blocks = tuple(blocks)
             self._f_contiguous = True
         else:
