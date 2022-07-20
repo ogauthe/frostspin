@@ -61,15 +61,36 @@ class AsymmetricTensor(SymmetricTensor):
         block = arr.reshape(np.prod(row_reps), np.prod(col_reps))
         return cls(row_reps, col_reps, (block,), cls._irrep, signature)
 
-    def _toarray(self):
-        return self._blocks[0]
+    def toarray(self, as_matrix=False):
+        if as_matrix:
+            return self._blocks[0]
+        return self._blocks[0].reshape(self._shape)
 
-    def _permutate(self, row_axes, col_axes):
-        perm = row_axes + col_axes
+    @property
+    def T(self):
+        blocks = (self._blocks[0].T,)
+        s = self._signature[np.arange(-self._ndim + self._nrr, self._nrr) % self._ndim]
+        return type(self)(self._col_reps, self._row_reps, blocks, self._irrep, s)
+
+    def permutate(self, row_axes, col_axes):
+        assert sorted(row_axes + col_axes) == list(range(self._ndim))
+
+        # return early for identity or matrix transpose
+        if row_axes == tuple(range(self._nrr)) and col_axes == tuple(
+            range(self._nrr, self._ndim)
+        ):
+            return self
+        if row_axes == tuple(range(self._nrr, self._ndim)) and col_axes == tuple(
+            range(self._nrr)
+        ):
+            return self.T
+
+        # generic case: goes back to tensor shape and transpose
+        perm = np.array(row_axes + col_axes)
         arr = self._blocks[0].reshape(self._shape).transpose(perm)
         row_reps = tuple(np.array([d]) for d in arr.shape[: len(row_axes)])
         col_reps = tuple(np.array([d]) for d in arr.shape[len(row_axes) :])
-        signature = self._signature[np.array(perm)]
+        signature = self._signature[perm]
         return type(self).from_array(arr, row_reps, col_reps, signature)
 
     def group_conjugated(self):
@@ -95,5 +116,6 @@ class AsymmetricTensor(SymmetricTensor):
         # in the asymmetric case, bending an index to the left or to the right makes no
         # difference, signs can be ignored.
         up = np.asarray(sign_update, dtype=bool)
+        assert up.shape == (self._ndim,)
         self._signature = self._signature ^ up
         assert self.check_blocks_fit_representations()

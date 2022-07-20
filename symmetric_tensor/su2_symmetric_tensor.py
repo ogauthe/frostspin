@@ -349,7 +349,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
 
         assert (
             abs(np.sqrt(sum(lg.norm(b) ** 2 for b in blocks)) - self.norm())
-            < 1e-14 * self.norm()
+            <= 1e-14 * self.norm()
         )
         return U1_SymmetricTensor(
             reps[: self._nrr], reps[self._nrr :], blocks, block_irreps, self._signature
@@ -480,5 +480,5 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         to2 = O2_SymmetricTensor.from_U1(
             tu1, o2_reps[: self._nrr], o2_reps[self._nrr :]
         )
-        assert abs(to2.norm() - self.norm()) < 1e-14 * self.norm()
+        assert abs(to2.norm() - self.norm()) <= 1e-14 * self.norm()
         return to2

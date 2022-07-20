@@ -78,13 +78,20 @@ class SymmetricTensor:
         """
         raise NotImplementedError("Must be defined in derived class")
 
-    def _toarray(self):
-        # returns rank-2 numpy array, called by public toarray
+    def toarray(self, as_matrix=False):
         raise NotImplementedError("Must be defined in derived class")
 
-    def _permutate(self, row_axes, col_axes):
-        # returns SymmetricTensor, called by public permutate after input check and
-        # cast to C-array only
+    def permutate(self, row_axes, col_axes):  # signature != ndarray.transpose
+        """
+        Permutate axes, changing tensor structure.
+
+        Parameters
+        ----------
+        row_axes: tuple of int
+            New row axes.
+        col_axes: tuple of int
+            New column axes.
+        """
         raise NotImplementedError("Must be defined in derived class")
 
     def group_conjugated(self):
@@ -143,15 +150,7 @@ class SymmetricTensor:
         self._nrr = len(row_reps)
         self._nblocks = len(blocks)
         self._signature = np.ascontiguousarray(signature, dtype=bool)
-        if all(b.flags["C"] for b in blocks):
-            self._blocks = tuple(blocks)
-            self._f_contiguous = False
-        elif False and all(b.flags["F"] for b in blocks):  # TODO fix me
-            self._blocks = tuple(blocks)
-            self._f_contiguous = True
-        else:
-            self._blocks = tuple(np.ascontiguousarray(b) for b in blocks)
-            self._f_contiguous = False
+        self._blocks = tuple(blocks)
         self._block_irreps = np.asarray(block_irreps)
         self._ncoeff = sum(b.size for b in blocks)
         assert self._nblocks > 0
@@ -191,10 +190,6 @@ class SymmetricTensor:
     @property
     def dtype(self):
         return self._blocks[0].dtype
-
-    @property
-    def f_contiguous(self):
-        return self._f_contiguous
 
     @property
     def ncoeff(self):
@@ -339,20 +334,6 @@ class SymmetricTensor:
             and all((r == r2).all() for (r, r2) in zip(self._col_reps, other._col_reps))
         )
 
-    def toarray(self, as_matrix=False):
-        # numba sometimes returns wrong results when dealing with f-array unituple
-        # avoid this by always calling subclass-specific _toarray on c-contiguous array
-        if self._f_contiguous:  # bug calling numba with f-array unituple
-            if as_matrix:
-                return self.T._toarray().T
-            arr = self.T.toarray()
-            ncr = self._ndim - self._nrr
-            return arr.transpose(*range(ncr, self._ndim), *range(ncr))
-        m = self._toarray()
-        if as_matrix:
-            return m
-        return m.reshape(self._shape)
-
     @classmethod
     def random(cls, row_reps, col_reps, signature=None, rng=None):
         # aimed for test, dumb implementation with from_array(zero)
@@ -429,14 +410,7 @@ class SymmetricTensor:
         and leg merging are not affected: each block is just transposed. Block irreps
         are group conjugated, which may change block order.
         """
-        # Transpose the matrix representation of the tensor, ie swap rows and columns
-        # and transpose diagonal blocks, without any data move or copy. Irreps need to
-        # be conjugate since row (bra) and columns (ket) are swapped.
-        conj = self.group_conjugated()
-        blocks = tuple(b.T for b in conj._blocks)
-        perm = np.arange(-self._ndim + self._nrr, self._nrr) % self._ndim
-        s = self._signature[perm]
-        return type(self)(self._col_reps, self._row_reps, blocks, conj._block_irreps, s)
+        raise NotImplementedError("Must be defined in derived class")
 
     def conjugate(self):
         """
@@ -458,30 +432,6 @@ class SymmetricTensor:
         blocks = tuple(b.T.conj() for b in self._blocks)
         s = ~np.hstack((self.signature[self._nrr :], self._signature[: self._nrr]))
         return type(self)(self._col_reps, self._row_reps, blocks, self._block_irreps, s)
-
-    def permutate(self, row_axes, col_axes):  # signature != ndarray.transpose
-        """
-        Permutate axes, changing tensor structure.
-        """
-        assert sorted(row_axes + col_axes) == list(range(self._ndim))
-
-        # return early for identity or matrix transpose
-        if row_axes == tuple(range(self._nrr)) and col_axes == tuple(
-            range(self._nrr, self._ndim)
-        ):
-            return self
-        if row_axes == tuple(range(self._nrr, self._ndim)) and col_axes == tuple(
-            range(self._nrr)
-        ):
-            return self.T
-
-        # only permutate C-array (numba bug with tuple of F-array)
-        if self._f_contiguous:
-            row_axes_T = tuple((ax - self._nrr) % self._ndim for ax in row_axes)
-            col_axes_T = tuple((ax - self._nrr) % self._ndim for ax in col_axes)
-            return self.T._permutate(row_axes_T, col_axes_T)
-
-        return self._permutate(row_axes, col_axes)
 
     # TODO raise NotImplementedError and let subclasses deal with it
     def merge_legs(self, i1, i2):

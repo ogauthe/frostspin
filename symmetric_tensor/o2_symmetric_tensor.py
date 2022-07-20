@@ -290,7 +290,11 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         u1_row_reps = tuple(_O2_rep_to_U1(r) for r in row_reps)
         u1_col_reps = tuple(_O2_rep_to_U1(r) for r in col_reps)
         tu1 = U1_SymmetricTensor.from_array(arr, u1_row_reps, u1_col_reps, signature)
-        return cls.from_U1(tu1, row_reps, col_reps)
+        to2 = cls.from_U1(tu1, row_reps, col_reps)
+        assert abs(to2.norm() - lg.norm(arr)) <= 1e-14 * lg.norm(
+            arr
+        ), "norm is not conserved in O2_SymmetricTensor cast"
+        return to2
 
     @classmethod
     def from_U1(cls, tu1, row_reps, col_reps):
@@ -336,8 +340,8 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         blocks.extend(tu1.blocks[i1:])
         return cls(row_reps, col_reps, blocks, block_irreps, tu1.signature)
 
-    def _toarray(self):
-        return self.toU1()._toarray()
+    def toarray(self, as_matrix=False):
+        return self.toU1().toarray(as_matrix)
 
     def toabelian(self):
         return self.toU1()
@@ -444,7 +448,19 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         assert abs(tu1.norm() - self.norm()) <= 1e-14 * self.norm()
         return tu1
 
-    def _permutate(self, row_axes, col_axes):
+    def permutate(self, row_axes, col_axes):
+        assert sorted(row_axes + col_axes) == list(range(self._ndim))
+
+        # return early for identity or matrix transpose
+        if row_axes == tuple(range(self._nrr)) and col_axes == tuple(
+            range(self._nrr, self._ndim)
+        ):
+            return self
+        if row_axes == tuple(range(self._nrr, self._ndim)) and col_axes == tuple(
+            range(self._nrr)
+        ):
+            return self.T
+
         # inefficient implementation: cast to U(1), permutate, then cast back to O(2)
         # TODO implement efficient specific permutate
         reps = []
@@ -455,13 +471,23 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
                 reps.append(self._col_reps[ax - self._nrr])
         tu1 = self.toU1().permutate(row_axes, col_axes)
         tp = self.from_U1(tu1, reps[: len(row_axes)], reps[len(row_axes) :])
-        assert tp.norm() - self.norm() <= 1e-14 * self.norm(), "permutate changes norm"
+        assert (
+            abs(tp.norm() - self.norm()) <= 1e-14 * self.norm()
+        ), "permutate changes norm"
         return tp
+
+    @property
+    def T(self):
+        b_neg = tuple(b.T for b in reversed(self._generate_neg_sz_blocks()))
+        b0 = tuple(b.T for b in self._blocks[: self._block_irreps.searchsorted(1)])
+        blocks = b0 + b_neg
+        s = self._signature[np.arange(-self._ndim + self._nrr, self._nrr) % self._ndim]
+        return type(self)(self._col_reps, self._row_reps, blocks, self._block_irreps, s)
 
     def group_conjugated(self):
         signature = ~self._signature
-        bm = tuple(self._generate_neg_sz_blocks()[::-1])
-        blocks = self._blocks[: self._block_irreps.searchsorted(1)] + bm
+        blocks = tuple(self._generate_neg_sz_blocks()[::-1])
+        blocks = self._blocks[: self._block_irreps.searchsorted(1)] + blocks
         return type(self)(
             self._row_reps, self._col_reps, blocks, self._block_irreps, signature
         )

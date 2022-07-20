@@ -126,7 +126,6 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         axes: tuple of int
             axes permutation
         """
-        # THIS MAY BE WRONG
         # when half-integer and interger spins are mixed, errors may appear
         proj1 = self.construct_matrix_projector(
             self._row_reps, self._col_reps, self._signature
@@ -204,7 +203,6 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
     ####################################################################################
     # Symmetry specific methods with fixed signature
-    # TODO FIX ME THERE MAY BE ERRORS
     ####################################################################################
     @classmethod
     def from_array(cls, arr, row_reps, col_reps, signature=None):
@@ -225,26 +223,36 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             cls.combine_representations(row_reps, signature[:nrr]),
             cls.combine_representations(col_reps, signature[nrr:]),
         )
-        assert abs(
-            (n := lg.norm(arr))
-            - np.sqrt(
-                sum(
-                    cls.irrep_dimension(irr) * lg.norm(b) ** 2
-                    for (irr, b) in zip(block_irreps, blocks)
-                )
-            )
-            <= 2e-13 * n  # allows for arr = 0
+        st = cls(row_reps, col_reps, blocks, block_irreps, signature)
+        assert abs(st.norm() - lg.norm(arr)) <= 1e-14 * lg.norm(
+            arr
         ), "norm is not conserved in SymmetricTensor cast"
-        return cls(row_reps, col_reps, blocks, block_irreps, signature)
+        return st
 
-    def _toarray(self):
+    def toarray(self, as_matrix=False):
         proj = self.construct_matrix_projector(
             self._row_reps, self._col_reps, self._signature
         )
         arr = proj @ self.to_raw_data()
-        return arr.reshape(self.matrix_shape)
+        if as_matrix:
+            return arr.reshape(self.matrix_shape)
+        return arr.reshape(self._shape)
 
-    def _permutate(self, row_axes, col_axes):
+    @property
+    def T(self):
+        return self.permutate(
+            tuple(range(self._nrr, self._ndim)), tuple(range(self._nrr))
+        )
+
+    def permutate(self, row_axes, col_axes):
+        assert sorted(row_axes + col_axes) == list(range(self._ndim))
+
+        # return early for identity only, matrix transpose is not trivial
+        if row_axes == tuple(range(self._nrr)) and col_axes == tuple(
+            range(self._nrr, self._ndim)
+        ):
+            return self
+
         axes = row_axes + col_axes
         nrr = len(row_axes)
         signature = []
