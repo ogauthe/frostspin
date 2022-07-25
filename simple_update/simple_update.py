@@ -326,13 +326,13 @@ class SimpleUpdate:
         """
         # cut left and right between const and effective parts
         cstL, svL, effL = left.svd()  # auxL-effL=p,m
-        effL.diagonal_imul(svL, left=True)
+        effL = effL.diagonal_mul(svL, left=True)
         cstR, svR, effR = right.svd()  # auxR-effR=p,m
-        effR.diagonal_imul(svR, left=True)
+        effR = effR.diagonal_mul(svR, left=True)
 
         # change tensor structure to contract mid
         effL = effL.permutate((0, 1), (2,))  # auxL,p=effL-m
-        effL.diagonal_imul([1.0 / w for w in weights])  # apply *on effL right*
+        effL = effL.diagonal_mul([1.0 / w for w in weights])  # apply *on effL right*
         effR = effR.permutate((2,), (0, 1))  # m-effR=auxR,p
 
         # construct matrix theta and apply gate
@@ -349,8 +349,8 @@ class SimpleUpdate:
 
         # normalize weights and apply them to new left and new right
         new_weights = self._normalized_weights(new_weights, effL.col_reps[0])
-        effL.diagonal_imul(new_weights)
-        effR.diagonal_imul(new_weights, left=True)
+        effL = effL.diagonal_mul(new_weights)
+        effR = effR.diagonal_mul(new_weights, left=True)
 
         # reshape to initial tree structure
         effL = effL.permutate((0,), (1, 2))  # auxL - effL = pL,m
@@ -402,18 +402,18 @@ class SimpleUpdate:
 
         # 1) SVD cut between constant tensors and effective tensors to update
         cstL, svL, effL = left.svd()  # auxL - effL = pL, mL
-        effL.diagonal_imul(svL, left=True)
+        effL = effL.diagonal_mul(svL, left=True)
         effL = effL.permutate((0, 1), (2,))  # auxL,pL = effL - mL
-        effL.diagonal_imul([1.0 / w for w in weightsL])
+        effL = effL.diagonal_mul([1.0 / w for w in weightsL])
 
         cstm, svm, effm = mid.svd()  # auxm - effm = mL, mR
-        effm.diagonal_imul(svm, left=True)
+        effm = effm.diagonal_mul(svm, left=True)
         effm = effm.permutate((1,), (2, 0))  # mL - effm = mR, auxm
 
         cstR, svR, effR = right.svd()  # auxR - effR = pR, mR
-        effR.diagonal_imul(svR, left=True)
+        effR = effR.diagonal_mul(svR, left=True)
         effR = effR.permutate((0, 1), (2,))  # auR, pR = effR - mR
-        effR.diagonal_imul([1 / w for w in weightsR])
+        effR = effR.diagonal_mul([1.0 / w for w in weightsR])
 
         # contract tensor network
         #                         ||
@@ -432,17 +432,17 @@ class SimpleUpdate:
             self.D, rcutoff=self.rcutoff, degen_ratio=self.degen_ratio
         )
         new_weightsR = self._normalized_weights(new_weightsR, effR.col_reps[0])
-        effR.diagonal_imul(new_weightsR)  # pR, auxR = effR - mR
+        effR = effR.diagonal_mul(new_weightsR)  # pR, auxR = effR - mR
 
         # 2nd SVD
-        theta.diagonal_imul(new_weightsR, left=True)  # mR - theta = auL, pL, auxm
+        theta = theta.diagonal_mul(new_weightsR, left=True)  # mR-theta = auL,pL,auxm
         theta = theta.permutate((1, 2), (3, 0))  # auxL, pL = theta = auxm, mR
         effL, new_weightsL, effm = theta.truncated_svd(
             self.D, rcutoff=self.rcutoff, degen_ratio=self.degen_ratio
         )
         new_weightsL = self._normalized_weights(new_weightsL, effL.col_reps[0])
-        effm.diagonal_imul(new_weightsL, left=True)  # mL - effm = auxm, mR
-        effL.diagonal_imul(new_weightsL)  # auxL, pL = effL - mL
+        effm = effm.diagonal_mul(new_weightsL, left=True)  # mL - effm = auxm, mR
+        effL = effL.diagonal_mul(new_weightsL)  # auxL, pL = effL - mL
 
         # reshape to initial tree structure
         effL = effL.permutate((0,), (1, 2))  # auxL - effL = pL, mL

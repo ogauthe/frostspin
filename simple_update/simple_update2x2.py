@@ -96,34 +96,35 @@ class SimpleUpdate2x2(SimpleUpdate):
             Level of log verbosity. Default is no log.
         """
         h0 = hamiltonians[0]
-        ST = type(h0)
         phys = h0.row_reps[0]
         d = h0.shape[0]
         t0 = np.eye(d).reshape(d, d, 1, 1, 1, 1)
 
-        # quick and dirty. Need singlet as symmetry member.
-        if ST.symmetry == "trivial":
-            sing = np.array(1)
-            t0 = ST.from_array(t0, (phys,), (phys, sing, sing, sing, sing))
-        elif ST.symmetry == "U1":
-            sing = np.array([0], dtype=np.int8)
-            t0 = ST.from_array(
-                t0, (-phys,), (-phys, sing, sing, sing, sing), conjugate_columns=False
-            )
-        elif ST.symmetry == "SU2":
-            sing = np.array([[1], [1]])
-            t0 = ST.from_array(t0, (phys,), (phys, sing, sing, sing, sing))
+        # for simplicity, impose all Hamiltonians to have standard signature
+        s = np.array([False, False, True, True])
+        if not all((h.signature == s).all() for h in hamiltonians):
+            raise ValueError(f"Hamiltonians must have signature {s}")
 
-        t1 = t0.group_conjugated()
+        # use same signature for physical and ancilla legs on all tensors:
+        # True for physical
+        # False for ancilla
+        # for easy contraction with Hamiltonian
+        # however virtual legs need to have opposite signatures on 2 sublattices
+        sing = h0.singlet
+        s1 = np.array([1, 0, 1, 1, 1, 1], dtype=bool)
+        t1 = h0.from_array(t0, (phys,), (phys, sing, sing, sing, sing), signature=s1)
+        s2 = np.array([1, 0, 0, 0, 0, 0], dtype=bool)
+        t2 = h0.from_array(t0, (phys,), (phys, sing, sing, sing, sing), signature=s2)
         #        tA             tB             tC            tD
         #       /  \           /  \           / \           / \
         #      /    \         /    \         /   \         /   \
         #    ////   /\      ///    /\      ///   /\      ///   /\
         #   a234   p  1    a546   p  2    a378  p  1    a687  p  5
-        tA = t0.permutate((1, 3, 4, 5), (0, 2))
-        tB = t1.permutate((1, 2, 3, 4), (0, 5))
-        tC = t1.permutate((1, 2, 3, 5), (0, 4))
-        tD = t0.permutate((1, 2, 3, 5), (0, 4))
+        #   -+++   +  +    ----   +  -    ----  +  -    -+++  +  +
+        tA = t1.permutate((1, 3, 4, 5), (0, 2))
+        tB = t2.permutate((1, 2, 3, 4), (0, 5))
+        tC = t2.permutate((1, 2, 3, 5), (0, 4))
+        tD = t1.permutate((1, 2, 3, 5), (0, 4))
 
         return cls(
             D,
@@ -133,7 +134,7 @@ class SimpleUpdate2x2(SimpleUpdate):
             degen_ratio,
             [tA, tB, tC, tD],
             hamiltonians,
-            [np.ones(1)] * cls._n_bonds,
+            [[np.ones((1,))] for i in range(cls._n_bonds)],
             verbosity,
         )
 
@@ -150,27 +151,24 @@ class SimpleUpdate2x2(SimpleUpdate):
         C = np.einsum("aurlpd,u,r,d,l->aurlpd", C0.toarray(), sw3, sw7, sw1, sw8)
         D0 = self._tensors[3]
         D = np.einsum("aurlpd,u,r,d,l->aurlpd", D0.toarray(), sw6, sw8, sw5, sw7)
-        # same problem as in from_infinite_temperature: conjugate_columns has different
-        # effect between U(1) and SU(2) from_array.
-        cc = self._ST.symmetry == "SU2"
-        A = self._ST.from_array(A, A0._row_reps, A0._col_reps, conjugate_columns=cc)
+        A = self._ST.from_array(A, A0._row_reps, A0._col_reps, signature=A0.signature)
         A = A.permutate((4, 0), (5, 1, 2, 3))
-        B = self._ST.from_array(B, B0._row_reps, B0._col_reps, conjugate_columns=cc)
+        B = self._ST.from_array(B, B0._row_reps, B0._col_reps, signature=B0.signature)
         B = B.permutate((4, 0), (1, 2, 3, 5))
-        C = self._ST.from_array(C, C0._row_reps, C0._col_reps, conjugate_columns=cc)
+        C = self._ST.from_array(C, C0._row_reps, C0._col_reps, signature=C0.signature)
         C = C.permutate((4, 0), (1, 2, 5, 3))
-        D = self._ST.from_array(D, D0._row_reps, D0._col_reps, conjugate_columns=cc)
+        D = self._ST.from_array(D, D0._row_reps, D0._col_reps, signature=D0.signature)
         D = D.permutate((4, 0), (1, 2, 5, 3))
         return A, B, C, D
 
     def get_bond_representations(self):
         A = self._tensors[0]
         D = self._tensors[3]
-        r1 = A.conjugate_representation(A.col_reps[1])  # u
+        r1 = A.col_reps[1]  # u
         r2 = A.row_reps[1]  # r
         r3 = A.row_reps[2]  # d
         r4 = A.row_reps[3]  # l
-        r5 = D.conjugate_representation(D.col_reps[1])  # d
+        r5 = D.col_reps[1]  # d
         r6 = D.row_reps[1]  # u
         r7 = D.row_reps[3]  # l
         r8 = D.row_reps[2]  # r
@@ -213,108 +211,41 @@ class SimpleUpdate2x2(SimpleUpdate):
         self._update_bond(6, 3, 1, self._gates[0], self._d2u, self._u2d)
         self._update_bond(7, 3, 2, self._gates[0], self._u2l, self._u2r)
         self._update_bond(8, 3, 2, self._gates[0], self._l2r, self._r2l)
+
+        sg1 = self._sqrt_gates[1]
+        self.update_bond_proxy(1, 8, 0, 2, 3, sg1, self._l2u, self._l2dl, self._r2r)
+        self.update_bond_proxy(5, 4, 3, 1, 0, sg1, self._r2d, self._d2ur, self._u2l)
+        self.update_bond_proxy(7, 1, 3, 2, 0, sg1, self._d2l, self._dl2rd, self._l2u)
+        self.update_bond_proxy(2, 5, 0, 1, 3, sg1, self._u2r, self._ur2lu, self._l2d)
+        self.update_bond_proxy(6, 2, 3, 1, 0, sg1, self._d2u, self._lu2dl, self._r2r)
+        self.update_bond_proxy(3, 7, 0, 2, 3, sg1, self._r2d, self._rd2ur, self._u2l)
+        self.update_bond_proxy(8, 3, 3, 2, 0, sg1, self._l2r, self._ur2lu, self._d2d)
+        self.update_bond_proxy(4, 6, 0, 1, 3, sg1, self._d2l, self._dl2rd, self._r2u)
+        self.update_bond_proxy(5, 7, 1, 3, 2, sg1, self._rd2u, self._u2dl, self._lu2r)
+        self.update_bond_proxy(1, 2, 2, 0, 1, sg1, self._r2d, self._l2ur, self._u2l)
+        self.update_bond_proxy(4, 1, 1, 0, 2, sg1, self._l2r, self._ur2lu, self._d2d)
+        self.update_bond_proxy(8, 5, 2, 3, 1, sg1, self._d2l, self._dl2rd, self._r2u)
+        self.update_bond_proxy(6, 8, 1, 3, 2, sg1, self._u2d, self._rd2ur, self._l2l)
+        self.update_bond_proxy(3, 4, 2, 0, 1, sg1, self._l2u, self._lu2dl, self._d2r)
+        self.update_bond_proxy(2, 3, 1, 0, 2, sg1, self._r2l, self._dl2rd, self._u2u)
         self.update_bond_proxy(
-            1, 8, 0, 2, 3, self._sqrt_gates[1], self._l2u, self._l2dl, self._r2r, False
+            7, 6, 2, 3, 1, self._gates[1], self._u2r, self._ur2lu, self._l2d
         )
-        self.update_bond_proxy(
-            5, 4, 3, 1, 0, self._sqrt_gates[1], self._r2d, self._d2ur, self._u2l, False
-        )
-        self.update_bond_proxy(
-            7, 1, 3, 2, 0, self._sqrt_gates[1], self._d2l, self._dl2rd, self._l2u, False
-        )
-        self.update_bond_proxy(
-            2, 5, 0, 1, 3, self._sqrt_gates[1], self._u2r, self._ur2lu, self._l2d, False
-        )
-        self.update_bond_proxy(
-            6, 2, 3, 1, 0, self._sqrt_gates[1], self._d2u, self._lu2dl, self._r2r, False
-        )
-        self.update_bond_proxy(
-            3, 7, 0, 2, 3, self._sqrt_gates[1], self._r2d, self._rd2ur, self._u2l, False
-        )
-        self.update_bond_proxy(
-            8, 3, 3, 2, 0, self._sqrt_gates[1], self._l2r, self._ur2lu, self._d2d, False
-        )
-        self.update_bond_proxy(
-            4, 6, 0, 1, 3, self._sqrt_gates[1], self._d2l, self._dl2rd, self._r2u, False
-        )
-        self.update_bond_proxy(
-            5, 7, 1, 3, 2, self._sqrt_gates[1], self._rd2u, self._u2dl, self._lu2r, True
-        )
-        self.update_bond_proxy(
-            1, 2, 2, 0, 1, self._sqrt_gates[1], self._r2d, self._l2ur, self._u2l, True
-        )
-        self.update_bond_proxy(
-            4, 1, 1, 0, 2, self._sqrt_gates[1], self._l2r, self._ur2lu, self._d2d, True
-        )
-        self.update_bond_proxy(
-            8, 5, 2, 3, 1, self._sqrt_gates[1], self._d2l, self._dl2rd, self._r2u, True
-        )
-        self.update_bond_proxy(
-            6, 8, 1, 3, 2, self._sqrt_gates[1], self._u2d, self._rd2ur, self._l2l, True
-        )
-        self.update_bond_proxy(
-            3, 4, 2, 0, 1, self._sqrt_gates[1], self._l2u, self._lu2dl, self._d2r, True
-        )
-        self.update_bond_proxy(
-            2, 3, 1, 0, 2, self._sqrt_gates[1], self._r2l, self._dl2rd, self._u2u, True
-        )
-        self.update_bond_proxy(
-            7, 6, 2, 3, 1, self._gates[1], self._u2r, self._ur2lu, self._l2d, True
-        )
-        self.update_bond_proxy(
-            2, 3, 1, 0, 2, self._sqrt_gates[1], self._d2l, self._rd2rd, self._r2u, True
-        )
-        self.update_bond_proxy(
-            3, 4, 2, 0, 1, self._sqrt_gates[1], self._u2u, self._rd2dl, self._l2r, True
-        )
-        self.update_bond_proxy(
-            6, 8, 1, 3, 2, self._sqrt_gates[1], self._r2d, self._lu2ur, self._u2l, True
-        )
-        self.update_bond_proxy(
-            8, 5, 2, 3, 1, self._sqrt_gates[1], self._l2l, self._ur2rd, self._d2u, True
-        )
-        self.update_bond_proxy(
-            4, 1, 1, 0, 2, self._sqrt_gates[1], self._u2r, self._dl2lu, self._l2d, True
-        )
-        self.update_bond_proxy(
-            1, 2, 2, 0, 1, self._sqrt_gates[1], self._d2d, self._lu2ur, self._r2l, True
-        )
-        self.update_bond_proxy(
-            5, 7, 1, 3, 2, self._sqrt_gates[1], self._l2u, self._rd2dl, self._d2r, True
-        )
-        self.update_bond_proxy(
-            4,
-            6,
-            0,
-            1,
-            3,
-            self._sqrt_gates[1],
-            self._ur2l,
-            self._u2rd,
-            self._dl2u,
-            False,
-        )
-        self.update_bond_proxy(
-            8, 3, 3, 2, 0, self._sqrt_gates[1], self._u2r, self._r2lu, self._l2d, False
-        )
-        self.update_bond_proxy(
-            3, 7, 0, 2, 3, self._sqrt_gates[1], self._d2d, self._lu2ur, self._r2l, False
-        )
-        self.update_bond_proxy(
-            6, 2, 3, 1, 0, self._sqrt_gates[1], self._l2u, self._rd2dl, self._d2r, False
-        )
-        self.update_bond_proxy(
-            2, 5, 0, 1, 3, self._sqrt_gates[1], self._r2r, self._dl2lu, self._u2d, False
-        )
-        self.update_bond_proxy(
-            7, 1, 3, 2, 0, self._sqrt_gates[1], self._d2l, self._ur2rd, self._r2u, False
-        )
-        self.update_bond_proxy(
-            5, 4, 3, 1, 0, self._sqrt_gates[1], self._l2d, self._lu2ur, self._u2l, False
-        )
-        self.update_bond_proxy(
-            1, 8, 0, 2, 3, self._sqrt_gates[1], self._l2u, self._rd2dl, self._d2r, False
-        )
+        self.update_bond_proxy(2, 3, 1, 0, 2, sg1, self._d2l, self._rd2rd, self._r2u)
+        self.update_bond_proxy(3, 4, 2, 0, 1, sg1, self._u2u, self._rd2dl, self._l2r)
+        self.update_bond_proxy(6, 8, 1, 3, 2, sg1, self._r2d, self._lu2ur, self._u2l)
+        self.update_bond_proxy(8, 5, 2, 3, 1, sg1, self._l2l, self._ur2rd, self._d2u)
+        self.update_bond_proxy(4, 1, 1, 0, 2, sg1, self._u2r, self._dl2lu, self._l2d)
+        self.update_bond_proxy(1, 2, 2, 0, 1, sg1, self._d2d, self._lu2ur, self._r2l)
+        self.update_bond_proxy(5, 7, 1, 3, 2, sg1, self._l2u, self._rd2dl, self._d2r)
+        self.update_bond_proxy(4, 6, 0, 1, 3, sg1, self._ur2l, self._u2rd, self._dl2u)
+        self.update_bond_proxy(8, 3, 3, 2, 0, sg1, self._u2r, self._r2lu, self._l2d)
+        self.update_bond_proxy(3, 7, 0, 2, 3, sg1, self._d2d, self._lu2ur, self._r2l)
+        self.update_bond_proxy(6, 2, 3, 1, 0, sg1, self._l2u, self._rd2dl, self._d2r)
+        self.update_bond_proxy(2, 5, 0, 1, 3, sg1, self._r2r, self._dl2lu, self._u2d)
+        self.update_bond_proxy(7, 1, 3, 2, 0, sg1, self._d2l, self._ur2rd, self._r2u)
+        self.update_bond_proxy(5, 4, 3, 1, 0, sg1, self._l2d, self._lu2ur, self._u2l)
+        self.update_bond_proxy(1, 8, 0, 2, 3, sg1, self._l2u, self._rd2dl, self._d2r)
         self._update_bond(8, 3, 2, self._gates[0], self._r2r, self._dl2l)
         self._update_bond(7, 3, 2, self._gates[0], self._r2l, self._l2r)
         self._update_bond(6, 3, 1, self._gates[0], self._l2u, self._ur2d)
@@ -338,9 +269,7 @@ class SimpleUpdate2x2(SimpleUpdate):
         self._tensors[iL] = nl
         self._tensors[iR] = nr
 
-    def update_bond_proxy(
-        self, bond1, bond2, iL, im, iR, gate, lperm, mperm, rperm, conj
-    ):
+    def update_bond_proxy(self, bond1, bond2, iL, im, iR, gate, lperm, mperm, rperm):
         """
         Update bonds bond1 and bond2 between tensors iL and iR through tensor im.
         """
@@ -348,22 +277,10 @@ class SimpleUpdate2x2(SimpleUpdate):
         mid = self._tensors[im].permutate(*mperm)
         right = self._tensors[iR].permutate(*rperm)
 
-        # iL and iR belong to the same sublattice. If it is sublattice B,
-        # representations are conjugate. To avoid troubles with weights (which
-        # are silently labelled by irreps) and with gates, it is more convenient to
-        # conjugate sublattice B to get same representations as on lattice A
-        if conj:
-            left = left.group_conjugated()
-            mid = mid.group_conjugated()
-            right = right.group_conjugated()
         left, mid, right, nw1, nw2 = self.update_through_proxy(
             left, mid, right, self._weights[bond1 - 1], self._weights[bond2 - 1], gate
         )
 
-        if conj:  # come back to sublattice B conventions
-            left = left.group_conjugated()
-            mid = mid.group_conjugated()
-            right = right.group_conjugated()
         self._weights[bond1 - 1] = nw1
         self._weights[bond2 - 1] = nw2
         self._tensors[iL] = left

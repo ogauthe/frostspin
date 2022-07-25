@@ -32,8 +32,13 @@ class SymmetricTensor:
     def symmetry(cls):
         raise NotImplementedError("Must be defined in derived class")
 
+    @classmethod
+    @property
+    def singlet(cls):
+        raise NotImplementedError("Must be defined in derived class")
+
     @staticmethod
-    def combine_representations(*reps):
+    def combine_representations(reps, signature):
         raise NotImplementedError("Must be defined in derived class")
 
     @staticmethod
@@ -57,28 +62,48 @@ class SymmetricTensor:
     # These methods must be defined in subclasses to set SymmetricTensor behavior
     ####################################################################################
     @classmethod
-    def from_array(cls, arr, row_reps, col_reps, conjugate_columns=True):
+    def from_array(cls, arr, row_reps, col_reps, signature=None):
+        """
+        Parameters
+        ----------
+        arr : ndarray
+            Dense array to cast to symmetric blocks.
+        row_reps : tuple of arrays
+            Representations for the rows.
+        row_reps : tuple of arrays
+            Representations for the columns.
+        signature : 1D boolean array
+            Signature of each representation. If None, assumed to be False for rows and
+            True for columns.
+        """
         raise NotImplementedError("Must be defined in derived class")
 
-    def _toarray(self):
-        # returns rank-2 numpy array, called by public toarray
+    def toarray(self, as_matrix=False):
         raise NotImplementedError("Must be defined in derived class")
 
-    def _permutate(self, row_axes, col_axes):
-        # returns SymmetricTensor, called by public permutate after input check and
-        # cast to C-array only
+    def permutate(self, row_axes, col_axes):  # signature != ndarray.transpose
+        """
+        Permutate axes, changing tensor structure.
+
+        Parameters
+        ----------
+        row_axes: tuple of int
+            New row axes.
+        col_axes: tuple of int
+            New column axes.
+        """
         raise NotImplementedError("Must be defined in derived class")
 
     def group_conjugated(self):
         """
         Return a new tensor with all representations (row, columns and blocks irreps)
-        conjugated according to group rules. This may change block order, but not the
-        block themselves. Since the tensor is a group singlet, it is unaffected in its
-        dense form.
+        conjugated according to group rules. Since the dense tensor is a group singlet,
+        it is unaffected in its dense form, however symmetric blocks may change,
+        especially in the non-abelian case.
         """
         raise NotImplementedError("Must be defined in derived class")
 
-    def check_blocks_fit_representation(self):
+    def check_blocks_fit_representations(self):
         raise NotImplementedError("Must be defined in derived class")
 
     def norm(self):
@@ -94,33 +119,50 @@ class SymmetricTensor:
         """
         raise NotImplementedError("Must be defined in derived class")
 
+    def update_signature(self, sign_update):
+        """
+        Change signature. This is an in-place operation.
+
+        Parameters
+        ----------
+        sign_diff: int array, shape (self._ndim)
+
+        Convention:  0: no change
+                    +1: change signature, no change in coefficients
+                    -1: change in signature with loop
+
+        For abelian symmetries (or asymmetric), this does not alter the blocks and the
+        signs in sign_update have no effect. For non-abelian symmetries, this may change
+        coefficients because a loop appears in structural tensors.
+        """
+        raise NotImplementedError("Must be defined in derived class")
+
     ####################################################################################
     # Initializer
     ####################################################################################
-    def __init__(self, row_reps, col_reps, blocks, block_irreps):
+    def __init__(self, row_reps, col_reps, blocks, block_irreps, signature):
         self._row_reps = tuple(row_reps)
         self._col_reps = tuple(col_reps)
         self._shape = tuple(
             self.representation_dimension(r) for r in self._row_reps + self._col_reps
         )
         self._ndim = len(self._shape)
+        self._nrr = len(row_reps)
         self._nblocks = len(blocks)
-        if all(b.flags["C"] for b in blocks):
-            self._blocks = tuple(blocks)
-            self._f_contiguous = False
-        elif all(b.flags["F"] for b in blocks):
-            self._blocks = tuple(blocks)
-            self._f_contiguous = True
-        else:
-            self._blocks = tuple(np.ascontiguousarray(b) for b in blocks)
-            self._f_contiguous = False
+        self._signature = np.ascontiguousarray(signature, dtype=bool)
+        self._blocks = tuple(blocks)
         self._block_irreps = np.asarray(block_irreps)
         self._ncoeff = sum(b.size for b in blocks)
         assert self._nblocks > 0
-        assert 0 < len(self._row_reps) < self._ndim
+        assert 0 < self._nrr < self._ndim
+        assert self._signature.shape == (self.ndim,)
         assert self._block_irreps.size == self._nblocks
         assert sorted(set(block_irreps)) == list(block_irreps)
         assert self.check_blocks_fit_representations()
+
+    def cast(self, symmetry):
+        fn = getattr(self, f"to{symmetry}")
+        return fn()
 
     ####################################################################################
     # getters
@@ -134,21 +176,20 @@ class SymmetricTensor:
         return self._ndim
 
     @property
+    def n_row_reps(self):
+        return self._nrr
+
+    @property
     def shape(self):
         return self._shape
 
     @property
     def matrix_shape(self):
-        nrr = len(self._row_reps)
-        return (np.prod(self._shape[:nrr]), np.prod(self._shape[nrr:]))
+        return (np.prod(self._shape[: self._nrr]), np.prod(self._shape[self._nrr :]))
 
     @property
     def dtype(self):
         return self._blocks[0].dtype
-
-    @property
-    def f_contiguous(self):
-        return self._f_contiguous
 
     @property
     def ncoeff(self):
@@ -169,6 +210,10 @@ class SymmetricTensor:
     @property
     def col_reps(self):
         return self._col_reps
+
+    @property
+    def signature(self):
+        return self._signature
 
     ####################################################################################
     # Magic methods
@@ -197,7 +242,9 @@ class SymmetricTensor:
                 block_irreps.append(other._block_irreps[i2])
                 i2 += 1
 
-        return type(self)(self._row_reps, self._col_reps, blocks, block_irreps)
+        return type(self)(
+            self._row_reps, self._col_reps, blocks, block_irreps, self._signature
+        )
 
     def __sub__(self, other):
         return self + (-other)  # much simplier than dedicated implem for tiny perf loss
@@ -205,7 +252,9 @@ class SymmetricTensor:
     def __mul__(self, x):
         assert np.isscalar(x) or x.size == 1
         blocks = tuple(x * b for b in self._blocks)
-        return type(self)(self._row_reps, self._col_reps, blocks, self._block_irreps)
+        return type(self)(
+            self._row_reps, self._col_reps, blocks, self._block_irreps, self._signature
+        )
 
     def __rmul__(self, x):
         return self * x
@@ -218,7 +267,9 @@ class SymmetricTensor:
 
     def __neg__(self):
         blocks = tuple(-b for b in self._blocks)
-        return type(self)(self._row_reps, self._col_reps, blocks, self._block_irreps)
+        return type(self)(
+            self._row_reps, self._col_reps, blocks, self._block_irreps, self._signature
+        )
 
     def __imul__(self, x):
         for b in self._blocks:
@@ -239,9 +290,8 @@ class SymmetricTensor:
         associated irrep does not appear in the contracted bond.
         """
         assert type(self) == type(other)
-        assert (
-            self._shape[len(self._row_reps) :] == other._shape[: len(other._row_reps)]
-        )
+        assert self._shape[self._nrr :] == other._shape[: other._nrr]
+        assert (self._signature[self._nrr :] ^ other._signature[: other._nrr]).all()
         assert all((r == r2).all() for (r, r2) in zip(self._col_reps, other._row_reps))
 
         i1 = 0
@@ -259,80 +309,96 @@ class SymmetricTensor:
             else:
                 i2 += 1
 
-        return type(self)(self._row_reps, other._col_reps, blocks, block_irreps)
+        signature = np.hstack(
+            (self._signature[: self._nrr], other._signature[other._nrr :])
+        )
+        return type(self)(
+            self._row_reps, other._col_reps, blocks, block_irreps, signature
+        )
 
     ####################################################################################
     # misc
     ####################################################################################
-    def match_representations(self, st):
+    def match_representations(self, other):
         """
-        Check if input has same type, same shape and same representations on every legs
-        as self. block_irreps and blocks are not checked. Return bool, does not raise.
+        Check if other has same type, same shape and same representations with same
+        signature on every legs as self. block_irreps and blocks are not used.
+        Return bool, do not raise.
         """
         return (
-            type(self) == type(st)
-            and self.shape == st.shape
-            and len(self._row_reps) == len(st.row_reps)
-            and all((r == r2).all() for (r, r2) in zip(self._row_reps, st._row_reps))
-            and all((r == r2).all() for (r, r2) in zip(self._col_reps, st._col_reps))
+            type(self) == type(other)
+            and self._shape == other._shape
+            and self._nrr == other._nrr
+            and (self._signature == other._signature).all()
+            and all((r == r2).all() for (r, r2) in zip(self._row_reps, other._row_reps))
+            and all((r == r2).all() for (r, r2) in zip(self._col_reps, other._col_reps))
         )
 
-    def toarray(self, as_matrix=False):
-        if self._f_contiguous:  # bug calling numba with f-array unituple
-            if as_matrix:
-                return self.T._toarray().T
-            arr = self.T.toarray()
-            k = len(self._col_reps)
-            return arr.transpose(*range(k, self._ndim), *range(k))
-        m = self._toarray()
-        if as_matrix:
-            return m
-        return m.reshape(self._shape)
-
     @classmethod
-    def random(cls, row_reps, col_reps, conjugate_columns=True, rng=None):
+    def random(cls, row_reps, col_reps, signature=None, rng=None):
         # aimed for test, dumb implementation with from_array(zero)
         if rng is None:
             rng = np.random.default_rng()
         z = np.zeros([cls.representation_dimension(rep) for rep in row_reps + col_reps])
-        st = cls.from_array(z, row_reps, col_reps, conjugate_columns=conjugate_columns)
+        st = cls.from_array(z, row_reps, col_reps, signature=signature)
         st._blocks = tuple(rng.random(b.shape) for b in st._blocks)
         return st
 
     def copy(self):
+        # only copy blocks
+        # row_reps, col_reps, block_irreps and signature are passed as reference
         blocks = tuple(b.copy() for b in self._blocks)
-        return type(self)(self._row_reps, self._col_reps, blocks, self._block_irreps)
+        return type(self)(
+            self._row_reps, self._col_reps, blocks, self._block_irreps, self._signature
+        )
 
     def get_row_representation(self):
-        return self.combine_representations(*self._row_reps)
+        return self.combine_representations(
+            self._row_reps, self._signature[: self._nrr]
+        )
 
     def get_column_representation(self):
-        return self.combine_representations(*self._col_reps)
+        return self.combine_representations(
+            self._col_reps, ~self._signature[self._nrr :]
+        )
 
-    def diagonal_imul(self, diag_blocks, left=False):
+    def diagonal_mul(self, diag_blocks, left=False):
         """
         Matrix product with a diagonal matrix with matching symmetry. If left is True,
         matrix multiplication is from the left.
 
-        This is an in-place operation.
+        Convention: diag_blocks is understood as diagonal weights coming from a SVD in
+        terms of representation and signature. Therefore it can only be added to the
+        right if self has only one column leg and its signature is True and added to the
+        left if self has only one row leg with signature False. If this is not the case,
+        then self is transposed, weights are added on the other side and the result is
+        transposed back to initial shape.
 
         Parameters
         ----------
         diag_blocks : enum of 1D array
             Must have same length as _nblocks
         left : bool
-
-        THIS METHOD IS DANGEROUS, NO CHECK IS MADE THAT IRREPS MATCH. IRREPS MAY BE
-        CONJUGATE IF TRANSPOSE OCCURRED.
+            Whether to multiply from the right (default) or from the left.
         """
         if len(diag_blocks) != self._nblocks:
             raise ValueError("Diagonal blocks do not match tensor")
+        blocks = []
         if left:
+            assert self._nrr == 1
+            if self._signature[0]:
+                return self.T.diagonal_mul(diag_blocks).T
             for b, diag in zip(self._blocks, diag_blocks):
-                b[:] *= diag[:, None]
+                blocks.append(b * diag[:, None])
         else:
+            assert self._ndim - self._nrr == 1
+            if not self._signature[-1]:
+                return self.T.diagonal_mul(diag_blocks, left=True).T
             for b, diag in zip(self._blocks, diag_blocks):
-                b[:] *= diag
+                blocks.append(b * diag)
+        return type(self)(
+            self._row_reps, self._col_reps, blocks, self._block_irreps, self._signature
+        )
 
     ####################################################################################
     # transpose and permutate
@@ -344,22 +410,16 @@ class SymmetricTensor:
         and leg merging are not affected: each block is just transposed. Block irreps
         are group conjugated, which may change block order.
         """
-        # Transpose the matrix representation of the tensor, ie swap rows and columns
-        # and transpose diagonal blocks, without any data move or copy. Irreps need to
-        # be conjugate since row (bra) and columns (ket) are swapped.
-        conj = self.group_conjugated()
-        blocks = tuple(b.T for b in conj._blocks)
-        return type(self)(conj._col_reps, conj._row_reps, blocks, conj._block_irreps)
+        raise NotImplementedError("Must be defined in derived class")
 
     def conjugate(self):
         """
         Complex conjugate operation. Block values are conjugate and all representations
-        are group conjugated. Internal structure is not affected, however block order
-        may change.
+        are group conjugated.
         """
         conj = self.group_conjugated()
-        blocks = tuple(b.conj() for b in conj._blocks)
-        return type(self)(conj._row_reps, conj._col_reps, blocks, conj._block_irreps)
+        conj._blocks = tuple(b.conj() for b in conj._blocks)
+        return conj
 
     @property
     def H(self):
@@ -368,29 +428,34 @@ class SymmetricTensor:
         block_irreps and block order are not affected.
         """
         # block_irreps are conjugate both in T and conj: no change
+        # conj = self.group_conjugated()
         blocks = tuple(b.T.conj() for b in self._blocks)
-        return type(self)(self._col_reps, self._row_reps, blocks, self._block_irreps)
+        s = ~np.hstack((self.signature[self._nrr :], self._signature[: self._nrr]))
+        return type(self)(self._col_reps, self._row_reps, blocks, self._block_irreps, s)
 
-    def permutate(self, row_axes, col_axes):  # signature != ndarray.transpose
-        """
-        Permutate axes, changing tensor structure.
-        """
-        assert sorted(row_axes + col_axes) == list(range(self._ndim))
-        nrr = len(self._row_reps)
-
-        # return early for identity or matrix transpose
-        if row_axes == tuple(range(nrr)) and col_axes == tuple(range(nrr, self._ndim)):
-            return self
-        if row_axes == tuple(range(nrr, self._ndim)) and col_axes == tuple(range(nrr)):
-            return self.T
-
-        # only permutate C-array (numba bug with tuple of F-array)
-        if self._f_contiguous:
-            row_axes_T = tuple((ax - nrr) % self._ndim for ax in row_axes)
-            col_axes_T = tuple((ax - nrr) % self._ndim for ax in col_axes)
-            return self.T._permutate(row_axes_T, col_axes_T)
-
-        return self._permutate(row_axes, col_axes)
+    # TODO raise NotImplementedError and let subclasses deal with it
+    def merge_legs(self, i1, i2):
+        assert self._signature[i1] == self._signature[i2]
+        s = np.array([False, False])
+        if i2 < self._nrr:
+            assert 0 < i1 + 1 == i2
+            r = self.combine_representations(
+                (self._row_reps[i1], self._row_reps[i2]), s
+            )
+            row_reps = self._row_reps[:i1] + (r,) + self._row_reps[i2 + 1 :]
+            col_reps = self._col_reps
+        else:
+            assert self._nrr < i1 + 1 == i2 < self._ndim
+            j = i1 - self._nrr
+            r = self.combine_representations(
+                (self._col_reps[j], self._col_reps[j + 1]), s
+            )
+            col_reps = self._col_reps[:j] + (r,) + self._col_reps[j + 2 :]
+            row_reps = self._row_reps
+        signature = np.hstack((self._signature[:i1], self._signature[i2:]))
+        return type(self)(
+            row_reps, col_reps, self._blocks, self._block_irreps, signature
+        )
 
     ####################################################################################
     # Linear algebra
@@ -413,8 +478,10 @@ class SymmetricTensor:
 
         degen = np.array([s.size for s in s_blocks])
         mid_rep = self.init_representation(degen, self._block_irreps)
-        U = type(self)(self._row_reps, (mid_rep,), u_blocks, self._block_irreps)
-        V = type(self)((mid_rep,), self._col_reps, v_blocks, self._block_irreps)
+        usign = np.hstack((self._signature[: self._nrr], np.array([True])))
+        U = type(self)(self._row_reps, (mid_rep,), u_blocks, self._block_irreps, usign)
+        vsign = np.hstack((np.array([False]), self._signature[self._nrr :]))
+        V = type(self)((mid_rep,), self._col_reps, v_blocks, self._block_irreps, vsign)
         return U, s_blocks, V
 
     def truncated_svd(
@@ -459,13 +526,17 @@ class SymmetricTensor:
 
         block_irreps = self._block_irreps[non_empty]
         mid_rep = self.init_representation(block_cuts[non_empty], block_irreps)
-        U = type(self)(self._row_reps, (mid_rep,), u_blocks, block_irreps)
-        V = type(self)((mid_rep,), self._col_reps, v_blocks, block_irreps)
+        usign = np.hstack((self._signature[: self._nrr], np.array([True])))
+        U = type(self)(self._row_reps, (mid_rep,), u_blocks, block_irreps, usign)
+        vsign = np.hstack((np.array([False]), self._signature[self._nrr :]))
+        V = type(self)((mid_rep,), self._col_reps, v_blocks, block_irreps, vsign)
         return U, s_values, V
 
     def expm(self):
         blocks = tuple(lg.expm(b) for b in self._blocks)
-        return type(self)(self._row_reps, self._col_reps, blocks, self._block_irreps)
+        return type(self)(
+            self._row_reps, self._col_reps, blocks, self._block_irreps, self._signature
+        )
 
     ####################################################################################
     # I/O
@@ -486,9 +557,10 @@ class SymmetricTensor:
         # prefixes.
         data = {
             prefix + "_symmetry": self.symmetry,
-            prefix + "_n_row_reps": len(self._row_reps),
-            prefix + "_n_col_reps": len(self._col_reps),
+            prefix + "_n_row_reps": self._nrr,
+            prefix + "_n_col_reps": self._ndim - self._nrr,
             prefix + "_block_irreps": self._block_irreps,
+            prefix + "_signature": self._signature,
         }
         for ri, r in enumerate(self._row_reps):
             data[f"{prefix}_row_rep_{ri}"] = r
@@ -509,10 +581,11 @@ class SymmetricTensor:
         for ci in range(data[prefix + "_n_col_reps"][()]):
             col_reps.append(data[f"{prefix}_col_rep_{ci}"])
         block_irreps = data[prefix + "_block_irreps"]
+        signature = data[prefix + "_signature"]
         blocks = []
         for bi in range(block_irreps.size):
             blocks.append(data[f"{prefix}_block_{bi}"])
-        return cls(row_reps, col_reps, blocks, block_irreps)
+        return cls(row_reps, col_reps, blocks, block_irreps, signature)
 
     @classmethod
     def load_from_file(cls, savefile, prefix=""):

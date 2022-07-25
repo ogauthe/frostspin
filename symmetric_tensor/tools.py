@@ -1,10 +1,12 @@
 from .asymmetric_tensor import AsymmetricTensor
 from .u1_symmetric_tensor import U1_SymmetricTensor
+from .o2_symmetric_tensor import O2_SymmetricTensor
 from .su2_symmetric_tensor import SU2_SymmetricTensor
 
 symmetric_tensor_types = {
     "trivial": AsymmetricTensor,
     "U1": U1_SymmetricTensor,
+    "O2": O2_SymmetricTensor,
     "SU2": SU2_SymmetricTensor,
 }
 

@@ -256,6 +256,11 @@ class AbelianSymmetricTensor(SymmetricTensor):
     ####################################################################################
     # Symmetry implementation
     ####################################################################################
+    @classmethod
+    @property
+    def singlet(cls):
+        return np.zeros((1,), dtype=np.int8)
+
     @staticmethod
     def init_representation(degen, irreps):
         rep = np.empty((degen.sum(),), dtype=np.int8)
@@ -277,45 +282,87 @@ class AbelianSymmetricTensor(SymmetricTensor):
     # Symmetry specific methods with fixed signature
     ####################################################################################
     @classmethod
-    def from_array(cls, arr, row_reps, col_reps, conjugate_columns=True):
+    def from_array(cls, arr, row_reps, col_reps, signature=None):
         assert arr.shape == tuple(r.size for r in row_reps + col_reps)
-        if conjugate_columns:
-            col_reps = tuple(cls.conjugate_representation(r) for r in col_reps)
-        row_irreps = cls.combine_representations(*row_reps)
-        col_irreps = cls.combine_representations(*col_reps)
+        nrr = len(row_reps)
+        if signature is None:
+            signature = np.arange(nrr + len(col_reps)) >= nrr
+        else:
+            signature = np.ascontiguousarray(signature, dtype=bool)
+            assert signature.shape == (nrr + len(col_reps),)
+
+        row_irreps = cls.combine_representations(row_reps, signature[:nrr])
+        col_irreps = cls.combine_representations(col_reps, ~signature[nrr:])
         # requires copy if arr is not contiguous
         # using flatiter on non-contiguous is too slow, no other way
         M = arr.reshape(row_irreps.size, col_irreps.size)
         blocks, block_irreps = _numba_reduce_to_blocks(M, row_irreps, col_irreps)
         assert (
             abs((n := lg.norm(arr)) - np.sqrt(sum(lg.norm(b) ** 2 for b in blocks)))
-            <= 2e-13 * n  # allows for arr = 0
+            <= 1e-14 * n  # allows for arr = 0
         ), "norm is not conserved in AbelianSymmetricTensor cast"
-        return cls(row_reps, col_reps, blocks, block_irreps)
+        return cls(row_reps, col_reps, blocks, block_irreps, signature)
 
-    def _toarray(self):
-        return _numba_blocks_to_array(
+    def toarray(self, as_matrix=False):
+        # cast blocks to C-contiguous to avoid numba bug
+        self._blocks = tuple(np.ascontiguousarray(b) for b in self._blocks)
+        m = _numba_blocks_to_array(
             self._blocks,
             self._block_irreps,
             self.get_row_representation(),
             self.get_column_representation(),
         )
+        if as_matrix:
+            return m
+        return m.reshape(self._shape)
 
-    def _permutate(self, row_axes, col_axes):
-        # construt new axes, conjugate if axis changes between row adnd column
-        nrr = len(self._row_reps)
-        row_reps = []
-        for ax in row_axes:
-            if ax < nrr:
-                row_reps.append(self._row_reps[ax])
+    @property
+    def T(self):
+        # in the abelian case, matrix transpose can be obtained by conjugating
+        # block_irreps transposing, transpose all blocks and reorder them according to
+        # their new (conjugate) irrep.
+        conj_irreps = self.conjugate_representation(self._block_irreps)
+        so = conj_irreps.argsort()
+        block_irreps = conj_irreps[so]
+        blocks = tuple(self._blocks[i].T for i in so)
+        s = self._signature[np.arange(-self._ndim + self._nrr, self._nrr) % self._ndim]
+        return type(self)(self._col_reps, self._row_reps, blocks, block_irreps, s)
+
+    def permutate(self, row_axes, col_axes):
+        assert sorted(row_axes + col_axes) == list(range(self._ndim))
+
+        # return early for identity or matrix transpose
+        if row_axes == tuple(range(self._nrr)) and col_axes == tuple(
+            range(self._nrr, self._ndim)
+        ):
+            return self
+        if row_axes == tuple(range(self._nrr, self._ndim)) and col_axes == tuple(
+            range(self._nrr)
+        ):
+            return self.T
+
+        # avoid numba issue: blocks need to be C-contiguous
+        if not all(b.flags["C"] for b in self._blocks):
+            if all(b.flags["F"] for b in self._blocks):  # .T returns C-contiguous
+                row_axes_T = tuple((ax - self._nrr) % self._ndim for ax in row_axes)
+                col_axes_T = tuple((ax - self._nrr) % self._ndim for ax in col_axes)
+                return self.T.permutate(row_axes_T, col_axes_T)
+            self._blocks = tuple(np.ascontiguousarray(b) for b in self._blocks)
+
+        # construct new row and column representations
+        axes = row_axes + col_axes
+        nrr = len(row_axes)
+        signature = []
+        reps = []
+        for ax in axes:
+            signature.append(self._signature[ax])
+            if ax < self._nrr:
+                reps.append(self._row_reps[ax])
             else:
-                row_reps.append(self.conjugate_representation(self._col_reps[ax - nrr]))
-        col_reps = []
-        for ax in col_axes:
-            if ax < nrr:
-                col_reps.append(self.conjugate_representation(self._row_reps[ax]))
-            else:
-                col_reps.append(self._col_reps[ax - nrr])
+                reps.append(self._col_reps[ax - self._nrr])
+        signature = np.array(signature)
+        row_irreps = self.combine_representations(reps[:nrr], signature[:nrr])
+        col_irreps = self.combine_representations(reps[nrr:], ~signature[nrr:])
 
         # construct new blocks by swapping coeff
         blocks, block_irreps = _numba_abelian_transpose(
@@ -324,21 +371,25 @@ class AbelianSymmetricTensor(SymmetricTensor):
             self._block_irreps,
             self.get_row_representation(),
             self.get_column_representation(),
-            nrr,
-            row_axes + col_axes,
-            self.combine_representations(*row_reps),
-            self.combine_representations(*col_reps),
+            self._nrr,
+            axes,
+            row_irreps,
+            col_irreps,
         )
-        return type(self)(row_reps, col_reps, blocks, block_irreps)
+
+        tp = type(self)(reps[:nrr], reps[nrr:], blocks, block_irreps, signature)
+        assert abs(self.norm() - tp.norm()) <= 1e-14 * self.norm()
+        return tp
 
     def group_conjugated(self):
         conj_irreps = self.conjugate_representation(self._block_irreps)  # abelian only
         so = conj_irreps.argsort()
         block_irreps = conj_irreps[so]
         blocks = tuple(self._blocks[i] for i in so)
-        row_reps = tuple(self.conjugate_representation(r) for r in self._row_reps)
-        col_reps = tuple(self.conjugate_representation(r) for r in self._col_reps)
-        return type(self)(row_reps, col_reps, blocks, block_irreps)
+        signature = ~self._signature
+        return type(self)(
+            self._row_reps, self._col_reps, blocks, block_irreps, signature
+        )
 
     def check_blocks_fit_representations(self):
         assert self._block_irreps.size == self._nblocks
@@ -358,3 +409,21 @@ class AbelianSymmetricTensor(SymmetricTensor):
 
     def toabelian(self):
         return self
+
+    def update_signature(self, sign_update):
+        # in the abelian case, bending an index to the left or to the right makes no
+        # difference, signs can be ignored.
+        up = np.asarray(sign_update, dtype=bool)
+        assert up.shape == (self._ndim,)
+        row_reps = list(self._row_reps)
+        col_reps = list(self._col_reps)
+        for i in up.nonzero()[0]:
+            if i < self._nrr:
+                row_reps[i] = self.conjugate_representation(row_reps[i])
+            else:
+                j = i - self._nrr
+                col_reps[j] = self.conjugate_representation(col_reps[j])
+        self._row_reps = tuple(row_reps)
+        self._col_reps = tuple(col_reps)
+        self._signature = self._signature ^ up
+        assert self.check_blocks_fit_representations()

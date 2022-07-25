@@ -69,14 +69,7 @@ class CTMRG:
     """
 
     def __init__(
-        self,
-        env,
-        chi,
-        block_chi_ratio,
-        ncv_ratio,
-        cutoff,
-        degen_ratio,
-        verbosity,
+        self, env, chi, block_chi_ratio, ncv_ratio, cutoff, degen_ratio, verbosity
     ):
         """
         Constructor for totally asymmetric CTMRG algorithm. Consider using from_file or
@@ -173,15 +166,7 @@ class CTMRG:
         if verbosity > 0:
             print("Start CTMRG from elementary tensors")
         env = CTM_Environment.from_elementary_tensors(tiling, tensors)
-        return cls(
-            env,
-            chi,
-            block_chi_ratio,
-            ncv_ratio,
-            cutoff,
-            degen_ratio,
-            verbosity,
-        )
+        return cls(env, chi, block_chi_ratio, ncv_ratio, cutoff, degen_ratio, verbosity)
 
     def set_tensors(self, tensors):
         """
@@ -215,15 +200,7 @@ class CTMRG:
         # better to open and close savefile twice (here and in env) to have env __init__
         # outside of file opening block.
         env = CTM_Environment.from_file(filename)
-        return cls(
-            env,
-            chi,
-            block_chi_ratio,
-            ncv_ratio,
-            cutoff,
-            degen_ratio,
-            verbosity,
-        )
+        return cls(env, chi, block_chi_ratio, ncv_ratio, cutoff, degen_ratio, verbosity)
 
     def save_to_file(self, filename, additional_data={}):
         """
@@ -311,6 +288,17 @@ class CTMRG:
         self._env = CTM_Environment.from_elementary_tensors(tiling, tensors)
         if self.verbosity > 0:
             print(self)
+
+    def set_symmetry(self, symmetry):
+        """
+        Cast all SymmetricTensor to a new symmetry.
+
+        Parameters
+        ----------
+        symmetry: str
+            Symmetry group
+        """
+        self._env.set_symmetry(symmetry)
 
     def truncate_corners(self):
         """
@@ -470,11 +458,11 @@ class CTMRG:
             print(
                 "Compute reduced density matrix for every cell nearest neighbor sites"
             )
-        rdm2x1_cell = []  # avoid import of specific array lib
-        rdm1x2_cell = []  # + allow for different d in cell
+        rdm1x2_cell = []
+        rdm2x1_cell = []
         for x, y in self._neq_coords:
-            rdm2x1_cell.append(self.compute_rdm2x1(x, y))
             rdm1x2_cell.append(self.compute_rdm1x2(x, y))
+            rdm2x1_cell.append(self.compute_rdm2x1(x, y))
         return rdm2x1_cell, rdm1x2_cell
 
     def compute_rdm_2nd_neighbor_cell(self):

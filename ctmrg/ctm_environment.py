@@ -19,23 +19,32 @@ def _initialize_env(A):
     #   |        ||        |
     #   C4-1   3-T3-2   1-C3
 
-    # merge axes quick and dirty
-    combine = A.combine_representations
-    axes = A.col_reps
-    caxes = tuple(A.conjugate_representation(r) for r in axes)
+    # leg ordering is set according to diagram upside
+    # all functions using edge T use some transpose to fix n_row_reps
+    # so there can be no error associated with it
+    # however signature matter.
+    # convention: corners C1, C2 and C4 have standard matrix signature ->-C->-
+    # ie 0 for row and 1 for column
+    # it is not possible to impose the same convention for C3
+    # edges signature for corner legs have to obey
+    # this convention does not change through iteration. (In any case SVD always
+    # produces isometries with matching signatures)
+    # for edges legs merging with center A, signature must respect A.signature
+    # no assumption is made on it.
 
-    def init_C(At):
-        temp = At.H @ At
-        temp = temp.permutate((2, 0), (3, 1))
-        row_reps = (combine(*temp.row_reps),)
-        col_reps = (combine(*temp.col_reps),)
-        C = type(At)(row_reps, col_reps, temp.blocks, temp.block_irreps)
+    def init_C(At, su):
+        C = At.H @ At
+        C = C.permutate((2, 0), (3, 1))
+        C.update_signature(su)
+        C = C.merge_legs(2, 3).merge_legs(0, 1)
         return C
 
-    C1 = init_C(A.permutate((0, 1, 2, 5), (3, 4)))
-    C2 = init_C(A.permutate((0, 1, 2, 3), (4, 5)))
-    C3 = init_C(A.permutate((0, 1, 3, 4), (2, 5)))
-    C4 = init_C(A.permutate((0, 1, 4, 5), (2, 3)))
+    # Due to C3 annoying conventions, some -1 need to appear here. These signature
+    # update are independent of A signature or of the unit cell tiling pattern.
+    C1 = init_C(A.permutate((0, 1, 2, 5), (3, 4)), [0, 1, 0, 1])
+    C2 = init_C(A.permutate((0, 1, 2, 3), (4, 5)), [0, -1, 0, 1])
+    C3 = init_C(A.permutate((0, 1, 3, 4), (2, 5)), [0, 1, 0, 1])
+    C4 = init_C(A.permutate((0, 1, 4, 5), (2, 3)), [0, 1, 0, -1])
 
     # merging is trivial for abelian symmetries, however for non-abelian symmetries
     # one must be careful not to change tree structure. With current tree structure
@@ -50,34 +59,35 @@ def _initialize_env(A):
     #   /\
     #  / /\
     #
-    # to avoid this, additional leg permutation are added so that legs to be merged are
+    # to avoid this, additional leg permutations are added so that legs to be merged are
     # always 0 and 1 in row or columns. Additional cost is very low, just add one
     # permutation on T with total size D^6.
+
     temp = A.permutate((0, 1, 2), (3, 4, 5))
-    temp = temp.H @ temp
-    temp = temp.permutate((3, 0), (5, 2, 4, 1))
-    repT1 = (combine(caxes[1], axes[1]), combine(axes[3], caxes[3]), axes[2], caxes[2])
-    T1 = type(A)(repT1[:1], repT1[1:], temp.blocks, temp.block_irreps)
+    T1 = temp.H @ temp
+    T1 = T1.permutate((3, 0), (5, 2, 4, 1))
+    T1.update_signature([0, 1, 0, 1, 0, 0])
+    T1 = T1.merge_legs(2, 3).merge_legs(0, 1)
     T1 = T1.permutate((0,), (2, 3, 1))
 
     temp = A.permutate((0, 1, 3), (2, 4, 5))
-    temp = temp.H @ temp
-    temp = temp.permutate((3, 0), (4, 1, 5, 2))
-    repT2 = (combine(caxes[0], axes[0]), combine(axes[2], caxes[2]), axes[3], caxes[3])
-    T2 = type(A)(repT2[:1], repT2[1:], temp.blocks, temp.block_irreps)
+    T2 = temp.H @ temp
+    T2 = T2.permutate((3, 0), (4, 1, 5, 2))
+    T2.update_signature([0, 1, 0, 1, 0, 0])
+    T2 = T2.merge_legs(2, 3).merge_legs(0, 1)
 
     temp = A.permutate((0, 1, 4), (2, 3, 5))
-    temp = temp.H @ temp
-    temp = temp.permutate((4, 1), (5, 2, 3, 0))
-    repT3 = (combine(caxes[1], axes[1]), combine(axes[3], caxes[3]), axes[0], caxes[0])
-    T3 = type(A)(repT3[:1], repT3[1:], temp.blocks, temp.block_irreps)
+    T3 = temp.H @ temp
+    T3 = T3.permutate((4, 1), (5, 2, 3, 0))
+    T3.update_signature([0, 1, 0, 1, 0, 0])
+    T3 = T3.merge_legs(2, 3).merge_legs(0, 1)
     T3 = T3.permutate((2, 3, 0), (1,))
 
     temp = A.permutate((0, 1, 5), (2, 3, 4))
-    temp = temp.H @ temp
-    temp = temp.permutate((3, 0), (5, 2, 4, 1))
-    repT4 = (combine(caxes[0], axes[0]), combine(axes[2], caxes[2]), axes[1], caxes[1])
-    T4 = type(A)(repT4[:1], repT4[1:], temp.blocks, temp.block_irreps)
+    T4 = temp.H @ temp
+    T4 = T4.permutate((3, 0), (5, 2, 4, 1))
+    T4.update_signature([0, 1, 0, 1, 0, 0])
+    T4 = T4.merge_legs(2, 3).merge_legs(0, 1)
     T4 = T4.permutate((0,), (2, 3, 1))
 
     return C1, T1, C2, T2, C3, T3, C4, T4
@@ -159,9 +169,9 @@ class CTM_Environment:
         for (x, y) in self._neq_coords:
             axes = self.get_A(x, y).group_conjugated().col_reps
             if not (axes[0] == self.get_A(x, y - 1).col_reps[2]).all():
-                raise ValueError("Vertical bond does not match at coord {(x,y)}")
+                raise ValueError(f"Vertical bond does not match at coord {(x,y)}")
             if not (axes[1] == self.get_A(x + 1, y).col_reps[3]).all():
-                raise ValueError("Horizontal bond does not match at coord {(x,y)}")
+                raise ValueError(f"Horizontal bond does not match at coord {(x,y)}")
 
         # 5) init enlarged corner and projectors lists
         self._corners_ul = [None] * self._Nneq
@@ -271,6 +281,25 @@ class CTM_Environment:
         self._corners_ur = [None] * self._Nneq
         self._corners_dl = [None] * self._Nneq
         self._corners_dr = [None] * self._Nneq
+
+    def set_symmetry(self, symmetry):
+        self._ST = get_symmetric_tensor_type(symmetry)
+
+        # reset constructed corners
+        self._corners_ul = [None] * self._Nneq
+        self._corners_ur = [None] * self._Nneq
+        self._corners_dl = [None] * self._Nneq
+        self._corners_dr = [None] * self._Nneq
+
+        self._neq_As = tuple(A.cast(symmetry) for A in self._neq_As)
+        self._neq_C1s = [C1.cast(symmetry) for C1 in self._neq_C1s]
+        self._neq_C2s = [C2.cast(symmetry) for C2 in self._neq_C2s]
+        self._neq_C3s = [C3.cast(symmetry) for C3 in self._neq_C3s]
+        self._neq_C4s = [C4.cast(symmetry) for C4 in self._neq_C4s]
+        self._neq_T1s = [T1.cast(symmetry) for T1 in self._neq_T1s]
+        self._neq_T2s = [T2.cast(symmetry) for T2 in self._neq_T2s]
+        self._neq_T3s = [T3.cast(symmetry) for T3 in self._neq_T3s]
+        self._neq_T4s = [T4.cast(symmetry) for T4 in self._neq_T4s]
 
     @property
     def cell(self):

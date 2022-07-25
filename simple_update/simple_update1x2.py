@@ -60,45 +60,53 @@ class SimpleUpdate1x2(SimpleUpdate):
             Level of log verbosity. Default is no log.
         """
         h0 = hamiltonians[0]
-        ST = type(h0)
         phys = h0.row_reps[0]
         d = h0.shape[0]
-        t0 = np.eye(d).reshape(d, d, 1, 1, 1, 1)
+        t0 = np.eye(d).reshape(d, 1, 1, 1, d, 1)
 
-        # quick and dirty. Need singlet as symmetry member.
-        if ST.symmetry == "trivial":
-            sing = np.array([1])
-            left = ST.from_array(t0, (phys,), (phys, sing, sing, sing, sing))
-        elif ST.symmetry == "U1":
-            sing = np.array([0], dtype=np.int8)
-            left = ST.from_array(
-                t0, (-phys,), (-phys, sing, sing, sing, sing), conjugate_columns=False
-            )
-        elif ST.symmetry == "SU2":
-            sing = np.array([[1], [1]])
-            left = ST.from_array(t0, (phys,), (phys, sing, sing, sing, sing))
+        # for simplicity, impose all Hamiltonians to have standard signature
+        s = np.array([False, False, True, True])
+        if not all((h.signature == s).all() for h in hamiltonians):
+            raise ValueError(f"Hamiltonians must have signature {s}")
 
-        left = left.permutate((1, 3, 4, 5), (0, 2))
+        # use same signature for physical and ancilla legs on all tensors:
+        # True for physical
+        # False for ancilla
+        # for easy contraction with Hamiltonian
+        # however virtual legs need to have opposite signatures on 2 sublattices
+        # choose signature so that weights are always applied on the side where they
+        # were cut: right for A, left for B.
+
+        # left and right carry the same representations.
+        # use same signature for physical and ancilla legs
+        # however virtual legs need to have opposite signatures
+        #
         #       left                right
         #       /  \                /  \
         #      /    \              /    \
         #    ////   /\           ///    /\
         #   a234   p  1         a234   p  1
+        #   -+++   +  +         ----   +  -
+        sing = h0.singlet
+        sl = np.array([0, 1, 1, 1, 1, 1], dtype=bool)
+        left = h0.from_array(t0, (phys, sing, sing, sing), (phys, sing), signature=sl)
+        sr = np.array([0, 0, 0, 0, 1, 0], dtype=bool)
+        right = h0.from_array(t0, (phys, sing, sing, sing), (phys, sing), signature=sr)
         return cls(
             D,
             0.0,
             tau,
             rcutoff,
             degen_ratio,
-            [left, left.group_conjugated().copy()],
+            [left, right],
             hamiltonians,
-            [np.ones(1)] * cls._n_bonds,
+            [[np.ones((1,))] for i in range(cls._n_bonds)],
             verbosity,
         )
 
     def get_bond_representations(self):
         left = self._tensors[0]
-        r1 = self._ST.conjugate_representation(left.col_reps[1])
+        r1 = left.col_reps[1]
         r2 = left.row_reps[1]
         r3 = left.row_reps[2]
         r4 = left.row_reps[3]
@@ -111,11 +119,8 @@ class SimpleUpdate1x2(SimpleUpdate):
         A = np.einsum("ardlpu,u,r,d,l->ardlpu", A0.toarray(), sw1, sw2, sw3, sw4)
         B0 = self._tensors[1]
         B = np.einsum("alurpd,u,r,d,l->alurpd", B0.toarray(), sw3, sw4, sw1, sw2)
-        # same problem as in from_infinite_temperature: conjugate_columns has differen
-        # effect between U(1) and SU(2) from_array.
-        cc = self._ST.symmetry == "SU2"
-        A = self._ST.from_array(A, A0._row_reps, A0._col_reps, conjugate_columns=cc)
-        B = self._ST.from_array(B, B0._row_reps, B0._col_reps, conjugate_columns=cc)
+        A = self._ST.from_array(A, A0._row_reps, A0._col_reps, signature=A0.signature)
+        B = self._ST.from_array(B, B0._row_reps, B0._col_reps, signature=B0.signature)
         A = A.permutate((4, 0), (5, 1, 2, 3))
         B = B.permutate((4, 0), (2, 3, 5, 1))
         return A, B
