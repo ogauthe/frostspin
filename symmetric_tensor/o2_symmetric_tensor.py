@@ -144,7 +144,7 @@ def _numba_get_reflection_perm_sign(rep):
     """
     d = _numba_O2_representation_dimension(rep)
     perm = np.arange(d)
-    sign = np.ones((d,), dtype=np.int64)
+    sign = np.ones((d,), dtype=np.int8)
     i1 = np.searchsorted(rep[1], 1)  # slice containing 0o and 0e if they exist
     if rep[1, 0] == -1:
         sign[: rep[0, 0]] = -1
@@ -157,6 +157,17 @@ def _numba_get_reflection_perm_sign(rep):
             sign[k + degen : k + 2 * degen] = -1
         k += 2 * degen
     return perm, sign
+
+
+@numba.njit
+def get_swapped(indices, strides, reps):
+    indices_b = np.zeros(indices.shape[0], dtype=np.int64)
+    signs = np.ones((indices.shape[0],), dtype=np.int8)
+    for i, r in enumerate(reps):
+        p, s = _numba_get_reflection_perm_sign(r)
+        indices_b += p[indices[:, i]] * strides[i]  # map all indices to spin reversed
+        signs *= s[indices[:, i]]
+    return indices_b, signs
 
 
 def _get_b0_projectors(row_reps, col_reps, signature):
@@ -174,16 +185,9 @@ def _get_b0_projectors(row_reps, col_reps, signature):
     u1_combined = U1_SymmetricTensor.combine_representations(
         u1_row_reps, signature[:nrr]
     )
-    rsz_mat = (u1_combined == 0).nonzero()[0]  # find Sz=0 states
-    rsz_t = (rsz_mat // row_cp[:, None]).T % shr  # multi-index form
-    rszb_mat = np.zeros(rsz_mat.size, dtype=int)
-    rsign = np.ones((rsz_mat.size,), dtype=int)
-    for i, r in enumerate(row_reps):
-        rmap, sign = _numba_get_reflection_perm_sign(r)
-        rszb_mat += rmap[rsz_t[:, i]] * row_cp[i]  # map all indices to spin reversed
-        rsign *= sign[rsz_t[:, i]]
-
-    rso = rszb_mat.argsort()  # imposed sorted block indices in U(1) => argsort
+    rso = ((u1_combined == 0).nonzero()[0] // row_cp[:, None]).T % shr
+    rso, rsign = get_swapped(rso, row_cp, row_reps)
+    rso = rso.argsort()  # imposed sorted block indices in U(1) => argsort
     ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols = _numba_get_coo_proj(rsign, rso)
     pre = sp.coo_matrix((ecoeff, (erows, ecols)), shape=(ie, rso.size))
     pro = sp.coo_matrix((ocoeff, (orows, ocols)), shape=(io, rso.size))
@@ -197,16 +201,9 @@ def _get_b0_projectors(row_reps, col_reps, signature):
     u1_combined = U1_SymmetricTensor.combine_representations(
         u1_col_reps, ~signature[nrr:]
     )
-    csz_mat = (u1_combined == 0).nonzero()[0]  # find Sz=0 states
-    csz_t = (csz_mat // col_cp[:, None]).T % shc  # multi-index form
-    cszb_mat = np.zeros(csz_mat.size, dtype=int)
-    csign = np.ones((csz_mat.size,), dtype=int)
-    for i, r in enumerate(col_reps):
-        cmap, sign = _numba_get_reflection_perm_sign(r)
-        cszb_mat += cmap[csz_t[:, i]] * col_cp[i]  # map all indices to spin reversed
-        csign *= sign[csz_t[:, i]]
-
-    cso = cszb_mat.argsort()  # imposed sorted block indices in U(1) => argsort
+    cso = ((u1_combined == 0).nonzero()[0] // col_cp[:, None]).T % shc
+    cso, csign = get_swapped(cso, col_cp, col_reps)
+    cso = cso.argsort()  # imposed sorted block indices in U(1) => argsort
     ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols = _numba_get_coo_proj(csign, cso)
     pce = sp.coo_matrix((ecoeff, (erows, ecols)), shape=(ie, cso.size))
     pco = sp.coo_matrix((ocoeff, (orows, ocols)), shape=(io, cso.size))
@@ -214,6 +211,15 @@ def _get_b0_projectors(row_reps, col_reps, signature):
     pco = pco.T.tocsr()
 
     return pro, pre, pco, pce
+
+
+@numba.njit(parallel=True)
+def _numba_generate_block(rso, cso, bsigns):
+    b = np.empty((rso.size, cso.size), dtype=bsigns.dtype)
+    for i in numba.prange(rso.size):
+        for j in numba.prange(cso.size):
+            b[rso[i], cso[j]] = bsigns[i, j]
+    return b
 
 
 class O2_SymmetricTensor(NonAbelianSymmetricTensor):
@@ -386,23 +392,23 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             rsz_mat = (u1_combined_row == sz).nonzero()[0]  # find Sz states
             rsz_t = (rsz_mat // row_cp[:, None]).T % shr  # multi-index form
             rszb_mat = np.zeros((rsz_mat.size,), dtype=int)
-            rsign = np.ones((rsz_mat.size,), dtype=int)
+            rsign = np.ones((rsz_mat.size,), dtype=np.int8)
             for i, r in enumerate(self._row_reps):
                 rszb_mat += rmaps[i][rsz_t[:, i]] * row_cp[i]  # map to spin reversed
                 rsign *= rsigns[i][rsz_t[:, i]]
 
-            rso = rszb_mat.argsort()  # imposed sorted block indices in U(1) => argsort
-
             csz_mat = (u1_combined_col == sz).nonzero()[0]  # find Sz states
             csz_t = (csz_mat // col_cp[:, None]).T % shc  # multi-index form
             cszb_mat = np.zeros((csz_mat.size,), dtype=int)
-            csign = np.ones((csz_mat.size,), dtype=int)
+            csign = np.ones((csz_mat.size,), dtype=np.int8)
             for i, r in enumerate(self._col_reps):
                 cszb_mat += cmaps[i][csz_t[:, i]] * col_cp[i]  # map to spin reversed
                 csign *= csigns[i][csz_t[:, i]]
 
-            cso = cszb_mat.argsort()  # imposed sorted block indices in U(1) => argsort
-            b = (rsign[:, None] * self._blocks[isz] * csign)[rso[:, None], cso]
+            rso = rszb_mat.argsort().argsort()
+            cso = cszb_mat.argsort().argsort()
+            bsign = np.einsum("i,j,ij->ij", rsign, csign, self._blocks[isz])
+            b = _numba_generate_block(rso, cso, bsign)
             blocks.append(b)
             isz -= 1
 
@@ -471,6 +477,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
                 reps.append(self._row_reps[ax])
             else:
                 reps.append(self._col_reps[ax - self._nrr])
+        reps = tuple(reps)
         tu1 = self.toU1().permutate(row_axes, col_axes)
         tp = self.from_U1(tu1, reps[: len(row_axes)], reps[len(row_axes) :])
         assert (
