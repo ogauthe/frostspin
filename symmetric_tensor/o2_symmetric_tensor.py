@@ -4,7 +4,7 @@ import scipy.linalg as lg
 import numba
 
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
-from .u1_symmetric_tensor import U1_SymmetricTensor
+from .u1_symmetric_tensor import _numba_combine_U1, U1_SymmetricTensor
 
 
 @numba.njit
@@ -157,6 +157,84 @@ def _numba_get_reflection_perm_sign(rep):
             sign[k + degen : k + 2 * degen] = -1
         k += 2 * degen
     return perm, sign
+
+
+@numba.njit(parallel=True)
+def _numba_generate_neg_sz_blocks(reps, signature, nrr, block_sz, blocks):
+    """
+    Using O(2) symmetry, generate Sz<0 blocks from Sz>0.
+
+    Parameters
+    ----------
+    reps : tuple of 2D array
+        O(2) representations for each axis.
+    signature : 1D bool ndarray
+        Current signature.
+    nrr : int
+        Number of row reps.
+    block_sz : (nblocks,) int array
+        block Sz values, with only Sz > 0 values
+    blocks : tuple of nblocks 2D arrays
+        data blocks, with only Sz > 0. Blocks need to be contiguous.
+    """
+    u1_reps = []
+    maps = []
+    signs = []
+    shape = []
+    for r in reps:
+        shape.append(_numba_O2_representation_dimension(r))
+        u1_reps.append(_numba_O2_rep_to_U1(r))
+        rm, rs = _numba_get_reflection_perm_sign(r)
+        maps.append(rm)
+        signs.append(rs)
+
+    shr = np.array(shape[:nrr])
+    row_cp = np.array([1, *shr[-1:0:-1]]).cumprod()[::-1]
+    u1_combined_row = _numba_combine_U1(u1_reps[:nrr], signature[:nrr])
+
+    shc = np.array(shape[nrr:])
+    col_cp = np.array([1, *shc[-1:0:-1]]).cumprod()[::-1]
+    u1_combined_col = _numba_combine_U1(u1_reps[nrr:], ~signature[nrr:])
+
+    nsz_blocks = []
+    for sz, bsz in zip(block_sz, blocks):
+        rszb_mat = []
+        rsign = []
+        for i in range(u1_combined_row.size):  # find Sz states
+            if u1_combined_row[i] == sz:  # numba does not allow .nonzero
+                ind = (i // row_cp) % shr  # multi-index
+                indb = 0
+                s = np.int8(1)
+                for i in range(nrr):
+                    indb += maps[i][ind[i]] * row_cp[i]  # map to spin reversed
+                    s *= signs[i][ind[i]]
+                rszb_mat.append(indb)
+                rsign.append(s)
+        rszb_mat = np.array(rszb_mat)
+        rso = rszb_mat.argsort().argsort()  # imposed sorted block indices in U(1)
+
+        cszb_mat = []
+        csign = []
+        for i in range(u1_combined_col.size):  # find Sz states
+            if u1_combined_col[i] == sz:  # numba does not allow .nonzero
+                ind = (i // col_cp) % shc  # multi-index
+                indb = 0
+                s = np.int8(1)
+                for i in range(len(reps) - nrr):
+                    indb += maps[i + nrr][ind[i]] * col_cp[i]  # map to spin reversed
+                    s *= signs[i + nrr][ind[i]]
+                cszb_mat.append(indb)
+                csign.append(s)
+        cszb_mat = np.array(cszb_mat)
+        cso = cszb_mat.argsort().argsort()  # imposed sorted block indices in U(1)
+
+        b = np.empty((rso.size, cso.size), dtype=bsz.dtype)
+        for i in numba.prange(rso.size):
+            for j in numba.prange(cso.size):
+                b[rso[i], cso[j]] = (rsign[i] * csign[j]) * bsz[i, j]
+        nsz_blocks.append(b)
+
+    return nsz_blocks
 
 
 def _get_b0_projectors(row_reps, col_reps, signature):
@@ -348,68 +426,23 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
     def toabelian(self):
         return self.toU1()
 
-    def _generate_neg_sz_blocks(self):
-        u1_row_reps = [None] * self._nrr
-        rmaps = [None] * self._nrr
-        rsigns = [None] * self._nrr
-        for i, r in enumerate(self._row_reps):
-            u1_row_reps[i] = _numba_O2_rep_to_U1(r)
-            rmaps[i], rsigns[i] = _numba_get_reflection_perm_sign(r)
-
-        shr = np.array(self.shape[: self._nrr])
-        row_cp = np.array([1, *shr[-1:0:-1]]).cumprod()[::-1]
-        u1_combined_row = U1_SymmetricTensor.combine_representations(
-            u1_row_reps, self._signature[: self._nrr]
-        )
-
-        ncr = len(self._col_reps)
-        u1_col_reps = [None] * ncr
-        cmaps = [None] * ncr
-        csigns = [None] * ncr
-        for i, r in enumerate(self._col_reps):
-            u1_col_reps[i] = _numba_O2_rep_to_U1(r)
-            cmaps[i], csigns[i] = _numba_get_reflection_perm_sign(r)
-
-        shc = np.array(self.shape[self._nrr :])
-        col_cp = np.array([1, *shc[-1:0:-1]]).cumprod()[::-1]
-        u1_combined_col = U1_SymmetricTensor.combine_representations(
-            u1_col_reps, ~self._signature[self._nrr :]
-        )
-
-        blocks = []
-        isz = self._nblocks - 1
-        while isz > -1 and self._block_irreps[isz] > 0:
-            sz = self._block_irreps[isz]
-            # could factorize Sz-reflection, but implies doing operation for all Sz
-            # better to map to Sz-reflected inside loop, only for Sz<0?
-            # or numpy will make things faster?
-            rsz_mat = (u1_combined_row == sz).nonzero()[0]  # find Sz states
-            rsz_t = (rsz_mat // row_cp[:, None]).T % shr  # multi-index form
-            rszb_mat = np.zeros((rsz_mat.size,), dtype=int)
-            rsign = np.ones((rsz_mat.size,), dtype=int)
-            for i, r in enumerate(self._row_reps):
-                rszb_mat += rmaps[i][rsz_t[:, i]] * row_cp[i]  # map to spin reversed
-                rsign *= rsigns[i][rsz_t[:, i]]
-
-            rso = rszb_mat.argsort()  # imposed sorted block indices in U(1) => argsort
-
-            csz_mat = (u1_combined_col == sz).nonzero()[0]  # find Sz states
-            csz_t = (csz_mat // col_cp[:, None]).T % shc  # multi-index form
-            cszb_mat = np.zeros((csz_mat.size,), dtype=int)
-            csign = np.ones((csz_mat.size,), dtype=int)
-            for i, r in enumerate(self._col_reps):
-                cszb_mat += cmaps[i][csz_t[:, i]] * col_cp[i]  # map to spin reversed
-                csign *= csigns[i][csz_t[:, i]]
-
-            cso = cszb_mat.argsort()  # imposed sorted block indices in U(1) => argsort
-            b = (rsign[:, None] * self._blocks[isz] * csign)[rso[:, None], cso]
-            blocks.append(b)
-            isz -= 1
-
-        return blocks
-
     def toO2(self):
         return self
+
+    def _generate_neg_sz_blocks(self):
+        i0 = self._block_irreps.searchsorted(1)
+        if self._nblocks <= i0:  # avoid numba crash on empty tuple
+            return []
+        # avoid numba issue: blocks need to be C-contiguous
+        self._blocks = self._blocks[:i0] + tuple(
+            np.ascontiguousarray(b) for b in self._blocks[i0:]
+        )
+        reps = self._row_reps + self._col_reps
+        block_sz = (self._block_irreps[i0:][::-1]).copy()
+        blocks = self._blocks[i0:][::-1]
+        return _numba_generate_neg_sz_blocks(
+            reps, self._signature, self._nrr, block_sz, blocks
+        )
 
     def toU1(self):
         # Sz < 0 blocks
