@@ -53,12 +53,12 @@ def _numba_elementary_combine_O2(degen1, irreps1, degen2, irreps2):
 
 
 @numba.njit
-def _O2_representation_dimension(r):
+def _numba_O2_representation_dimension(r):
     return (r[0] * ((r[1] > 0).astype(np.int64) + 1)).sum()
 
 
 @numba.njit
-def _O2_rep_to_U1(r):
+def _numba_O2_rep_to_U1(r):
     """
     Map O(2) representation to U(1) representation
     O(2) representations starts with irreps 0odd, 0even which map to U(1) 0
@@ -69,7 +69,7 @@ def _O2_rep_to_U1(r):
     """
     # ordering is a bit more complex than consecutive pairs (n,-n)
     # hope to improve perf with these consecutive U(1) sectors
-    ru1 = np.empty((_O2_representation_dimension(r),), dtype=np.int8)
+    ru1 = np.empty((_numba_O2_representation_dimension(r),), dtype=np.int8)
     i = 0
     k = 0
     if r[1, 0] == -1:
@@ -89,7 +89,7 @@ def _O2_rep_to_U1(r):
 
 
 @numba.njit
-def _get_coo_proj(signs, so):
+def _numba_get_coo_proj(signs, so):
     ecoeff = []
     erows = []
     ecols = []
@@ -134,7 +134,7 @@ def _get_coo_proj(signs, so):
 
 
 @numba.njit
-def _get_reflection_perm_sign(rep):
+def _numba_get_reflection_perm_sign(rep):
     """
     Construct basis permutation mapping vectors into their reflected form.
 
@@ -142,7 +142,7 @@ def _get_reflection_perm_sign(rep):
     ----------
     rep: O(2) representation
     """
-    d = _O2_representation_dimension(rep)
+    d = _numba_O2_representation_dimension(rep)
     perm = np.arange(d)
     sign = np.ones((d,), dtype=np.int64)
     i1 = np.searchsorted(rep[1], 1)  # slice containing 0o and 0e if they exist
@@ -168,9 +168,9 @@ def _get_b0_projectors(row_reps, col_reps, signature):
     # TODO have only rsig, rso, csign, cso as input
     # reuse these for all Sz to generate -Sz block
     nrr = len(row_reps)
-    shr = np.array([_O2_representation_dimension(r) for r in row_reps])
+    shr = np.array([_numba_O2_representation_dimension(r) for r in row_reps])
     row_cp = np.array([1, *shr[-1:0:-1]]).cumprod()[::-1]
-    u1_row_reps = tuple(_O2_rep_to_U1(r) for r in row_reps)
+    u1_row_reps = tuple(_numba_O2_rep_to_U1(r) for r in row_reps)
     u1_combined = U1_SymmetricTensor.combine_representations(
         u1_row_reps, signature[:nrr]
     )
@@ -179,21 +179,21 @@ def _get_b0_projectors(row_reps, col_reps, signature):
     rszb_mat = np.zeros(rsz_mat.size, dtype=int)
     rsign = np.ones((rsz_mat.size,), dtype=int)
     for i, r in enumerate(row_reps):
-        rmap, sign = _get_reflection_perm_sign(r)
+        rmap, sign = _numba_get_reflection_perm_sign(r)
         rszb_mat += rmap[rsz_t[:, i]] * row_cp[i]  # map all indices to spin reversed
         rsign *= sign[rsz_t[:, i]]
 
     rso = rszb_mat.argsort()  # imposed sorted block indices in U(1) => argsort
-    ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols = _get_coo_proj(rsign, rso)
+    ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols = _numba_get_coo_proj(rsign, rso)
     pre = sp.coo_matrix((ecoeff, (erows, ecols)), shape=(ie, rso.size))
     pro = sp.coo_matrix((ocoeff, (orows, ocols)), shape=(io, rso.size))
     pre = pre.tocsr()
     pro = pro.tocsr()
 
     # same operation for columns
-    shc = [_O2_representation_dimension(r) for r in col_reps]
+    shc = [_numba_O2_representation_dimension(r) for r in col_reps]
     col_cp = np.array([1, *shc[-1:0:-1]]).cumprod()[::-1]
-    u1_col_reps = tuple(_O2_rep_to_U1(r) for r in col_reps)
+    u1_col_reps = tuple(_numba_O2_rep_to_U1(r) for r in col_reps)
     u1_combined = U1_SymmetricTensor.combine_representations(
         u1_col_reps, ~signature[nrr:]
     )
@@ -202,12 +202,12 @@ def _get_b0_projectors(row_reps, col_reps, signature):
     cszb_mat = np.zeros(csz_mat.size, dtype=int)
     csign = np.ones((csz_mat.size,), dtype=int)
     for i, r in enumerate(col_reps):
-        cmap, sign = _get_reflection_perm_sign(r)
+        cmap, sign = _numba_get_reflection_perm_sign(r)
         cszb_mat += cmap[csz_t[:, i]] * col_cp[i]  # map all indices to spin reversed
         csign *= sign[csz_t[:, i]]
 
     cso = cszb_mat.argsort()  # imposed sorted block indices in U(1) => argsort
-    ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols = _get_coo_proj(csign, cso)
+    ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols = _numba_get_coo_proj(csign, cso)
     pce = sp.coo_matrix((ecoeff, (erows, ecols)), shape=(ie, cso.size))
     pco = sp.coo_matrix((ocoeff, (orows, ocols)), shape=(io, cso.size))
     pce = pce.T.tocsr()
@@ -262,7 +262,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
 
     @staticmethod
     def representation_dimension(rep):
-        return _O2_representation_dimension(rep)
+        return _numba_O2_representation_dimension(rep)
 
     @staticmethod
     def irrep_dimension(irrep):
@@ -287,8 +287,8 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         # then split sector 0 into 0even and 0odd
         # discard sectors with n < 0
         # keep sectors with n > 0 as they are
-        u1_row_reps = tuple(_O2_rep_to_U1(r) for r in row_reps)
-        u1_col_reps = tuple(_O2_rep_to_U1(r) for r in col_reps)
+        u1_row_reps = tuple(_numba_O2_rep_to_U1(r) for r in row_reps)
+        u1_col_reps = tuple(_numba_O2_rep_to_U1(r) for r in col_reps)
         tu1 = U1_SymmetricTensor.from_array(arr, u1_row_reps, u1_col_reps, signature)
         to2 = cls.from_U1(tu1, row_reps, col_reps)
         assert abs(to2.norm() - lg.norm(arr)) <= 1e-14 * lg.norm(
@@ -312,11 +312,13 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         # just need signature as input instead of tu1.signature
         assert tu1._nrr == len(row_reps)
         assert all(
-            (_O2_rep_to_U1(r) == tu1.row_reps[i]).all() for i, r in enumerate(row_reps)
+            (_numba_O2_rep_to_U1(r) == tu1.row_reps[i]).all()
+            for i, r in enumerate(row_reps)
         )
         assert len(tu1.col_reps) == len(col_reps)
         assert all(
-            (_O2_rep_to_U1(r) == tu1.col_reps[i]).all() for i, r in enumerate(col_reps)
+            (_numba_O2_rep_to_U1(r) == tu1.col_reps[i]).all()
+            for i, r in enumerate(col_reps)
         )
 
         blocks = []
@@ -351,8 +353,8 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         rmaps = [None] * self._nrr
         rsigns = [None] * self._nrr
         for i, r in enumerate(self._row_reps):
-            u1_row_reps[i] = _O2_rep_to_U1(r)
-            rmaps[i], rsigns[i] = _get_reflection_perm_sign(r)
+            u1_row_reps[i] = _numba_O2_rep_to_U1(r)
+            rmaps[i], rsigns[i] = _numba_get_reflection_perm_sign(r)
 
         shr = np.array(self.shape[: self._nrr])
         row_cp = np.array([1, *shr[-1:0:-1]]).cumprod()[::-1]
@@ -365,8 +367,8 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         cmaps = [None] * ncr
         csigns = [None] * ncr
         for i, r in enumerate(self._col_reps):
-            u1_col_reps[i] = _O2_rep_to_U1(r)
-            cmaps[i], csigns[i] = _get_reflection_perm_sign(r)
+            u1_col_reps[i] = _numba_O2_rep_to_U1(r)
+            cmaps[i], csigns[i] = _numba_get_reflection_perm_sign(r)
 
         shc = np.array(self.shape[self._nrr :])
         col_cp = np.array([1, *shc[-1:0:-1]]).cumprod()[::-1]
@@ -440,8 +442,8 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         # Sz > 0 blocks
         blocks.extend(self._blocks[i1:])
 
-        u1_row_reps = tuple(_O2_rep_to_U1(r) for r in self._row_reps)
-        u1_col_reps = tuple(_O2_rep_to_U1(r) for r in self._col_reps)
+        u1_row_reps = tuple(_numba_O2_rep_to_U1(r) for r in self._row_reps)
+        u1_col_reps = tuple(_numba_O2_rep_to_U1(r) for r in self._col_reps)
         tu1 = U1_SymmetricTensor(
             u1_row_reps, u1_col_reps, blocks, block_irreps, self._signature
         )
