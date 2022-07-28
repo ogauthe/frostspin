@@ -217,13 +217,11 @@ def _get_b0_projectors(row_reps, col_reps, signature):
 
 
 @numba.njit(parallel=True)
-def _numba_generate_block(rszb_mat, cszb_mat, rsign, csign, bsz):
-    rso = rszb_mat.argsort().argsort()
-    cso = cszb_mat.argsort().argsort()
-    b = np.empty(bsz.shape, dtype=bsz.dtype)
-    for i in numba.prange(b.shape[0]):
-        for j in numba.prange(b.shape[1]):
-            b[rso[i], cso[j]] = (1 - 2 * (rsign[i] ^ csign[j])) * bsz[i, j]
+def _numba_generate_block(rso, cso, bsigns):
+    b = np.empty((rso.size, cso.size), dtype=bsigns.dtype)
+    for i in numba.prange(rso.size):
+        for j in numba.prange(cso.size):
+            b[rso[i], cso[j]] = bsigns[i, j]
     return b
 
 
@@ -410,9 +408,10 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
                 cszb_mat += cmaps[i][csz_t[:, i]] * col_cp[i]  # map to spin reversed
                 csign ^= csigns[i][csz_t[:, i]]
 
-            b = _numba_generate_block(
-                rszb_mat, cszb_mat, rsign, csign, self._blocks[isz]
-            )
+            rso = rszb_mat.argsort().argsort()
+            cso = cszb_mat.argsort().argsort()
+            bsign = (1 - 2 * rsign[:, None]) * self._blocks[isz] * (1 - 2 * csign)
+            b = _numba_generate_block(rso, cso, bsign)
             blocks.append(b)
             isz -= 1
 
