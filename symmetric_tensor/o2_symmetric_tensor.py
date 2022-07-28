@@ -216,6 +216,17 @@ def _get_b0_projectors(row_reps, col_reps, signature):
     return pro, pre, pco, pce
 
 
+@numba.njit(parallel=True)
+def _numba_generate_block(rszb_mat, cszb_mat, rsign, csign, bsz):
+    rso = rszb_mat.argsort().argsort()
+    cso = cszb_mat.argsort().argsort()
+    b = np.empty(bsz.shape, dtype=bsz.dtype)
+    for i in numba.prange(b.shape[0]):
+        for j in numba.prange(b.shape[1]):
+            b[rso[i], cso[j]] = (1 - 2 * (rsign[i] ^ csign[j])) * bsz[i, j]
+    return b
+
+
 class O2_SymmetricTensor(NonAbelianSymmetricTensor):
     """
     SymmetricTensor with global O(2) symmetry. Implement it as semi direct product of
@@ -391,8 +402,6 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
                 rszb_mat += rmaps[i][rsz_t[:, i]] * row_cp[i]  # map to spin reversed
                 rsign ^= rsigns[i][rsz_t[:, i]]
 
-            rso = rszb_mat.argsort()  # imposed sorted block indices in U(1) => argsort
-
             csz_mat = (u1_combined_col == sz).nonzero()[0]  # find Sz states
             csz_t = (csz_mat // col_cp[:, None]).T % shc  # multi-index form
             cszb_mat = np.zeros((csz_mat.size,), dtype=int)
@@ -401,10 +410,9 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
                 cszb_mat += cmaps[i][csz_t[:, i]] * col_cp[i]  # map to spin reversed
                 csign ^= csigns[i][csz_t[:, i]]
 
-            cso = cszb_mat.argsort()  # imposed sorted block indices in U(1) => argsort
-            b = ((1 - 2 * rsign[:, None]) * self._blocks[isz] * (1 - 2 * csign))[
-                rso[:, None], cso
-            ]
+            b = _numba_generate_block(
+                rszb_mat, cszb_mat, rsign, csign, self._blocks[isz]
+            )
             blocks.append(b)
             isz -= 1
 
