@@ -144,7 +144,7 @@ def _numba_get_reflection_perm_sign(rep):
     """
     d = _numba_O2_representation_dimension(rep)
     perm = np.arange(d)
-    sign = np.ones((d,), dtype=np.int64)
+    sign = np.ones((d,), dtype=np.int8)
     i1 = np.searchsorted(rep[1], 1)  # slice containing 0o and 0e if they exist
     if rep[1, 0] == -1:
         sign[: rep[0, 0]] = -1
@@ -177,7 +177,7 @@ def _get_b0_projectors(row_reps, col_reps, signature):
     rsz_mat = (u1_combined == 0).nonzero()[0]  # find Sz=0 states
     rsz_t = (rsz_mat // row_cp[:, None]).T % shr  # multi-index form
     rszb_mat = np.zeros(rsz_mat.size, dtype=int)
-    rsign = np.ones((rsz_mat.size,), dtype=int)
+    rsign = np.ones((rsz_mat.size,), dtype=np.int8)
     for i, r in enumerate(row_reps):
         rmap, sign = _numba_get_reflection_perm_sign(r)
         rszb_mat += rmap[rsz_t[:, i]] * row_cp[i]  # map all indices to spin reversed
@@ -200,7 +200,7 @@ def _get_b0_projectors(row_reps, col_reps, signature):
     csz_mat = (u1_combined == 0).nonzero()[0]  # find Sz=0 states
     csz_t = (csz_mat // col_cp[:, None]).T % shc  # multi-index form
     cszb_mat = np.zeros(csz_mat.size, dtype=int)
-    csign = np.ones((csz_mat.size,), dtype=int)
+    csign = np.ones((csz_mat.size,), dtype=np.int8)
     for i, r in enumerate(col_reps):
         cmap, sign = _numba_get_reflection_perm_sign(r)
         cszb_mat += cmap[csz_t[:, i]] * col_cp[i]  # map all indices to spin reversed
@@ -395,7 +395,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             rsz_mat = (u1_combined_row == sz).nonzero()[0]  # find Sz states
             rsz_t = (rsz_mat // row_cp[:, None]).T % shr  # multi-index form
             rszb_mat = np.zeros((rsz_mat.size,), dtype=int)
-            rsign = np.ones((rsz_mat.size,), dtype=int)
+            rsign = np.ones((rsz_mat.size,), dtype=np.int8)
             for i, r in enumerate(self._row_reps):
                 rszb_mat += rmaps[i][rsz_t[:, i]] * row_cp[i]  # map to spin reversed
                 rsign *= rsigns[i][rsz_t[:, i]]
@@ -403,7 +403,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             csz_mat = (u1_combined_col == sz).nonzero()[0]  # find Sz states
             csz_t = (csz_mat // col_cp[:, None]).T % shc  # multi-index form
             cszb_mat = np.zeros((csz_mat.size,), dtype=int)
-            csign = np.ones((csz_mat.size,), dtype=int)
+            csign = np.ones((csz_mat.size,), dtype=np.int8)
             for i, r in enumerate(self._col_reps):
                 cszb_mat += cmaps[i][csz_t[:, i]] * col_cp[i]  # map to spin reversed
                 csign *= csigns[i][csz_t[:, i]]
