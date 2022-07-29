@@ -247,6 +247,10 @@ class SimpleUpdate:
         br = self.get_bond_representations()
         return max(self._ST.representation_dimension(r) for r in br)
 
+    @property
+    def symmetry(self):
+        return self._ST.symmetry
+
     def get_bond_representations(self):
         raise NotImplementedError("Must be defined in derived class")
 

@@ -15,7 +15,8 @@ r5 = np.array([[2, 1, 1, 1], [-1, 0, 2, 3]])
 
 row_reps = (r1, r2, r3)
 col_reps = (r4, r5)
-to2 = O2_SymmetricTensor.random(row_reps, col_reps)
+rng = np.random.default_rng(42)
+to2 = O2_SymmetricTensor.random(row_reps, col_reps, rng=rng)
 to2 /= to2.norm()
 
 tu1 = to2.toU1()
@@ -39,5 +40,5 @@ assert lg.norm(tpo2.toarray() - tpu1.toarray()) < 1e-15
 # just test whether calling it crashes
 rrsu2 = (np.array([[2, 2, 2, 2, 2, 2], [1, 2, 3, 4, 5, 6]]),)
 rcsu2 = (np.array([[1, 1, 1], [1, 2, 3]]), np.array([[2, 1, 1], [1, 3, 5]]))
-tsu2 = SU2_SymmetricTensor.random(rrsu2, rcsu2)
+tsu2 = SU2_SymmetricTensor.random(rrsu2, rcsu2, rng=rng)
 to2 = tsu2.toO2()
