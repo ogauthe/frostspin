@@ -122,6 +122,9 @@ class CTMRG:
         if not (0.0 < self.degen_ratio <= 1.0):
             raise ValueError("degen_ratio must obey 0.0 <= self.degen_ratio < 1.0")
 
+        if self.Dmin != self.Dmax:
+            print(f"WARNING: Dmin = {self.Dmin} != Dmax = {self.Dmax}")
+
     @classmethod
     def from_elementary_tensors(
         cls,
@@ -250,8 +253,20 @@ class CTMRG:
         return self._env.Nneq
 
     @property
+    def Dmin(self):
+        return self._env.Dmin
+
+    @property
     def Dmax(self):
         return self._env.Dmax
+
+    @property
+    def chi_min(self):  # minimal corner dimension
+        return self._env.chi_min
+
+    @property
+    def chi_values(self):
+        return self._env.chi_values
 
     @property
     def chi_max(self):  # maximal corner dimension, may differ from chi
@@ -267,7 +282,8 @@ class CTMRG:
         return "\n".join(
             (
                 repr(self),
-                f"chi = {self.chi}",
+                f"chi target = {self.chi}",
+                f"chi values = {self.chi_values}",
                 f"block_chi_ratio = {self.block_chi_ratio}",
                 f"ncv_ratio = {self.ncv_ratio}",
                 f"cutoff = {self.cutoff}",
