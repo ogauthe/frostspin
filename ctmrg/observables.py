@@ -249,6 +249,9 @@ def compute_mps_transfer_spectrum(
         print("ARPACK did not converge", err)
         vals = err.eigenvalues
         print(f"Keep {vals.size} converged eigenvalues")
+    except TypeError:  # crash when chi is too small, see scipy issue 16725
+        print(f"WARNING: transfer matrix shape {op.shape} is too small for nval={nval}")
+        return np.nan * np.ones((nval,))
 
     vals = vals[np.abs(vals).argsort()[::-1]]
     vals /= vals[0]
