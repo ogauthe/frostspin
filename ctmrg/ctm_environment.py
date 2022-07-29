@@ -138,6 +138,7 @@ class CTM_Environment:
         self._neq_T2s = T2s
         self._neq_T3s = T3s
         self._neq_T4s = T4s
+        self._Dmin = min(min(A.shape[2:]) for A in self._neq_As)
         self._Dmax = max(max(A.shape[2:]) for A in self._neq_As)
 
         # 3) check tensor types and numbers
@@ -185,8 +186,27 @@ class CTM_Environment:
         return self._ST.symmetry
 
     @property
+    def Dmin(self):
+        return self._Dmin
+
+    @property
     def Dmax(self):
         return self._Dmax
+
+    @property
+    def chi_min(self):
+        return min(
+            min(C.shape)
+            for C in self._neq_C1s + self._neq_C2s + self._neq_C3s + self._neq_C4s
+        )
+
+    @property
+    def chi_values(self):
+        s = set()
+        for C in self._neq_C1s + self._neq_C2s + self._neq_C3s + self._neq_C4s:
+            s.add(C.shape[0])
+            s.add(C.shape[1])
+        return sorted(s)
 
     @property
     def chi_max(self):
