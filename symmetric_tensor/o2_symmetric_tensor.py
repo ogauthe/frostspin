@@ -427,18 +427,22 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             pro, pre, pco, pce = _get_b0_projectors(
                 self._row_reps, self._col_reps, self._signature
             )
+            # try to reduce number of copies due to F ordering
             if self._block_irreps[0] == 0:  # no 0o block
                 i1 = 1
-                b0 = pre.T @ self._blocks[0] @ pce.T
+                b0 = pre.T @ (pce @ self._blocks[0].T).T
                 block_irreps = np.hstack((block_irreps, self._block_irreps[1:]))
             elif self.nblocks > 1 and self._block_irreps[1] > 0:  # no 0e block
                 i1 = 1
-                b0 = pro.T @ self._blocks[0] @ pco.T
+                b0 = pro.T @ (pco @ self._blocks[0].T).T
                 block_irreps[-1] = 0
                 block_irreps = np.hstack((block_irreps, self._block_irreps[1:]))
             else:
                 i1 = 2
-                b0 = pro.T @ self._blocks[0] @ pco.T + pre.T @ self._blocks[1] @ pce.T
+                b0 = (
+                    pro.T @ (pco @ self._blocks[0].T).T
+                    + pre.T @ (pce @ self._blocks[1].T).T
+                )
                 block_irreps = np.hstack((block_irreps[:-1], self._block_irreps[2:]))
             blocks.append(b0)
         else:
