@@ -140,9 +140,7 @@ def _numba_get_b0_projectors(reps, signature):
     orows = []
     ocols = []
     ie, io = 0, 0
-    state_indices = set(range(so.size))
-    while state_indices:
-        i = state_indices.pop()
+    for i in range(so.size):
         j = so[i]
         isign = signs[i]
         if i == j:  # fixed point
@@ -156,8 +154,7 @@ def _numba_get_b0_projectors(reps, signature):
                 orows.append(io)
                 ocols.append(i)
                 io += 1
-        else:
-            state_indices.remove(j)
+        elif i < j:
             ecoeff.append(1.0 / np.sqrt(2))
             erows.append(ie)
             ecols.append(i)
