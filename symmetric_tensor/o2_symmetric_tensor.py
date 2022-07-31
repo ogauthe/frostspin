@@ -97,7 +97,9 @@ def _numba_get_coo_proj(signs, so):
     orows = []
     ocols = []
     ie, io = 0, 0
-    for i in range(so.size):
+    state_indices = set(range(so.size))
+    while state_indices:
+        i = state_indices.pop()
         j = so[i]
         isign = signs[i]
         if i == j:  # fixed point
@@ -111,7 +113,8 @@ def _numba_get_coo_proj(signs, so):
                 orows.append(io)
                 ocols.append(i)
                 io += 1
-        elif i < j:
+        else:
+            state_indices.remove(j)
             ecoeff.append(1.0 / np.sqrt(2))
             erows.append(ie)
             ecols.append(i)
@@ -127,7 +130,7 @@ def _numba_get_coo_proj(signs, so):
             ie += 1
             io += 1
 
-    return ecoeff, erows, ecols, ocoeff, orows, ocols
+    return ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols
 
 
 @numba.njit
@@ -185,11 +188,11 @@ def _get_b0_projectors(row_reps, col_reps, signature):
     rso = ((u1_combined == 0).nonzero()[0] // row_cp[:, None]).T % shr
     rso, rsign = _numba_get_swapped(rso, row_cp, tuple(row_reps))
     rso = rso.argsort()  # imposed sorted block indices in U(1) => argsort
-    ecoeff, erows, ecols, ocoeff, orows, ocols = _numba_get_coo_proj(rsign, rso)
-    ie = erows[-1] + 1 if erows else 0
-    io = orows[-1] + 1 if orows else 0
-    pre = sp.csr_matrix((ecoeff, (erows, ecols)), shape=(ie, rso.size))
-    pro = sp.csr_matrix((ocoeff, (orows, ocols)), shape=(io, rso.size))
+    ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols = _numba_get_coo_proj(rsign, rso)
+    pre = sp.coo_matrix((ecoeff, (erows, ecols)), shape=(ie, rso.size))
+    pro = sp.coo_matrix((ocoeff, (orows, ocols)), shape=(io, rso.size))
+    pre = pre.tocsr()
+    pro = pro.tocsr()
 
     # same operation for columns
     shc = [_numba_O2_representation_dimension(r) for r in col_reps]
@@ -201,11 +204,11 @@ def _get_b0_projectors(row_reps, col_reps, signature):
     cso = ((u1_combined == 0).nonzero()[0] // col_cp[:, None]).T % shc
     cso, csign = _numba_get_swapped(cso, col_cp, tuple(col_reps))
     cso = cso.argsort()  # imposed sorted block indices in U(1) => argsort
-    ecoeff, erows, ecols, ocoeff, orows, ocols = _numba_get_coo_proj(csign, cso)
-    ie = erows[-1] + 1 if erows else 0
-    io = orows[-1] + 1 if orows else 0
-    pce = sp.csr_matrix((ecoeff, (ecols, erows)), shape=(cso.size, ie))
-    pco = sp.csr_matrix((ocoeff, (ocols, orows)), shape=(cso.size, io))
+    ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols = _numba_get_coo_proj(csign, cso)
+    pce = sp.coo_matrix((ecoeff, (erows, ecols)), shape=(ie, cso.size))
+    pco = sp.coo_matrix((ocoeff, (orows, ocols)), shape=(io, cso.size))
+    pce = pce.T.tocsr()
+    pco = pco.T.tocsr()
 
     return pro, pre, pco, pce
 
