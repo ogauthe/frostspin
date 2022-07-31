@@ -7,6 +7,40 @@ from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 from .u1_symmetric_tensor import U1_SymmetricTensor
 
 
+def custom_sparse_product(p1, b, p2):
+    """
+    Compute p1 @ b @ p2, where b is a dense block and p1 and p2 are sparse matrices
+    """
+    p1r = p1.tocsr()
+    p2c = p2.tocsc()
+    return _numba_custom_sparse(
+        p1r.shape[0],
+        p1r.indptr,
+        p1r.indices,
+        p1r.data,
+        b,
+        p2c.shape[1],
+        p2c.indptr,
+        p2c.indices,
+        p2c.data,
+    )
+
+
+@numba.njit(parallel=True)
+def _numba_custom_sparse(
+    nrow1, row_pointer1, col_indices1, nnz1, b, ncol2, col_pointer2, row_indices2, nnz2
+):
+    Y = np.empty((nrow1, ncol2), dtype=b.dtype)
+    for i in numba.prange(nrow1):
+        for j in numba.prange(ncol2):
+            s = 0.0
+            for m in range(row_pointer1[i], row_pointer1[i + 1]):
+                for n in range(col_pointer2[j], col_pointer2[j + 1]):
+                    s += nnz1[m] * b[col_indices1[m], row_indices2[n]] * nnz2[n]
+            Y[i, j] = s
+    return Y
+
+
 @numba.njit
 def _numba_combine_O2(*reps):
     degen, irreps = reps[0]
@@ -191,8 +225,6 @@ def _get_b0_projectors(row_reps, col_reps, signature):
     ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols = _numba_get_coo_proj(rsign, rso)
     pre = sp.coo_matrix((ecoeff, (erows, ecols)), shape=(ie, rso.size))
     pro = sp.coo_matrix((ocoeff, (orows, ocols)), shape=(io, rso.size))
-    pre = pre.tocsr()
-    pro = pro.tocsr()
 
     # same operation for columns
     shc = [_numba_O2_representation_dimension(r) for r in col_reps]
@@ -205,10 +237,8 @@ def _get_b0_projectors(row_reps, col_reps, signature):
     cso, csign = _numba_get_swapped(cso, col_cp, tuple(col_reps))
     cso = cso.argsort()  # imposed sorted block indices in U(1) => argsort
     ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols = _numba_get_coo_proj(csign, cso)
-    pce = sp.coo_matrix((ecoeff, (erows, ecols)), shape=(ie, cso.size))
-    pco = sp.coo_matrix((ocoeff, (orows, ocols)), shape=(io, cso.size))
-    pce = pce.T.tocsr()
-    pco = pco.T.tocsr()
+    pce = sp.coo_matrix((ecoeff, (ecols, erows)), shape=(cso.size, ie))
+    pco = sp.coo_matrix((ocoeff, (ocols, orows)), shape=(cso.size, io))
 
     return pro, pre, pco, pce
 
@@ -335,10 +365,12 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             pro, pre, pco, pce = _get_b0_projectors(row_reps, col_reps, tu1.signature)
             if pro.shape[0] > 0 and pco.shape[1] > 0:
                 block_irreps.append(-1)
-                blocks.append(pro @ tu1.blocks[i0] @ pco)
+                b0o = custom_sparse_product(pro, tu1.blocks[i0], pco)
+                blocks.append(b0o)
             if pre.shape[0] > 0 and pce.shape[1] > 0:
                 block_irreps.append(0)
-                blocks.append(pre @ tu1.blocks[i0] @ pce)
+                b0e = custom_sparse_product(pre, tu1.blocks[i0], pce)
+                blocks.append(b0e)
             assert abs(
                 np.sqrt(sum(lg.norm(b) ** 2 for b in blocks)) - lg.norm(tu1.blocks[i0])
             ) <= 1e-14 * lg.norm(tu1.blocks[i0])
@@ -430,19 +462,18 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             # try to reduce number of copies due to F ordering
             if self._block_irreps[0] == 0:  # no 0o block
                 i1 = 1
-                b0 = pre.T @ (pce @ self._blocks[0].T).T
+                b0 = custom_sparse_product(pre.T, self._blocks[0], pce.T)
                 block_irreps = np.hstack((block_irreps, self._block_irreps[1:]))
             elif self.nblocks > 1 and self._block_irreps[1] > 0:  # no 0e block
                 i1 = 1
-                b0 = pro.T @ (pco @ self._blocks[0].T).T
+                b0 = custom_sparse_product(pro.T, self._blocks[0], pco.T)
                 block_irreps[-1] = 0
                 block_irreps = np.hstack((block_irreps, self._block_irreps[1:]))
             else:
                 i1 = 2
-                b0 = (
-                    pro.T @ (pco @ self._blocks[0].T).T
-                    + pre.T @ (pce @ self._blocks[1].T).T
-                )
+                b0 = custom_sparse_product(
+                    pro.T, self._blocks[0], pco.T
+                ) + custom_sparse_product(pre.T, self._blocks[1], pce.T)
                 block_irreps = np.hstack((block_irreps[:-1], self._block_irreps[2:]))
             blocks.append(b0)
         else:
