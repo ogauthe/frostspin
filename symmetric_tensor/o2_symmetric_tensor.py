@@ -4,7 +4,7 @@ import scipy.linalg as lg
 import numba
 
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
-from .u1_symmetric_tensor import _numba_combine_U1, U1_SymmetricTensor
+from .u1_symmetric_tensor import U1_SymmetricTensor
 
 
 @numba.njit
@@ -89,6 +89,51 @@ def _numba_O2_rep_to_U1(r):
 
 
 @numba.njit
+def _numba_get_coo_proj(signs, so):
+    ecoeff = []
+    erows = []
+    ecols = []
+    ocoeff = []
+    orows = []
+    ocols = []
+    ie, io = 0, 0
+    state_indices = set(range(so.size))
+    while state_indices:
+        i = state_indices.pop()
+        j = so[i]
+        isign = signs[i]
+        if i == j:  # fixed point
+            if isign == 1:  # even
+                ecoeff.append(1.0)
+                erows.append(ie)
+                ecols.append(i)
+                ie += 1
+            else:  # odd
+                ocoeff.append(1.0)
+                orows.append(io)
+                ocols.append(i)
+                io += 1
+        else:
+            state_indices.remove(j)
+            ecoeff.append(1.0 / np.sqrt(2))
+            erows.append(ie)
+            ecols.append(i)
+            ecoeff.append(isign / np.sqrt(2))
+            erows.append(ie)
+            ecols.append(j)
+            ocoeff.append(1.0 / np.sqrt(2))
+            orows.append(io)
+            ocols.append(i)
+            ocoeff.append(-isign / np.sqrt(2))
+            orows.append(io)
+            ocols.append(j)
+            ie += 1
+            io += 1
+
+    return ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols
+
+
+@numba.njit
 def _numba_get_reflection_perm_sign(rep):
     """
     Construct basis permutation mapping vectors into their reflected form.
@@ -115,62 +160,57 @@ def _numba_get_reflection_perm_sign(rep):
 
 
 @numba.njit
-def _numba_get_b0_projectors(reps, signature):
-    """
-    Construct 0odd and 0even projectors. They allow to decompose U(1) Sz=0 sector into
-    0odd (aka -1) and 0even (aka 0) sectors.
-    """
-    u1_reps = [_numba_O2_rep_to_U1(r) for r in reps]
-    sh = np.array([r.size for r in u1_reps])
-    strides = np.array([1, *sh[-1:0:-1]]).cumprod()[::-1].copy()
-    u1_combined = _numba_combine_U1(u1_reps, signature)
-    indices = ((u1_combined == 0).nonzero()[0] // strides.reshape(-1, 1)).T % sh
+def _numba_get_swapped(indices, strides, reps):
     indices_b = np.zeros(indices.shape[0], dtype=np.int64)
     signs = np.ones((indices.shape[0],), dtype=np.int8)
     for i, r in enumerate(reps):
         p, s = _numba_get_reflection_perm_sign(r)
         indices_b += p[indices[:, i]] * strides[i]  # map all indices to spin reversed
         signs *= s[indices[:, i]]
+    return indices_b, signs
 
-    so = indices_b.argsort()  # imposed sorted block indices in U(1) => argsort
-    ecoeff = []
-    erows = []
-    ecols = []
-    ocoeff = []
-    orows = []
-    ocols = []
-    ie, io = 0, 0
-    for i in range(so.size):
-        j = so[i]
-        isign = signs[i]
-        if i == j:  # fixed point
-            if isign == 1:  # even
-                ecoeff.append(1.0)
-                erows.append(ie)
-                ecols.append(i)
-                ie += 1
-            else:  # odd
-                ocoeff.append(1.0)
-                orows.append(io)
-                ocols.append(i)
-                io += 1
-        elif i < j:
-            ecoeff.append(1.0 / np.sqrt(2))
-            erows.append(ie)
-            ecols.append(i)
-            ecoeff.append(isign / np.sqrt(2))
-            erows.append(ie)
-            ecols.append(j)
-            ocoeff.append(1.0 / np.sqrt(2))
-            orows.append(io)
-            ocols.append(i)
-            ocoeff.append(-isign / np.sqrt(2))
-            orows.append(io)
-            ocols.append(j)
-            ie += 1
-            io += 1
 
-    return ecoeff, erows, ecols, ocoeff, orows, ocols
+def _get_b0_projectors(row_reps, col_reps, signature):
+    """
+    Construct 0odd and 0even projectors. They allow to decompose U(1) Sz=0 sector into
+    0odd (aka -1) and 0even (aka 0) sectors.
+    """
+
+    # TODO have only rsig, rso, csign, cso as input
+    # reuse these for all Sz to generate -Sz block
+    nrr = len(row_reps)
+    shr = np.array([_numba_O2_representation_dimension(r) for r in row_reps])
+    row_cp = np.array([1, *shr[-1:0:-1]]).cumprod()[::-1]
+    u1_row_reps = tuple(_numba_O2_rep_to_U1(r) for r in row_reps)
+    u1_combined = U1_SymmetricTensor.combine_representations(
+        u1_row_reps, signature[:nrr]
+    )
+    rso = ((u1_combined == 0).nonzero()[0] // row_cp[:, None]).T % shr
+    rso, rsign = _numba_get_swapped(rso, row_cp, tuple(row_reps))
+    rso = rso.argsort()  # imposed sorted block indices in U(1) => argsort
+    ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols = _numba_get_coo_proj(rsign, rso)
+    pre = sp.coo_matrix((ecoeff, (erows, ecols)), shape=(ie, rso.size))
+    pro = sp.coo_matrix((ocoeff, (orows, ocols)), shape=(io, rso.size))
+    pre = pre.tocsr()
+    pro = pro.tocsr()
+
+    # same operation for columns
+    shc = [_numba_O2_representation_dimension(r) for r in col_reps]
+    col_cp = np.array([1, *shc[-1:0:-1]]).cumprod()[::-1]
+    u1_col_reps = tuple(_numba_O2_rep_to_U1(r) for r in col_reps)
+    u1_combined = U1_SymmetricTensor.combine_representations(
+        u1_col_reps, ~signature[nrr:]
+    )
+    cso = ((u1_combined == 0).nonzero()[0] // col_cp[:, None]).T % shc
+    cso, csign = _numba_get_swapped(cso, col_cp, tuple(col_reps))
+    cso = cso.argsort()  # imposed sorted block indices in U(1) => argsort
+    ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols = _numba_get_coo_proj(csign, cso)
+    pce = sp.coo_matrix((ecoeff, (erows, ecols)), shape=(ie, cso.size))
+    pco = sp.coo_matrix((ocoeff, (orows, ocols)), shape=(io, cso.size))
+    pce = pce.T.tocsr()
+    pco = pco.T.tocsr()
+
+    return pro, pre, pco, pce
 
 
 @numba.njit(parallel=True)
@@ -292,30 +332,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         i0 = tu1.block_irreps.searchsorted(0)
         if tu1.nblocks > i0 and tu1.block_irreps[i0] == 0:
             i1 = i0 + 1
-            (
-                ecoeff,
-                erows,
-                ecols,
-                ocoeff,
-                orows,
-                ocols,
-            ) = _numba_get_b0_projectors(tuple(row_reps), tu1.signature[: tu1._nrr])
-            ie = erows[-1] + 1 if erows else 0
-            io = orows[-1] + 1 if orows else 0
-            pre = sp.csr_matrix((ecoeff, (erows, ecols)), shape=(ie, ie + io))
-            pro = sp.csr_matrix((ocoeff, (orows, ocols)), shape=(io, ie + io))
-            (
-                ecoeff,
-                erows,
-                ecols,
-                ocoeff,
-                orows,
-                ocols,
-            ) = _numba_get_b0_projectors(tuple(col_reps), tu1.signature[tu1._nrr :])
-            ie = erows[-1] + 1 if erows else 0
-            io = orows[-1] + 1 if orows else 0
-            pce = sp.csr_matrix((ecoeff, (ecols, erows)), shape=(ie + io, ie))
-            pco = sp.csr_matrix((ocoeff, (ocols, orows)), shape=(ie + io, io))
+            pro, pre, pco, pce = _get_b0_projectors(row_reps, col_reps, tu1.signature)
             if pro.shape[0] > 0 and pco.shape[1] > 0:
                 block_irreps.append(-1)
                 blocks.append(pro @ tu1.blocks[i0] @ pco)
@@ -407,45 +424,24 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
 
         # Sz = 0 blocks (may not exist)
         if self._block_irreps[0] < 1:
-            (
-                ecoeff,
-                erows,
-                ecols,
-                ocoeff,
-                orows,
-                ocols,
-            ) = _numba_get_b0_projectors(self._row_reps, self._signature[: self._nrr])
-            ie = erows[-1] + 1 if erows else 0
-            io = orows[-1] + 1 if orows else 0
-            preT = sp.csr_matrix((ecoeff, (ecols, erows)), shape=(ie + io, ie))
-            proT = sp.csr_matrix((ocoeff, (ocols, orows)), shape=(ie + io, io))
-            (
-                ecoeff,
-                erows,
-                ecols,
-                ocoeff,
-                orows,
-                ocols,
-            ) = _numba_get_b0_projectors(self._col_reps, self._signature[self._nrr :])
-            ie = erows[-1] + 1 if erows else 0
-            io = orows[-1] + 1 if orows else 0
-            pce = sp.csr_matrix((ecoeff, (ecols, erows)), shape=(ie + io, ie))
-            pco = sp.csr_matrix((ocoeff, (ocols, orows)), shape=(ie + io, io))
+            pro, pre, pco, pce = _get_b0_projectors(
+                self._row_reps, self._col_reps, self._signature
+            )
             # try to reduce number of copies due to F ordering
             if self._block_irreps[0] == 0:  # no 0o block
                 i1 = 1
-                b0 = preT @ (pce @ self._blocks[0].T).T
+                b0 = pre.T @ (pce @ self._blocks[0].T).T
                 block_irreps = np.hstack((block_irreps, self._block_irreps[1:]))
             elif self.nblocks > 1 and self._block_irreps[1] > 0:  # no 0e block
                 i1 = 1
-                b0 = proT @ (pco @ self._blocks[0].T).T
+                b0 = pro.T @ (pco @ self._blocks[0].T).T
                 block_irreps[-1] = 0
                 block_irreps = np.hstack((block_irreps, self._block_irreps[1:]))
             else:
                 i1 = 2
                 b0 = (
-                    proT @ (pco @ self._blocks[0].T).T
-                    + preT @ (pce @ self._blocks[1].T).T
+                    pro.T @ (pco @ self._blocks[0].T).T
+                    + pre.T @ (pce @ self._blocks[1].T).T
                 )
                 block_irreps = np.hstack((block_irreps[:-1], self._block_irreps[2:]))
             blocks.append(b0)
