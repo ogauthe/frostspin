@@ -34,8 +34,8 @@ def _numba_custom_sparse(
     for i in numba.prange(nrow1):
         for j in numba.prange(ncol2):
             s = 0.0
-            for m in numba.prange(row_pointer1[i], row_pointer1[i + 1]):
-                for n in numba.prange(col_pointer2[j], col_pointer2[j + 1]):
+            for m in range(row_pointer1[i], row_pointer1[i + 1]):
+                for n in range(col_pointer2[j], col_pointer2[j + 1]):
                     s += nnz1[m] * b[col_indices1[m], row_indices2[n]] * nnz2[n]
             Y[i, j] = s
     return Y
