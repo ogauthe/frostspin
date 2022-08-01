@@ -244,11 +244,11 @@ def _get_b0_projectors(row_reps, col_reps, signature):
 
 
 @numba.njit(parallel=True)
-def _numba_generate_block(rso, cso, bsigns):
-    b = np.empty((rso.size, cso.size), dtype=bsigns.dtype)
+def _numba_generate_block(rso, cso, b0, rsign, csign):
+    b = np.empty((rso.size, cso.size), dtype=b0.dtype)
     for i in numba.prange(rso.size):
         for j in numba.prange(cso.size):
-            b[rso[i], cso[j]] = bsigns[i, j]
+            b[rso[i], cso[j]] = rsign[i] * csign[j] * b0[i, j]
     return b
 
 
@@ -439,8 +439,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
 
             rso = rszb_mat.argsort().argsort()
             cso = cszb_mat.argsort().argsort()
-            bsign = np.einsum("i,j,ij->ij", rsign, csign, self._blocks[isz])
-            b = _numba_generate_block(rso, cso, bsign)
+            b = _numba_generate_block(rso, cso, self._blocks[isz], rsign, csign)
             blocks.append(b)
             isz -= 1
 
