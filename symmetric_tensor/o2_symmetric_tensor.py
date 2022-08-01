@@ -439,7 +439,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
 
             rso = rszb_mat.argsort().argsort()
             cso = cszb_mat.argsort().argsort()
-            bsign = rsign[:, None] * self._blocks[isz] * csign
+            bsign = np.einsum("i,j,ij->ij", rsign, csign, self._blocks[isz])
             b = _numba_generate_block(rso, cso, bsign)
             blocks.append(b)
             isz -= 1
