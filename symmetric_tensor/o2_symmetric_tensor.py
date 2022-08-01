@@ -124,47 +124,53 @@ def _numba_O2_rep_to_U1(r):
 
 @numba.njit
 def _numba_get_coo_proj(signs, so):
-    ecoeff = []
-    erows = []
-    ecols = []
-    ocoeff = []
-    orows = []
-    ocols = []
+    n = so.size
+    ecoeff = np.empty((2 * n,), dtype=np.float64)
+    erows = np.empty((2 * n,), dtype=np.int64)
+    ecols = np.empty((2 * n,), dtype=np.int64)
+    ocoeff = np.empty((2 * n,), dtype=np.float64)
+    orows = np.empty((2 * n,), dtype=np.int64)
+    ocols = np.empty((2 * n,), dtype=np.int64)
     ie, io = 0, 0
-    state_indices = set(range(so.size))
+    ke, ko = 0, 0
+    state_indices = set(range(n))
     while state_indices:
         i = state_indices.pop()
         j = so[i]
         isign = signs[i]
         if i == j:  # fixed point
             if isign == 1:  # even
-                ecoeff.append(1.0)
-                erows.append(ie)
-                ecols.append(i)
+                ecoeff[ke] = 1.0
+                erows[ke] = ie
+                ecols[ke] = i
+                ke += 1
                 ie += 1
             else:  # odd
-                ocoeff.append(1.0)
-                orows.append(io)
-                ocols.append(i)
+                ocoeff[ko] = 1.0
+                orows[ko] = io
+                ocols[ko] = i
                 io += 1
+                ko += 1
         else:
             state_indices.remove(j)
-            ecoeff.append(1.0 / np.sqrt(2))
-            erows.append(ie)
-            ecols.append(i)
-            ecoeff.append(isign / np.sqrt(2))
-            erows.append(ie)
-            ecols.append(j)
-            ocoeff.append(1.0 / np.sqrt(2))
-            orows.append(io)
-            ocols.append(i)
-            ocoeff.append(-isign / np.sqrt(2))
-            orows.append(io)
-            ocols.append(j)
+            ecoeff[ke] = 1.0 / np.sqrt(2)
+            ecoeff[ke + 1] = isign / np.sqrt(2)
+            erows[ke] = ie
+            erows[ke + 1] = ie
+            ecols[ke] = i
+            ecols[ke + 1] = j
+            ocoeff[ko] = 1.0 / np.sqrt(2)
+            ocoeff[ko + 1] = -isign / np.sqrt(2)
+            orows[ko] = io
+            orows[ko + 1] = io
+            ocols[ko] = i
+            ocols[ko + 1] = j
+            ke += 2
+            ko += 2
             ie += 1
             io += 1
 
-    return ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols
+    return ecoeff[:ke], erows[:ke], ecols[:ke], ocoeff[:ko], orows[:ko], ocols[:ko]
 
 
 @numba.njit
@@ -222,7 +228,9 @@ def _get_b0_projectors(row_reps, col_reps, signature):
     rso = ((u1_combined == 0).nonzero()[0] // row_cp[:, None]).T % shr
     rso, rsign = _numba_get_swapped(rso, row_cp, tuple(row_reps))
     rso = rso.argsort()  # imposed sorted block indices in U(1) => argsort
-    ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols = _numba_get_coo_proj(rsign, rso)
+    ecoeff, erows, ecols, ocoeff, orows, ocols = _numba_get_coo_proj(rsign, rso)
+    ie = erows[-1] + 1 if erows.size else 0
+    io = orows[-1] + 1 if orows.size else 0
     pre = sp.coo_matrix((ecoeff, (erows, ecols)), shape=(ie, rso.size))
     pro = sp.coo_matrix((ocoeff, (orows, ocols)), shape=(io, rso.size))
 
@@ -236,7 +244,9 @@ def _get_b0_projectors(row_reps, col_reps, signature):
     cso = ((u1_combined == 0).nonzero()[0] // col_cp[:, None]).T % shc
     cso, csign = _numba_get_swapped(cso, col_cp, tuple(col_reps))
     cso = cso.argsort()  # imposed sorted block indices in U(1) => argsort
-    ie, ecoeff, erows, ecols, io, ocoeff, orows, ocols = _numba_get_coo_proj(csign, cso)
+    ecoeff, erows, ecols, ocoeff, orows, ocols = _numba_get_coo_proj(csign, cso)
+    ie = erows[-1] + 1 if erows.size else 0
+    io = orows[-1] + 1 if orows.size else 0
     pce = sp.coo_matrix((ecoeff, (ecols, erows)), shape=(cso.size, ie))
     pco = sp.coo_matrix((ocoeff, (ocols, orows)), shape=(cso.size, io))
 
@@ -244,11 +254,11 @@ def _get_b0_projectors(row_reps, col_reps, signature):
 
 
 @numba.njit(parallel=True)
-def _numba_generate_block(rso, cso, bsigns):
-    b = np.empty((rso.size, cso.size), dtype=bsigns.dtype)
+def _numba_generate_block(rso, cso, b0, rsign, csign):
+    b = np.empty((rso.size, cso.size), dtype=b0.dtype)
     for i in numba.prange(rso.size):
         for j in numba.prange(cso.size):
-            b[rso[i], cso[j]] = bsigns[i, j]
+            b[rso[i], cso[j]] = rsign[i] * csign[j] * b0[i, j]
     return b
 
 
@@ -439,8 +449,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
 
             rso = rszb_mat.argsort().argsort()
             cso = cszb_mat.argsort().argsort()
-            bsign = np.einsum("i,j,ij->ij", rsign, csign, self._blocks[isz])
-            b = _numba_generate_block(rso, cso, bsign)
+            b = _numba_generate_block(rso, cso, self._blocks[isz], rsign, csign)
             blocks.append(b)
             isz -= 1
 
