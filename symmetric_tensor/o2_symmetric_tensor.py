@@ -395,32 +395,19 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         return self.toU1()
 
     def _generate_neg_sz_blocks(self):
-        u1_row_reps = [None] * self._nrr
-        rmaps = [None] * self._nrr
-        rsigns = [None] * self._nrr
-        for i, r in enumerate(self._row_reps):
-            u1_row_reps[i] = _numba_O2_rep_to_U1(r)
-            rmaps[i], rsigns[i] = _numba_get_reflection_perm_sign(r)
-
         shr = np.array(self.shape[: self._nrr])
         row_cp = np.array([1, *shr[-1:0:-1]]).cumprod()[::-1]
         u1_combined_row = U1_SymmetricTensor.combine_representations(
-            u1_row_reps, self._signature[: self._nrr]
+            tuple(_numba_O2_rep_to_U1(r) for r in self._row_reps),
+            self._signature[: self._nrr],
         )
 
-        ncr = len(self._col_reps)
-        u1_col_reps = [None] * ncr
-        cmaps = [None] * ncr
-        csigns = [None] * ncr
-        for i, r in enumerate(self._col_reps):
-            u1_col_reps[i] = _numba_O2_rep_to_U1(r)
-            cmaps[i], csigns[i] = _numba_get_reflection_perm_sign(r)
-
+        u1_combined_col = U1_SymmetricTensor.combine_representations(
+            tuple(_numba_O2_rep_to_U1(r) for r in self._col_reps),
+            ~self._signature[self._nrr :],
+        )
         shc = np.array(self.shape[self._nrr :])
         col_cp = np.array([1, *shc[-1:0:-1]]).cumprod()[::-1]
-        u1_combined_col = U1_SymmetricTensor.combine_representations(
-            u1_col_reps, ~self._signature[self._nrr :]
-        )
 
         blocks = []
         isz = self._nblocks - 1
@@ -431,19 +418,11 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             # or numpy will make things faster?
             rsz_mat = (u1_combined_row == sz).nonzero()[0]  # find Sz states
             rsz_t = (rsz_mat // row_cp[:, None]).T % shr  # multi-index form
-            rszb_mat = np.zeros((rsz_mat.size,), dtype=int)
-            rsign = np.ones((rsz_mat.size,), dtype=np.int8)
-            for i, r in enumerate(self._row_reps):
-                rszb_mat += rmaps[i][rsz_t[:, i]] * row_cp[i]  # map to spin reversed
-                rsign *= rsigns[i][rsz_t[:, i]]
+            rszb_mat, rsign = _numba_get_swapped(rsz_t, row_cp, self._row_reps)
 
             csz_mat = (u1_combined_col == sz).nonzero()[0]  # find Sz states
             csz_t = (csz_mat // col_cp[:, None]).T % shc  # multi-index form
-            cszb_mat = np.zeros((csz_mat.size,), dtype=int)
-            csign = np.ones((csz_mat.size,), dtype=np.int8)
-            for i, r in enumerate(self._col_reps):
-                cszb_mat += cmaps[i][csz_t[:, i]] * col_cp[i]  # map to spin reversed
-                csign *= csigns[i][csz_t[:, i]]
+            cszb_mat, csign = _numba_get_swapped(csz_t, col_cp, self._col_reps)
 
             rso = rszb_mat.argsort().argsort()
             cso = cszb_mat.argsort().argsort()
