@@ -370,28 +370,26 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         blocks = []
         block_irreps = []
         i0 = tu1.block_irreps.searchsorted(0)
-        if tu1.nblocks > i0 and tu1.block_irreps[i0] == 0:
-            i1 = i0 + 1
+        if tu1.block_irreps[i0] == 0:  # if i0 = len(block_irreps) tu1 is not O(2)
             pro, pre, pco, pce = _get_b0_projectors(row_reps, col_reps, tu1.signature)
-            if pro.shape[0] > 0 and pco.shape[1] > 0:
+            if pro.getnnz() and pco.getnnz():
                 block_irreps.append(-1)
                 b0o = custom_sparse_product(pro, tu1.blocks[i0], pco)
                 blocks.append(b0o)
-            if pre.shape[0] > 0 and pce.shape[1] > 0:
+            if pre.getnnz() and pce.getnnz():
                 block_irreps.append(0)
                 b0e = custom_sparse_product(pre, tu1.blocks[i0], pce)
                 blocks.append(b0e)
             assert abs(
                 np.sqrt(sum(lg.norm(b) ** 2 for b in blocks)) - lg.norm(tu1.blocks[i0])
             ) <= 1e-14 * lg.norm(tu1.blocks[i0])
-        else:
-            i1 = i0
-        block_irreps.extend(tu1.block_irreps[i1:])
-        blocks.extend(tu1.blocks[i1:])
+            i0 += 1
+        block_irreps.extend(tu1.block_irreps[i0:])
+        blocks.extend(tu1.blocks[i0:])
         return cls(row_reps, col_reps, blocks, block_irreps, tu1.signature)
 
     def toarray(self, as_matrix=False):
-        return self.toU1().toarray(as_matrix)
+        return self.toU1().toarray(as_matrix=as_matrix)
 
     def toabelian(self):
         return self.toU1()
