@@ -395,14 +395,22 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         return self.toU1()
 
     def _generate_neg_sz_blocks(self):
-        shr = np.array(self.shape[: self._nrr])
-        row_cp = np.array([1, *shr[-1:0:-1]]).cumprod()[::-1]
+        temp = np.zeros((2, 1), dtype=int)
+
+        # construct U(1) sectors only for Sz > 0, sort them and use easy access to O(2)
+        # sector sizes to slice them
         u1_combined_row = U1_SymmetricTensor.combine_representations(
             tuple(_numba_O2_rep_to_U1(r) for r in self._row_reps),
             self._signature[: self._nrr],
         )
-        rsz_t = (np.arange(u1_combined_row.size) // row_cp[:, None]).T % shr
-        rszb_mat, rsign = _numba_get_swapped(rsz_t, row_cp, self._row_reps)
+        shr = np.array(self.shape[: self._nrr])
+        row_cp = np.array([1, *shr[-1:0:-1]]).cumprod()[::-1]
+        row_rep = self.get_row_representation()
+        rso = u1_combined_row.argsort(kind="stable")[row_rep[0].sum() :]  # keep Sz>0
+        rsz_t = (rso // row_cp[:, None]).T % shr  # multi-index
+        rszb_mat, rsign = _numba_get_swapped(rsz_t, row_cp, self._row_reps)  # reversed
+        row_rep0 = np.hstack((temp, row_rep[:, (row_rep[1] > 0).nonzero()[0][0] :]))
+        rcs = row_rep0[0].cumsum()
 
         u1_combined_col = U1_SymmetricTensor.combine_representations(
             tuple(_numba_O2_rep_to_U1(r) for r in self._col_reps),
@@ -410,20 +418,25 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         )
         shc = np.array(self.shape[self._nrr :])
         col_cp = np.array([1, *shc[-1:0:-1]]).cumprod()[::-1]
-        csz_t = (np.arange(u1_combined_col.size) // col_cp[:, None]).T % shc
+        col_rep = self.get_column_representation()
+        cso = u1_combined_col.argsort(kind="stable")[col_rep[0].sum() :]
+        csz_t = (cso // col_cp[:, None]).T % shc
         cszb_mat, csign = _numba_get_swapped(csz_t, col_cp, self._col_reps)
+        col_rep0 = np.hstack((temp, col_rep[:, (col_rep[1] > 0).nonzero()[0][0] :]))
+        ccs = col_rep0[0].cumsum()
 
         blocks = []
         isz = self._nblocks - 1
         while isz > -1 and self._block_irreps[isz] > 0:
             sz = self._block_irreps[isz]
-            rsz_mat = (u1_combined_row == sz).nonzero()[0]  # find Sz states
-            csz_mat = (u1_combined_col == sz).nonzero()[0]  # find Sz states
-
-            rso = rszb_mat[rsz_mat].argsort().argsort()
-            cso = cszb_mat[csz_mat].argsort().argsort()
+            i = (row_rep0[1] == sz).nonzero()[0][0]
+            j = (col_rep0[1] == sz).nonzero()[0][0]
+            rinds = slice(rcs[i - 1], rcs[i])
+            cinds = slice(ccs[j - 1], ccs[j])
+            rsob = rszb_mat[rinds].argsort().argsort()
+            csob = cszb_mat[cinds].argsort().argsort()
             b = _numba_generate_block(
-                rso, cso, self._blocks[isz], rsign[rsz_mat], csign[csz_mat]
+                rsob, csob, self._blocks[isz], rsign[rinds], csign[cinds]
             )
             blocks.append(b)
             isz -= 1
