@@ -401,6 +401,8 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             tuple(_numba_O2_rep_to_U1(r) for r in self._row_reps),
             self._signature[: self._nrr],
         )
+        rsz_t = (np.arange(u1_combined_row.size) // row_cp[:, None]).T % shr
+        rszb_mat, rsign = _numba_get_swapped(rsz_t, row_cp, self._row_reps)
 
         u1_combined_col = U1_SymmetricTensor.combine_representations(
             tuple(_numba_O2_rep_to_U1(r) for r in self._col_reps),
@@ -408,25 +410,21 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         )
         shc = np.array(self.shape[self._nrr :])
         col_cp = np.array([1, *shc[-1:0:-1]]).cumprod()[::-1]
+        csz_t = (np.arange(u1_combined_col.size) // col_cp[:, None]).T % shc
+        cszb_mat, csign = _numba_get_swapped(csz_t, col_cp, self._col_reps)
 
         blocks = []
         isz = self._nblocks - 1
         while isz > -1 and self._block_irreps[isz] > 0:
             sz = self._block_irreps[isz]
-            # could factorize Sz-reflection, but implies doing operation for all Sz
-            # better to map to Sz-reflected inside loop, only for Sz<0?
-            # or numpy will make things faster?
             rsz_mat = (u1_combined_row == sz).nonzero()[0]  # find Sz states
-            rsz_t = (rsz_mat // row_cp[:, None]).T % shr  # multi-index form
-            rszb_mat, rsign = _numba_get_swapped(rsz_t, row_cp, self._row_reps)
-
             csz_mat = (u1_combined_col == sz).nonzero()[0]  # find Sz states
-            csz_t = (csz_mat // col_cp[:, None]).T % shc  # multi-index form
-            cszb_mat, csign = _numba_get_swapped(csz_t, col_cp, self._col_reps)
 
-            rso = rszb_mat.argsort().argsort()
-            cso = cszb_mat.argsort().argsort()
-            b = _numba_generate_block(rso, cso, self._blocks[isz], rsign, csign)
+            rso = rszb_mat[rsz_mat].argsort().argsort()
+            cso = cszb_mat[csz_mat].argsort().argsort()
+            b = _numba_generate_block(
+                rso, cso, self._blocks[isz], rsign[rsz_mat], csign[csz_mat]
+            )
             blocks.append(b)
             isz -= 1
 
