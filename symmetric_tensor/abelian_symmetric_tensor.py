@@ -221,9 +221,23 @@ def _numba_abelian_transpose(
     # 5) copy all coeff from all blocks to new destination
     # much faster NOT to parallelize loop on old_blocks (huge difference in block sizes)
     for bi in range(old_block_irreps.size):
-        ori = (old_row_irreps == old_block_irreps[bi]).nonzero()[0].reshape(-1, 1)
+        ori = np.empty((old_blocks[bi].shape[0], 1), dtype=np.int64)
+        i = 0
+        k = 0
+        while i < old_blocks[bi].shape[0]:
+            if old_row_irreps[k] == old_block_irreps[bi]:
+                ori[i, 0] = k
+                i += 1
+            k += 1
         ori = (ori // rstrides1 % rmod * rstrides2).sum(axis=1)
-        oci = (old_col_irreps == old_block_irreps[bi]).nonzero()[0].reshape(-1, 1)
+        j = 0
+        k = 0
+        oci = np.empty((old_blocks[bi].shape[1], 1), dtype=np.int64)
+        while j < old_blocks[bi].shape[1]:
+            if old_col_irreps[k] == old_block_irreps[bi]:
+                oci[j, 0] = k
+                j += 1
+            k += 1
         oci = (oci // cstrides1 % cmod * cstrides2).sum(axis=1)
         # ori and oci cannot be empty since old irrep block exists
         for i in numba.prange(ori.size):
