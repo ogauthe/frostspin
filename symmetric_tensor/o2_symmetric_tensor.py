@@ -135,13 +135,12 @@ def _get_coo_proj(signs, so):
     nfxe = fxe.sum()
     ne = nfxe + 2 * k
     ecoeff = np.empty((ne,))
-    erows = np.empty((ne,), dtype=np.int64)
+    erows = np.arange(ne)
     ecols = np.empty((ne,), dtype=np.int64)
     ecoeff[:nfxe] = 1.0
-    erows[:nfxe] = np.arange(nfxe)
     ecols[:nfxe] = fx[fxe]
     ecoeff[nfxe : nfxe + k] = 1.0 / np.sqrt(2)
-    erows[nfxe:].reshape(2, k)[:] = np.arange(nfxe, nfxe + k)
+    erows[nfxe + k :] = np.arange(nfxe, nfxe + k)
     ecols[nfxe : nfxe + k] = notfx
     ecoeff[nfxe + k :] = nfx_coeff
     ecols[nfxe + k :] = nfx_cols
@@ -149,13 +148,12 @@ def _get_coo_proj(signs, so):
     nfxo = fxe.size - nfxe
     no = nfxo + 2 * k
     ocoeff = np.empty((no,))
-    orows = np.empty((no,), dtype=np.int64)
+    orows = np.arange(no)
     ocols = np.empty((no,), dtype=np.int64)
     ocoeff[:nfxo] = 1.0
-    orows[:nfxo] = np.arange(nfxo)
     ocols[:nfxo] = fx[~fxe]
     ocoeff[nfxo : nfxo + k] = 1.0 / np.sqrt(2)
-    orows[nfxo:].reshape(2, k)[:] = np.arange(nfxo, nfxo + k)
+    orows[nfxo + k :] = np.arange(nfxo, nfxo + k)
     ocols[nfxo : nfxo + k] = notfx
     ocoeff[nfxo + k :] = -nfx_coeff
     ocols[nfxo + k :] = nfx_cols
