@@ -122,55 +122,44 @@ def _numba_O2_rep_to_U1(r):
     return ru1
 
 
-@numba.njit
-def _numba_get_coo_proj(signs, so):
-    n = so.size
-    ecoeff = np.empty((2 * n,), dtype=np.float64)
-    erows = np.empty((2 * n,), dtype=np.int64)
-    ecols = np.empty((2 * n,), dtype=np.int64)
-    ocoeff = np.empty((2 * n,), dtype=np.float64)
-    orows = np.empty((2 * n,), dtype=np.int64)
-    ocols = np.empty((2 * n,), dtype=np.int64)
-    ie, io = 0, 0
-    ke, ko = 0, 0
-    state_indices = set(range(n))
-    while state_indices:
-        i = state_indices.pop()
-        j = so[i]
-        isign = signs[i]
-        if i == j:  # fixed point
-            if isign == 1:  # even
-                ecoeff[ke] = 1.0
-                erows[ke] = ie
-                ecols[ke] = i
-                ke += 1
-                ie += 1
-            else:  # odd
-                ocoeff[ko] = 1.0
-                orows[ko] = io
-                ocols[ko] = i
-                io += 1
-                ko += 1
-        else:
-            state_indices.remove(j)
-            ecoeff[ke] = 1.0 / np.sqrt(2)
-            ecoeff[ke + 1] = isign / np.sqrt(2)
-            erows[ke] = ie
-            erows[ke + 1] = ie
-            ecols[ke] = i
-            ecols[ke + 1] = j
-            ocoeff[ko] = 1.0 / np.sqrt(2)
-            ocoeff[ko + 1] = -isign / np.sqrt(2)
-            orows[ko] = io
-            orows[ko + 1] = io
-            ocols[ko] = i
-            ocols[ko + 1] = j
-            ke += 2
-            ko += 2
-            ie += 1
-            io += 1
+def _get_coo_proj(signs, so):
+    state_indices = np.arange(so.size)
+    fx = (state_indices == so).nonzero()[0]
+    notfx = (state_indices < so).nonzero()[0]
+    fx_signs = signs[fx]
+    fxe = fx_signs == 1
+    k = notfx.size
+    nfx_coeff = signs[notfx] / np.sqrt(2)
+    nfx_cols = so[notfx]
 
-    return ecoeff[:ke], erows[:ke], ecols[:ke], ocoeff[:ko], orows[:ko], ocols[:ko]
+    nfxe = fxe.sum()
+    ne = nfxe + 2 * k
+    ecoeff = np.empty((ne,))
+    erows = np.empty((ne,), dtype=np.int64)
+    ecols = np.empty((ne,), dtype=np.int64)
+    ecoeff[:nfxe] = 1.0
+    erows[:nfxe] = np.arange(nfxe)
+    ecols[:nfxe] = fx[fxe]
+    ecoeff[nfxe : nfxe + k] = 1.0 / np.sqrt(2)
+    erows[nfxe:].reshape(2, k)[:] = np.arange(nfxe, nfxe + k)
+    ecols[nfxe : nfxe + k] = notfx
+    ecoeff[nfxe + k :] = nfx_coeff
+    ecols[nfxe + k :] = nfx_cols
+
+    nfxo = fxe.size - nfxe
+    no = nfxo + 2 * k
+    ocoeff = np.empty((no,))
+    orows = np.empty((no,), dtype=np.int64)
+    ocols = np.empty((no,), dtype=np.int64)
+    ocoeff[:nfxo] = 1.0
+    orows[:nfxo] = np.arange(nfxo)
+    ocols[:nfxo] = fx[~fxe]
+    ocoeff[nfxo : nfxo + k] = 1.0 / np.sqrt(2)
+    orows[nfxo:].reshape(2, k)[:] = np.arange(nfxo, nfxo + k)
+    ocols[nfxo : nfxo + k] = notfx
+    ocoeff[nfxo + k :] = -nfx_coeff
+    ocols[nfxo + k :] = nfx_cols
+    return ecoeff, erows, ecols, ocoeff, orows, ocols
 
 
 @numba.njit
@@ -228,7 +217,7 @@ def _get_b0_projectors(row_reps, col_reps, signature):
     rso = ((u1_combined == 0).nonzero()[0] // row_cp[:, None]).T % shr
     rso, rsign = _numba_get_swapped(rso, row_cp, tuple(row_reps))
     rso = rso.argsort()  # imposed sorted block indices in U(1) => argsort
-    ecoeff, erows, ecols, ocoeff, orows, ocols = _numba_get_coo_proj(rsign, rso)
+    ecoeff, erows, ecols, ocoeff, orows, ocols = _get_coo_proj(rsign, rso)
     ie = erows[-1] + 1 if erows.size else 0
     io = orows[-1] + 1 if orows.size else 0
     pre = sp.coo_matrix((ecoeff, (erows, ecols)), shape=(ie, rso.size))
@@ -244,7 +233,7 @@ def _get_b0_projectors(row_reps, col_reps, signature):
     cso = ((u1_combined == 0).nonzero()[0] // col_cp[:, None]).T % shc
     cso, csign = _numba_get_swapped(cso, col_cp, tuple(col_reps))
     cso = cso.argsort()  # imposed sorted block indices in U(1) => argsort
-    ecoeff, erows, ecols, ocoeff, orows, ocols = _numba_get_coo_proj(csign, cso)
+    ecoeff, erows, ecols, ocoeff, orows, ocols = _get_coo_proj(csign, cso)
     ie = erows[-1] + 1 if erows.size else 0
     io = orows[-1] + 1 if orows.size else 0
     pce = sp.coo_matrix((ecoeff, (ecols, erows)), shape=(cso.size, ie))
