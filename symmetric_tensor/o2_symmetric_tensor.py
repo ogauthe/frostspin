@@ -135,9 +135,10 @@ def _get_coo_proj(signs, so):
     nfxe = fxe.sum()
     ne = nfxe + 2 * k
     ecoeff = np.empty((ne,))
-    erows = np.arange(ne)
+    erows = np.empty((ne,), dtype=np.int64)
     ecols = np.empty((ne,), dtype=np.int64)
     ecoeff[:nfxe] = 1.0
+    erows[: nfxe + k] = np.arange(nfxe + k)
     ecols[:nfxe] = fx[fxe]
     ecoeff[nfxe : nfxe + k] = 1.0 / np.sqrt(2)
     erows[nfxe + k :] = np.arange(nfxe, nfxe + k)
@@ -148,9 +149,10 @@ def _get_coo_proj(signs, so):
     nfxo = fxe.size - nfxe
     no = nfxo + 2 * k
     ocoeff = np.empty((no,))
-    orows = np.arange(no)
+    orows = np.empty((no,), dtype=np.int64)
     ocols = np.empty((no,), dtype=np.int64)
     ocoeff[:nfxo] = 1.0
+    orows[: nfxo + k] = np.arange(nfxo + k)
     ocols[:nfxo] = fx[~fxe]
     ocoeff[nfxo : nfxo + k] = 1.0 / np.sqrt(2)
     orows[nfxo + k :] = np.arange(nfxo, nfxo + k)
