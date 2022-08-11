@@ -1,5 +1,41 @@
+import numba
 import numpy as np
 import scipy.sparse as ssp
+
+
+def custom_sparse_product(p1, b, p2):
+    """
+    Compute p1 @ b @ p2, where b is a dense block and p1 and p2 are sparse matrices
+    """
+    assert b.shape == (p1.shape[1], p2.shape[0]), "shape mismatch in matrix product"
+    p1r = p1.tocsr()
+    p2c = p2.tocsc()
+    return _numba_custom_sparse(
+        p1r.shape[0],
+        p1r.indptr,
+        p1r.indices,
+        p1r.data,
+        b,
+        p2c.shape[1],
+        p2c.indptr,
+        p2c.indices,
+        p2c.data,
+    )
+
+
+@numba.njit(parallel=True)
+def _numba_custom_sparse(
+    nrow1, row_pointer1, col_indices1, nnz1, b, ncol2, col_pointer2, row_indices2, nnz2
+):
+    Y = np.empty((nrow1, ncol2), dtype=b.dtype)
+    for i in numba.prange(nrow1):
+        for j in numba.prange(ncol2):
+            s = 0.0
+            for m in range(row_pointer1[i], row_pointer1[i + 1]):
+                for n in range(col_pointer2[j], col_pointer2[j + 1]):
+                    s += nnz1[m] * b[col_indices1[m], row_indices2[n]] * nnz2[n]
+            Y[i, j] = s
+    return Y
 
 
 def sparse_transpose(m, sh1, axes, sh2=None, copy=False, cast="csr"):

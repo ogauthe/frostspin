@@ -3,42 +3,9 @@ import scipy.sparse as sp
 import scipy.linalg as lg
 import numba
 
+from misc_tools.sparse_tools import custom_sparse_product
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 from .u1_symmetric_tensor import U1_SymmetricTensor
-
-
-def custom_sparse_product(p1, b, p2):
-    """
-    Compute p1 @ b @ p2, where b is a dense block and p1 and p2 are sparse matrices
-    """
-    p1r = p1.tocsr()
-    p2c = p2.tocsc()
-    return _numba_custom_sparse(
-        p1r.shape[0],
-        p1r.indptr,
-        p1r.indices,
-        p1r.data,
-        b,
-        p2c.shape[1],
-        p2c.indptr,
-        p2c.indices,
-        p2c.data,
-    )
-
-
-@numba.njit(parallel=True)
-def _numba_custom_sparse(
-    nrow1, row_pointer1, col_indices1, nnz1, b, ncol2, col_pointer2, row_indices2, nnz2
-):
-    Y = np.empty((nrow1, ncol2), dtype=b.dtype)
-    for i in numba.prange(nrow1):
-        for j in numba.prange(ncol2):
-            s = 0.0
-            for m in range(row_pointer1[i], row_pointer1[i + 1]):
-                for n in range(col_pointer2[j], col_pointer2[j + 1]):
-                    s += nnz1[m] * b[col_indices1[m], row_indices2[n]] * nnz2[n]
-            Y[i, j] = s
-    return Y
 
 
 @numba.njit
