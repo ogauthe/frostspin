@@ -220,27 +220,17 @@ def _numba_abelian_transpose(
 
     # 5) copy all coeff from all blocks to new destination
     # much faster NOT to parallelize loop on old_blocks (huge difference in block sizes)
-    ori = (
-        np.arange(old_row_irreps.size).reshape(old_row_irreps.size, 1)
-        // rstrides1
-        % rmod
-        * rstrides2
-    ).sum(axis=1)
-    oci = (
-        np.arange(old_col_irreps.size).reshape(old_col_irreps.size, 1)
-        // cstrides1
-        % cmod
-        * cstrides2
-    ).sum(axis=1)
     for bi in range(old_block_irreps.size):
-        ori_sz = ori[old_row_irreps == old_block_irreps[bi]]
-        oci_sz = oci[old_col_irreps == old_block_irreps[bi]]
-        # ori_sz and oci_sz cannot be empty since old irrep block exists
-        for i in numba.prange(ori_sz.size):
-            for j in numba.prange(oci_sz.size):
+        ori = (old_row_irreps == old_block_irreps[bi]).nonzero()[0].reshape(-1, 1)
+        ori = (ori // rstrides1 % rmod * rstrides2).sum(axis=1)
+        oci = (old_col_irreps == old_block_irreps[bi]).nonzero()[0].reshape(-1, 1)
+        oci = (oci // cstrides1 % cmod * cstrides2).sum(axis=1)
+        # ori and oci cannot be empty since old irrep block exists
+        for i in numba.prange(ori.size):
+            for j in numba.prange(oci.size):
                 # nr and nc depend on both ori[i] and oci[j], but they appear several
                 # times, in this block as well as in others.
-                nr, nc = divmod(ori_sz[i] + oci_sz[j], new_col_irreps.size)
+                nr, nc = divmod(ori[i] + oci[j], new_col_irreps.size)
                 new_bi = new_row_block_indices[nr]
                 new_row_index = block_rows[nr]
                 new_col_index = block_cols[nc]
