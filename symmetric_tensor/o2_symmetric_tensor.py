@@ -90,57 +90,6 @@ def _numba_O2_rep_to_U1(r):
 
 
 @numba.njit
-def _numba_get_coo_proj(signs, so):
-    n = so.size
-    ecoeff = np.empty((2 * n,), dtype=np.float64)
-    erows = np.empty((2 * n,), dtype=np.int64)
-    ecols = np.empty((2 * n,), dtype=np.int64)
-    ocoeff = np.empty((2 * n,), dtype=np.float64)
-    orows = np.empty((2 * n,), dtype=np.int64)
-    ocols = np.empty((2 * n,), dtype=np.int64)
-    ie, io = 0, 0
-    ke, ko = 0, 0
-    state_indices = set(range(n))
-    while state_indices:
-        i = state_indices.pop()
-        j = so[i]
-        isign = signs[i]
-        if i == j:  # fixed point
-            if isign == 1:  # even
-                ecoeff[ke] = 1.0
-                erows[ke] = ie
-                ecols[ke] = i
-                ke += 1
-                ie += 1
-            else:  # odd
-                ocoeff[ko] = 1.0
-                orows[ko] = io
-                ocols[ko] = i
-                io += 1
-                ko += 1
-        else:
-            state_indices.remove(j)
-            ecoeff[ke] = 1.0 / np.sqrt(2)
-            ecoeff[ke + 1] = isign / np.sqrt(2)
-            erows[ke] = ie
-            erows[ke + 1] = ie
-            ecols[ke] = i
-            ecols[ke + 1] = j
-            ocoeff[ko] = 1.0 / np.sqrt(2)
-            ocoeff[ko + 1] = -isign / np.sqrt(2)
-            orows[ko] = io
-            orows[ko + 1] = io
-            ocols[ko] = i
-            ocols[ko + 1] = j
-            ke += 2
-            ko += 2
-            ie += 1
-            io += 1
-
-    return ecoeff[:ke], erows[:ke], ecols[:ke], ocoeff[:ko], orows[:ko], ocols[:ko]
-
-
-@numba.njit
 def _numba_get_reflection_perm_sign(rep):
     """
     Construct basis permutation mapping vectors into their reflected form.
@@ -177,47 +126,73 @@ def _numba_get_swapped(indices, strides, reps):
     return indices_b, signs
 
 
-def _get_b0_projectors(row_reps, col_reps, signature):
+def _get_b0_projectors(reps, signature):
     """
     Construct 0odd and 0even projectors. They allow to decompose U(1) Sz=0 sector into
     0odd (aka -1) and 0even (aka 0) sectors.
     """
 
-    # TODO have only rsig, rso, csign, cso as input
-    # reuse these for all Sz to generate -Sz block
-    nrr = len(row_reps)
-    shr = np.array([_numba_O2_representation_dimension(r) for r in row_reps])
-    row_cp = np.array([1, *shr[-1:0:-1]]).cumprod()[::-1]
-    u1_row_reps = tuple(_numba_O2_rep_to_U1(r) for r in row_reps)
-    u1_combined = U1_SymmetricTensor.combine_representations(
-        u1_row_reps, signature[:nrr]
-    )
-    rso = ((u1_combined == 0).nonzero()[0] // row_cp[:, None]).T % shr
-    rso, rsign = _numba_get_swapped(rso, row_cp, tuple(row_reps))
-    rso = rso.argsort()  # imposed sorted block indices in U(1) => argsort
-    ecoeff, erows, ecols, ocoeff, orows, ocols = _numba_get_coo_proj(rsign, rso)
-    ie = erows[-1] + 1 if erows.size else 0
-    io = orows[-1] + 1 if orows.size else 0
-    pre = sp.coo_matrix((ecoeff, (erows, ecols)), shape=(ie, rso.size))
-    pro = sp.coo_matrix((ocoeff, (orows, ocols)), shape=(io, rso.size))
+    # TODO avoid recomputing u1_combined and sz0_states_reversed both here and in
+    # ._generate_neg_sz_blocks
+    sh = np.array([_numba_O2_representation_dimension(r) for r in reps])
+    cp = np.array([1, *sh[-1:0:-1]]).cumprod()[::-1]
+    u1_reps = tuple(_numba_O2_rep_to_U1(r) for r in reps)
+    u1_combined = U1_SymmetricTensor.combine_representations(u1_reps, signature)
+    sz0_states = ((u1_combined == 0).nonzero()[0] // cp[:, None]).T % sh
+    sz0_states_reversed, signs = _numba_get_swapped(sz0_states, cp, tuple(reps))
+    so = sz0_states_reversed.argsort()  # imposed sorted block indices in U(1)
 
-    # same operation for columns
-    shc = [_numba_O2_representation_dimension(r) for r in col_reps]
-    col_cp = np.array([1, *shc[-1:0:-1]]).cumprod()[::-1]
-    u1_col_reps = tuple(_numba_O2_rep_to_U1(r) for r in col_reps)
-    u1_combined = U1_SymmetricTensor.combine_representations(
-        u1_col_reps, ~signature[nrr:]
-    )
-    cso = ((u1_combined == 0).nonzero()[0] // col_cp[:, None]).T % shc
-    cso, csign = _numba_get_swapped(cso, col_cp, tuple(col_reps))
-    cso = cso.argsort()  # imposed sorted block indices in U(1) => argsort
-    ecoeff, erows, ecols, ocoeff, orows, ocols = _numba_get_coo_proj(csign, cso)
-    ie = erows[-1] + 1 if erows.size else 0
-    io = orows[-1] + 1 if orows.size else 0
-    pce = sp.coo_matrix((ecoeff, (ecols, erows)), shape=(cso.size, ie))
-    pco = sp.coo_matrix((ocoeff, (ocols, orows)), shape=(cso.size, io))
+    # Some Sz=0 states are fixed points, mapped to the same state, either even or odd.
+    # They belong to even or odd sector depending on signs and need to be sent in this
+    # sector with coeff 1.
+    # All the other states are doublets which requires even and odd combination to
+    # produce 1 even and 1 odd states.
+    # Hence the number of even (odd) states is number of even (odd) fixed points plus
+    # the number of doublets.
 
-    return pro, pre, pco, pce
+    # To get simpler projectors, we first detect the fixed points and set them as the
+    # first lines. Then doubles are considered.
+
+    state_indices = np.arange(so.size)
+    fx = (state_indices == so).nonzero()[0]  # fixed point under Sz-reversal
+    notfx = (state_indices < so).nonzero()[0]
+    fx_signs = signs[fx]
+    fxe = fx_signs == 1  # indices of even fixed points in fx
+    n_doublets = notfx.size
+    nfx_coeff = signs[notfx] / np.sqrt(2)
+    nfx_cols = so[notfx]  # same as (state_indices > so).nonzero()[0]
+
+    nfxe = fxe.sum()  # number of even fixed points
+    ncoeff_even = nfxe + 2 * n_doublets  # number of coefficients in even projector
+    ecoeff = np.empty((ncoeff_even,))
+    ecoeff[:nfxe] = 1.0
+    ecoeff[nfxe : nfxe + n_doublets] = 1.0 / np.sqrt(2)
+    ecoeff[nfxe + n_doublets :] = nfx_coeff
+    erows = np.empty((ncoeff_even,), dtype=np.int32)  # scipy issue 16774: int32 indices
+    erows[: nfxe + n_doublets] = np.arange(nfxe + n_doublets, dtype=np.int32)
+    erows[nfxe + n_doublets :] = np.arange(nfxe, nfxe + n_doublets, dtype=np.int32)
+    ecols = np.empty((ncoeff_even,), dtype=np.int32)
+    ecols[:nfxe] = fx[fxe]
+    ecols[nfxe : nfxe + n_doublets] = notfx
+    ecols[nfxe + n_doublets :] = nfx_cols
+    pe = sp.coo_matrix((ecoeff, (erows, ecols)), shape=(nfxe + n_doublets, so.size))
+
+    # similar operations for odd sector
+    nfxo = fxe.size - nfxe
+    ncoeff_odd = nfxo + 2 * n_doublets
+    ocoeff = np.empty((ncoeff_odd,))
+    ocoeff[:nfxo] = 1.0
+    ocoeff[nfxo : nfxo + n_doublets] = 1.0 / np.sqrt(2)
+    ocoeff[nfxo + n_doublets :] = -nfx_coeff
+    orows = np.empty((ncoeff_odd,), dtype=np.int32)
+    orows[: nfxo + n_doublets] = np.arange(nfxo + n_doublets, dtype=np.int32)
+    orows[nfxo + n_doublets :] = np.arange(nfxo, nfxo + n_doublets, dtype=np.int32)
+    ocols = np.empty((ncoeff_odd,), dtype=np.int32)
+    ocols[:nfxo] = fx[~fxe]
+    ocols[nfxo : nfxo + n_doublets] = notfx
+    ocols[nfxo + n_doublets :] = nfx_cols
+    po = sp.coo_matrix((ocoeff, (orows, ocols)), shape=(nfxo + n_doublets, so.size))
+    return po, pe
 
 
 @numba.njit(parallel=True)
@@ -323,7 +298,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         # may remove these checks to be able to use U(1) with combined rows and columns
         # when tu1 is a temporary object
         # just need signature as input instead of tu1.signature
-        assert tu1._nrr == len(row_reps)
+        assert tu1.n_row_reps == len(row_reps)
         assert all(
             (_numba_O2_rep_to_U1(r) == tu1.row_reps[i]).all()
             for i, r in enumerate(row_reps)
@@ -334,22 +309,24 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             for i, r in enumerate(col_reps)
         )
 
+        nrr = len(row_reps)
         blocks = []
         block_irreps = []
         i0 = tu1.block_irreps.searchsorted(0)
-        if tu1.block_irreps[i0] == 0:  # if i0 = len(block_irreps) tu1 is not O(2)
-            pro, pre, pco, pce = _get_b0_projectors(row_reps, col_reps, tu1.signature)
+        if tu1.block_irreps[i0] == 0:  # tu1 is O(2) => i0 < len(tu1.block_irreps)
+            pro, pre = _get_b0_projectors(row_reps, tu1.signature[:nrr])
+            pco, pce = _get_b0_projectors(col_reps, ~tu1.signature[nrr:])
             if pro.getnnz() and pco.getnnz():
                 block_irreps.append(-1)
-                b0o = custom_sparse_product(pro, tu1.blocks[i0], pco)
+                b0o = custom_sparse_product(pro, tu1.blocks[i0], pco.T)
                 blocks.append(b0o)
             if pre.getnnz() and pce.getnnz():
                 block_irreps.append(0)
-                b0e = custom_sparse_product(pre, tu1.blocks[i0], pce)
+                b0e = custom_sparse_product(pre, tu1.blocks[i0], pce.T)
                 blocks.append(b0e)
             assert abs(
                 np.sqrt(sum(lg.norm(b) ** 2 for b in blocks)) - lg.norm(tu1.blocks[i0])
-            ) <= 1e-14 * lg.norm(tu1.blocks[i0])
+            ) <= 1e-14 * lg.norm(tu1.blocks[i0]), "b0 splitting does not preserve norm"
             i0 += 1
         block_irreps.extend(tu1.block_irreps[i0:])
         blocks.extend(tu1.blocks[i0:])
@@ -393,9 +370,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         isz = self._nblocks - 1
         while isz > -1 and self._block_irreps[isz] > 0:
             sz = self._block_irreps[isz]
-            # could factorize Sz-reflection, but implies doing operation for all Sz
-            # better to map to Sz-reflected inside loop, only for Sz<0?
-            # or numpy will make things faster?
+            # it is faster to map to Sz-reflected inside the loop.
             rsz_mat = (u1_combined_row == sz).nonzero()[0]  # find Sz states
             rsz_t = (rsz_mat // row_cp[:, None]).T % shr  # multi-index form
             rszb_mat = np.zeros((rsz_mat.size,), dtype=int)
@@ -430,24 +405,22 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
 
         # Sz = 0 blocks (may not exist)
         if self._block_irreps[0] < 1:
-            pro, pre, pco, pce = _get_b0_projectors(
-                self._row_reps, self._col_reps, self._signature
-            )
-            # try to reduce number of copies due to F ordering
+            pro, pre = _get_b0_projectors(self._row_reps, self._signature[: self._nrr])
+            pco, pce = _get_b0_projectors(self._col_reps, ~self._signature[self._nrr :])
             if self._block_irreps[0] == 0:  # no 0o block
                 i1 = 1
-                b0 = custom_sparse_product(pre.T, self._blocks[0], pce.T)
+                b0 = custom_sparse_product(pre.T, self._blocks[0], pce)
                 block_irreps = np.hstack((block_irreps, self._block_irreps[1:]))
             elif self.nblocks > 1 and self._block_irreps[1] > 0:  # no 0e block
                 i1 = 1
-                b0 = custom_sparse_product(pro.T, self._blocks[0], pco.T)
+                b0 = custom_sparse_product(pro.T, self._blocks[0], pco)
                 block_irreps[-1] = 0
                 block_irreps = np.hstack((block_irreps, self._block_irreps[1:]))
             else:
                 i1 = 2
                 b0 = custom_sparse_product(
-                    pro.T, self._blocks[0], pco.T
-                ) + custom_sparse_product(pre.T, self._blocks[1], pce.T)
+                    pro.T, self._blocks[0], pco
+                ) + custom_sparse_product(pre.T, self._blocks[1], pce)
                 block_irreps = np.hstack((block_irreps[:-1], self._block_irreps[2:]))
             blocks.append(b0)
         else:
