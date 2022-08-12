@@ -168,10 +168,10 @@ def _get_b0_projectors(reps, signature):
     ecoeff[:nfxe] = 1.0
     ecoeff[nfxe : nfxe + n_doublets] = 1.0 / np.sqrt(2)
     ecoeff[nfxe + n_doublets :] = nfx_coeff
-    erows = np.empty((ncoeff_even,), dtype=np.int64)
-    erows[: nfxe + n_doublets] = np.arange(nfxe + n_doublets)
-    erows[nfxe + n_doublets :] = np.arange(nfxe, nfxe + n_doublets)
-    ecols = np.empty((ncoeff_even,), dtype=np.int64)
+    erows = np.empty((ncoeff_even,), dtype=np.int32)  # scipy issue 16774: int32 indices
+    erows[: nfxe + n_doublets] = np.arange(nfxe + n_doublets, dtype=np.int32)
+    erows[nfxe + n_doublets :] = np.arange(nfxe, nfxe + n_doublets, dtype=np.int32)
+    ecols = np.empty((ncoeff_even,), dtype=np.int32)
     ecols[:nfxe] = fx[fxe]
     ecols[nfxe : nfxe + n_doublets] = notfx
     ecols[nfxe + n_doublets :] = nfx_cols
@@ -184,10 +184,10 @@ def _get_b0_projectors(reps, signature):
     ocoeff[:nfxo] = 1.0
     ocoeff[nfxo : nfxo + n_doublets] = 1.0 / np.sqrt(2)
     ocoeff[nfxo + n_doublets :] = -nfx_coeff
-    orows = np.empty((ncoeff_odd,), dtype=np.int64)
-    orows[: nfxo + n_doublets] = np.arange(nfxo + n_doublets)
-    orows[nfxo + n_doublets :] = np.arange(nfxo, nfxo + n_doublets)
-    ocols = np.empty((ncoeff_odd,), dtype=np.int64)
+    orows = np.empty((ncoeff_odd,), dtype=np.int32)
+    orows[: nfxo + n_doublets] = np.arange(nfxo + n_doublets, dtype=np.int32)
+    orows[nfxo + n_doublets :] = np.arange(nfxo, nfxo + n_doublets, dtype=np.int32)
+    ocols = np.empty((ncoeff_odd,), dtype=np.int32)
     ocols[:nfxo] = fx[~fxe]
     ocols[nfxo : nfxo + n_doublets] = notfx
     ocols[nfxo + n_doublets :] = nfx_cols
