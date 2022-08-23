@@ -6,7 +6,6 @@ import numba
 from misc_tools.sparse_tools import custom_sparse_product
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 from .u1_symmetric_tensor import U1_SymmetricTensor
-from .abelian_symmetric_tensor import _numpy_get_indices
 
 
 @numba.njit
@@ -296,13 +295,33 @@ def _numba_O2_transpose(
     rstrides2 = new_strides[:old_nrr]
     cstrides2 = new_strides[old_nrr:]
 
-    # 2) find unique irreps in rows and relate them to blocks and indices.
-    (
-        unique_row_irreps,
-        row_irrep_count,
-        block_rows,
-        new_row_block_indices,
-    ) = _numpy_get_indices(new_row_irreps)
+    # 2) find unique Sz>=0 in rows and relate them to blocks and indices.
+    perm = new_row_irreps.argsort(kind="mergesort")
+    sorted_irreps = new_row_irreps[perm]
+    block_bounds = (
+        [0]
+        + list((sorted_irreps[:-1] != sorted_irreps[1:]).nonzero()[0] + 1)
+        + [new_row_irreps.size]
+    )
+    i = 0
+    while sorted_irreps[block_bounds[i]] < 0:  # keep only Sz >= 0
+        i += 1
+    block_bounds = block_bounds[i:]
+    n = len(block_bounds) - 1
+    unique_row_irreps = np.empty((n,), dtype=np.int8)
+    row_irrep_count = np.empty((n,), dtype=np.int64)
+    block_rows = np.empty(new_row_irreps.shape, dtype=np.int64)
+    new_row_block_indices = np.empty(new_row_irreps.shape, dtype=np.int64)
+    for i in range(n):
+        unique_row_irreps[i] = sorted_irreps[block_bounds[i]]
+        row_irrep_count[i] = block_bounds[i + 1] - block_bounds[i]
+        block_rows[block_bounds[i] : block_bounds[i + 1]] = np.arange(
+            row_irrep_count[i]
+        )
+        new_row_block_indices[block_bounds[i] : block_bounds[i + 1]] = i
+    perm = perm.argsort()  # inverse perm
+    block_rows = block_rows[perm]
+    new_row_block_indices = new_row_block_indices[perm]
 
     """
     # 2) find irreps and block sizes from lightweighted O(2) reps
@@ -347,9 +366,9 @@ def _numba_O2_transpose(
     """
     # 3) find each column index inside new blocks
     block_cols = np.empty((new_col_irreps.size,), dtype=np.int64)
-    col_irrep_count = np.zeros((unique_row_irreps.size,), dtype=np.int64)
+    col_irrep_count = np.zeros((n,), dtype=np.int64)
     for i in range(new_col_irreps.size):
-        for j in range(unique_row_irreps.size):
+        for j in range(n):
             if new_col_irreps[i] == unique_row_irreps[j]:
                 block_cols[i] = col_irrep_count[j]
                 col_irrep_count[j] += 1
@@ -365,7 +384,7 @@ def _numba_O2_transpose(
     dtype = old_blocks[0].dtype
     new_blocks = [
         np.zeros((row_irrep_count[i], col_irrep_count[i]), dtype=dtype)
-        for i in range(unique_row_irreps.size)
+        for i in range(n)
     ]
 
     """
@@ -423,7 +442,7 @@ def _numba_O2_transpose(
     # 6) drop empty blocks, we do not need new_row_block_indices anymore
     blocks = []
     block_irreps = []
-    for i in range(unique_row_irreps.size):
+    for i in range(n):
         if new_blocks[i].size:
             blocks.append(new_blocks[i])
             block_irreps.append(unique_row_irreps[i])
