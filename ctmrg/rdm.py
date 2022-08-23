@@ -43,6 +43,8 @@ def contract_open_corner(C1, T1, T4, A):
 
 
 def contract_open_corner_mirror(T1, C2, A, T2):
+    # rdm_1x2 and rdm_diag_dr require different output convention here
+    # cannot provide clean leg ordering output
     ur = C2 @ T1.permutate((0,), (1, 2, 3))
     ur = ur.T @ T2.permutate((0,), (2, 3, 1))
     temp = A.permutate((1, 0, 4, 5), (2, 3))
@@ -51,13 +53,12 @@ def contract_open_corner_mirror(T1, C2, A, T2):
     ur = ur.permutate((0, 4, 5), (1, 2, 3, 6, 7))
     temp = temp.permutate((1, 2, 3), (0, 4, 5)).conjugate()
     ur = temp @ ur
-    ur = ur.permutate((3, 0, 5, 2, 6), (4, 1, 7))
-    #   4------
-    #    0 || |
+    #   6------
+    #    2 || |
     #     \|| |
-    #  2,3====|
+    #  5,3====|
     #     /|| |
-    #    1 56 7
+    #    0 41 7
     return ur
 
 
@@ -101,6 +102,7 @@ def rdm_1x2(C1, T1l, T1r, C2, T4, Al, Ar, T2, C4, T3l, T3r, C3):
     right = right @ C3
     right = right.permutate((0, 3), (1, 2))
     right = contract_open_corner_mirror(T1r, C2, Ar, right)
+    right = right.permutate((3, 0, 5, 2, 6), (4, 1, 7))
     right = right @ T3r.permutate((0, 1, 2), (3,))
     right = right.permutate((0, 1), (2, 3, 4, 5))
     rdm = left @ right.T
@@ -177,8 +179,8 @@ def rdm_diag_dr(C1, T1l, ur, T4u, Aul, dl, Adr, T2d, T3r, C3):
     #     ||\  |             00|
     #     || 1 |          1'----
     #   7-------
-    dr = dr.permutate((0, 1), (2, 3, 4, 5, 6, 7))  # memory peak: 3*d**2*chi**2*D**4
-    rdm = rdm @ dr.T
+    dr = dr.permutate((5, 2, 6, 4, 1, 7), (3, 0))  # memory peak: 3*d**2*chi**2*D**4
+    rdm = rdm @ dr
     rdm = rdm.permutate((0, 2), (1, 3)).toarray(as_matrix=True)
     rdm /= rdm.trace()
     return rdm
