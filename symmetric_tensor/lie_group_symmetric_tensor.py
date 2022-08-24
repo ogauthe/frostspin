@@ -153,7 +153,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         unitary = unitary.sorted_indices()  # copy to get clean data array
         assert lg.norm(
             (unitary @ unitary.T.conj() - ssp.eye(unitary.shape[0])).data
-        ) < 1e-14 * np.sqrt(unitary.shape[0]), "unitary transformation is not unitary"
+        ) < 1e-13 * np.sqrt(unitary.shape[0]), "unitary transformation is not unitary"
         return unitary
 
     @classmethod
@@ -224,7 +224,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             cls.combine_representations(col_reps, signature[nrr:]),
         )
         st = cls(row_reps, col_reps, blocks, block_irreps, signature)
-        assert abs(st.norm() - lg.norm(arr)) <= 1e-14 * lg.norm(
+        assert abs(st.norm() - lg.norm(arr)) <= 1e-13 * lg.norm(
             arr
         ), "norm is not conserved in SymmetricTensor cast"
         return st
