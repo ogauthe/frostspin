@@ -213,6 +213,7 @@ def _numba_O2_transpose(
     old_col_irreps,
     old_nrr,
     axes,
+    new_block_irreps,
     new_row_irreps,
     new_col_irreps,
     rmaps,
@@ -240,6 +241,8 @@ def _numba_O2_transpose(
         Number of axes to concatenate to obtain old rows.
     axes : tuple of ndim integers
         Axes permutation.
+    new_block_irreps: 1D int8 array
+        Sz label for each block, with only Sz >=0.
     new_row_irreps : (new_nrows,) int8 ndarray
         Row Sz values after transpose.
     new_col_irreps : (new_ncols,) int8 ndarray
@@ -286,50 +289,30 @@ def _numba_O2_transpose(
     cstrides2 = new_strides[old_nrr:]
 
     # 2) find unique Sz>=0 in rows and relate them to blocks and indices.
-    perm = new_row_irreps.argsort(kind="mergesort")
-    sorted_irreps = new_row_irreps[perm]
-    block_bounds = (
-        [0]
-        + list((sorted_irreps[:-1] != sorted_irreps[1:]).nonzero()[0] + 1)
-        + [new_row_irreps.size]
-    )
-    i = 0
-    while sorted_irreps[block_bounds[i]] < 0:  # keep only Sz >= 0
-        i += 1
-    block_bounds = block_bounds[i:]
-    n = len(block_bounds) - 1
-    unique_row_irreps = np.empty((n,), dtype=np.int8)
-    row_irrep_count = np.empty((n,), dtype=np.int64)
-    block_rows = np.empty(new_row_irreps.shape, dtype=np.int64)
+    n = len(new_block_irreps)
+    block_rows = np.empty((new_row_irreps.size,), dtype=np.int64)
+    row_irrep_count = np.zeros((n,), dtype=np.int64)
     new_row_block_indices = np.empty(new_row_irreps.shape, dtype=np.int64)
-    for i in range(n):
-        unique_row_irreps[i] = sorted_irreps[block_bounds[i]]
-        row_irrep_count[i] = block_bounds[i + 1] - block_bounds[i]
-        block_rows[block_bounds[i] : block_bounds[i + 1]] = np.arange(
-            row_irrep_count[i]
-        )
-        new_row_block_indices[block_bounds[i] : block_bounds[i + 1]] = i
-    perm = perm.argsort()  # inverse perm
-    block_rows = block_rows[perm]
-    new_row_block_indices = new_row_block_indices[perm]
+    for i in range(new_row_irreps.size):
+        for j in range(n):
+            if new_row_irreps[i] == new_block_irreps[j]:
+                block_rows[i] = row_irrep_count[j]
+                row_irrep_count[j] += 1
+                new_row_block_indices[i] = j
+                break
 
     # 3) find each column index inside new blocks
     block_cols = np.empty((new_col_irreps.size,), dtype=np.int64)
     col_irrep_count = np.zeros((n,), dtype=np.int64)
     for i in range(new_col_irreps.size):
         for j in range(n):
-            if new_col_irreps[i] == unique_row_irreps[j]:
+            if new_col_irreps[i] == new_block_irreps[j]:
                 block_cols[i] = col_irrep_count[j]
                 col_irrep_count[j] += 1
                 break
 
     # 4) initialize block sizes. Non-existing blocks stay zero-sized
-    # we need to keep all irrep blocks including empty ones (=no column) so that
-    # new_row_block_indices still refers to the accurate block.
-    # We need to initialize to zero and not to empty because of possibly missing old
-    # block.
-    # >> other possibility: contiguous array data of size ncoeff, new_blocks information
-    # set with strides. Then new_blocks = [data[i:j].reshape(m,n)]
+    # we know block size is > 0
     dt = old_blocks[0].dtype
     new_blocks = [
         np.zeros((row_irrep_count[i], col_irrep_count[i]), dtype=dt) for i in range(n)
@@ -378,15 +361,7 @@ def _numba_O2_transpose(
                     s = rsign[i] * csign[j]
                     new_blocks[new_bi][nri, nci] = s * old_blocks[bi][i, j]
 
-    # 6) drop empty blocks, we do not need new_row_block_indices anymore
-    blocks = []
-    block_irreps = []
-    for i in range(n):
-        if new_blocks[i].size:
-            blocks.append(new_blocks[i])
-            block_irreps.append(unique_row_irreps[i])
-
-    return blocks, block_irreps
+    return new_blocks
 
 
 class O2_SymmetricTensor(NonAbelianSymmetricTensor):
@@ -668,6 +643,18 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
                 reps.append(self._col_reps[ax - self._nrr])
         signature = np.array(signature)
 
+        # efficient O(2) product allows to precompute block_irreps fast
+        new_row_o2_rep = self.combine_representations(reps[:nrr], signature[:nrr])
+        new_col_o2_rep = self.combine_representations(reps[nrr:], signature[nrr:])
+        block_irreps = np.intersect1d(
+            new_row_o2_rep[1], new_col_o2_rep[1], assume_unique=True
+        )
+        if block_irreps[0] == -1:
+            if block_irreps.size > 1 and block_irreps[1] == 0:
+                block_irreps = block_irreps[1:]
+            else:
+                block_irreps[0] = 0
+
         old_row_irreps = U1_SymmetricTensor.combine_representations(
             old_u1_reps[: self._nrr], self._signature[: self._nrr]
         )
@@ -705,7 +692,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             old_block_irreps = self._block_irreps
 
         old_blocks = tuple(np.ascontiguousarray(b) for b in old_blocks)  # numba C/F
-        blocks, block_irreps = _numba_O2_transpose(
+        blocks = _numba_O2_transpose(
             np.array(self._shape),
             old_blocks,
             old_block_irreps,
@@ -713,6 +700,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             old_col_irreps,
             self._nrr,
             axes,
+            block_irreps,
             new_row_irreps,
             new_col_irreps,
             tuple(rmaps),
