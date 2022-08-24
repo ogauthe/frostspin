@@ -228,28 +228,37 @@ def _numba_O2_transpose(
     old_shape : (ndim,) integer ndarray
         Tensor shape before transpose.
     old_blocks : homogeneous tuple of onb C-array
-        Reduced blocks before transpose.
+        Blocks before transpose, with 0e and 0o combined in one Sz=0 block. Sz<0 blocks
+        should not be included.
     old_block_irreps : (onb,) int8 ndarray
-        Block irreps before transpose.
+        Block Sz values before transpose.
     old_row_irreps : (old_nrows,) int8 ndarray
-        Row irreps before transpose.
+        Row Sz values before transpose.
     old_col_irreps : (old_ncols,) int8 ndarray
-        Column irreps before transpose.
-    old_n_leg_rows : int
+        Column Sz values before transpose.
+    old_nrr : int
         Number of axes to concatenate to obtain old rows.
     axes : tuple of ndim integers
         Axes permutation.
     new_row_irreps : (new_nrows,) int8 ndarray
-        Row irreps after transpose.
+        Row Sz values after transpose.
     new_col_irreps : (new_ncols,) int8 ndarray
-        Column irreps after transpose.
+        Column Sz values after transpose.
+    rmaps: tuple of old_nrr int64 1D array
+        Index mapping to Sz-reflected state for each row axis.
+    rsigns: tuple of old_nrr int8 1D array
+        Sign to add when reflecting for each row axis.
+    cmaps: tuple of ndim - old_nrr int64 1D array
+        Index mapping to Sz-reflected state for each column axis.
+    csigns: tuple of ndim - old_nrr int8 1D array
+        Sign to add when reflecting for each column axis.
 
     Returns
     -------
     blocks : tuple of nnb C-array
-        Reduced blocks after transpose.
+        Blocks after transpose, with Sz=0 block instead of 0e/0o.
     block_irreps : (nnb,) int8 ndarray
-        Block irreps after transpose.
+        Block Sz values after transpose.
 
     Note that old_shape is a ndarray and not a tuple.
     old_blocks MUST be homogeneous tuple of C-array, using F-array sometimes
@@ -258,26 +267,7 @@ def _numba_O2_transpose(
     ###################################################################################
     # very similar to U(1)
     ###################################################################################
-    """
-    # 1) construct U(1) irreps, perm and sign
-    old_shape = np.empty((ndim,), dtype=np.int64)
-    u1_reps = []
-    axis_perm = []
-    axis_sign = []
-    for i, r in enumerate(reps):
-        perm, sign = _get_reflection_perm_sign(r)
-        axis_perm.append(perm)
-        axis_sign.append(sign)
-        u1 = _O2_rep_to_U1(r)
-        u1_reps.append(u1)
-        old_shape[i] = u1.size
-
-    # numba error if nrr / nrc is 1
-    new_row_irreps = _numba_combine_U1(u1_reps[:old_nrr], signature[:old_nrr])
-    new_col_irreps = _numba_combine_U1(u1_reps[old_nrr:], signature[old_nrr:])
-    """
-
-    # 2) construct strides before and after transpose for rows and cols
+    # 1) construct strides before and after transpose for rows and cols
     ndim = old_shape.size
     rstrides1 = np.ones((old_nrr,), dtype=np.int64)
     rstrides1[1:] = old_shape[old_nrr - 1 : 0 : -1]
@@ -323,47 +313,6 @@ def _numba_O2_transpose(
     block_rows = block_rows[perm]
     new_row_block_indices = new_row_block_indices[perm]
 
-    """
-    # 2) find irreps and block sizes from lightweighted O(2) reps
-    # combine O(2) should be much faster than U(1) for large representations
-    new_row_o2_rep = _numba_combine_O2(axis_reps[:old_nrr])
-    new_col_o2_rep = _numba_combine_O2(axis_reps[old_nrr:])
-    blocks = []
-    block_irreps = []
-    row_irrep_count = []
-    col_irrep_count = []
-    ir, ic = 0, 0
-    dtype = old_blocks[0].dtype
-    while ir < new_row_o2_rep.shape[1] and ic < new_col_o2_rep.shape[1]:
-        if new_row_o2_rep[1, ir] == new_row_o2_rep[1, ic]:
-            blocks.append(
-                np.zeros((new_row_o2_rep[0, ir], new_col_o2_rep[0, ic]), dtype=dtype)
-            )
-            block_irreps.append(new_row_o2_rep[1, ir])
-            row_irrep_count.append(new_row_o2_rep[0, ir])
-            col_irrep_count.append(new_col_o2_rep[0, ir])
-            ir += 1
-            ic += 1
-        elif new_row_o2_rep[1, ir] < new_row_o2_rep[1, ic]:
-            ir += 1
-        else:
-            ic += 1
-
-    # 4) find each column index inside new blocks
-    block_rows = np.empty((new_row_irreps.size,), dtype=np.int64)
-    for i in range(new_row_irreps.size):
-        for bi in range(block_irreps.size):
-            if new_row_irreps[i] == block_irreps[bi]:
-                block_rows[i] = row_irrep_count[bi]
-                break
-
-    block_cols = np.empty((new_col_irreps.size,), dtype=np.int64)
-    for i in range(new_col_irreps.size):
-        for bi in range(block_irreps.size):
-            if new_col_irreps[i] == block_irreps[bi]:
-                block_cols[i] = col_irrep_count[j]
-                break
-    """
     # 3) find each column index inside new blocks
     block_cols = np.empty((new_col_irreps.size,), dtype=np.int64)
     col_irrep_count = np.zeros((n,), dtype=np.int64)
@@ -381,25 +330,15 @@ def _numba_O2_transpose(
     # block.
     # >> other possibility: contiguous array data of size ncoeff, new_blocks information
     # set with strides. Then new_blocks = [data[i:j].reshape(m,n)]
-    dtype = old_blocks[0].dtype
+    dt = old_blocks[0].dtype
     new_blocks = [
-        np.zeros((row_irrep_count[i], col_irrep_count[i]), dtype=dtype)
-        for i in range(n)
+        np.zeros((row_irrep_count[i], col_irrep_count[i]), dtype=dt) for i in range(n)
     ]
-
-    """
-    NEED
-    * new_block_indices
-    * new_row_irreps  <-- including Sz < 0
-    * block_rows
-    * block_cols
-    * initialized new_blocks <-- only for Sz >= 0
-    """
 
     # 5) copy all coeff from all blocks to new destination
     # use simpler O(2) mapping sz -sz?
     # then map is i -> i + (sz[i] > 0) * 2 - bool(sz[i])
-    # cannot be vectorized due to sz[i] call
+    # still cannot be vectorized due to sz[i] call
     for bi in range(old_block_irreps.size):
         ori = (old_row_irreps == old_block_irreps[bi]).nonzero()[0].reshape(-1, 1)
         ori = ori // rstrides1 % rmod
