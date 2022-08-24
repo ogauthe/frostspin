@@ -299,7 +299,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
         blocks, block_irreps = _numba_reduce_to_blocks(M, row_irreps, col_irreps)
         assert (
             abs((n := lg.norm(arr)) - np.sqrt(sum(lg.norm(b) ** 2 for b in blocks)))
-            <= 1e-14 * n  # allows for arr = 0
+            <= 1e-13 * n  # allows for arr = 0
         ), "norm is not conserved in AbelianSymmetricTensor cast"
         return cls(row_reps, col_reps, blocks, block_irreps, signature)
 
@@ -378,7 +378,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
         )
 
         tp = type(self)(reps[:nrr], reps[nrr:], blocks, block_irreps, signature)
-        assert abs(self.norm() - tp.norm()) <= 1e-14 * self.norm()
+        assert abs(self.norm() - tp.norm()) <= 1e-13 * self.norm()
         return tp
 
     def group_conjugated(self):

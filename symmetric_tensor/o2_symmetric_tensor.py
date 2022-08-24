@@ -464,7 +464,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         u1_col_reps = tuple(_numba_O2_rep_to_U1(r) for r in col_reps)
         tu1 = U1_SymmetricTensor.from_array(arr, u1_row_reps, u1_col_reps, signature)
         to2 = cls.from_U1(tu1, row_reps, col_reps)
-        assert abs(to2.norm() - lg.norm(arr)) <= 1e-14 * lg.norm(
+        assert abs(to2.norm() - lg.norm(arr)) <= 1e-13 * lg.norm(
             arr
         ), "norm is not conserved in O2_SymmetricTensor cast"
         return to2
@@ -511,7 +511,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
                 blocks.append(b0e)
             assert abs(
                 np.sqrt(sum(lg.norm(b) ** 2 for b in blocks)) - lg.norm(tu1.blocks[i0])
-            ) <= 1e-14 * lg.norm(tu1.blocks[i0]), "b0 splitting does not preserve norm"
+            ) <= 1e-13 * lg.norm(tu1.blocks[i0]), "b0 splitting does not preserve norm"
             i0 += 1
         block_irreps.extend(tu1.block_irreps[i0:])
         blocks.extend(tu1.blocks[i0:])
@@ -620,7 +620,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         tu1 = U1_SymmetricTensor(
             u1_row_reps, u1_col_reps, blocks, block_irreps, self._signature
         )
-        assert abs(tu1.norm() - self.norm()) <= 1e-14 * self.norm()
+        assert abs(tu1.norm() - self.norm()) <= 1e-13 * self.norm()
         return tu1
 
     def permutate(self, row_axes, col_axes):
@@ -724,7 +724,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             u1_reps[:nrr], u1_reps[nrr:], blocks, block_irreps, signature
         )
         tp = self.from_U1(tu1, reps[:nrr], reps[nrr:])
-        assert abs(tp.norm() - self.norm()) <= 1e-14 * self.norm(), "norm is different"
+        assert abs(tp.norm() - self.norm()) <= 1e-13 * self.norm(), "norm is different"
         return tp
 
     @property
