@@ -168,11 +168,17 @@ class CTM_Environment:
 
         # 4) check elementary tensors match together (need cell and coords)
         for (x, y) in self._neq_coords:
-            axes = self.get_A(x, y).group_conjugated().col_reps
-            if not (axes[0] == self.get_A(x, y - 1).col_reps[2]).all():
-                raise ValueError(f"Vertical bond does not match at coord {(x,y)}")
-            if not (axes[1] == self.get_A(x + 1, y).col_reps[3]).all():
-                raise ValueError(f"Horizontal bond does not match at coord {(x,y)}")
+            A = self.get_A(x, y)
+            Ay = self.get_A(x, y - 1)
+            if A.signature[2] == Ay.signature[4]:
+                raise ValueError(f"signature mismatch between {(x, y)} and {(x, y-1)}")
+            if (A.col_reps[0] != Ay.col_reps[2]).any():
+                raise ValueError(f"rep mismatch between {(x, y)} and {(x, y-1)}")
+            Ax = self.get_A(x + 1, y)
+            if A.signature[3] == Ax.signature[5]:
+                raise ValueError(f"signature mismatch between {(x+1, y)} and {(x, y)}")
+            if (A.col_reps[1] != Ax.col_reps[3]).any():
+                raise ValueError(f"rep mismatch between {(x+1, y)} and {(x, y)}")
 
         # 5) init enlarged corner and projectors lists
         self._corners_ul = [None] * self._Nneq
