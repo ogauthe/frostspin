@@ -9,7 +9,6 @@ def contract_open_corner(C1, T1, T4, A):
     # |=3,4         |=1,3
     # 5             5
     ul = ul.permutate((0, 3), (1, 4, 2, 5))
-    temp = A.permutate((1, 0, 3, 4), (2, 5))
 
     #  C1----T1-4       C1----T1-6
     #  |     ||         |     ||
@@ -19,7 +18,7 @@ def contract_open_corner(C1, T1, T4, A):
     #  T4-15-A-2        T4----A-2
     #  | \3  |\         | \5  |\
     #  5     3 0        7     3 0
-    ul = temp @ ul
+    ul = A.permutate((1, 0, 3, 4), (2, 5)) @ ul
     ul = ul.permutate((0, 4, 5), (1, 2, 3, 6, 7))  # memory a*d*chi**2*D**4
 
     #  C1----T1-6
@@ -30,8 +29,7 @@ def contract_open_corner(C1, T1, T4, A):
     #  T4----A-4      5-A*-1
     #  | \2  |\         |\
     #  7     5 0        2 3
-    temp = temp.permutate((1, 2, 3), (0, 4, 5)).conjugate()
-    ul = temp @ ul
+    ul = A.permutate((1, 2, 5), (0, 3, 4)).H @ ul
     ul = ul.permutate((3, 0, 4, 1, 6), (5, 2, 7))
     # -----6          -----4
     # |  || 3         |  || 0
@@ -47,12 +45,10 @@ def contract_open_corner_mirror(T1, C2, A, T2):
     # cannot provide clean leg ordering output
     ur = C2 @ T1.permutate((0,), (1, 2, 3))
     ur = ur.T @ T2.permutate((0,), (2, 3, 1))
-    temp = A.permutate((1, 0, 4, 5), (2, 3))
     ur = ur.permutate((0, 3), (1, 4, 2, 5))
-    ur = temp @ ur
+    ur = A.permutate((1, 0, 4, 5), (2, 3)) @ ur
     ur = ur.permutate((0, 4, 5), (1, 2, 3, 6, 7))
-    temp = temp.permutate((1, 2, 3), (0, 4, 5)).conjugate()
-    ur = temp @ ur
+    ur = A.permutate((1, 2, 3), (0, 4, 5)).H @ ur
     #   6------
     #    2 || |
     #     \|| |
