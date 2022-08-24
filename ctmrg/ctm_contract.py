@@ -50,7 +50,7 @@ def contract_corner_monolayer(C1, T1, T4, A):
     #  | \3  |\         |\
     #  7     5 1        1 3
     ul = ul.permutate((0, 1, 4, 5), (2, 3, 6, 7))  # memory peak 2*a*d*chi**2*D**4
-    ul = A.permutate((2, 3), (0, 1, 4, 5)).conjugate() @ ul
+    ul = A.permutate((0, 1, 4, 5), (2, 3)).H @ ul
 
     #  C1-T1-4 ---->2
     #  |  ||

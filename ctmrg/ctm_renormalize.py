@@ -161,7 +161,7 @@ def renormalize_T(Pt, T, A, P):
     nT = nT.permutate((0, 3), (1, 4, 2, 5))
     nT = A @ nT
     nT = nT.permutate((0, 1, 4, 5), (2, 3, 6, 7))
-    nT = A.permutate((2, 3), (0, 1, 4, 5)).conjugate() @ nT
+    nT = A.permutate((0, 1, 4, 5), (2, 3)).H @ nT
     nT = nT.permutate((3, 1, 4), (2, 0, 5))
     nT = Pt.T @ nT
     nT /= nT.norm()
