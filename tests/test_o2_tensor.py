@@ -35,6 +35,11 @@ tpu1 = tu1.T
 assert (tpo2.toU1() - tpu1).norm() < 1e-15
 assert lg.norm(tpo2.toarray() - tpu1.toarray()) < 1e-15
 
+th = to2.H
+th2 = tpo2.conjugate()
+th3 = to2.conjugate().T
+assert (th - th2).norm() < 1e-15
+assert (th - th3).norm() < 1e-15
 
 # SU2.toO2() adds some swaps and some signs, cannot compare toarray()
 # just test whether calling it crashes
