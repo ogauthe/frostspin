@@ -311,8 +311,7 @@ def _numba_O2_transpose(
                 col_irrep_count[j] += 1
                 break
 
-    # 4) initialize block sizes. Non-existing blocks stay zero-sized
-    # we know block size is > 0
+    # 4) initialize block sizes. We know blocks are non empty thanks to block_irreps.
     dt = old_blocks[0].dtype
     new_blocks = [
         np.zeros((row_irrep_count[i], col_irrep_count[i]), dtype=dt) for i in range(n)
