@@ -137,9 +137,11 @@ def _get_b0_projectors(o2_reps, sz_values):
     # TODO avoid recomputing u1_combined and sz0_states_reversed both here and in
     # ._generate_neg_sz_blocks
     sh = np.array([_numba_O2_representation_dimension(r) for r in o2_reps])
-    cp = np.array([1, *sh[-1:0:-1]]).cumprod()[::-1]
-    sz0_states = ((sz_values == 0).nonzero()[0] // cp[:, None]).T % sh
-    sz0_states_reversed, signs = _numba_get_swapped(sz0_states, cp, tuple(o2_reps))
+    strides = np.array([1, *sh[-1:0:-1]]).cumprod()[::-1].copy()
+    sz0_states = ((sz_values == 0).nonzero()[0] // strides[:, None]).T
+    sz0_states %= sh
+    sz0_states_reversed, signs = _numba_get_swapped(sz0_states, strides, tuple(o2_reps))
+    del sz0_states  # heavy in memory
     so = sz0_states_reversed.argsort()  # imposed sorted block indices in U(1)
 
     # Some Sz=0 states are fixed points, mapped to the same state, either even or odd.
@@ -691,6 +693,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
                 ) + custom_sparse_product(pre.T, self._blocks[1], pce)
                 old_block_sz = self._block_irreps[1:]
                 old_blocks = (b0, *self._blocks[2:])
+            del b0, pro, pre, pco, pce
         else:
             old_blocks = self._blocks
             old_block_sz = self._block_irreps
@@ -712,6 +715,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             tuple(cmaps),
             tuple(csigns),
         )
+        del old_blocks, old_row_sz, old_col_sz, new_row_sz, new_col_sz
         tu1 = U1_SymmetricTensor(  # blocks Sz<0 are missing (will not be read)
             u1_reps[:nrr], u1_reps[nrr:], blocks, block_sz, signature
         )
