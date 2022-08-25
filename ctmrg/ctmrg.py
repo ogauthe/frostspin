@@ -369,7 +369,7 @@ class CTMRG:
         if self.verbosity > 1:
             print("Finished CTM iteration")
 
-    def compute_rdm1x2(self, x=0, y=0):
+    def compute_rdm1x2(self, x, y):
         if self.verbosity > 1:
             print(f"Compute rdm 1x2 with C1 coord = ({x},{y})")
         return rdm.rdm_1x2(
@@ -387,7 +387,7 @@ class CTMRG:
             self._env.get_C3(x + 3, y + 2),
         )
 
-    def compute_rdm2x1(self, x=0, y=0):
+    def compute_rdm2x1(self, x, y):
         if self.verbosity > 1:
             print(f"Compute rdm 2x1 with C1 coord = ({x},{y})")
         return rdm.rdm_2x1(
@@ -405,7 +405,7 @@ class CTMRG:
             self._env.get_C3(x + 2, y + 3),
         )
 
-    def compute_rdm_diag_dr(self, x=0, y=0):
+    def compute_rdm_diag_dr(self, x, y, free_memory=True):
         if self.verbosity > 1:
             print(
                 f"Compute rdm for down right diagonal sites ({x+1},{y+1}) and",
@@ -422,9 +422,10 @@ class CTMRG:
             self._env.get_T2(x + 3, y + 2),
             self._env.get_T3(x + 2, y + 3),
             self._env.get_C3(x + 3, y + 3),
+            free_memory=free_memory,
         )
 
-    def compute_rdm_diag_ur(self, x=0, y=0):
+    def compute_rdm_diag_ur(self, x, y, free_memory=True):
         if self.verbosity > 1:
             print(
                 f"Compute rdm for upper right diagonal sites ({x+1},{y+2}) and",
@@ -443,7 +444,7 @@ class CTMRG:
             self._env.get_T3(x + 1, y + 3),
         )
 
-    def compute_rdm2x2(self, x=0, y=0):
+    def compute_rdm2x2(self, x, y):
         if self.verbosity > 1:
             print(f"Compute rdm 2x2 with C1 coord = ({x},{y})")
         return rdm.rdm_2x2(
@@ -481,7 +482,7 @@ class CTMRG:
             rdm2x1_cell.append(self.compute_rdm2x1(x, y))
         return rdm2x1_cell, rdm1x2_cell
 
-    def compute_rdm_2nd_neighbor_cell(self):
+    def compute_rdm_2nd_neighbor_cell(self, free_memory=True):
         """
         Compute reduced density matrix for every couple of inquivalent cell next nearest
         neighbor sites.
@@ -491,8 +492,8 @@ class CTMRG:
         rdm_dr_cell = []
         rdm_ur_cell = []
         for x, y in self._neq_coords:
-            rdm_dr_cell.append(self.compute_rdm_diag_dr(x, y))
-            rdm_ur_cell.append(self.compute_rdm_diag_ur(x, y))
+            rdm_dr_cell.append(self.compute_rdm_diag_dr(x, y, free_memory=free_memory))
+            rdm_ur_cell.append(self.compute_rdm_diag_ur(x, y, free_memory=free_memory))
         return rdm_dr_cell, rdm_ur_cell
 
     def compute_transfer_spectrum_h(
