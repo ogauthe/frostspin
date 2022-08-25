@@ -3,7 +3,7 @@ import scipy.sparse as sp
 import scipy.linalg as lg
 import numba
 
-from misc_tools.sparse_tools import custom_sparse_product
+from misc_tools.sparse_tools import custom_sparse_product, custom_double_sparse_product
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 from .u1_symmetric_tensor import U1_SymmetricTensor
 
@@ -586,9 +586,9 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
                 block_sz = np.hstack((block_sz, self._block_irreps[1:]))
             else:
                 i1 = 2
-                b0 = custom_sparse_product(
-                    pro.T, self._blocks[0], pco
-                ) + custom_sparse_product(pre.T, self._blocks[1], pce)
+                b0 = custom_double_sparse_product(
+                    pro.T, self._blocks[0], pco, pre.T, self._blocks[1], pce
+                )
                 block_sz = np.hstack((block_sz[:-1], self._block_irreps[2:]))
             blocks.append(b0)
         else:
@@ -688,9 +688,9 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
                 old_block_sz[0] = 0
                 old_blocks = (b0, *self._blocks[1:])
             else:
-                b0 = custom_sparse_product(
-                    pro.T, self._blocks[0], pco
-                ) + custom_sparse_product(pre.T, self._blocks[1], pce)
+                b0 = custom_double_sparse_product(
+                    pro.T, self._blocks[0], pco, pre.T, self._blocks[1], pce
+                )
                 old_block_sz = self._block_irreps[1:]
                 old_blocks = (b0, *self._blocks[2:])
             del b0, pro, pre, pco, pce
