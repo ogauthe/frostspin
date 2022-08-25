@@ -126,20 +126,20 @@ def _numba_get_swapped(indices, strides, reps):
     return indices_b, signs
 
 
-def _get_b0_projectors(reps, signature):
+def _get_b0_projectors(o2_reps, sz_values):
     """
     Construct 0odd and 0even projectors. They allow to decompose U(1) Sz=0 sector into
     0odd (aka -1) and 0even (aka 0) sectors.
     """
+    # sz_values can be recovered from o2_reps, but it is usually already constructed
+    # when calling _get_b0_projectors
 
     # TODO avoid recomputing u1_combined and sz0_states_reversed both here and in
     # ._generate_neg_sz_blocks
-    sh = np.array([_numba_O2_representation_dimension(r) for r in reps])
+    sh = np.array([_numba_O2_representation_dimension(r) for r in o2_reps])
     cp = np.array([1, *sh[-1:0:-1]]).cumprod()[::-1]
-    u1_reps = tuple(_numba_O2_rep_to_U1(r) for r in reps)
-    u1_combined = U1_SymmetricTensor.combine_representations(u1_reps, signature)
-    sz0_states = ((u1_combined == 0).nonzero()[0] // cp[:, None]).T % sh
-    sz0_states_reversed, signs = _numba_get_swapped(sz0_states, cp, tuple(reps))
+    sz0_states = ((sz_values == 0).nonzero()[0] // cp[:, None]).T % sh
+    sz0_states_reversed, signs = _numba_get_swapped(sz0_states, cp, tuple(o2_reps))
     so = sz0_states_reversed.argsort()  # imposed sorted block indices in U(1)
 
     # Some Sz=0 states are fixed points, mapped to the same state, either even or odd.
@@ -468,13 +468,12 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             for i, r in enumerate(col_reps)
         )
 
-        nrr = len(row_reps)
         blocks = []
         block_irreps = []
         i0 = tu1.block_irreps.searchsorted(0)
         if tu1.block_irreps[i0] == 0:  # tu1 is O(2) => i0 < len(tu1.block_irreps)
-            pro, pre = _get_b0_projectors(row_reps, tu1.signature[:nrr])
-            pco, pce = _get_b0_projectors(col_reps, ~tu1.signature[nrr:])
+            pro, pre = _get_b0_projectors(row_reps, tu1.get_row_representation())
+            pco, pce = _get_b0_projectors(col_reps, tu1.get_column_representation())
             if pro.getnnz() and pco.getnnz():
                 block_irreps.append(-1)
                 b0o = custom_sparse_product(pro, tu1.blocks[i0], pco.T)
@@ -559,13 +558,21 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
 
     def toU1(self):
         # Sz < 0 blocks
+        u1_row_reps = tuple(_numba_O2_rep_to_U1(r) for r in self._row_reps)
+        u1_col_reps = tuple(_numba_O2_rep_to_U1(r) for r in self._col_reps)
         blocks = self._generate_neg_sz_blocks()
         block_sz = -self._block_irreps[::-1]
 
         # Sz = 0 blocks (may not exist)
         if self._block_irreps[0] < 1:
-            pro, pre = _get_b0_projectors(self._row_reps, self._signature[: self._nrr])
-            pco, pce = _get_b0_projectors(self._col_reps, ~self._signature[self._nrr :])
+            sz_values = U1_SymmetricTensor.combine_representations(
+                u1_row_reps, self._signature[: self._nrr]
+            )
+            pro, pre = _get_b0_projectors(self._row_reps, sz_values)
+            sz_values = U1_SymmetricTensor.combine_representations(
+                u1_col_reps, ~self._signature[self._nrr :]
+            )
+            pco, pce = _get_b0_projectors(self._col_reps, sz_values)
             if self._block_irreps[0] == 0:  # no 0o block
                 i1 = 1
                 b0 = custom_sparse_product(pre.T, self._blocks[0], pce)
@@ -589,8 +596,6 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         # Sz > 0 blocks
         blocks.extend(self._blocks[i1:])
 
-        u1_row_reps = tuple(_numba_O2_rep_to_U1(r) for r in self._row_reps)
-        u1_col_reps = tuple(_numba_O2_rep_to_U1(r) for r in self._col_reps)
         tu1 = U1_SymmetricTensor(
             u1_row_reps, u1_col_reps, blocks, block_sz, self._signature
         )
@@ -669,8 +674,8 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
 
         # construct Sz = 0 block (may not exist)
         if self._block_irreps[0] < 1:
-            pro, pre = _get_b0_projectors(self._row_reps, self._signature[: self._nrr])
-            pco, pce = _get_b0_projectors(self._col_reps, ~self._signature[self._nrr :])
+            pro, pre = _get_b0_projectors(self._row_reps, old_row_sz)
+            pco, pce = _get_b0_projectors(self._col_reps, old_col_sz)
             if self._block_irreps[0] == 0:  # no 0o block
                 b0 = custom_sparse_product(pre.T, self._blocks[0], pce)
                 old_block_sz = self._block_irreps
