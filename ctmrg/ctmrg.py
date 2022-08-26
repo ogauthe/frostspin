@@ -405,7 +405,7 @@ class CTMRG:
             self._env.get_C3(x + 2, y + 3),
         )
 
-    def compute_rdm_diag_dr(self, x, y, free_memory=True):
+    def compute_rdm_diag_dr(self, x, y, free_memory=False):
         if self.verbosity > 1:
             print(
                 f"Compute rdm for down right diagonal sites ({x+1},{y+1}) and",
@@ -414,32 +414,31 @@ class CTMRG:
         return rdm.rdm_diag_dr(
             self._env.get_C1(x, y),
             self._env.get_T1(x + 1, y),
-            self.construct_reduced_ur(x, y),
+            self.construct_reduced_ur(x, y, free_memory=free_memory),
             self._env.get_T4(x, y + 1),
             self._env.get_A(x + 1, y + 1),
-            self.construct_reduced_dl(x, y),
+            self.construct_reduced_dl(x, y, free_memory=free_memory),
             self._env.get_A(x + 2, y + 2),
             self._env.get_T2(x + 3, y + 2),
             self._env.get_T3(x + 2, y + 3),
             self._env.get_C3(x + 3, y + 3),
-            free_memory=free_memory,
         )
 
-    def compute_rdm_diag_ur(self, x, y, free_memory=True):
+    def compute_rdm_diag_ur(self, x, y, free_memory=False):
         if self.verbosity > 1:
             print(
                 f"Compute rdm for upper right diagonal sites ({x+1},{y+2}) and",
                 f"({x+2},{y+1})",
             )
         return rdm.rdm_diag_ur(
-            self.construct_reduced_ul(x, y),
+            self.construct_reduced_ul(x, y, free_memory=free_memory),
             self._env.get_T1(x + 2, y),
             self._env.get_C2(x + 3, y),
             self._env.get_A(x + 2, y + 1),
             self._env.get_T2(x + 3, y + 1),
             self._env.get_T4(x, y + 2),
             self._env.get_A(x + 1, y + 2),
-            self.construct_reduced_dr(x, y),
+            self.construct_reduced_dr(x, y, free_memory=free_memory),
             self._env.get_C4(x, y + 3),
             self._env.get_T3(x + 1, y + 3),
         )
@@ -487,6 +486,7 @@ class CTMRG:
         Compute reduced density matrix for every couple of inquivalent cell next nearest
         neighbor sites.
         """
+        # free_memory=True to save memory since we compute all rdm
         if self.verbosity > 1:
             print("Compute rdm for every cell next nearest neighbor sites")
         rdm_dr_cell = []
