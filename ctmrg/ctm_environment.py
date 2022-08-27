@@ -290,6 +290,12 @@ class CTM_Environment:
             data |= self._neq_T4s[i].get_data_dic(prefix=f"_CTM_T4_{i}")
         return data
 
+    def reset_constructed_corners(self):
+        self._corners_ul = [None] * self._Nneq
+        self._corners_ur = [None] * self._Nneq
+        self._corners_dl = [None] * self._Nneq
+        self._corners_dr = [None] * self._Nneq
+
     def set_tensors(self, tensors):
         """
         Set new elementary tensors. Type, shape and representations have to match
@@ -300,32 +306,25 @@ class CTM_Environment:
         for i, A in enumerate(tensors):
             if not A.match_representations(self._neq_As[i]):
                 raise ValueError("Incompatible representation for new tensor")
-        self._neq_As = tuple(tensors)
 
-        # reset constructed corners
-        self._corners_ul = [None] * self._Nneq
-        self._corners_ur = [None] * self._Nneq
-        self._corners_dl = [None] * self._Nneq
-        self._corners_dr = [None] * self._Nneq
+        self._neq_As = tuple(tensors)
+        self.reset_constructed_corners()
 
     def set_symmetry(self, symmetry):
-        self._ST = get_symmetric_tensor_type(symmetry)
+        ST = get_symmetric_tensor_type(symmetry)
+        if ST != self._ST:
+            self.reset_constructed_corners()
+            self._ST = ST
 
-        # reset constructed corners
-        self._corners_ul = [None] * self._Nneq
-        self._corners_ur = [None] * self._Nneq
-        self._corners_dl = [None] * self._Nneq
-        self._corners_dr = [None] * self._Nneq
-
-        self._neq_As = tuple(A.cast(symmetry) for A in self._neq_As)
-        self._neq_C1s = [C1.cast(symmetry) for C1 in self._neq_C1s]
-        self._neq_C2s = [C2.cast(symmetry) for C2 in self._neq_C2s]
-        self._neq_C3s = [C3.cast(symmetry) for C3 in self._neq_C3s]
-        self._neq_C4s = [C4.cast(symmetry) for C4 in self._neq_C4s]
-        self._neq_T1s = [T1.cast(symmetry) for T1 in self._neq_T1s]
-        self._neq_T2s = [T2.cast(symmetry) for T2 in self._neq_T2s]
-        self._neq_T3s = [T3.cast(symmetry) for T3 in self._neq_T3s]
-        self._neq_T4s = [T4.cast(symmetry) for T4 in self._neq_T4s]
+            self._neq_As = tuple(A.cast(symmetry) for A in self._neq_As)
+            self._neq_C1s = [C1.cast(symmetry) for C1 in self._neq_C1s]
+            self._neq_C2s = [C2.cast(symmetry) for C2 in self._neq_C2s]
+            self._neq_C3s = [C3.cast(symmetry) for C3 in self._neq_C3s]
+            self._neq_C4s = [C4.cast(symmetry) for C4 in self._neq_C4s]
+            self._neq_T1s = [T1.cast(symmetry) for T1 in self._neq_T1s]
+            self._neq_T2s = [T2.cast(symmetry) for T2 in self._neq_T2s]
+            self._neq_T3s = [T3.cast(symmetry) for T3 in self._neq_T3s]
+            self._neq_T4s = [T4.cast(symmetry) for T4 in self._neq_T4s]
 
     @property
     def cell(self):
