@@ -487,7 +487,10 @@ class CTMRG:
         Compute reduced density matrix for every couple of inquivalent cell next nearest
         neighbor sites.
         """
-        # free_memory=True to save memory since we compute all rdm
+        # Very heavy in memory. Expected to be called only after convergence, so
+        # corners will not be needed for next iterations, drop them to save memory
+        if free_memory:
+            self._env.reset_constructed_corners()
         if self.verbosity > 1:
             print("Compute rdm for every cell next nearest neighbor sites")
         rdm_dr_cell = []
