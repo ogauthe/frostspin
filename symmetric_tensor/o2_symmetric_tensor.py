@@ -155,6 +155,9 @@ def _get_b0_projectors(o2_reps, sz_values):
     # To get simpler projectors, we first detect the fixed points and set them as the
     # first lines. Then doubles are considered.
 
+    # scipy issue 16774: default index dtype is int32 with force cast from int64
+    dt = np.int32 if so.size < 2**31 else np.int64
+
     state_indices = np.arange(so.size)
     fx = (state_indices == so).nonzero()[0]  # fixed point under Sz-reversal
     notfx = (state_indices < so).nonzero()[0]
@@ -170,10 +173,10 @@ def _get_b0_projectors(o2_reps, sz_values):
     ecoeff[:nfxe] = 1.0
     ecoeff[nfxe : nfxe + n_doublets] = 1.0 / np.sqrt(2)
     ecoeff[nfxe + n_doublets :] = nfx_coeff
-    erows = np.empty((ncoeff_even,), dtype=np.int32)  # scipy issue 16774: int32 indices
-    erows[: nfxe + n_doublets] = np.arange(nfxe + n_doublets, dtype=np.int32)
-    erows[nfxe + n_doublets :] = np.arange(nfxe, nfxe + n_doublets, dtype=np.int32)
-    ecols = np.empty((ncoeff_even,), dtype=np.int32)
+    erows = np.empty((ncoeff_even,), dtype=dt)
+    erows[: nfxe + n_doublets] = np.arange(nfxe + n_doublets, dtype=dt)
+    erows[nfxe + n_doublets :] = np.arange(nfxe, nfxe + n_doublets, dtype=dt)
+    ecols = np.empty((ncoeff_even,), dtype=dt)
     ecols[:nfxe] = fx[fxe]
     ecols[nfxe : nfxe + n_doublets] = notfx
     ecols[nfxe + n_doublets :] = nfx_cols
@@ -186,10 +189,10 @@ def _get_b0_projectors(o2_reps, sz_values):
     ocoeff[:nfxo] = 1.0
     ocoeff[nfxo : nfxo + n_doublets] = 1.0 / np.sqrt(2)
     ocoeff[nfxo + n_doublets :] = -nfx_coeff
-    orows = np.empty((ncoeff_odd,), dtype=np.int32)
-    orows[: nfxo + n_doublets] = np.arange(nfxo + n_doublets, dtype=np.int32)
-    orows[nfxo + n_doublets :] = np.arange(nfxo, nfxo + n_doublets, dtype=np.int32)
-    ocols = np.empty((ncoeff_odd,), dtype=np.int32)
+    orows = np.empty((ncoeff_odd,), dtype=dt)
+    orows[: nfxo + n_doublets] = np.arange(nfxo + n_doublets, dtype=dt)
+    orows[nfxo + n_doublets :] = np.arange(nfxo, nfxo + n_doublets, dtype=dt)
+    ocols = np.empty((ncoeff_odd,), dtype=dt)
     ocols[:nfxo] = fx[~fxe]
     ocols[nfxo : nfxo + n_doublets] = notfx
     ocols[nfxo + n_doublets :] = nfx_cols
