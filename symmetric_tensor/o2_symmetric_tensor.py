@@ -134,15 +134,14 @@ def _get_b0_projectors(o2_reps, sz_values):
     # sz_values can be recovered from o2_reps, but it is usually already constructed
     # when calling _get_b0_projectors
 
-    # TODO avoid recomputing u1_combined and sz0_states_reversed both here and in
-    # ._generate_neg_sz_blocks
     sh = np.array([_numba_O2_representation_dimension(r) for r in o2_reps])
     strides = np.array([1, *sh[-1:0:-1]]).cumprod()[::-1].copy()
-    sz0_states = ((sz_values == 0).nonzero()[0] // strides[:, None]).T
-    sz0_states %= sh
-    sz0_states_reversed, signs = _numba_get_swapped(sz0_states, strides, tuple(o2_reps))
-    del sz0_states  # heavy in memory
-    so = sz0_states_reversed.argsort()  # imposed sorted block indices in U(1)
+    sz0_states = (sz_values == 0).nonzero()[0]
+    n_sz0 = sz0_states.size
+    sz0_t = (sz0_states // strides[:, None]).T
+    sz0_t %= sh
+    sz0_states_reversed, signs = _numba_get_swapped(sz0_t, strides, tuple(o2_reps))
+    del sz0_t  # heavy in memory
 
     # Some Sz=0 states are fixed points, mapped to the same state, either even or odd.
     # They belong to even or odd sector depending on signs and need to be sent in this
@@ -156,16 +155,15 @@ def _get_b0_projectors(o2_reps, sz_values):
     # first lines. Then doubles are considered.
 
     # scipy issue 16774: default index dtype is int32 with force cast from int64
-    dt = np.int32 if so.size < 2**31 else np.int64
+    dt = np.int32 if sz0_states_reversed.size < 2**31 else np.int64
 
-    state_indices = np.arange(so.size)
-    fx = (state_indices == so).nonzero()[0]  # fixed point under Sz-reversal
-    notfx = (state_indices < so).nonzero()[0]
+    fx = (sz0_states == sz0_states_reversed).nonzero()[0]  # Sz-reversal fixed points
+    notfx = (sz0_states < sz0_states_reversed).nonzero()[0]
     fx_signs = signs[fx]
     fxe = fx_signs == 1  # indices of even fixed points in fx
     n_doublets = notfx.size
     nfx_coeff = signs[notfx] / np.sqrt(2)
-    nfx_cols = so[notfx]  # same as (state_indices > so).nonzero()[0]
+    nfx_cols = sz0_states.searchsorted(sz0_states_reversed[notfx])
 
     nfxe = fxe.sum()  # number of even fixed points
     ncoeff_even = nfxe + 2 * n_doublets  # number of coefficients in even projector
@@ -180,7 +178,7 @@ def _get_b0_projectors(o2_reps, sz_values):
     ecols[:nfxe] = fx[fxe]
     ecols[nfxe : nfxe + n_doublets] = notfx
     ecols[nfxe + n_doublets :] = nfx_cols
-    pe = sp.coo_matrix((ecoeff, (erows, ecols)), shape=(nfxe + n_doublets, so.size))
+    pe = sp.coo_matrix((ecoeff, (erows, ecols)), shape=(nfxe + n_doublets, n_sz0))
 
     # similar operations for odd sector
     nfxo = fxe.size - nfxe
@@ -196,7 +194,7 @@ def _get_b0_projectors(o2_reps, sz_values):
     ocols[:nfxo] = fx[~fxe]
     ocols[nfxo : nfxo + n_doublets] = notfx
     ocols[nfxo + n_doublets :] = nfx_cols
-    po = sp.coo_matrix((ocoeff, (orows, ocols)), shape=(nfxo + n_doublets, so.size))
+    po = sp.coo_matrix((ocoeff, (orows, ocols)), shape=(nfxo + n_doublets, n_sz0))
     return po, pe
 
 
