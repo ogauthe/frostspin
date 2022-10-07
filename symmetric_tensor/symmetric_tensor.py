@@ -504,7 +504,10 @@ class SymmetricTensor:
                 except lg.LinAlgError as err:
                     print("Error in scipy dense SVD:", err)
                     u, s, v = lg.svd(
-                        b, full_matrices=False, check_finite=False, driver="gesvd"
+                        b,
+                        full_matrices=False,
+                        check_finite=False,
+                        lapack_driver="gesvd",
                     )
             else:
                 u, s, v = sparse_svd(b, k=cut + window)
