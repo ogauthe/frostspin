@@ -99,7 +99,7 @@ def _numba_get_reflection_perm_sign(rep):
     rep: O(2) representation
     """
     d = _numba_O2_representation_dimension(rep)
-    perm = np.arange(d)
+    perm = np.arange(d, dtype=np.uint64)
     sign = np.ones((d,), dtype=np.int8)
     i1 = np.searchsorted(rep[1], 1)  # slice containing 0o and 0e if they exist
     if rep[1, 0] == -1:
@@ -107,8 +107,8 @@ def _numba_get_reflection_perm_sign(rep):
     k = rep[0, :i1].sum()
     for i in range(i1, rep.shape[1]):
         degen = rep[0, i]
-        perm[k : k + degen] = np.arange(k + degen, k + 2 * degen)
-        perm[k + degen : k + 2 * degen] = np.arange(k, k + degen)
+        perm[k : k + degen] = np.arange(k + degen, k + 2 * degen, dtype=np.uint64)
+        perm[k + degen : k + 2 * degen] = np.arange(k, k + degen, dtype=np.uint64)
         if rep[1, i] % 2:  # -1 sign for Sz<0 to Sz>0
             sign[k + degen : k + 2 * degen] = -1
         k += 2 * degen
@@ -117,7 +117,7 @@ def _numba_get_reflection_perm_sign(rep):
 
 @numba.njit
 def _numba_get_swapped(indices, strides, reps):
-    indices_b = np.zeros(indices.shape[0], dtype=np.int64)
+    indices_b = np.zeros(indices.shape[0], dtype=np.uint64)
     signs = np.ones((indices.shape[0],), dtype=np.int8)
     for i, r in enumerate(reps):
         p, s = _numba_get_reflection_perm_sign(r)
@@ -134,9 +134,10 @@ def _get_b0_projectors(o2_reps, sz_values):
     # sz_values can be recovered from o2_reps, but it is usually already constructed
     # when calling _get_b0_projectors
 
-    sh = np.array([_numba_O2_representation_dimension(r) for r in o2_reps])
-    strides = np.array([1, *sh[-1:0:-1]]).cumprod()[::-1].copy()
-    sz0_states = (sz_values == 0).nonzero()[0]
+    sh = [_numba_O2_representation_dimension(r) for r in o2_reps]
+    sh = np.array(sh, dtype=np.uint64)
+    strides = np.array([np.uint64(1), *sh[-1:0:-1]]).cumprod()[::-1].copy()
+    sz0_states = (sz_values == 0).nonzero()[0].view(np.uint64)
     n_sz0 = sz0_states.size
     sz0_t = (sz0_states // strides[:, None]).T
     sz0_t %= sh
@@ -502,6 +503,8 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         return self.toU1()
 
     def _generate_neg_sz_blocks(self):
+        # indexing is slightly faster with unsigned int
+        # use uint64 everywhere to avoid integer mixing
         u1_row_reps = [None] * self._nrr
         rmaps = [None] * self._nrr
         rsigns = [None] * self._nrr
@@ -509,8 +512,8 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             u1_row_reps[i] = _numba_O2_rep_to_U1(r)
             rmaps[i], rsigns[i] = _numba_get_reflection_perm_sign(r)
 
-        shr = np.array(self.shape[: self._nrr])
-        row_cp = np.array([1, *shr[-1:0:-1]]).cumprod()[::-1]
+        shr = np.array(self.shape[: self._nrr], dtype=np.uint64)
+        row_cp = np.array([np.uint64(1), *shr[-1:0:-1]]).cumprod()[::-1]
         u1_combined_row = U1_SymmetricTensor.combine_representations(
             u1_row_reps, self._signature[: self._nrr]
         )
@@ -523,8 +526,8 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             u1_col_reps[i] = _numba_O2_rep_to_U1(r)
             cmaps[i], csigns[i] = _numba_get_reflection_perm_sign(r)
 
-        shc = np.array(self.shape[self._nrr :])
-        col_cp = np.array([1, *shc[-1:0:-1]]).cumprod()[::-1]
+        shc = np.array(self.shape[self._nrr :], dtype=np.uint64)
+        col_cp = np.array([np.uint64(1), *shc[-1:0:-1]]).cumprod()[::-1]
         u1_combined_col = U1_SymmetricTensor.combine_representations(
             u1_col_reps, ~self._signature[self._nrr :]
         )
@@ -534,24 +537,24 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         while isz > -1 and self._block_irreps[isz] > 0:
             sz = self._block_irreps[isz]
             # it is faster to map to Sz-reflected inside the loop.
-            rsz_mat = (u1_combined_row == sz).nonzero()[0]  # find Sz states
+            rsz_mat = (u1_combined_row == sz).nonzero()[0].view(np.uint64)  # Sz states
             rsz_t = (rsz_mat // row_cp[:, None]).T % shr  # multi-index form
-            rszb_mat = np.zeros((rsz_mat.size,), dtype=int)
+            rszb_mat = np.zeros((rsz_mat.size,), dtype=np.uint64)
             rsign = np.ones((rsz_mat.size,), dtype=np.int8)
             for i, r in enumerate(self._row_reps):
                 rszb_mat += rmaps[i][rsz_t[:, i]] * row_cp[i]  # map to spin reversed
                 rsign *= rsigns[i][rsz_t[:, i]]
 
-            csz_mat = (u1_combined_col == sz).nonzero()[0]  # find Sz states
+            csz_mat = (u1_combined_col == sz).nonzero()[0].view(np.uint64)
             csz_t = (csz_mat // col_cp[:, None]).T % shc  # multi-index form
-            cszb_mat = np.zeros((csz_mat.size,), dtype=int)
+            cszb_mat = np.zeros((csz_mat.size,), dtype=np.uint64)
             csign = np.ones((csz_mat.size,), dtype=np.int8)
             for i, r in enumerate(self._col_reps):
                 cszb_mat += cmaps[i][csz_t[:, i]] * col_cp[i]  # map to spin reversed
                 csign *= csigns[i][csz_t[:, i]]
 
-            rso = rszb_mat.argsort().argsort()
-            cso = cszb_mat.argsort().argsort()
+            rso = rszb_mat.argsort().argsort().view(np.uint64)
+            cso = cszb_mat.argsort().argsort().view(np.uint64)
             b = _numba_generate_block(rso, cso, self._blocks[isz], rsign, csign)
             blocks.append(b)
             isz -= 1
@@ -713,9 +716,9 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             block_sz,
             new_row_sz,
             new_col_sz,
-            tuple(a.view(np.uint64) for a in rmaps),
+            tuple(rmaps),
             tuple(rsigns),
-            tuple(a.view(np.uint64) for a in cmaps),
+            tuple(cmaps),
             tuple(csigns),
         )
         del old_blocks, old_row_sz, old_col_sz, new_row_sz, new_col_sz
