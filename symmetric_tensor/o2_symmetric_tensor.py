@@ -293,9 +293,9 @@ def _numba_O2_transpose(
 
     # 2) find unique Sz>=0 in rows and relate them to blocks and indices.
     n = len(new_block_sz)
-    block_rows = np.empty((new_row_sz.size,), dtype=np.int64)
+    block_rows = np.empty((new_row_sz.size,), dtype=np.uint64)
     row_irrep_count = np.zeros((n,), dtype=np.int64)
-    new_row_block_indices = np.empty(new_row_sz.shape, dtype=np.int64)
+    new_row_block_indices = np.empty(new_row_sz.shape, dtype=np.uint64)
     for i in range(new_row_sz.size):
         for j in range(n):
             if new_row_sz[i] == new_block_sz[j]:
@@ -305,7 +305,7 @@ def _numba_O2_transpose(
                 break
 
     # 3) find each column index inside new blocks
-    block_cols = np.empty((new_col_sz.size,), dtype=np.int64)
+    block_cols = np.empty((new_col_sz.size,), dtype=np.uint64)
     col_irrep_count = np.zeros((n,), dtype=np.int64)
     for i in range(new_col_sz.size):
         for j in range(n):
@@ -319,6 +319,7 @@ def _numba_O2_transpose(
     new_blocks = [
         np.zeros((row_irrep_count[i], col_irrep_count[i]), dtype=dt) for i in range(n)
     ]
+    ncs = np.uint64(new_col_sz.size)
 
     # 5) copy all coeff from all blocks to new destination
     # use simpler O(2) mapping sz -sz?
@@ -332,7 +333,7 @@ def _numba_O2_transpose(
         for i in range(old_nrr):
             rszb_mat += rmaps[i][ori[:, i]] * rstrides2[i]  # map to spin reversed
             rsign *= rsigns[i][ori[:, i]]
-        ori = (ori * rstrides2).sum(axis=1)
+        ori = (ori * rstrides2).view(np.uint64).sum(axis=1)
 
         oci = (old_col_sz == old_block_sz[bi]).nonzero()[0].reshape(-1, 1)
         oci = oci // cstrides1 % cmod
@@ -341,11 +342,11 @@ def _numba_O2_transpose(
         for i in range(cstrides1.size):
             cszb_mat += cmaps[i][oci[:, i]] * cstrides2[i]  # map to spin reversed
             csign *= csigns[i][oci[:, i]]
-        oci = (oci * cstrides2).sum(axis=1)
+        oci = (oci * cstrides2).view(np.uint64).sum(axis=1)
 
         for i in numba.prange(ori.size):
             for j in numba.prange(oci.size):
-                nr, nc = divmod(ori[i] + oci[j], new_col_sz.size)
+                nr, nc = divmod(ori[i] + oci[j], ncs)
 
                 # if new Sz >= 0, move coefficient, same as U(1)
                 if new_row_sz[nr] >= 0:
