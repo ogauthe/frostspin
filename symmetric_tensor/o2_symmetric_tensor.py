@@ -229,7 +229,7 @@ def _numba_O2_transpose(
 
     Parameters
     ----------
-    old_shape : (ndim,) integer ndarray
+    old_shape : (ndim,) uint64 array
         Tensor shape before transpose.
     old_blocks : homogeneous tuple of onb C-array
         Blocks before transpose, with 0e and 0o combined in one Sz=0 block. Sz<0 blocks
@@ -250,11 +250,11 @@ def _numba_O2_transpose(
         Row Sz values after transpose.
     new_col_sz : (new_ncols,) int8 ndarray
         Column Sz values after transpose.
-    rmaps: tuple of old_nrr int64 1D array
+    rmaps: tuple of old_nrr uint64 1D array
         Index mapping to Sz-reflected state for each row axis.
     rsigns: tuple of old_nrr int8 1D array
         Sign to add when reflecting for each row axis.
-    cmaps: tuple of ndim - old_nrr int64 1D array
+    cmaps: tuple of ndim - old_nrr uint64 1D array
         Index mapping to Sz-reflected state for each column axis.
     csigns: tuple of ndim - old_nrr int8 1D array
         Sign to add when reflecting for each column axis.
@@ -275,17 +275,17 @@ def _numba_O2_transpose(
     ###################################################################################
     # 1) construct strides before and after transpose for rows and cols
     ndim = old_shape.size
-    rstrides1 = np.ones((old_nrr,), dtype=np.int64)
+    rstrides1 = np.ones((old_nrr,), dtype=np.uint64)
     rstrides1[1:] = old_shape[old_nrr - 1 : 0 : -1]
     rstrides1 = rstrides1.cumprod()[::-1].copy()
     rmod = old_shape[:old_nrr]
 
-    cstrides1 = np.ones((ndim - old_nrr,), dtype=np.int64)
+    cstrides1 = np.ones((ndim - old_nrr,), dtype=np.uint64)
     cstrides1[1:] = old_shape[-1:old_nrr:-1]
     cstrides1 = cstrides1.cumprod()[::-1].copy()
     cmod = old_shape[old_nrr:]
 
-    new_strides = np.ones(ndim, dtype=np.int64)
+    new_strides = np.ones(ndim, dtype=np.uint64)
     for i in range(ndim - 1, 0, -1):
         new_strides[axes[i - 1]] = new_strides[axes[i]] * old_shape[axes[i]]
     rstrides2 = new_strides[:old_nrr]
@@ -294,7 +294,7 @@ def _numba_O2_transpose(
     # 2) find unique Sz>=0 in rows and relate them to blocks and indices.
     n = len(new_block_sz)
     block_rows = np.empty((new_row_sz.size,), dtype=np.uint64)
-    row_irrep_count = np.zeros((n,), dtype=np.int64)
+    row_irrep_count = np.zeros((n,), dtype=np.uint64)
     new_row_block_indices = np.empty(new_row_sz.shape, dtype=np.uint64)
     for i in range(new_row_sz.size):
         for j in range(n):
@@ -305,9 +305,10 @@ def _numba_O2_transpose(
                 break
 
     # 3) find each column index inside new blocks
-    block_cols = np.empty((new_col_sz.size,), dtype=np.uint64)
-    col_irrep_count = np.zeros((n,), dtype=np.int64)
-    for i in range(new_col_sz.size):
+    ncs = np.uint64(new_col_sz.size)
+    block_cols = np.empty((ncs,), dtype=np.uint64)
+    col_irrep_count = np.zeros((n,), dtype=np.uint64)
+    for i in range(ncs):
         for j in range(n):
             if new_col_sz[i] == new_block_sz[j]:
                 block_cols[i] = col_irrep_count[j]
@@ -319,25 +320,25 @@ def _numba_O2_transpose(
     new_blocks = [
         np.zeros((row_irrep_count[i], col_irrep_count[i]), dtype=dt) for i in range(n)
     ]
-    ncs = np.uint64(new_col_sz.size)
 
     # 5) copy all coeff from all blocks to new destination
     # use simpler O(2) mapping sz -sz?
     # then map is i -> i + (sz[i] > 0) * 2 - bool(sz[i])
     # still cannot be vectorized due to sz[i] call
     for bi in range(old_block_sz.size):
-        ori = (old_row_sz == old_block_sz[bi]).nonzero()[0].reshape(-1, 1)
-        ori = ori // rstrides1 % rmod
-        rszb_mat = np.zeros((ori.shape[0],), dtype=np.int64)
+        # nonzero returns int64. numba bug: view to uint64 AFTER reshape crashes
+        ori = (old_row_sz == old_block_sz[bi]).nonzero()[0].view(np.uint64)
+        ori = (ori.reshape(-1, 1) // rstrides1 % rmod).view(np.uint64)
+        rszb_mat = np.zeros((ori.shape[0],), dtype=np.uint64)
         rsign = np.ones((ori.shape[0],), dtype=np.int8)
         for i in range(old_nrr):
             rszb_mat += rmaps[i][ori[:, i]] * rstrides2[i]  # map to spin reversed
             rsign *= rsigns[i][ori[:, i]]
         ori = (ori * rstrides2).view(np.uint64).sum(axis=1)
 
-        oci = (old_col_sz == old_block_sz[bi]).nonzero()[0].reshape(-1, 1)
-        oci = oci // cstrides1 % cmod
-        cszb_mat = np.zeros((oci.shape[0],), dtype=np.int64)
+        oci = (old_col_sz == old_block_sz[bi]).nonzero()[0].view(np.uint64)
+        oci = (oci.reshape(-1, 1) // cstrides1 % cmod).view(np.uint64)
+        cszb_mat = np.zeros((oci.shape[0],), dtype=np.uint64)
         csign = np.ones((oci.shape[0],), dtype=np.int8)
         for i in range(cstrides1.size):
             cszb_mat += cmaps[i][oci[:, i]] * cstrides2[i]  # map to spin reversed
@@ -357,7 +358,7 @@ def _numba_O2_transpose(
 
                 # if new Sz <= 0, move old Sz-reversed coeff
                 if old_block_sz[bi] and new_row_sz[nr] <= 0:  # reflect
-                    nrb, ncb = divmod(rszb_mat[i] + cszb_mat[j], new_col_sz.size)
+                    nrb, ncb = divmod(rszb_mat[i] + cszb_mat[j], ncs)
                     new_bi = new_row_block_indices[nrb]
                     nri = block_rows[nrb]
                     nci = block_cols[ncb]
@@ -702,7 +703,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
 
         old_blocks = tuple(np.ascontiguousarray(b) for b in old_blocks)  # numba C/F
         blocks = _numba_O2_transpose(
-            np.array(self._shape),
+            np.array(self._shape, dtype=np.uint64),
             old_blocks,
             old_block_sz,
             old_row_sz,
@@ -712,9 +713,9 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             block_sz,
             new_row_sz,
             new_col_sz,
-            tuple(rmaps),
+            tuple(a.view(np.uint64) for a in rmaps),
             tuple(rsigns),
-            tuple(cmaps),
+            tuple(a.view(np.uint64) for a in cmaps),
             tuple(csigns),
         )
         del old_blocks, old_row_sz, old_col_sz, new_row_sz, new_col_sz

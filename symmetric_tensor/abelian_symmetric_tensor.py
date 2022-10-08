@@ -95,7 +95,7 @@ def _numba_abelian_transpose(
 
     Parameters
     ----------
-    old_shape : (ndim,) integer ndarray
+    old_shape : (ndim,) uint64 ndarray
         Tensor shape before transpose.
     old_blocks : homogeneous tuple of onb C-array
         Reduced blocks before transpose.
@@ -148,18 +148,19 @@ def _numba_abelian_transpose(
 
     # 1) construct strides before and after transpose for rows and cols
     # things are much simpler with old_shape as np.array
+    # indexing is slightly faster with unsigned integers
     ndim = old_shape.size
-    rstrides1 = np.ones((old_n_leg_rows,), dtype=np.int64)
+    rstrides1 = np.ones((old_n_leg_rows,), dtype=np.uint64)
     rstrides1[1:] = old_shape[old_n_leg_rows - 1 : 0 : -1]
     rstrides1 = rstrides1.cumprod()[::-1].copy()
     rmod = old_shape[:old_n_leg_rows]
 
-    cstrides1 = np.ones((ndim - old_n_leg_rows,), dtype=np.int64)
+    cstrides1 = np.ones((ndim - old_n_leg_rows,), dtype=np.uint64)
     cstrides1[1:] = old_shape[-1:old_n_leg_rows:-1]
     cstrides1 = cstrides1.cumprod()[::-1].copy()
     cmod = old_shape[old_n_leg_rows:]
 
-    new_strides = np.ones((ndim,), dtype=np.int64)
+    new_strides = np.ones((ndim,), dtype=np.uint64)
     for i in range(ndim - 1, 0, -1):
         new_strides[axes[i - 1]] = new_strides[axes[i]] * old_shape[axes[i]]
     rstrides2 = new_strides[:old_n_leg_rows]
@@ -174,9 +175,10 @@ def _numba_abelian_transpose(
     ) = _numpy_get_indices(new_row_irreps)
 
     # 3) find each column index inside new blocks
+    ncs = np.uint64(new_col_irreps.size)
     block_cols = np.empty((new_col_irreps.size,), dtype=np.uint64)
     col_irrep_count = np.zeros((unique_row_irreps.size,), dtype=np.uint64)
-    for i in range(new_col_irreps.size):
+    for i in range(ncs):
         for j in range(unique_row_irreps.size):
             if new_col_irreps[i] == unique_row_irreps[j]:
                 block_cols[i] = col_irrep_count[j]
@@ -195,15 +197,16 @@ def _numba_abelian_transpose(
         np.zeros((row_irrep_count[i], col_irrep_count[i]), dtype=dtype)
         for i in range(unique_row_irreps.size)
     ]
-    ncs = np.uint64(new_col_irreps.size)
 
     # 5) copy all coeff from all blocks to new destination
     # much faster NOT to parallelize loop on old_blocks (huge difference in block sizes)
     for bi in range(old_block_irreps.size):
-        ori = (old_row_irreps == old_block_irreps[bi]).nonzero()[0].reshape(-1, 1)
-        ori = (ori // rstrides1 % rmod * rstrides2).view(np.uint64).sum(axis=1)
-        oci = (old_col_irreps == old_block_irreps[bi]).nonzero()[0].reshape(-1, 1)
-        oci = (oci // cstrides1 % cmod * cstrides2).view(np.uint64).sum(axis=1)
+        # nonzero returns int64, but unsigned int is slightly faster for indexing
+        # due to numba bug, crash if reshape before view
+        ori = (old_row_irreps == old_block_irreps[bi]).nonzero()[0].view(np.uint64)
+        ori = (ori.reshape(-1, 1) // rstrides1 % rmod * rstrides2).sum(axis=1)
+        oci = (old_col_irreps == old_block_irreps[bi]).nonzero()[0].view(np.uint64)
+        oci = (oci.reshape(-1, 1) // cstrides1 % cmod * cstrides2).sum(axis=1)
         # ori and oci cannot be empty since old irrep block exists
         for i in numba.prange(ori.size):
             for j in numba.prange(oci.size):
@@ -345,7 +348,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
 
         # construct new blocks by swapping coeff
         blocks, block_irreps = _numba_abelian_transpose(
-            np.array(self._shape),
+            np.array(self._shape, dtype=np.uint64),
             self._blocks,
             self._block_irreps,
             self.get_row_representation(),
