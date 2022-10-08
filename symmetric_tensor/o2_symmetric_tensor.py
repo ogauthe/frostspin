@@ -163,8 +163,7 @@ def _get_b0_projectors(o2_reps, sz_values):
     fxe = fx_signs == 1  # indices of even fixed points in fx
     n_doublets = notfx.size
     nfx_coeff = signs[notfx] / np.sqrt(2)
-    nfx_cols = (sz0_states > sz0_states_reversed).nonzero()[0]
-    nfx_cols = nfx_cols[sz0_states_reversed[nfx_cols].argsort()]
+    nfx_cols = sz0_states.searchsorted(sz0_states_reversed[notfx])
 
     nfxe = fxe.sum()  # number of even fixed points
     ncoeff_even = nfxe + 2 * n_doublets  # number of coefficients in even projector
