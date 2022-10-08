@@ -53,31 +53,9 @@ def _numba_blocks_to_array(blocks, block_irreps, row_irreps, col_irreps):
     return m
 
 
-@numba.njit
-def _numba_get_indices(irreps):
-    unique_irreps = [irreps[0]]  # crash if irreps.size = 0. Should not happen.
-    irrep_count = [0]
-    block_indices = np.empty(irreps.shape, dtype=np.int64)
-    irrep_blocks = np.empty(irreps.shape, dtype=np.int64)
-    for i in range(irreps.size):
-        try:
-            ind = unique_irreps.index(irreps[i])
-        except Exception:  # numba exception matching is limited to <class 'Exception'>
-            ind = len(unique_irreps)
-            unique_irreps.append(irreps[i])
-            irrep_count.append(0)
-        block_indices[i] = irrep_count[ind]
-        irrep_count[ind] += 1
-        irrep_blocks[i] = ind
-    unique_irreps = np.array(unique_irreps)
-    irrep_count = np.array(irrep_count)
-    # unique_irreps is NOT sorted to avoid a 2nd loop on irrep_blocks
-    return unique_irreps, irrep_count, block_indices, irrep_blocks
-
-
 @numba.njit  # jit to inline in abelian_tranpose
 def _numpy_get_indices(irreps):
-    perm = irreps.argsort(kind="mergesort")
+    perm = irreps.argsort(kind="mergesort").view(np.uint64)
     sorted_irreps = irreps[perm]
     block_bounds = (
         [0]
@@ -87,14 +65,14 @@ def _numpy_get_indices(irreps):
     n = len(block_bounds) - 1
     unique_irreps = np.empty((n,), dtype=np.int8)
     irrep_count = np.empty((n,), dtype=np.int64)
-    block_indices = np.empty(irreps.shape, dtype=np.int64)
-    irrep_blocks = np.empty(irreps.shape, dtype=np.int64)
+    block_indices = np.empty(irreps.shape, dtype=np.uint64)
+    irrep_blocks = np.empty(irreps.shape, dtype=np.uint64)
     for i in range(n):
         unique_irreps[i] = sorted_irreps[block_bounds[i]]
         irrep_count[i] = block_bounds[i + 1] - block_bounds[i]
         block_indices[block_bounds[i] : block_bounds[i + 1]] = np.arange(irrep_count[i])
         irrep_blocks[block_bounds[i] : block_bounds[i + 1]] = i
-    inv_perm = perm.argsort()
+    inv_perm = perm.argsort().view(np.uint64)
     block_indices = block_indices[inv_perm]
     irrep_blocks = irrep_blocks[inv_perm]
     return unique_irreps, irrep_count, block_indices, irrep_blocks
@@ -117,7 +95,7 @@ def _numba_abelian_transpose(
 
     Parameters
     ----------
-    old_shape : (ndim,) integer ndarray
+    old_shape : (ndim,) uint64 ndarray
         Tensor shape before transpose.
     old_blocks : homogeneous tuple of onb C-array
         Reduced blocks before transpose.
@@ -170,18 +148,19 @@ def _numba_abelian_transpose(
 
     # 1) construct strides before and after transpose for rows and cols
     # things are much simpler with old_shape as np.array
+    # indexing is slightly faster with unsigned integers
     ndim = old_shape.size
-    rstrides1 = np.ones((old_n_leg_rows,), dtype=np.int64)
+    rstrides1 = np.ones((old_n_leg_rows,), dtype=np.uint64)
     rstrides1[1:] = old_shape[old_n_leg_rows - 1 : 0 : -1]
     rstrides1 = rstrides1.cumprod()[::-1].copy()
     rmod = old_shape[:old_n_leg_rows]
 
-    cstrides1 = np.ones((ndim - old_n_leg_rows,), dtype=np.int64)
+    cstrides1 = np.ones((ndim - old_n_leg_rows,), dtype=np.uint64)
     cstrides1[1:] = old_shape[-1:old_n_leg_rows:-1]
     cstrides1 = cstrides1.cumprod()[::-1].copy()
     cmod = old_shape[old_n_leg_rows:]
 
-    new_strides = np.ones(ndim, dtype=np.int64)
+    new_strides = np.ones((ndim,), dtype=np.uint64)
     for i in range(ndim - 1, 0, -1):
         new_strides[axes[i - 1]] = new_strides[axes[i]] * old_shape[axes[i]]
     rstrides2 = new_strides[:old_n_leg_rows]
@@ -196,9 +175,10 @@ def _numba_abelian_transpose(
     ) = _numpy_get_indices(new_row_irreps)
 
     # 3) find each column index inside new blocks
-    block_cols = np.empty((new_col_irreps.size,), dtype=np.int64)
-    col_irrep_count = np.zeros((unique_row_irreps.size,), dtype=np.int64)
-    for i in range(new_col_irreps.size):
+    ncs = np.uint64(new_col_irreps.size)
+    block_cols = np.empty((new_col_irreps.size,), dtype=np.uint64)
+    col_irrep_count = np.zeros((unique_row_irreps.size,), dtype=np.uint64)
+    for i in range(ncs):
         for j in range(unique_row_irreps.size):
             if new_col_irreps[i] == unique_row_irreps[j]:
                 block_cols[i] = col_irrep_count[j]
@@ -221,16 +201,18 @@ def _numba_abelian_transpose(
     # 5) copy all coeff from all blocks to new destination
     # much faster NOT to parallelize loop on old_blocks (huge difference in block sizes)
     for bi in range(old_block_irreps.size):
-        ori = (old_row_irreps == old_block_irreps[bi]).nonzero()[0].reshape(-1, 1)
-        ori = (ori // rstrides1 % rmod * rstrides2).sum(axis=1)
-        oci = (old_col_irreps == old_block_irreps[bi]).nonzero()[0].reshape(-1, 1)
-        oci = (oci // cstrides1 % cmod * cstrides2).sum(axis=1)
+        # nonzero returns int64, but unsigned int is slightly faster for indexing
+        # due to numba bug, crash if reshape before view
+        ori = (old_row_irreps == old_block_irreps[bi]).nonzero()[0].view(np.uint64)
+        ori = (ori.reshape(-1, 1) // rstrides1 % rmod * rstrides2).sum(axis=1)
+        oci = (old_col_irreps == old_block_irreps[bi]).nonzero()[0].view(np.uint64)
+        oci = (oci.reshape(-1, 1) // cstrides1 % cmod * cstrides2).sum(axis=1)
         # ori and oci cannot be empty since old irrep block exists
         for i in numba.prange(ori.size):
             for j in numba.prange(oci.size):
                 # nr and nc depend on both ori[i] and oci[j], but they appear several
                 # times, in this block as well as in others.
-                nr, nc = divmod(ori[i] + oci[j], new_col_irreps.size)
+                nr, nc = divmod(ori[i] + oci[j], ncs)
                 new_bi = new_row_block_indices[nr]
                 new_row_index = block_rows[nr]
                 new_col_index = block_cols[nc]
@@ -366,7 +348,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
 
         # construct new blocks by swapping coeff
         blocks, block_irreps = _numba_abelian_transpose(
-            np.array(self._shape),
+            np.array(self._shape, dtype=np.uint64),
             self._blocks,
             self._block_irreps,
             self.get_row_representation(),
