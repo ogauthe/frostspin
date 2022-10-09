@@ -346,37 +346,43 @@ def _numba_O2_transpose(
     # then map is i -> i + (sz[i] > 0) * 2 - bool(sz[i])
     # still cannot be vectorized due to sz[i] call
     for bi in range(old_block_sz.size):
-        # nonzero returns int64. numba bug: view to uint64 AFTER reshape crashes
+        # nonzero returns int64, indexing is faster with unsigned int
         ori = (old_row_sz == old_block_sz[bi]).nonzero()[0].view(np.uint64)
-        ori = ori.reshape(-1, 1) // rstrides1 % rmod
-        rszb_mat = np.empty((ori.shape[0],), dtype=np.uint64)
-        rsign = np.empty((ori.shape[0],), dtype=np.int8)
-        for i in numba.prange(ori.shape[0]):
+        block_nrows = ori.size
+        rszb_mat = np.empty((block_nrows,), dtype=np.uint64)
+        rsign = np.empty((block_nrows,), dtype=np.int8)
+        for i in numba.prange(block_nrows):
+            permuted_s = 0
             refl_s = 0
             s_sign = 1
             for j in range(old_nrr):
-                refl_s += rmaps[j][ori[i, j]] * rstrides2[j]
-                s_sign *= rsigns[j][ori[i, j]]
+                s = ori[i] // rstrides1[j] % rmod[j]
+                permuted_s += s * rstrides2[j]
+                refl_s += rmaps[j][s] * rstrides2[j]
+                s_sign *= rsigns[j][s]
+            ori[i] = permuted_s  # overwrite ori with permuted state
             rszb_mat[i] = refl_s
             rsign[i] = s_sign
-        ori = (ori * rstrides2).view(np.uint64).sum(axis=1)
 
         oci = (old_col_sz == old_block_sz[bi]).nonzero()[0].view(np.uint64)
-        oci = oci.reshape(-1, 1) // cstrides1 % cmod
-        cszb_mat = np.empty((oci.shape[0],), dtype=np.uint64)
-        csign = np.empty((oci.shape[0],), dtype=np.int8)
-        for i in numba.prange(oci.shape[0]):
+        block_ncols = oci.size
+        cszb_mat = np.empty((block_ncols,), dtype=np.uint64)
+        csign = np.empty((block_ncols,), dtype=np.int8)
+        for i in numba.prange(block_ncols):
+            permuted_s = 0
             refl_s = 0
             s_sign = 1
-            for j in range(len(cmaps)):
-                refl_s += cmaps[j][oci[i, j]] * cstrides2[j]
-                s_sign *= csigns[j][oci[i, j]]
+            for j in range(old_ncr):
+                s = oci[i] // cstrides1[j] % cmod[j]
+                permuted_s += s * cstrides2[j]
+                refl_s += cmaps[j][s] * cstrides2[j]
+                s_sign *= csigns[j][s]
+            oci[i] = permuted_s
             cszb_mat[i] = refl_s
             csign[i] = s_sign
-        oci = (oci * cstrides2).view(np.uint64).sum(axis=1)
 
-        for i in numba.prange(ori.size):
-            for j in numba.prange(oci.size):
+        for i in numba.prange(block_nrows):
+            for j in numba.prange(block_ncols):
                 nr, nc = divmod(ori[i] + oci[j], ncs)
 
                 # if new Sz >= 0, move coefficient, same as U(1)
