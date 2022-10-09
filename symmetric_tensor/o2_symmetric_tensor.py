@@ -115,15 +115,42 @@ def _numba_get_reflection_perm_sign(rep):
     return perm, sign
 
 
-@numba.njit
-def _numba_get_swapped(indices, strides, reps):
-    indices_b = np.zeros(indices.shape[0], dtype=np.uint64)
-    signs = np.ones((indices.shape[0],), dtype=np.int8)
-    for i, r in enumerate(reps):
-        p, s = _numba_get_reflection_perm_sign(r)
-        indices_b += p[indices[:, i]] * strides[i]  # map all indices to spin reversed
-        signs *= s[indices[:, i]]
-    return indices_b, signs
+@numba.njit(parallel=True)
+def _numba_get_swapped(states, o2_reps):
+    """
+    Construct array of reflected states.
+
+    states: (n,) uint64 array
+        Dense indices to reflect, mono index form.
+    o2_reps: tuple of nx O(2) representations
+        Representation on each axis.
+    """
+    # avoid constructing array of multi-index states, which may be large.
+    nx = len(o2_reps)
+    perm_axes = []
+    sign_axes = []
+    for j in range(nx):
+        p, s = _numba_get_reflection_perm_sign(o2_reps[j])
+        perm_axes.append(p)
+        sign_axes.append(s)
+
+    sh = [_numba_O2_representation_dimension(r) for r in o2_reps]  # numba issue 8497
+    sh = np.array(sh, dtype=np.uint64)
+    strides = np.array([np.uint64(1), *sh[-1:0:-1]]).cumprod()[::-1].copy()
+    n = states.shape[0]
+    refl_states = np.empty((n,), dtype=np.uint64)  # Sz-reversed mapped indices
+    signs = np.empty((n,), dtype=np.int8)
+    for i in numba.prange(n):
+        refl_s = 0
+        s_sign = 1
+        for j in range(nx):
+            ind = states[i] // strides[j] % sh[j]
+            refl_s += perm_axes[j][ind] * strides[j]
+            s_sign *= sign_axes[j][ind]
+        refl_states[i] = refl_s
+        signs[i] = s_sign
+
+    return refl_states, signs
 
 
 def _get_b0_projectors(o2_reps, sz_values):
@@ -133,16 +160,8 @@ def _get_b0_projectors(o2_reps, sz_values):
     """
     # sz_values can be recovered from o2_reps, but it is usually already constructed
     # when calling _get_b0_projectors
-
-    sh = [_numba_O2_representation_dimension(r) for r in o2_reps]
-    sh = np.array(sh, dtype=np.uint64)
-    strides = np.array([np.uint64(1), *sh[-1:0:-1]]).cumprod()[::-1].copy()
     sz0_states = (sz_values == 0).nonzero()[0].view(np.uint64)
-    n_sz0 = sz0_states.size
-    sz0_t = (sz0_states // strides[:, None]).T
-    sz0_t %= sh
-    sz0_states_reversed, signs = _numba_get_swapped(sz0_t, strides, tuple(o2_reps))
-    del sz0_t  # heavy in memory
+    sz0_states_reversed, signs = _numba_get_swapped(sz0_states, tuple(o2_reps))
 
     # Some Sz=0 states are fixed points, mapped to the same state, either even or odd.
     # They belong to even or odd sector depending on signs and need to be sent in this
@@ -156,7 +175,8 @@ def _get_b0_projectors(o2_reps, sz_values):
     # first lines. Then doubles are considered.
 
     # scipy issue 16774: default index dtype is int32 with force cast from int64
-    dt = np.int32 if sz0_states_reversed.size < 2**31 else np.int64
+    n_sz0 = sz0_states.size
+    dt = np.int32 if n_sz0 < 2**31 else np.int64
 
     fx = (sz0_states == sz0_states_reversed).nonzero()[0]  # Sz-reversal fixed points
     notfx = (sz0_states < sz0_states_reversed).nonzero()[0]
@@ -215,7 +235,6 @@ def _numba_O2_transpose(
     old_block_sz,
     old_row_sz,
     old_col_sz,
-    old_nrr,
     axes,
     new_block_sz,
     new_row_sz,
@@ -241,8 +260,6 @@ def _numba_O2_transpose(
         Row Sz values before transpose.
     old_col_sz : (old_ncols,) int8 ndarray
         Column Sz values before transpose.
-    old_nrr : int
-        Number of axes to concatenate to obtain old rows.
     axes : tuple of ndim integers
         Axes permutation.
     new_block_sz: 1D int8 array
@@ -275,13 +292,15 @@ def _numba_O2_transpose(
     # very similar to U(1)
     ###################################################################################
     # 1) construct strides before and after transpose for rows and cols
-    ndim = old_shape.size
+    old_nrr = len(rmaps)
+    old_ncr = len(cmaps)
+    ndim = old_nrr + old_ncr
     rstrides1 = np.ones((old_nrr,), dtype=np.uint64)
     rstrides1[1:] = old_shape[old_nrr - 1 : 0 : -1]
     rstrides1 = rstrides1.cumprod()[::-1].copy()
     rmod = old_shape[:old_nrr]
 
-    cstrides1 = np.ones((ndim - old_nrr,), dtype=np.uint64)
+    cstrides1 = np.ones((old_ncr,), dtype=np.uint64)
     cstrides1[1:] = old_shape[-1:old_nrr:-1]
     cstrides1 = cstrides1.cumprod()[::-1].copy()
     cmod = old_shape[old_nrr:]
@@ -327,27 +346,43 @@ def _numba_O2_transpose(
     # then map is i -> i + (sz[i] > 0) * 2 - bool(sz[i])
     # still cannot be vectorized due to sz[i] call
     for bi in range(old_block_sz.size):
-        # nonzero returns int64. numba bug: view to uint64 AFTER reshape crashes
+        # nonzero returns int64, indexing is faster with unsigned int
         ori = (old_row_sz == old_block_sz[bi]).nonzero()[0].view(np.uint64)
-        ori = (ori.reshape(-1, 1) // rstrides1 % rmod).view(np.uint64)
-        rszb_mat = np.zeros((ori.shape[0],), dtype=np.uint64)
-        rsign = np.ones((ori.shape[0],), dtype=np.int8)
-        for i in range(old_nrr):
-            rszb_mat += rmaps[i][ori[:, i]] * rstrides2[i]  # map to spin reversed
-            rsign *= rsigns[i][ori[:, i]]
-        ori = (ori * rstrides2).view(np.uint64).sum(axis=1)
+        block_nrows = ori.size
+        rszb_mat = np.empty((block_nrows,), dtype=np.uint64)
+        rsign = np.empty((block_nrows,), dtype=np.int8)
+        for i in numba.prange(block_nrows):
+            permuted_s = 0
+            refl_s = 0
+            s_sign = 1
+            for j in range(old_nrr):
+                s = ori[i] // rstrides1[j] % rmod[j]
+                permuted_s += s * rstrides2[j]
+                refl_s += rmaps[j][s] * rstrides2[j]
+                s_sign *= rsigns[j][s]
+            ori[i] = permuted_s  # overwrite ori with permuted state
+            rszb_mat[i] = refl_s
+            rsign[i] = s_sign
 
         oci = (old_col_sz == old_block_sz[bi]).nonzero()[0].view(np.uint64)
-        oci = (oci.reshape(-1, 1) // cstrides1 % cmod).view(np.uint64)
-        cszb_mat = np.zeros((oci.shape[0],), dtype=np.uint64)
-        csign = np.ones((oci.shape[0],), dtype=np.int8)
-        for i in range(cstrides1.size):
-            cszb_mat += cmaps[i][oci[:, i]] * cstrides2[i]  # map to spin reversed
-            csign *= csigns[i][oci[:, i]]
-        oci = (oci * cstrides2).view(np.uint64).sum(axis=1)
+        block_ncols = oci.size
+        cszb_mat = np.empty((block_ncols,), dtype=np.uint64)
+        csign = np.empty((block_ncols,), dtype=np.int8)
+        for i in numba.prange(block_ncols):
+            permuted_s = 0
+            refl_s = 0
+            s_sign = 1
+            for j in range(old_ncr):
+                s = oci[i] // cstrides1[j] % cmod[j]
+                permuted_s += s * cstrides2[j]
+                refl_s += cmaps[j][s] * cstrides2[j]
+                s_sign *= csigns[j][s]
+            oci[i] = permuted_s
+            cszb_mat[i] = refl_s
+            csign[i] = s_sign
 
-        for i in numba.prange(ori.size):
-            for j in numba.prange(oci.size):
+        for i in numba.prange(block_nrows):
+            for j in numba.prange(block_ncols):
                 nr, nc = divmod(ori[i] + oci[j], ncs)
 
                 # if new Sz >= 0, move coefficient, same as U(1)
@@ -711,7 +746,6 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             old_block_sz,
             old_row_sz,
             old_col_sz,
-            self._nrr,
             axes,
             block_sz,
             new_row_sz,
