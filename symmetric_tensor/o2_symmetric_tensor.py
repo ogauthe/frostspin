@@ -235,7 +235,6 @@ def _numba_O2_transpose(
     old_block_sz,
     old_row_sz,
     old_col_sz,
-    old_nrr,
     axes,
     new_block_sz,
     new_row_sz,
@@ -261,8 +260,6 @@ def _numba_O2_transpose(
         Row Sz values before transpose.
     old_col_sz : (old_ncols,) int8 ndarray
         Column Sz values before transpose.
-    old_nrr : int
-        Number of axes to concatenate to obtain old rows.
     axes : tuple of ndim integers
         Axes permutation.
     new_block_sz: 1D int8 array
@@ -295,13 +292,15 @@ def _numba_O2_transpose(
     # very similar to U(1)
     ###################################################################################
     # 1) construct strides before and after transpose for rows and cols
-    ndim = old_shape.size
+    old_nrr = len(rmaps)
+    old_ncr = len(cmaps)
+    ndim = old_nrr + old_ncr
     rstrides1 = np.ones((old_nrr,), dtype=np.uint64)
     rstrides1[1:] = old_shape[old_nrr - 1 : 0 : -1]
     rstrides1 = rstrides1.cumprod()[::-1].copy()
     rmod = old_shape[:old_nrr]
 
-    cstrides1 = np.ones((ndim - old_nrr,), dtype=np.uint64)
+    cstrides1 = np.ones((old_ncr,), dtype=np.uint64)
     cstrides1[1:] = old_shape[-1:old_nrr:-1]
     cstrides1 = cstrides1.cumprod()[::-1].copy()
     cmod = old_shape[old_nrr:]
@@ -741,7 +740,6 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             old_block_sz,
             old_row_sz,
             old_col_sz,
-            self._nrr,
             axes,
             block_sz,
             new_row_sz,
