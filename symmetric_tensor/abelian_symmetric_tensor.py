@@ -97,7 +97,7 @@ def _numba_abelian_transpose(
     ----------
     old_shape : (ndim,) uint64 ndarray
         Tensor shape before transpose.
-    old_blocks : homogeneous tuple of onb C-array
+    old_blocks : tuple of onb C-array
         Reduced blocks before transpose.
     old_block_irreps : (onb,) int8 ndarray
         Block irreps before transpose.
@@ -122,8 +122,8 @@ def _numba_abelian_transpose(
         Block irreps after transpose.
 
     Note that old_shape is a ndarray and not a tuple.
-    old_blocks MUST be homogeneous tuple of C-array, using F-array sometimes
-    fails in a non-deterministic way.
+    old_blocks must be numba homogeneous tuple of C-array, using F-array sometimes fails
+    in a non-deterministic way.
     """
     ###################################################################################
     # Loop on old blocks, for each coeff, find new index, new irrep block and copy data.
@@ -149,7 +149,7 @@ def _numba_abelian_transpose(
     # 1) construct strides before and after transpose for rows and cols
     # things are much simpler with old_shape as np.array
     # indexing is slightly faster with unsigned integers
-    ndim = old_shape.size
+    ndim = len(axes)
     rstrides1 = np.ones((old_n_leg_rows,), dtype=np.uint64)
     rstrides1[1:] = old_shape[old_n_leg_rows - 1 : 0 : -1]
     rstrides1 = rstrides1.cumprod()[::-1].copy()
@@ -202,7 +202,7 @@ def _numba_abelian_transpose(
     # much faster NOT to parallelize loop on old_blocks (huge difference in block sizes)
     for bi in range(old_block_irreps.size):
         # nonzero returns int64, but unsigned int is slightly faster for indexing
-        # due to numba bug, crash if reshape before view
+        # due to numba bug, crash if reshape before view, see numba issue 3729
         ori = (old_row_irreps == old_block_irreps[bi]).nonzero()[0].view(np.uint64)
         ori = (ori.reshape(-1, 1) // rstrides1 % rmod * rstrides2).sum(axis=1)
         oci = (old_col_irreps == old_block_irreps[bi]).nonzero()[0].view(np.uint64)
