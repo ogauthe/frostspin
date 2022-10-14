@@ -191,7 +191,7 @@ def rdm_diag_ur(ul, T1r, C2, Aur, T2u, T4d, Adl, dr_T, C4, T3l):
     -------
     memory: 3*d**2*chi**2*D**4
 
-    Note that optional argument dr is transposed compared to standard clockwise order.
+    Note that dr corner is transposed compared to standard clockwise order.
     """
     rdm = rdm_diag_dr(
         C4,
@@ -214,4 +214,4 @@ def rdm_diag_ur(ul, T1r, C2, Aur, T2u, T4d, Adl, dr_T, C4, T3l):
 
 
 def rdm_2x2(C1, T1l, T1r, C2, T4u, Aul, Aur, T2u, T4d, Adl, Ard, T2d, C4, T4l, T4r, C3):
-    return NotImplemented
+    raise NotImplementedError("To do!")
