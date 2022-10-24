@@ -251,7 +251,7 @@ class CTM_Environment:
         return cls(cell, tensors, C1s, C2s, C3s, C4s, T1s, T2s, T3s, T4s)
 
     @classmethod
-    def from_file(cls, savefile):
+    def load_from_file(cls, savefile):
         """
         Construct CTM_Environment from save file.
         """
