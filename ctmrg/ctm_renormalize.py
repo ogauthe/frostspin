@@ -53,7 +53,6 @@ def construct_projectors(
     # U, s, V = truncated_svd(M)
     # P = R.T @ U.conj() / s
     # Pt = Rt @ V.T.conj() / s
-    assert (last_renormalized.col_reps[0] == corner2.col_reps[-1]).all()
 
     shared = sorted(
         set(corner1.block_irreps)

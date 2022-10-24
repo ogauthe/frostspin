@@ -651,6 +651,10 @@ class CTMRG:
         # 1) compute isometries for every non-equivalent sites
         # construct corners, free memory as soon as possible for corners that will be
         # updated by this move.
+        # use last renornalized corner to estimate block sizes in each symmetry sector
+        # and reduce total number of computed singular vecotrs
+        # Note that last renormalized corner coordinates correspond to the new corner,
+        # obtain from the isometries under construction.
         for x, y in self._neq_coords:
             P, Pt = construct_projectors(
                 self.construct_reduced_dr(x, y),
@@ -662,7 +666,7 @@ class CTMRG:
                 self.ncv_ratio,
                 self.cutoff,
                 self.degen_ratio,
-                self._env.get_C2(x + 2, y),
+                self._env.get_C2(x + 2, y + 1),
             )
             self._env.store_projectors(x + 2, y, P, Pt)
 
@@ -712,7 +716,7 @@ class CTMRG:
                 self.ncv_ratio,
                 self.cutoff,
                 self.degen_ratio,
-                self._env.get_C3(x + 3, y + 2).T,
+                self._env.get_C3(x + 2, y + 2).T,
             )
             self._env.store_projectors(x + 3, y + 2, P, Pt)
 
@@ -759,7 +763,7 @@ class CTMRG:
                 self.ncv_ratio,
                 self.cutoff,
                 self.degen_ratio,
-                self._env.get_C4(x + 1, y + 3),
+                self._env.get_C4(x + 1, y + 2),
             )
             self._env.store_projectors(x + 1, y + 3, P, Pt)
 
@@ -806,7 +810,7 @@ class CTMRG:
                 self.ncv_ratio,
                 self.cutoff,
                 self.degen_ratio,
-                self._env.get_C1(x, y + 1),
+                self._env.get_C1(x + 1, y + 1),
             )
             self._env.store_projectors(x, y + 1, P, Pt)
 
