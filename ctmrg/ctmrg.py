@@ -182,7 +182,7 @@ class CTMRG:
             self.print_tensor_shapes()
 
     @classmethod
-    def from_file(cls, filename, verbosity=0):
+    def load_from_file(cls, filename, verbosity=0):
         """
         Construct CTMRG from npz save file, as produced by save_to_file.
         Parameters
@@ -202,7 +202,7 @@ class CTMRG:
             degen_ratio = float(fin["_CTM_degen_ratio"])
         # better to open and close savefile twice (here and in env) to have env __init__
         # outside of file opening block.
-        env = CTM_Environment.from_file(filename)
+        env = CTM_Environment.load_from_file(filename)
         return cls(env, chi, block_chi_ratio, ncv_ratio, cutoff, degen_ratio, verbosity)
 
     def save_to_file(self, filename, additional_data={}):

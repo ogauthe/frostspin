@@ -81,7 +81,7 @@ for i in range(2):  # precision is pretty low
 
 # check save and load once tensors != init
 ctmU1.save_to_file(savefile)
-ctm2 = CTMRG.from_file(savefile)
+ctm2 = CTMRG.load_from_file(savefile)
 for (x, y) in ctmU1.neq_coords:
     assert eq_st(ctmU1._env.get_A(x, y), ctm2._env.get_A(x, y))
     assert eq_st(ctmU1._env.get_C1(x, y), ctm2._env.get_C1(x, y))
@@ -94,7 +94,7 @@ for (x, y) in ctmU1.neq_coords:
     assert eq_st(ctmU1._env.get_T4(x, y), ctm2._env.get_T4(x, y))
 
 ctmAs.save_to_file(savefile)
-ctm2 = CTMRG.from_file(savefile)
+ctm2 = CTMRG.load_from_file(savefile)
 for (x, y) in ctmAs.neq_coords:
     assert eq_st(ctmAs._env.get_A(x, y), ctm2._env.get_A(x, y))
     assert eq_st(ctmAs._env.get_C1(x, y), ctm2._env.get_C1(x, y))
@@ -297,7 +297,7 @@ rdm_dr_cell, rdm_ur_cell = ctm.compute_rdm_2nd_neighbor_cell()
 
 # check save and load once tensors != init
 ctm.save_to_file(savefile)
-ctm2 = CTMRG.from_file(savefile)
+ctm2 = CTMRG.load_from_file(savefile)
 for (x, y) in ctm.neq_coords:
     assert eq_st(ctm._env.get_A(x, y), ctm2._env.get_A(x, y))
     assert eq_st(ctm._env.get_C1(x, y), ctm2._env.get_C1(x, y))
