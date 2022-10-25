@@ -314,7 +314,10 @@ class CTMRG:
         symmetry: str
             Symmetry group
         """
-        self._env.set_symmetry(symmetry)
+        if self.symmetry != symmetry:
+            if self.verbosity > 0:
+                print("set symmetry to", symmetry)
+            self._env.set_symmetry(symmetry)
 
     def truncate_corners(self):
         """
