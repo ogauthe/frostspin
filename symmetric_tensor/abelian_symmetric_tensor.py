@@ -2,6 +2,7 @@ import numpy as np
 import scipy.linalg as lg
 import numba
 
+from misc_tools.sparse_tools import _numba_find_indices
 from .symmetric_tensor import SymmetricTensor
 
 
@@ -201,11 +202,10 @@ def _numba_abelian_transpose(
     # 5) copy all coeff from all blocks to new destination
     # much faster NOT to parallelize loop on old_blocks (huge difference in block sizes)
     for bi in range(old_block_irreps.size):
-        # nonzero returns int64, but unsigned int is slightly faster for indexing
-        # due to numba bug, crash if reshape before view, see numba issue 3729
-        ori = (old_row_irreps == old_block_irreps[bi]).nonzero()[0].view(np.uint64)
+        block_nrows, block_ncols = old_blocks[bi].shape
+        ori = _numba_find_indices(old_row_irreps, old_block_irreps[bi], block_nrows)
         ori = (ori.reshape(-1, 1) // rstrides1 % rmod * rstrides2).sum(axis=1)
-        oci = (old_col_irreps == old_block_irreps[bi]).nonzero()[0].view(np.uint64)
+        oci = _numba_find_indices(old_col_irreps, old_block_irreps[bi], block_ncols)
         oci = (oci.reshape(-1, 1) // cstrides1 % cmod * cstrides2).sum(axis=1)
         # ori and oci cannot be empty since old irrep block exists
         for i in numba.prange(ori.size):
