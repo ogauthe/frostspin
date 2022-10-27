@@ -156,29 +156,34 @@ def _numba_get_swapped(states, o2_reps):
 
 
 @numba.njit(parallel=True)
-def _numba_b0_arrays(sz0_states, o2_reps, n_sz0_ar, nfxe, nfxo):
-    # pass dtype as n_sz0_ar dtype
-    dt = n_sz0_ar.dtype
-    n_sz0 = n_sz0_ar[()]
-
+def _numba_b0_arrays(sz0_states, o2_reps, nfxe_ar, nfxo):
+    # 1st run parallel loop to get Sz-reflected states
+    # make it the simplest possible, do not write arrays
+    # we need to store refl_states and signs for fixed points anyway
     sz0_states_reversed, signs = _numba_get_swapped(sz0_states, o2_reps)
 
+    # define types and sizes. dtype information is passed as nfxe_ar dtype
+    dt = nfxe_ar.dtype
+    nfxe = nfxe_ar[()]
+    n_sz0 = sz0_states.size
     n_doublets = (n_sz0 - nfxe - nfxo) // 2
     ncoeff_even = nfxe + 2 * n_doublets  # number of coefficients in even projector
     ncoeff_odd = nfxo + 2 * n_doublets
 
+    # initialize array sizes
     notfx = np.empty((n_doublets,), dtype=dt)
     erows = np.empty((ncoeff_even,), dtype=dt)
     erows[: nfxe + n_doublets] = np.arange(nfxe + n_doublets, dtype=dt)
     ecols = np.empty((ncoeff_even,), dtype=dt)
     ecoeff = np.empty((ncoeff_even,))
-    ecoeff[:nfxe] = 1.0
+    ecoeff[:nfxe] = 1.0  # fixed points
     orows = np.empty((ncoeff_odd,), dtype=dt)
     orows[: nfxo + n_doublets] = np.arange(nfxo + n_doublets, dtype=dt)
     ocols = np.empty((ncoeff_odd,), dtype=dt)
     ocoeff = np.empty((ncoeff_odd,))
-    ocoeff[:nfxo] = 1.0
+    ocoeff[:nfxo] = 1.0  # fixed points
 
+    # fixed points require non-parallel loop to be detected
     ie, io, j = 0, 0, 0
     for i in range(n_sz0):
         if sz0_states[i] < sz0_states_reversed[i]:
@@ -192,6 +197,7 @@ def _numba_b0_arrays(sz0_states, o2_reps, n_sz0_ar, nfxe, nfxo):
                 ocols[io] = i
                 io += 1
 
+    # doublets are independent from each other once notfx is defined: parallel loop
     for i in numba.prange(n_doublets):
         j = np.searchsorted(sz0_states, sz0_states_reversed[notfx[i]])
         erows[nfxe + n_doublets + i] = nfxe + i
@@ -212,9 +218,23 @@ def _get_b0_projectors(o2_reps, sz_values):
     """
     Construct 0odd and 0even projectors. They allow to decompose U(1) Sz=0 sector into
     0odd (aka -1) and 0even (aka 0) sectors.
+
+    Parameters
+    ----------
+    o2_reps : tuple of nx O(2) representations
+        Representation on each axis.
+    sz_valuses : (k,) int8 ndarray
+        Sz values corresponding to merged o2_reps
+
+    Returns
+    -------
+        po : coo_matrix
+            Projector from Sz=0 block to 0odd sector
+        pe : coo_matrix
+            Projector from Sz=0 block to 0even sector
     """
     # sz_values can be recovered from o2_reps, but it is usually already constructed
-    # when calling _get_b0_projectors
+    # when calling _get_b0_projectors. Also avoids to add leg signatures as input.
 
     # Some Sz=0 states are fixed points, mapped to the same state, either even or odd.
     # They belong to even or odd sector depending on signs and need to be sent in this
@@ -225,12 +245,9 @@ def _get_b0_projectors(o2_reps, sz_values):
     # the number of doublets.
 
     # To get simpler projectors, we first detect the fixed points and set them as the
-    # first lines. Then doubles are considered.
+    # first lines. Then doublets are considered.
 
-    o2_full = O2_SymmetricTensor.combine_representations(o2_reps, None)
-    n_sz0 = o2_full[0, : o2_full[1].searchsorted(1)].sum()
-
-    # compute number of odd and even fixed points from O(2) reps
+    # compute number of odd and even fixed points from O(2) reps: they are product of 0
     nfxo = 0
     nfxe = 0
     temp = tuple(np.ascontiguousarray(r[:, : r[1].searchsorted(1)]) for r in o2_reps)
@@ -245,15 +262,16 @@ def _get_b0_projectors(o2_reps, sz_values):
             else:  # no odd
                 nfxe = fx_oe[0, 0]
 
-    n_doublets = (n_sz0 - nfxe - nfxo) // 2
     sz0_states = (sz_values == 0).nonzero()[0].view(np.uint64)
+    n_sz0 = sz0_states.size
     # scipy issue 16774: default index dtype is int32 with force cast from int64
     dt = np.int32 if n_sz0 < 2**31 else np.int64
-    n_sz0_ar = np.array(n_sz0, dtype=dt)
+    nfxe_ar = np.array(nfxe, dtype=dt)  # store dtype information for numba
 
     ecoeff, erows, ecols, ocoeff, orows, ocols = _numba_b0_arrays(
-        sz0_states, tuple(o2_reps), n_sz0_ar, nfxe, nfxo
+        sz0_states, tuple(o2_reps), nfxe_ar, nfxo
     )
+    n_doublets = (n_sz0 - nfxe - nfxo) // 2
     pe = sp.coo_matrix((ecoeff, (erows, ecols)), shape=(nfxe + n_doublets, n_sz0))
     po = sp.coo_matrix((ocoeff, (orows, ocols)), shape=(nfxo + n_doublets, n_sz0))
     return po, pe
