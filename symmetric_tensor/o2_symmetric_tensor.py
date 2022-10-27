@@ -3,7 +3,11 @@ import scipy.sparse as sp
 import scipy.linalg as lg
 import numba
 
-from misc_tools.sparse_tools import custom_sparse_product, custom_double_sparse_product
+from misc_tools.sparse_tools import (
+    custom_sparse_product,
+    custom_double_sparse_product,
+    _numba_find_indices,
+)
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 from .u1_symmetric_tensor import U1_SymmetricTensor
 
@@ -262,8 +266,11 @@ def _get_b0_projectors(o2_reps, sz_values):
             else:  # no odd
                 nfxe = fx_oe[0, 0]
 
-    sz0_states = (sz_values == 0).nonzero()[0].view(np.uint64)
-    n_sz0 = sz0_states.size
+    # precompute the number of Sz=0 states from fast O(2) merging
+    o2_full = O2_SymmetricTensor.combine_representations(o2_reps, None)
+    n_sz0 = o2_full[0, : o2_full[1].searchsorted(1)].sum()
+    sz0_states = _numba_find_indices(sz_values, 0, n_sz0)
+
     # scipy issue 16774: default index dtype is int32 with force cast from int64
     dt = np.int32 if n_sz0 < 2**31 else np.int64
     nfxe_ar = np.array(nfxe, dtype=dt)  # store dtype information for numba
@@ -404,9 +411,8 @@ def _numba_O2_transpose(
     # then map is i -> i + (sz[i] > 0) * 2 - bool(sz[i])
     # still cannot be vectorized due to sz[i] call
     for bi in range(old_block_sz.size):
-        # nonzero returns int64, indexing is faster with unsigned int
-        ori = (old_row_sz == old_block_sz[bi]).nonzero()[0].view(np.uint64)
-        block_nrows = ori.size
+        block_nrows, block_ncols = old_blocks[bi].shape
+        ori = _numba_find_indices(old_row_sz, old_block_sz[bi], block_nrows)
         rszb_mat = np.empty((block_nrows,), dtype=np.uint64)
         rsign = np.empty((block_nrows,), dtype=np.int8)
         for i in numba.prange(block_nrows):
@@ -422,8 +428,7 @@ def _numba_O2_transpose(
             rszb_mat[i] = refl_s
             rsign[i] = s_sign
 
-        oci = (old_col_sz == old_block_sz[bi]).nonzero()[0].view(np.uint64)
-        block_ncols = oci.size
+        oci = _numba_find_indices(old_col_sz, old_block_sz[bi], block_ncols)
         cszb_mat = np.empty((block_ncols,), dtype=np.uint64)
         csign = np.empty((block_ncols,), dtype=np.int8)
         for i in numba.prange(block_ncols):
@@ -630,7 +635,8 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         while isz > -1 and self._block_irreps[isz] > 0:
             sz = self._block_irreps[isz]
             # it is faster to map to Sz-reflected inside the loop.
-            rsz_mat = (u1_combined_row == sz).nonzero()[0].view(np.uint64)  # Sz states
+            nr, nc = self._blocks[isz].shape
+            rsz_mat = _numba_find_indices(u1_combined_row, sz, nr)  # Sz states
             rsz_t = (rsz_mat // row_cp[:, None]).T % shr  # multi-index form
             rszb_mat = np.zeros((rsz_mat.size,), dtype=np.uint64)
             rsign = np.ones((rsz_mat.size,), dtype=np.int8)
@@ -638,7 +644,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
                 rszb_mat += rmaps[i][rsz_t[:, i]] * row_cp[i]  # map to spin reversed
                 rsign *= rsigns[i][rsz_t[:, i]]
 
-            csz_mat = (u1_combined_col == sz).nonzero()[0].view(np.uint64)
+            csz_mat = _numba_find_indices(u1_combined_col, sz, nc)  # Sz states
             csz_t = (csz_mat // col_cp[:, None]).T % shc  # multi-index form
             cszb_mat = np.zeros((csz_mat.size,), dtype=np.uint64)
             csign = np.ones((csz_mat.size,), dtype=np.int8)
