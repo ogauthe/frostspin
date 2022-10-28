@@ -4,13 +4,18 @@ import numba
 from .abelian_symmetric_tensor import AbelianSymmetricTensor
 
 
-@numba.njit
+@numba.njit(parallel=True)
 def _numba_combine_U1(reps, signature):
-    combined = np.int8(1 - 2 * signature[0]) * reps[0]
-    for r, s in zip(reps[1:], signature[1:]):
-        rs = np.int8(1 - 2 * s) * r
-        combined = (combined.reshape(-1, 1) + rs).ravel()
-    return combined
+    c0 = np.int8(1 - 2 * signature[0]) * reps[0]
+    for i in range(1, len(reps)):
+        n = reps[i].size
+        rs = np.int8(1 - 2 * signature[i]) * reps[i]
+        c1 = np.empty((c0.size * n,), dtype=np.int8)
+        for j in numba.prange(c0.size):
+            for k in range(n):
+                c1[j * n + k] = c0[j] + rs[k]
+        c0 = c1
+    return c0
 
 
 class U1_SymmetricTensor(AbelianSymmetricTensor):
