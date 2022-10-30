@@ -6,11 +6,10 @@ from .abelian_symmetric_tensor import AbelianSymmetricTensor
 
 @numba.njit(parallel=True)
 def _numba_combine_U1(reps, signature):
-    nx = len(reps)
     c0 = np.int8(1 - 2 * signature[0]) * reps[0]
-    for i in range(1, nx):
+    for i in range(1, len(reps)):
         n = reps[i].size
-        rs = (1 - 2 * signature[i]) * reps[i]
+        rs = np.int8(1 - 2 * signature[i]) * reps[i]
         c1 = np.empty((c0.size * n,), dtype=np.int8)
         for j in numba.prange(c0.size):
             for k in range(n):
