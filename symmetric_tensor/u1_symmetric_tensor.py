@@ -4,7 +4,7 @@ import numba
 from .abelian_symmetric_tensor import AbelianSymmetricTensor
 
 
-@numba.njit
+@numba.njit(parallel=True)
 def _numba_combine_U1(reps, signature):
     nx = len(reps)
     c0 = np.int8(1 - 2 * signature[0]) * reps[0]
@@ -12,7 +12,7 @@ def _numba_combine_U1(reps, signature):
         n = reps[i].size
         rs = (1 - 2 * signature[i]) * reps[i]
         c1 = np.empty((c0.size * n,), dtype=np.int8)
-        for j in range(c0.size):
+        for j in numba.prange(c0.size):
             for k in range(n):
                 c1[j * n + k] = c0[j] + rs[k]
         c0 = c1
