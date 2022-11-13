@@ -285,12 +285,33 @@ def _get_b0_projectors(o2_reps, sz_values):
 
 
 @numba.njit(parallel=True)
-def _numba_generate_block(rso, cso, b0, rsign, csign):
-    b = np.empty((rso.size, cso.size), dtype=b0.dtype)
+def _numba_generate_refl_block(rso, cso, b, rsign, csign):
+    """
+    Construct -Sz U(1) block using O(2) reflection on +Sz block
+
+    Parameters
+    ----------
+    rso : (nr,) uint64 array
+        Row permutation under a reflection
+    cso : (nc,) uint64 array
+        Column permutation under a reflection
+    b : (nr, nc) scalar array
+        U(1) block with Sz > 0
+    rsign : (nr,) int8 array
+        row signs under a reflection
+    csign : (nc,) int8 array
+        col signs under a reflection
+
+    Returns
+    -------
+    relfected_block : (nr, nc) scalar array
+        U(1) block with Sz < 0
+    """
+    reflected_block = np.empty((rso.size, cso.size), dtype=b.dtype)
     for i in numba.prange(rso.size):
         for j in numba.prange(cso.size):
-            b[rso[i], cso[j]] = rsign[i] * csign[j] * b0[i, j]
-    return b
+            reflected_block[rso[i], cso[j]] = rsign[i] * csign[j] * b[i, j]
+    return reflected_block
 
 
 @numba.njit(parallel=True)
@@ -654,7 +675,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
 
             rso = rszb_mat.argsort().argsort().view(np.uint64)
             cso = cszb_mat.argsort().argsort().view(np.uint64)
-            b = _numba_generate_block(rso, cso, self._blocks[isz], rsign, csign)
+            b = _numba_generate_refl_block(rso, cso, self._blocks[isz], rsign, csign)
             blocks.append(b)
             isz -= 1
 
