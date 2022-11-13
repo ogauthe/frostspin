@@ -1,13 +1,8 @@
 import numpy as np
-import scipy.sparse as sp
 import scipy.linalg as lg
 import numba
 
-from misc_tools.sparse_tools import (
-    custom_sparse_product,
-    custom_double_sparse_product,
-    _numba_find_indices,
-)
+from misc_tools.sparse_tools import _numba_find_indices
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 from .u1_symmetric_tensor import U1_SymmetricTensor
 
@@ -122,15 +117,19 @@ def _numba_get_reflection_perm_sign(rep):
 
 
 @numba.njit(parallel=True)
-def _numba_get_swapped(states, o2_reps):
+def _numba_b0_arrays(sz0_states, o2_reps, nfxe, nfxo):
     """
     Construct array of reflected states.
 
-    states: (n,) uint64 array
+    sz0_states: (n_sz0,) uint64 array
         Dense indices to reflect, mono index form.
     o2_reps: tuple of nx O(2) representations
         Representation on each axis.
     """
+    # 1st run parallel loop to get Sz-reflected states
+    # make it the simplest possible, do not write arrays
+    # we need to store refl_states and signs for fixed points anyway
+
     # avoid constructing array of multi-index states, which may be large.
     nx = len(o2_reps)
     perm_axes = []
@@ -143,82 +142,72 @@ def _numba_get_swapped(states, o2_reps):
     sh = [_numba_O2_representation_dimension(r) for r in o2_reps]  # numba issue 8497
     sh = np.array(sh, dtype=np.uint64)
     strides = np.array([np.uint64(1), *sh[-1:0:-1]]).cumprod()[::-1].copy()
-    n = states.shape[0]
-    refl_states = np.empty((n,), dtype=np.uint64)  # Sz-reversed mapped indices
-    signs = np.empty((n,), dtype=np.int8)
-    for i in numba.prange(n):
+    n_sz0 = sz0_states.size
+    refl_states = np.empty((n_sz0,), dtype=np.uint64)  # Sz-reversed mapped indices
+    signs = np.empty((n_sz0,), dtype=np.int8)
+    for i in numba.prange(n_sz0):
         refl_s = 0
         s_sign = 1
         for j in range(nx):
-            ind = states[i] // strides[j] % sh[j]
+            ind = sz0_states[i] // strides[j] % sh[j]
             refl_s += perm_axes[j][ind] * strides[j]
             s_sign *= sign_axes[j][ind]
         refl_states[i] = refl_s
         signs[i] = s_sign
-
-    return refl_states, signs
-
-
-@numba.njit(parallel=True)
-def _numba_b0_arrays(sz0_states, o2_reps, nfxe_ar, nfxo):
-    # 1st run parallel loop to get Sz-reflected states
-    # make it the simplest possible, do not write arrays
-    # we need to store refl_states and signs for fixed points anyway
-    sz0_states_reversed, signs = _numba_get_swapped(sz0_states, o2_reps)
-
-    # define types and sizes. dtype information is passed as nfxe_ar dtype
-    dt = nfxe_ar.dtype
-    nfxe = nfxe_ar[()]
-    n_sz0 = sz0_states.size
     n_doublets = (n_sz0 - nfxe - nfxo) // 2
-    ncoeff_even = nfxe + 2 * n_doublets  # number of coefficients in even projector
-    ncoeff_odd = nfxo + 2 * n_doublets
 
     # initialize array sizes
-    notfx = np.empty((n_doublets,), dtype=dt)
-    erows = np.empty((ncoeff_even,), dtype=dt)
-    erows[: nfxe + n_doublets] = np.arange(nfxe + n_doublets, dtype=dt)
-    ecols = np.empty((ncoeff_even,), dtype=dt)
-    ecoeff = np.empty((ncoeff_even,))
-    ecoeff[:nfxe] = 1.0  # fixed points
-    orows = np.empty((ncoeff_odd,), dtype=dt)
-    orows[: nfxo + n_doublets] = np.arange(nfxo + n_doublets, dtype=dt)
-    ocols = np.empty((ncoeff_odd,), dtype=dt)
-    ocoeff = np.empty((ncoeff_odd,))
-    ocoeff[:nfxo] = 1.0  # fixed points
+    notfx = np.empty((n_doublets,), dtype=np.uint64)
+    ecols = np.empty((nfxe + n_doublets, 2), dtype=np.uint64)
+    ecoeff = np.empty((nfxe + n_doublets, 2))
+    ocols = np.empty((nfxo + n_doublets, 2), dtype=np.uint64)
+    ocoeff = np.empty((nfxo + n_doublets, 2))
 
     # fixed points require non-parallel loop to be detected
     ie, io, j = 0, 0, 0
     for i in range(n_sz0):
-        if sz0_states[i] < sz0_states_reversed[i]:
+        if sz0_states[i] < refl_states[i]:
             notfx[j] = i
             j += 1
-        elif sz0_states[i] == sz0_states_reversed[i]:  # fixed point
+        elif sz0_states[i] == refl_states[i]:  # fixed point
             if signs[i] > 0:  # even
-                ecols[ie] = i
+                ecols[ie, 0] = i
+                ecols[ie, 1] = i
+                ecoeff[ie, 0] = 1.0
+                ecoeff[ie, 1] = 0.0
                 ie += 1
             else:  # odd
-                ocols[io] = i
+                ocols[io, 0] = i
+                ocols[io, 1] = i
+                ocoeff[io, 0] = 1.0
+                ocoeff[io, 1] = 0.0
                 io += 1
 
     # doublets are independent from each other once notfx is defined: parallel loop
     for i in numba.prange(n_doublets):
-        j = np.searchsorted(sz0_states, sz0_states_reversed[notfx[i]])
-        erows[nfxe + n_doublets + i] = nfxe + i
-        ecols[nfxe + i] = notfx[i]
-        ecols[nfxe + n_doublets + i] = j
-        ecoeff[nfxe + i] = 1.0 / np.sqrt(2)
-        ecoeff[nfxe + n_doublets + i] = signs[j] / np.sqrt(2)
+        j = np.searchsorted(sz0_states, refl_states[notfx[i]])
+        ecols[nfxe + i, 0] = notfx[i]
+        ecols[nfxe + i, 1] = j
+        ecoeff[nfxe + i, 0] = 1.0 / np.sqrt(2)
+        ecoeff[nfxe + i, 1] = signs[j] / np.sqrt(2)
 
-        orows[nfxo + n_doublets + i] = nfxo + i
-        ocols[nfxo + i] = notfx[i]
-        ocols[nfxo + n_doublets + i] = j
-        ocoeff[nfxo + i] = 1.0 / np.sqrt(2)
-        ocoeff[nfxo + n_doublets + i] = -signs[j] / np.sqrt(2)
-    return ecoeff, erows, ecols, ocoeff, orows, ocols
+        # ecols and cols are the same beyond fixed points
+        # e/o coeff differ only by sign
+        # should I really construct 2 arrays?
+
+        # simplest form: I need even and odd fixed point indices
+        # and an array (n_doublets, 2) of doublet indices
+        # no need to store coefficients or rows
+        # however then I have to make separate loops on fixed points and doublets
+        ocols[nfxo + i, 0] = notfx[i]
+        ocols[nfxo + i, 1] = j
+        ocoeff[nfxo + i, 0] = 1.0 / np.sqrt(2)
+        ocoeff[nfxo + i, 1] = -signs[j] / np.sqrt(2)
+
+    return ecoeff, ecols, ocoeff, ocols
 
 
-def _get_b0_projectors(o2_reps, sz_values):
+def _get_b0_arrays(o2_reps, sz_values):
     """
     Construct 0odd and 0even projectors. They allow to decompose U(1) Sz=0 sector into
     0odd (aka -1) and 0even (aka 0) sectors.
@@ -232,13 +221,10 @@ def _get_b0_projectors(o2_reps, sz_values):
 
     Returns
     -------
-        po : coo_matrix
-            Projector from Sz=0 block to 0odd sector
-        pe : coo_matrix
-            Projector from Sz=0 block to 0even sector
+    TODO
     """
     # sz_values can be recovered from o2_reps, but it is usually already constructed
-    # when calling _get_b0_projectors. Also avoids to add leg signatures as input.
+    # when calling this function. Also avoids to add leg signatures as input.
 
     # Some Sz=0 states are fixed points, mapped to the same state, either even or odd.
     # They belong to even or odd sector depending on signs and need to be sent in this
@@ -271,17 +257,53 @@ def _get_b0_projectors(o2_reps, sz_values):
     n_sz0 = o2_full[0, : o2_full[1].searchsorted(1)].sum()
     sz0_states = _numba_find_indices(sz_values, 0, n_sz0)
 
-    # scipy issue 16774: default index dtype is int32 with force cast from int64
-    dt = np.int32 if n_sz0 < 2**31 else np.int64
-    nfxe_ar = np.array(nfxe, dtype=dt)  # store dtype information for numba
-
-    ecoeff, erows, ecols, ocoeff, orows, ocols = _numba_b0_arrays(
-        sz0_states, tuple(o2_reps), nfxe_ar, nfxo
+    ecoeff, ecols, ocoeff, ocols = _numba_b0_arrays(
+        sz0_states, tuple(o2_reps), nfxe, nfxo
     )
-    n_doublets = (n_sz0 - nfxe - nfxo) // 2
-    pe = sp.coo_matrix((ecoeff, (erows, ecols)), shape=(nfxe + n_doublets, n_sz0))
-    po = sp.coo_matrix((ocoeff, (orows, ocols)), shape=(nfxo + n_doublets, n_sz0))
-    return po, pe
+    return ecoeff, ecols, ocoeff, ocols
+
+
+@numba.njit(parallel=True)
+def merge_b0oe(
+    b0o, rocoeff, rocol, cocoeff, cocol, b0e, recoeff, recol, cecoeff, cecol
+):
+    nr = rocoeff.shape[0] + recoeff.shape[0]
+    nc = cocoeff.shape[0] + cecoeff.shape[0]
+    b0 = np.zeros((nr, nc), dtype=b0o.dtype)
+    for i in numba.prange(rocoeff.shape[0]):
+        for j in numba.prange(cocoeff.shape[0]):
+            b0[rocol[i, 0], cocol[j, 0]] += rocoeff[i, 0] * b0o[i, j] * cocoeff[j, 0]
+            b0[rocol[i, 0], cocol[j, 1]] += rocoeff[i, 0] * b0o[i, j] * cocoeff[j, 1]
+            b0[rocol[i, 1], cocol[j, 0]] += rocoeff[i, 1] * b0o[i, j] * cocoeff[j, 0]
+            b0[rocol[i, 1], cocol[j, 1]] += rocoeff[i, 1] * b0o[i, j] * cocoeff[j, 1]
+    for i in numba.prange(recoeff.shape[0]):
+        for j in numba.prange(cecoeff.shape[0]):
+            b0[recol[i, 0], cecol[j, 0]] += recoeff[i, 0] * b0e[i, j] * cecoeff[j, 0]
+            b0[recol[i, 0], cecol[j, 1]] += recoeff[i, 0] * b0e[i, j] * cecoeff[j, 1]
+            b0[recol[i, 1], cecol[j, 0]] += recoeff[i, 1] * b0e[i, j] * cecoeff[j, 0]
+            b0[recol[i, 1], cecol[j, 1]] += recoeff[i, 1] * b0e[i, j] * cecoeff[j, 1]
+    return b0
+
+
+@numba.njit(parallel=True)
+def split_b0(b0, rocoeff, rocol, cocoeff, cocol, recoeff, recol, cecoeff, cecol):
+    b0o = np.empty((rocoeff.shape[0], cocoeff.shape[0]), dtype=b0.dtype)
+    for i in numba.prange(rocoeff.shape[0]):
+        for j in numba.prange(cocoeff.shape[0]):
+            c = rocoeff[i, 0] * b0[rocol[i, 0], cocol[j, 0]] * cocoeff[j, 0]
+            c += rocoeff[i, 0] * b0[rocol[i, 0], cocol[j, 1]] * cocoeff[j, 1]
+            c += rocoeff[i, 1] * b0[rocol[i, 1], cocol[j, 0]] * cocoeff[j, 0]
+            c += rocoeff[i, 1] * b0[rocol[i, 1], cocol[j, 1]] * cocoeff[j, 1]
+            b0o[i, j] = c
+    b0e = np.empty((recoeff.shape[0], cecoeff.shape[0]), dtype=b0.dtype)
+    for i in numba.prange(recoeff.shape[0]):
+        for j in numba.prange(cecoeff.shape[0]):
+            c = recoeff[i, 0] * b0[recol[i, 0], cecol[j, 0]] * cecoeff[j, 0]
+            c += recoeff[i, 0] * b0[recol[i, 0], cecol[j, 1]] * cecoeff[j, 1]
+            c += recoeff[i, 1] * b0[recol[i, 1], cecol[j, 0]] * cecoeff[j, 0]
+            c += recoeff[i, 1] * b0[recol[i, 1], cecol[j, 1]] * cecoeff[j, 1]
+            b0e[i, j] = c
+    return b0o, b0e
 
 
 @numba.njit(parallel=True)
@@ -597,19 +619,25 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         block_irreps = []
         i0 = tu1.block_irreps.searchsorted(0)
         if tu1.block_irreps[i0] == 0:  # tu1 is O(2) => i0 < len(tu1.block_irreps)
-            pro, pre = _get_b0_projectors(row_reps, tu1.get_row_representation())
-            pco, pce = _get_b0_projectors(col_reps, tu1.get_column_representation())
-            if pro.getnnz() and pco.getnnz():
+            b0 = tu1.blocks[i0]
+            recoeff, recol, rocoeff, rocol = _get_b0_arrays(
+                row_reps, tu1.get_row_representation()
+            )
+            cecoeff, cecol, cocoeff, cocol = _get_b0_arrays(
+                col_reps, tu1.get_column_representation()
+            )
+            b0o, b0e = split_b0(
+                b0, rocoeff, rocol, cocoeff, cocol, recoeff, recol, cecoeff, cecol
+            )
+            if b0o.size:
                 block_irreps.append(-1)
-                b0o = custom_sparse_product(pro, tu1.blocks[i0], pco.T)
                 blocks.append(b0o)
-            if pre.getnnz() and pce.getnnz():
+            if b0e.size:
                 block_irreps.append(0)
-                b0e = custom_sparse_product(pre, tu1.blocks[i0], pce.T)
                 blocks.append(b0e)
             assert abs(
-                np.sqrt(sum(lg.norm(b) ** 2 for b in blocks)) - lg.norm(tu1.blocks[i0])
-            ) <= _tol * lg.norm(tu1.blocks[i0]), "b0 splitting does not preserve norm"
+                np.sqrt(lg.norm(b0o) ** 2 + lg.norm(b0e) ** 2) - lg.norm(b0)
+            ) <= _tol * lg.norm(b0), "b0 splitting does not preserve norm"
             i0 += 1
         block_irreps.extend(tu1.block_irreps[i0:])
         blocks.extend(tu1.blocks[i0:])
@@ -696,26 +724,31 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             sz_values = U1_SymmetricTensor.combine_representations(
                 u1_row_reps, self._signature[: self._nrr]
             )
-            pro, pre = _get_b0_projectors(self._row_reps, sz_values)
+            recoeff, recol, rocoeff, rocol = _get_b0_arrays(self._row_reps, sz_values)
             sz_values = U1_SymmetricTensor.combine_representations(
                 u1_col_reps, ~self._signature[self._nrr :]
             )
-            pco, pce = _get_b0_projectors(self._col_reps, sz_values)
+            cecoeff, cecol, cocoeff, cocol = _get_b0_arrays(self._col_reps, sz_values)
             if self._block_irreps[0] == 0:  # no 0o block
+                # this should be highly uncommon, don't bother optimize
                 i1 = 1
-                b0 = custom_sparse_product(pre.T, self._blocks[0], pce)
+                b0o = np.zeros((rocol.shape[0], cocol.shape[0]), dtype=self.dtype)
+                b0e = self._blocks[0]
                 block_sz = np.hstack((block_sz, self._block_irreps[1:]))
             elif self.nblocks > 1 and self._block_irreps[1] > 0:  # no 0e block
                 i1 = 1
-                b0 = custom_sparse_product(pro.T, self._blocks[0], pco)
+                b0o = self._blocks[0]
+                b0e = np.zeros((recol.shape[0], cecol.shape[0]), dtype=self.dtype)
                 block_sz[-1] = 0
                 block_sz = np.hstack((block_sz, self._block_irreps[1:]))
             else:
                 i1 = 2
-                b0 = custom_double_sparse_product(
-                    pro.T, self._blocks[0], pco, pre.T, self._blocks[1], pce
-                )
+                b0o = self._blocks[0]
+                b0e = self._blocks[1]
                 block_sz = np.hstack((block_sz[:-1], self._block_irreps[2:]))
+            b0 = merge_b0oe(
+                b0o, rocoeff, rocol, cocoeff, cocol, b0e, recoeff, recol, cecoeff, cecol
+            )
             blocks.append(b0)
         else:
             i1 = 0
@@ -802,24 +835,29 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
 
         # construct Sz = 0 block (may not exist)
         if self._block_irreps[0] < 1:
-            pro, pre = _get_b0_projectors(self._row_reps, old_row_sz)
-            pco, pce = _get_b0_projectors(self._col_reps, old_col_sz)
+            recoeff, recol, rocoeff, rocol = _get_b0_arrays(self._row_reps, old_row_sz)
+            cecoeff, cecol, cocoeff, cocol = _get_b0_arrays(self._col_reps, old_col_sz)
             if self._block_irreps[0] == 0:  # no 0o block
-                b0 = custom_sparse_product(pre.T, self._blocks[0], pce)
+                # this should be highly uncommon, don't bother optimize
+                i1 = 1
+                b0o = np.zeros((rocol.shape[0], cocol.shape[0]), dtype=self.dtype)
+                b0e = self._blocks[0]
                 old_block_sz = self._block_irreps
-                old_blocks = (b0, *self._blocks[1:])
             elif self.nblocks > 1 and self._block_irreps[1] > 0:  # no 0e block
-                b0 = custom_sparse_product(pro.T, self._blocks[0], pco)
+                i1 = 1
+                b0o = self._blocks[0]
+                b0e = np.zeros((recol.shape[0], cecol.shape[0]), dtype=self.dtype)
                 old_block_sz = self._block_irreps.copy()
                 old_block_sz[0] = 0
-                old_blocks = (b0, *self._blocks[1:])
             else:
-                b0 = custom_double_sparse_product(
-                    pro.T, self._blocks[0], pco, pre.T, self._blocks[1], pce
-                )
+                i1 = 2
                 old_block_sz = self._block_irreps[1:]
-                old_blocks = (b0, *self._blocks[2:])
-            del b0, pro, pre, pco, pce
+                b0o = self._blocks[0]
+                b0e = self._blocks[1]
+            b0 = merge_b0oe(
+                b0o, rocoeff, rocol, cocoeff, cocol, b0e, recoeff, recol, cecoeff, cecol
+            )
+            old_blocks = (b0, *self._blocks[i1:])
         else:
             old_blocks = self._blocks
             old_block_sz = self._block_irreps
