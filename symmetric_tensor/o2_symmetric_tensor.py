@@ -117,20 +117,10 @@ def _numba_get_reflection_perm_sign(rep):
 
 
 @numba.njit(parallel=True)
-def _numba_b0_arrays(sz0_states, o2_reps, nfxe, nfxo):
+def _numba_b0_arrays(sz_values, o2_reps, n_sz0, nfxe, nfxo):
     """
-    Construct array of Sz-reflected states.
-
-    Parameters
-    ----------
-    sz0_states : (n_sz0,) uint64 array
-        Dense indices to reflect, mono index form.
-    o2_reps : tuple of nx O(2) representations
-        Representation on each axis.
-    nfxe : int
-        Number of even fixed points under Sz-reflection.
-    nfxo : int
-        Number of odd fixed points under Sz-reflection.
+    Construct column and coefficient arrays for 0odd and 0even block projectors. Refer
+    to _construct_b0_arrays for full documentation.
     """
     # 1st run parallel loop to get Sz-reflected states
     # make it the simplest possible, do not write arrays
@@ -145,10 +135,10 @@ def _numba_b0_arrays(sz0_states, o2_reps, nfxe, nfxo):
         perm_axes.append(p)
         sign_axes.append(s)
 
+    sz0_states = _numba_find_indices(sz_values, 0, n_sz0)
     sh = [_numba_O2_representation_dimension(r) for r in o2_reps]  # numba issue 8497
     sh = np.array(sh, dtype=np.uint64)
     strides = np.array([np.uint64(1), *sh[-1:0:-1]]).cumprod()[::-1].copy()
-    n_sz0 = sz0_states.size
     refl_states = np.empty((n_sz0,), dtype=np.uint64)  # Sz-reversed mapped indices
     signs = np.empty((n_sz0,), dtype=np.int8)
     for i in numba.prange(n_sz0):
@@ -213,7 +203,7 @@ def _numba_b0_arrays(sz0_states, o2_reps, nfxe, nfxo):
     return ecoeff, ecols, ocoeff, ocols
 
 
-def _get_b0_arrays(o2_reps, sz_values):
+def _construct_b0_arrays(o2_reps, sz_values):
     """
     Construct column and coefficient arrays for 0odd and 0even block projectors. They
     allow to decompose U(1) Sz=0 sector into 0odd (aka -1) and 0even (aka 0) sectors.
@@ -237,6 +227,8 @@ def _get_b0_arrays(o2_reps, sz_values):
         Coefficients to construct odd states.
     ocols :  (no,) uint64 array
         Column indices to apply odd coefficients.
+
+    ne (no) is the dimension of the 0even (0odd) sector.
     """
     # sz_values can be recovered from o2_reps, but it is usually already constructed
     # when calling this function. Also avoids to add leg signatures as input.
@@ -272,10 +264,9 @@ def _get_b0_arrays(o2_reps, sz_values):
     # cannot do it inside numba in case len(o2_reps) = 1
     o2_full = O2_SymmetricTensor.combine_representations(o2_reps, None)
     n_sz0 = o2_full[0, : o2_full[1].searchsorted(1)].sum()
-    sz0_states = _numba_find_indices(sz_values, 0, n_sz0)
 
     ecoeff, ecols, ocoeff, ocols = _numba_b0_arrays(
-        sz0_states, tuple(o2_reps), nfxe, nfxo
+        sz_values, tuple(o2_reps), n_sz0, nfxe, nfxo
     )
     return ecoeff, ecols, ocoeff, ocols
 
@@ -637,10 +628,10 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         i0 = tu1.block_irreps.searchsorted(0)
         if tu1.block_irreps[i0] == 0:  # tu1 is O(2) => i0 < len(tu1.block_irreps)
             b0 = tu1.blocks[i0]
-            recoeff, recol, rocoeff, rocol = _get_b0_arrays(
+            recoeff, recol, rocoeff, rocol = _construct_b0_arrays(
                 row_reps, tu1.get_row_representation()
             )
-            cecoeff, cecol, cocoeff, cocol = _get_b0_arrays(
+            cecoeff, cecol, cocoeff, cocol = _construct_b0_arrays(
                 col_reps, tu1.get_column_representation()
             )
             b0o, b0e = split_b0(
@@ -741,11 +732,15 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             sz_values = U1_SymmetricTensor.combine_representations(
                 u1_row_reps, self._signature[: self._nrr]
             )
-            recoeff, recol, rocoeff, rocol = _get_b0_arrays(self._row_reps, sz_values)
+            recoeff, recol, rocoeff, rocol = _construct_b0_arrays(
+                self._row_reps, sz_values
+            )
             sz_values = U1_SymmetricTensor.combine_representations(
                 u1_col_reps, ~self._signature[self._nrr :]
             )
-            cecoeff, cecol, cocoeff, cocol = _get_b0_arrays(self._col_reps, sz_values)
+            cecoeff, cecol, cocoeff, cocol = _construct_b0_arrays(
+                self._col_reps, sz_values
+            )
             if self._block_irreps[0] == 0:  # no 0o block
                 # this should be highly uncommon, don't bother optimize
                 i1 = 1
@@ -852,8 +847,12 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
 
         # construct Sz = 0 block (may not exist)
         if self._block_irreps[0] < 1:
-            recoeff, recol, rocoeff, rocol = _get_b0_arrays(self._row_reps, old_row_sz)
-            cecoeff, cecol, cocoeff, cocol = _get_b0_arrays(self._col_reps, old_col_sz)
+            recoeff, recol, rocoeff, rocol = _construct_b0_arrays(
+                self._row_reps, old_row_sz
+            )
+            cecoeff, cecol, cocoeff, cocol = _construct_b0_arrays(
+                self._col_reps, old_col_sz
+            )
             if self._block_irreps[0] == 0:  # no 0o block
                 # this should be highly uncommon, don't bother optimize
                 i1 = 1
