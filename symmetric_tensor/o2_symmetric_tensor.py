@@ -119,12 +119,18 @@ def _numba_get_reflection_perm_sign(rep):
 @numba.njit(parallel=True)
 def _numba_b0_arrays(sz0_states, o2_reps, nfxe, nfxo):
     """
-    Construct array of reflected states.
+    Construct array of Sz-reflected states.
 
-    sz0_states: (n_sz0,) uint64 array
+    Parameters
+    ----------
+    sz0_states : (n_sz0,) uint64 array
         Dense indices to reflect, mono index form.
-    o2_reps: tuple of nx O(2) representations
+    o2_reps : tuple of nx O(2) representations
         Representation on each axis.
+    nfxe : int
+        Number of even fixed points under Sz-reflection.
+    nfxo : int
+        Number of odd fixed points under Sz-reflection.
     """
     # 1st run parallel loop to get Sz-reflected states
     # make it the simplest possible, do not write arrays
@@ -209,8 +215,10 @@ def _numba_b0_arrays(sz0_states, o2_reps, nfxe, nfxo):
 
 def _get_b0_arrays(o2_reps, sz_values):
     """
-    Construct 0odd and 0even projectors. They allow to decompose U(1) Sz=0 sector into
-    0odd (aka -1) and 0even (aka 0) sectors.
+    Construct column and coefficient arrays for 0odd and 0even block projectors. They
+    allow to decompose U(1) Sz=0 sector into 0odd (aka -1) and 0even (aka 0) sectors.
+    Explicitly constructing sparse matrices is not needed, so row array is not
+    constructed.
 
     Parameters
     ----------
@@ -221,7 +229,14 @@ def _get_b0_arrays(o2_reps, sz_values):
 
     Returns
     -------
-    TODO
+    ecoeff : (ne,) float64 array
+        Coefficients to construct even states.
+    ecols :  (ne,) uint64 array
+        Column indices to apply even coefficients.
+    ocoeff : (no,) float64 array
+        Coefficients to construct odd states.
+    ocols :  (no,) uint64 array
+        Column indices to apply odd coefficients.
     """
     # sz_values can be recovered from o2_reps, but it is usually already constructed
     # when calling this function. Also avoids to add leg signatures as input.
@@ -237,7 +252,8 @@ def _get_b0_arrays(o2_reps, sz_values):
     # To get simpler projectors, we first detect the fixed points and set them as the
     # first lines. Then doublets are considered.
 
-    # compute number of odd and even fixed points from O(2) reps: they are product of 0
+    # compute number of odd and even fixed points from O(2) reps
+    # fixed points states are tensor product of 0e and 0o states only: no doublet.
     nfxo = 0
     nfxe = 0
     temp = tuple(np.ascontiguousarray(r[:, : r[1].searchsorted(1)]) for r in o2_reps)
@@ -253,6 +269,7 @@ def _get_b0_arrays(o2_reps, sz_values):
                 nfxe = fx_oe[0, 0]
 
     # precompute the number of Sz=0 states from fast O(2) merging
+    # cannot do it inside numba in case len(o2_reps) = 1
     o2_full = O2_SymmetricTensor.combine_representations(o2_reps, None)
     n_sz0 = o2_full[0, : o2_full[1].searchsorted(1)].sum()
     sz0_states = _numba_find_indices(sz_values, 0, n_sz0)
