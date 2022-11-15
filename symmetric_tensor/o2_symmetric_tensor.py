@@ -159,19 +159,21 @@ def _numba_b0_arrays(sz_values, o2_reps, n_sz0, nfxe, nfxo):
     ocoeff = np.empty((nfxo + n_doublets, 2))
 
     # fixed points require non-parallel loop to be detected
-    ie, io, j = 0, 0, 0
+    ie = 0
+    io = 0
     for i in range(n_sz0):
         if sz0_states[i] < refl_states[i]:
             k = np.searchsorted(sz0_states, refl_states[i])
-            ecols[nfxe + j, 0] = i
-            ecols[nfxe + j, 1] = k
-            ecoeff[nfxe + j, 0] = 1.0 / np.sqrt(2)
-            ecoeff[nfxe + j, 1] = signs[i] / np.sqrt(2)
-            ocols[nfxo + j, 0] = i
-            ocols[nfxo + j, 1] = k
-            ocoeff[nfxo + j, 0] = 1.0 / np.sqrt(2)
-            ocoeff[nfxo + j, 1] = -signs[i] / np.sqrt(2)
-            j += 1
+            ecols[ie, 0] = i
+            ecols[ie, 1] = k
+            ecoeff[ie, 0] = 1.0 / np.sqrt(2)
+            ecoeff[ie, 1] = signs[i] / np.sqrt(2)
+            ocols[io, 0] = i
+            ocols[io, 1] = k
+            ocoeff[io, 0] = 1.0 / np.sqrt(2)
+            ocoeff[io, 1] = -signs[i] / np.sqrt(2)
+            ie += 1
+            io += 1
         elif sz0_states[i] == refl_states[i]:  # fixed point
             if signs[i] > 0:  # even
                 ecols[ie, 0] = i
