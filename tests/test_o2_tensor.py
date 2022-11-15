@@ -11,7 +11,7 @@ from symmetric_tensor.su2_symmetric_tensor import SU2_SymmetricTensor
 rng = np.random.default_rng(42)
 r1 = np.array([[1, 1, 1, 1], [-1, 0, 1, 2]])
 r2 = np.array([[2, 1, 1, 1], [-1, 0, 1, 2]])
-r3 = np.array([[1, 2, 1, 1], [-1, 0, 2, 2]])
+r3 = np.array([[1, 2, 1, 1], [-1, 0, 1, 2]])
 r4 = np.array([[1, 1, 1, 1], [-1, 0, 2, 3]])
 r5 = np.array([[2, 1, 1, 1], [-1, 0, 2, 3]])
 row_reps = (r1, r2, r3)
