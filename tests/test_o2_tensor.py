@@ -20,7 +20,8 @@ col_reps = (r4, r5)
 
 def check_o2(to2, tu1):
     assert lg.norm(tu1.toarray() - to2.toarray()) < 1e-15
-    assert (O2_SymmetricTensor.from_U1(tu1, row_reps, col_reps) - to2).norm() < 1e-15
+    temp = O2_SymmetricTensor.from_U1(tu1, to2.row_reps, to2.col_reps)
+    assert (temp - to2).norm() < 1e-15
     row_axes, col_axes = (2, 1, 4), (0, 3)
     tpo2 = to2.permutate(row_axes, col_axes)
     tpu1 = tu1.permutate(row_axes, col_axes)
@@ -90,6 +91,34 @@ t2u1 = U1_SymmetricTensor(  # remove everything but 0o/0e
 )
 check_o2(t2o2, t2u1)
 
+
+r6 = np.array([[1, 1, 1], [2, 3, 4]])
+r7 = np.array([[2, 1], [2, 3]])
+to2 = O2_SymmetricTensor.random((r1, r2, r6), (r3, r7), rng=rng)
+to2 /= to2.norm()
+tu1 = to2.toU1()
+to2 = to2.permutate((0, 1, 3), (2, 4))  # no fixed points in columns, only doublets
+tu1 = tu1.permutate((0, 1, 3), (2, 4))
+check_o2(to2, tu1)
+
+
+r6 = np.array([[4], [-1]])
+r7 = np.array([[5], [-1]])
+to2 = O2_SymmetricTensor.random((r1, r2, r6), (r3, r7), rng=rng)
+to2 /= to2.norm()
+tu1 = to2.toU1()
+to2 = to2.permutate((0, 1, 3), (2, 4))  # only odd fixed points, no even or doublet
+tu1 = tu1.permutate((0, 1, 3), (2, 4))
+check_o2(to2, tu1)
+
+r6 = np.array([[4], [0]])
+r7 = np.array([[5], [0]])
+to2 = O2_SymmetricTensor.random((r1, r2, r6), (r3, r7), rng=rng)
+to2 /= to2.norm()
+tu1 = to2.toU1()
+to2 = to2.permutate((0, 1, 3), (2, 4))  # only even fixed points, no odd or doublet
+tu1 = tu1.permutate((0, 1, 3), (2, 4))
+check_o2(to2, tu1)
 
 # SU2.toO2() adds some swaps and some signs, cannot compare toarray()
 # just test whether calling it crashes
