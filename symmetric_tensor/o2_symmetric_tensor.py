@@ -153,7 +153,6 @@ def _numba_b0_arrays(sz_values, o2_reps, n_sz0, nfxe, nfxo):
     n_doublets = (n_sz0 - nfxe - nfxo) // 2
 
     # initialize array sizes
-    notfx = np.empty((n_doublets,), dtype=np.uint64)
     ecols = np.empty((nfxe + n_doublets, 2), dtype=np.uint64)
     ecoeff = np.empty((nfxe + n_doublets, 2))
     ocols = np.empty((nfxo + n_doublets, 2), dtype=np.uint64)
@@ -163,7 +162,15 @@ def _numba_b0_arrays(sz_values, o2_reps, n_sz0, nfxe, nfxo):
     ie, io, j = 0, 0, 0
     for i in range(n_sz0):
         if sz0_states[i] < refl_states[i]:
-            notfx[j] = i
+            k = np.searchsorted(sz0_states, refl_states[i])
+            ecols[nfxe + j, 0] = i
+            ecols[nfxe + j, 1] = k
+            ecoeff[nfxe + j, 0] = 1.0 / np.sqrt(2)
+            ecoeff[nfxe + j, 1] = signs[i] / np.sqrt(2)
+            ocols[nfxo + j, 0] = i
+            ocols[nfxo + j, 1] = k
+            ocoeff[nfxo + j, 0] = 1.0 / np.sqrt(2)
+            ocoeff[nfxo + j, 1] = -signs[i] / np.sqrt(2)
             j += 1
         elif sz0_states[i] == refl_states[i]:  # fixed point
             if signs[i] > 0:  # even
@@ -179,14 +186,6 @@ def _numba_b0_arrays(sz_values, o2_reps, n_sz0, nfxe, nfxo):
                 ocoeff[io, 1] = 0.0
                 io += 1
 
-    # doublets are independent from each other once notfx is defined: parallel loop
-    for i in numba.prange(n_doublets):
-        j = np.searchsorted(sz0_states, refl_states[notfx[i]])
-        ecols[nfxe + i, 0] = notfx[i]
-        ecols[nfxe + i, 1] = j
-        ecoeff[nfxe + i, 0] = 1.0 / np.sqrt(2)
-        ecoeff[nfxe + i, 1] = signs[j] / np.sqrt(2)
-
         # ecols and cols are the same beyond fixed points
         # e/o coeff differ only by sign
         # should I really construct 2 arrays?
@@ -195,10 +194,6 @@ def _numba_b0_arrays(sz_values, o2_reps, n_sz0, nfxe, nfxo):
         # and an array (n_doublets, 2) of doublet indices
         # no need to store coefficients or rows
         # however then I have to make separate loops on fixed points and doublets
-        ocols[nfxo + i, 0] = notfx[i]
-        ocols[nfxo + i, 1] = j
-        ocoeff[nfxo + i, 0] = 1.0 / np.sqrt(2)
-        ocoeff[nfxo + i, 1] = -signs[j] / np.sqrt(2)
 
     return ecoeff, ecols, ocoeff, ocols
 
