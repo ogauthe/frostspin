@@ -162,12 +162,20 @@ def _numba_b0_arrays(o2_reps, sz_values):
     # fixed points states are tensor product of 0e and 0o states only: no doublet.
 
     # 1) precompute number of fixed points under Sz-reflection
+    nx = len(o2_reps)
     nfxo = 0  # number of odd fixed points
     nfxe = 1  # number of even fixed point
     degen = np.array([1], dtype=np.int64)
     irreps = np.array([0], dtype=np.int64)
-    for r in o2_reps:
+    perm_axes = []
+    sign_axes = []
+    sh = np.empty((nx,), dtype=np.uint64)
+    for j, r in enumerate(o2_reps):
         degen, irreps = _numba_elementary_combine_O2(degen, irreps, r[0], r[1])
+        p, s = _numba_get_reflection_perm_sign(r)
+        sh[j] = s.size
+        perm_axes.append(p)
+        sign_axes.append(s)
         if r.shape[1] > 1 and r[1, 1] == 0:  # both 0o and 0e exist
             nfxo2 = nfxe * r[0, 0] + nfxo * r[0, 1]
             nfxe = nfxo * r[0, 0] + nfxe * r[0, 1]
@@ -180,32 +188,21 @@ def _numba_b0_arrays(o2_reps, sz_values):
         else:  # no 0e nor 0o in any rep => no fixed point
             nfxe = 0
             nfxo2 = 0
-            # do not break in order to compute full n_sz0
         nfxo = nfxo2
 
     # 2) precompute the number of Sz=0 states from fast O(2) merging
     if degen.size > 1 and irreps[1] == 0:  # both 0o and 0e exist
         n_sz0 = degen[0] + degen[1]
-    elif r[1, 0] < 1:
+    else:  # only one exist. Function is not called if neither exist.
         n_sz0 = degen[0]
-    else:  # no 0
-        n_sz0 = 0
+
+    # 3) find Sz=0 states knowing n_sz0
+    sz0_states = _numba_find_indices(sz_values, 0, n_sz0)
 
     # 4) run parallel loop to get Sz-reflected states
     # make it the simplest possible, do not construct coeff/indices arrays now
     # we need to store refl_states and signs for fixed points anyway
     # avoid constructing array of multi-index states, which may be large.
-    nx = len(o2_reps)
-    perm_axes = []
-    sign_axes = []
-    for j in range(nx):
-        p, s = _numba_get_reflection_perm_sign(o2_reps[j])
-        perm_axes.append(p)
-        sign_axes.append(s)
-
-    sz0_states = _numba_find_indices(sz_values, 0, n_sz0)
-    sh = [_numba_O2_representation_dimension(r) for r in o2_reps]  # numba issue 8497
-    sh = np.array(sh, dtype=np.uint64)
     strides = np.array([np.uint64(1), *sh[-1:0:-1]]).cumprod()[::-1].copy()
     refl_states = np.empty((n_sz0,), dtype=np.uint64)  # Sz-reversed mapped indices
     signs = np.empty((n_sz0,), dtype=np.int8)
