@@ -117,15 +117,83 @@ def _numba_get_reflection_perm_sign(rep):
 
 
 @numba.njit(parallel=True)
-def _numba_b0_arrays(sz_values, o2_reps, n_sz0, nfxe, nfxo):
+def _numba_b0_arrays(o2_reps, sz_values):
     """
-    Construct column and coefficient arrays for 0odd and 0even block projectors. Refer
-    to _construct_b0_arrays for full documentation.
-    """
-    # 1st run parallel loop to get Sz-reflected states
-    # make it the simplest possible, do not write arrays
-    # we need to store refl_states and signs for fixed points anyway
+    Construct column and coefficient arrays for 0odd and 0even block projectors. They
+    allow to decompose U(1) Sz=0 sector into 0odd (aka -1) and 0even (aka 0) sectors.
+    Explicitly constructing sparse matrices is not needed, so row array is not
+    constructed.
 
+    Parameters
+    ----------
+    o2_reps : tuple of nx O(2) representations
+        Representation on each axis.
+    sz_values : (k,) int8 ndarray
+        Sz values obtained by casting o2_reps to U(1) and combining them.
+
+    Returns
+    -------
+    ocoeff : (no,) float64 array
+        Coefficients to construct odd states.
+    ocols :  (no,) uint64 array
+        Column indices to apply odd coefficients.
+    ecoeff : (ne,) float64 array
+        Coefficients to construct even states.
+    ecols :  (ne,) uint64 array
+        Column indices to apply even coefficients.
+
+    no (ne) is the dimension of the 0odd (0even) sector.
+    """
+    # sz_values can be recovered from o2_reps, but it is usually already constructed
+    # when calling this function. Also avoids to add leg signatures as input.
+
+    # Some Sz=0 states are fixed points, mapped to the same state, either even or odd.
+    # They belong to even or odd sector depending on signs and need to be sent in this
+    # sector with coeff 1.
+    # All the other states are doublets which requires even and odd combination to
+    # produce 1 even and 1 odd states.
+    # Hence the number of even (odd) states is number of even (odd) fixed points plus
+    # the number of doublets.
+
+    # To get simpler projectors, we first detect the fixed points and set them as the
+    # first lines. Then doublets are considered.
+
+    # compute number of odd and even fixed points from O(2) reps
+    # fixed points states are tensor product of 0e and 0o states only: no doublet.
+
+    # 1) precompute number of fixed points under Sz-reflection
+    nfxo = 0  # number of odd fixed points
+    nfxe = 1  # number of even fixed point
+    degen = np.array([1], dtype=np.int64)
+    irreps = np.array([0], dtype=np.int64)
+    for r in o2_reps:
+        degen, irreps = _numba_elementary_combine_O2(degen, irreps, r[0], r[1])
+        if r.shape[1] > 1 and r[1, 1] == 0:  # both 0o and 0e exist
+            nfxo2 = nfxe * r[0, 0] + nfxo * r[0, 1]
+            nfxe = nfxo * r[0, 0] + nfxe * r[0, 1]
+        elif r[1, 0] == -1:  # only odd
+            nfxo2 = nfxe * r[0, 0]
+            nfxe = nfxo * r[0, 0]
+        elif r[1, 0] == 0:  # only even
+            nfxo2 = nfxo * r[0, 0]
+            nfxe = nfxe * r[0, 0]
+        else:  # no 0e nor 0o in any rep => no fixed point
+            nfxe = 0
+            nfxo2 = 0
+            # do not break in order to compute full n_sz0
+        nfxo = nfxo2
+
+    # 2) precompute the number of Sz=0 states from fast O(2) merging
+    if degen.size > 1 and irreps[1] == 0:  # both 0o and 0e exist
+        n_sz0 = degen[0] + degen[1]
+    elif r[1, 0] < 1:
+        n_sz0 = degen[0]
+    else:  # no 0
+        n_sz0 = 0
+
+    # 4) run parallel loop to get Sz-reflected states
+    # make it the simplest possible, do not construct coeff/indices arrays now
+    # we need to store refl_states and signs for fixed points anyway
     # avoid constructing array of multi-index states, which may be large.
     nx = len(o2_reps)
     perm_axes = []
@@ -154,40 +222,45 @@ def _numba_b0_arrays(sz_values, o2_reps, n_sz0, nfxe, nfxo):
 
     # initialize array sizes
     notfx = np.empty((n_doublets,), dtype=np.uint64)
-    ecols = np.empty((nfxe + n_doublets, 2), dtype=np.uint64)
-    ecoeff = np.empty((nfxe + n_doublets, 2))
     ocols = np.empty((nfxo + n_doublets, 2), dtype=np.uint64)
     ocoeff = np.empty((nfxo + n_doublets, 2))
+    ecols = np.empty((nfxe + n_doublets, 2), dtype=np.uint64)
+    ecoeff = np.empty((nfxe + n_doublets, 2))
 
     # fixed points require non-parallel loop to be detected
-    ie, io, j = 0, 0, 0
+    io, ie, j = 0, 0, 0
     for i in range(n_sz0):
         if sz0_states[i] < refl_states[i]:
             notfx[j] = i
             j += 1
         elif sz0_states[i] == refl_states[i]:  # fixed point
-            if signs[i] > 0:  # even
-                ecols[ie, 0] = i
-                ecols[ie, 1] = i
-                ecoeff[ie, 0] = 1.0
-                ecoeff[ie, 1] = 0.0
-                ie += 1
-            else:  # odd
+            if signs[i] < 0:  # odd
                 ocols[io, 0] = i
                 ocols[io, 1] = i
                 ocoeff[io, 0] = 1.0
                 ocoeff[io, 1] = 0.0
                 io += 1
+            else:  # even
+                ecols[ie, 0] = i
+                ecols[ie, 1] = i
+                ecoeff[ie, 0] = 1.0
+                ecoeff[ie, 1] = 0.0
+                ie += 1
 
     # doublets are independent from each other once notfx is defined: parallel loop
     for i in numba.prange(n_doublets):
         j = np.searchsorted(sz0_states, refl_states[notfx[i]])
+        ocols[nfxo + i, 0] = notfx[i]
+        ocols[nfxo + i, 1] = j
+        ocoeff[nfxo + i, 0] = 1.0 / np.sqrt(2)
+        ocoeff[nfxo + i, 1] = -signs[j] / np.sqrt(2)
+
         ecols[nfxe + i, 0] = notfx[i]
         ecols[nfxe + i, 1] = j
         ecoeff[nfxe + i, 0] = 1.0 / np.sqrt(2)
         ecoeff[nfxe + i, 1] = signs[j] / np.sqrt(2)
 
-        # ecols and cols are the same beyond fixed points
+        # ocols and ecols are the same beyond fixed points
         # e/o coeff differ only by sign
         # should I really construct 2 arrays?
 
@@ -195,84 +268,12 @@ def _numba_b0_arrays(sz_values, o2_reps, n_sz0, nfxe, nfxo):
         # and an array (n_doublets, 2) of doublet indices
         # no need to store coefficients or rows
         # however then I have to make separate loops on fixed points and doublets
-        ocols[nfxo + i, 0] = notfx[i]
-        ocols[nfxo + i, 1] = j
-        ocoeff[nfxo + i, 0] = 1.0 / np.sqrt(2)
-        ocoeff[nfxo + i, 1] = -signs[j] / np.sqrt(2)
 
-    return ecoeff, ecols, ocoeff, ocols
-
-
-def _construct_b0_arrays(o2_reps, sz_values):
-    """
-    Construct column and coefficient arrays for 0odd and 0even block projectors. They
-    allow to decompose U(1) Sz=0 sector into 0odd (aka -1) and 0even (aka 0) sectors.
-    Explicitly constructing sparse matrices is not needed, so row array is not
-    constructed.
-
-    Parameters
-    ----------
-    o2_reps : tuple of nx O(2) representations
-        Representation on each axis.
-    sz_valuses : (k,) int8 ndarray
-        Sz values corresponding to merged o2_reps
-
-    Returns
-    -------
-    ecoeff : (ne,) float64 array
-        Coefficients to construct even states.
-    ecols :  (ne,) uint64 array
-        Column indices to apply even coefficients.
-    ocoeff : (no,) float64 array
-        Coefficients to construct odd states.
-    ocols :  (no,) uint64 array
-        Column indices to apply odd coefficients.
-
-    ne (no) is the dimension of the 0even (0odd) sector.
-    """
-    # sz_values can be recovered from o2_reps, but it is usually already constructed
-    # when calling this function. Also avoids to add leg signatures as input.
-
-    # Some Sz=0 states are fixed points, mapped to the same state, either even or odd.
-    # They belong to even or odd sector depending on signs and need to be sent in this
-    # sector with coeff 1.
-    # All the other states are doublets which requires even and odd combination to
-    # produce 1 even and 1 odd states.
-    # Hence the number of even (odd) states is number of even (odd) fixed points plus
-    # the number of doublets.
-
-    # To get simpler projectors, we first detect the fixed points and set them as the
-    # first lines. Then doublets are considered.
-
-    # compute number of odd and even fixed points from O(2) reps
-    # fixed points states are tensor product of 0e and 0o states only: no doublet.
-    nfxo = 0
-    nfxe = 0
-    temp = tuple(np.ascontiguousarray(r[:, : r[1].searchsorted(1)]) for r in o2_reps)
-    if all(r.size for r in temp):  # may crash for empty rep
-        fx_oe = O2_SymmetricTensor.combine_representations(temp, None)
-        if fx_oe.shape[1] == 2:
-            nfxo = fx_oe[0, 0]  # number of odd fixed points
-            nfxe = fx_oe[0, 1]  # number of even fixed point
-        elif fx_oe.shape[1] == 1:
-            if fx_oe[1, 0] == -1:  # no even
-                nfxo = fx_oe[0, 0]
-            else:  # no odd
-                nfxe = fx_oe[0, 0]
-
-    # precompute the number of Sz=0 states from fast O(2) merging
-    # cannot do it inside numba in case len(o2_reps) = 1
-    o2_full = O2_SymmetricTensor.combine_representations(o2_reps, None)
-    n_sz0 = o2_full[0, : o2_full[1].searchsorted(1)].sum()
-
-    ecoeff, ecols, ocoeff, ocols = _numba_b0_arrays(
-        sz_values, tuple(o2_reps), n_sz0, nfxe, nfxo
-    )
-    return ecoeff, ecols, ocoeff, ocols
+    return ocoeff, ocols, ecoeff, ecols
 
 
 @numba.njit(parallel=True)
-def merge_b0oe(
+def _numba_merge_b0oe(
     b0o, rocoeff, rocol, cocoeff, cocol, b0e, recoeff, recol, cecoeff, cecol
 ):
     nr = rocoeff.shape[0] + recoeff.shape[0]
@@ -294,7 +295,10 @@ def merge_b0oe(
 
 
 @numba.njit(parallel=True)
-def split_b0(b0, rocoeff, rocol, cocoeff, cocol, recoeff, recol, cecoeff, cecol):
+def _numba_split_b0(b0, o2_row_reps, rsz_values, o2_col_reps, csz_values):
+    # do not crash even if b0o or b0e has size 0
+    rocoeff, rocol, recoeff, recol = _numba_b0_arrays(o2_row_reps, rsz_values)
+    cocoeff, cocol, cecoeff, cecol = _numba_b0_arrays(o2_col_reps, csz_values)
     b0o = np.empty((rocoeff.shape[0], cocoeff.shape[0]), dtype=b0.dtype)
     for i in numba.prange(rocoeff.shape[0]):
         for j in numba.prange(cocoeff.shape[0]):
@@ -628,14 +632,12 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         i0 = tu1.block_irreps.searchsorted(0)
         if tu1.block_irreps[i0] == 0:  # tu1 is O(2) => i0 < len(tu1.block_irreps)
             b0 = tu1.blocks[i0]
-            recoeff, recol, rocoeff, rocol = _construct_b0_arrays(
-                row_reps, tu1.get_row_representation()
-            )
-            cecoeff, cecol, cocoeff, cocol = _construct_b0_arrays(
-                col_reps, tu1.get_column_representation()
-            )
-            b0o, b0e = split_b0(
-                b0, rocoeff, rocol, cocoeff, cocol, recoeff, recol, cecoeff, cecol
+            b0o, b0e = _numba_split_b0(
+                b0,
+                tuple(row_reps),
+                tu1.get_row_representation(),
+                tuple(col_reps),
+                tu1.get_column_representation(),
             )
             if b0o.size:
                 block_irreps.append(-1)
@@ -732,15 +734,11 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             sz_values = U1_SymmetricTensor.combine_representations(
                 u1_row_reps, self._signature[: self._nrr]
             )
-            recoeff, recol, rocoeff, rocol = _construct_b0_arrays(
-                self._row_reps, sz_values
-            )
+            rocoeff, rocol, recoeff, recol = _numba_b0_arrays(self._row_reps, sz_values)
             sz_values = U1_SymmetricTensor.combine_representations(
                 u1_col_reps, ~self._signature[self._nrr :]
             )
-            cecoeff, cecol, cocoeff, cocol = _construct_b0_arrays(
-                self._col_reps, sz_values
-            )
+            cocoeff, cocol, cecoeff, cecol = _numba_b0_arrays(self._col_reps, sz_values)
             if self._block_irreps[0] == 0:  # no 0o block
                 # this should be highly uncommon, don't bother optimize
                 i1 = 1
@@ -758,7 +756,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
                 b0o = self._blocks[0]
                 b0e = self._blocks[1]
                 block_sz = np.hstack((block_sz[:-1], self._block_irreps[2:]))
-            b0 = merge_b0oe(
+            b0 = _numba_merge_b0oe(
                 b0o, rocoeff, rocol, cocoeff, cocol, b0e, recoeff, recol, cecoeff, cecol
             )
             blocks.append(b0)
@@ -847,10 +845,10 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
 
         # construct Sz = 0 block (may not exist)
         if self._block_irreps[0] < 1:
-            recoeff, recol, rocoeff, rocol = _construct_b0_arrays(
+            rocoeff, rocol, recoeff, recol = _numba_b0_arrays(
                 self._row_reps, old_row_sz
             )
-            cecoeff, cecol, cocoeff, cocol = _construct_b0_arrays(
+            cocoeff, cocol, cecoeff, cecol = _numba_b0_arrays(
                 self._col_reps, old_col_sz
             )
             if self._block_irreps[0] == 0:  # no 0o block
@@ -870,7 +868,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
                 old_block_sz = self._block_irreps[1:]
                 b0o = self._blocks[0]
                 b0e = self._blocks[1]
-            b0 = merge_b0oe(
+            b0 = _numba_merge_b0oe(
                 b0o, rocoeff, rocol, cocoeff, cocol, b0e, recoeff, recol, cecoeff, cecol
             )
             old_blocks = (b0, *self._blocks[i1:])
