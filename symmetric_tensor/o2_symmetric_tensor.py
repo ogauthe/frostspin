@@ -295,10 +295,8 @@ def _numba_merge_b0oe(
 
 
 @numba.njit(parallel=True)
-def _numba_split_b0(b0, o2_row_reps, rsz_values, o2_col_reps, csz_values):
+def _numba_split_b0(b0, rocoeff, rocol, cocoeff, cocol, recoeff, recol, cecoeff, cecol):
     # do not crash even if b0o or b0e has size 0
-    rocoeff, rocol, recoeff, recol = _numba_b0_arrays(o2_row_reps, rsz_values)
-    cocoeff, cocol, cecoeff, cecol = _numba_b0_arrays(o2_col_reps, csz_values)
     b0o = np.empty((rocoeff.shape[0], cocoeff.shape[0]), dtype=b0.dtype)
     for i in numba.prange(rocoeff.shape[0]):
         for j in numba.prange(cocoeff.shape[0]):
@@ -632,12 +630,14 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         i0 = tu1.block_irreps.searchsorted(0)
         if tu1.block_irreps[i0] == 0:  # tu1 is O(2) => i0 < len(tu1.block_irreps)
             b0 = tu1.blocks[i0]
+            rocoeff, rocol, recoeff, recol = _numba_b0_arrays(
+                tuple(row_reps), tu1.get_row_representation()
+            )
+            cocoeff, cocol, cecoeff, cecol = _numba_b0_arrays(
+                tuple(col_reps), tu1.get_column_representation()
+            )
             b0o, b0e = _numba_split_b0(
-                b0,
-                tuple(row_reps),
-                tu1.get_row_representation(),
-                tuple(col_reps),
-                tu1.get_column_representation(),
+                b0, rocoeff, rocol, cocoeff, cocol, recoeff, recol, cecoeff, cecol
             )
             if b0o.size:
                 block_irreps.append(-1)
