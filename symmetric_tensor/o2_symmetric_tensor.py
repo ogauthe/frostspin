@@ -78,7 +78,7 @@ def _numba_O2_rep_to_U1(r):
         ru1[: r[0, 0]] = 0
         k += r[0, 0]
         i += 1
-    if r[1, i] == 0:
+    if r.shape[1] > i and r[1, i] == 0:
         ru1[k : k + r[0, i]] = 0
         k += r[0, i]
         i += 1
