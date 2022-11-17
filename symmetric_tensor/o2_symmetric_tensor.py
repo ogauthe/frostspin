@@ -116,7 +116,7 @@ def _numba_get_reflection_perm_sign(rep):
     return perm, sign
 
 
-@numba.njit(parallel=True)
+@numba.njit
 def _numba_b0_arrays(o2_reps, sz_values):
     """
     Construct column and coefficient arrays for 0odd and 0even block projectors. They
@@ -198,7 +198,6 @@ def _numba_b0_arrays(o2_reps, sz_values):
     n_doublets = (n_sz0 - nfxe - nfxo) // 2
 
     # initialize array sizes
-    notfx = np.empty((n_doublets,), dtype=np.uint64)
     ocols = np.empty((nfxo + n_doublets, 2), dtype=np.uint64)
     ocoeff = np.empty((nfxo + n_doublets, 2))
     ecols = np.empty((nfxe + n_doublets, 2), dtype=np.uint64)
@@ -212,8 +211,6 @@ def _numba_b0_arrays(o2_reps, sz_values):
     # fixed points require non-parallel loop to be detected
     strides = np.array([1, *sh[-1:0:-1]]).cumprod()[::-1].copy()
     sz0_states = np.empty((n_sz0,), dtype=np.uint64)
-    refl_states = np.empty((n_sz0,), dtype=np.uint64)  # Sz-reversed mapped indices
-    signs = np.empty((n_sz0,), dtype=np.int8)
     i = 0
     k = 0
     idoub = 0
@@ -228,8 +225,6 @@ def _numba_b0_arrays(o2_reps, sz_values):
                 ind = i // strides[j] % sh[j]
                 refl_s += perm_axes[j][ind] * strides[j]
                 s_sign *= sign_axes[j][ind]
-            refl_states[k] = refl_s
-            signs[k] = s_sign
             if refl_s == i:  # fixed point
                 if s_sign < 0:  # odd
                     ocols[io, 0] = k
@@ -243,24 +238,20 @@ def _numba_b0_arrays(o2_reps, sz_values):
                     ecoeff[ie, 0] = 1.0
                     ecoeff[ie, 1] = 0.0
                     ie += 1
-            elif i < refl_s:
-                notfx[idoub] = k
+            elif i > refl_s:
+                m = np.searchsorted(sz0_states[:k], refl_s)
+                ocols[nfxo + idoub, 0] = k
+                ocols[nfxo + idoub, 1] = m
+                ocoeff[nfxo + idoub, 0] = 1.0 / np.sqrt(2)
+                ocoeff[nfxo + idoub, 1] = -s_sign / np.sqrt(2)
+
+                ecols[nfxe + idoub, 0] = k
+                ecols[nfxe + idoub, 1] = m
+                ecoeff[nfxe + idoub, 0] = 1.0 / np.sqrt(2)
+                ecoeff[nfxe + idoub, 1] = s_sign / np.sqrt(2)
                 idoub += 1
             k += 1
         i += 1
-
-    # doublets are independent from each other once notfx is defined: parallel loop
-    for i in numba.prange(n_doublets):
-        j = np.searchsorted(sz0_states, refl_states[notfx[i]])
-        ocols[nfxo + i, 0] = notfx[i]
-        ocols[nfxo + i, 1] = j
-        ocoeff[nfxo + i, 0] = 1.0 / np.sqrt(2)
-        ocoeff[nfxo + i, 1] = -signs[j] / np.sqrt(2)
-
-        ecols[nfxe + i, 0] = notfx[i]
-        ecols[nfxe + i, 1] = j
-        ecoeff[nfxe + i, 0] = 1.0 / np.sqrt(2)
-        ecoeff[nfxe + i, 1] = signs[j] / np.sqrt(2)
 
         # ocols and ecols are the same beyond fixed points
         # e/o coeff differ only by sign
