@@ -169,7 +169,7 @@ def _numba_b0_arrays(o2_reps, sz_values):
     irreps = np.array([0], dtype=np.int64)
     perm_axes = []
     sign_axes = []
-    sh = np.empty((nx,), dtype=np.int64)
+    sh = np.empty((nx,), dtype=np.uint64)
     for j, r in enumerate(o2_reps):
         degen, irreps = _numba_elementary_combine_O2(degen, irreps, r[0], r[1])
         p, s = _numba_get_reflection_perm_sign(r)
@@ -195,6 +195,26 @@ def _numba_b0_arrays(o2_reps, sz_values):
         n_sz0 = degen[0] + degen[1]
     else:  # only one exist. Function is not called if neither exist.
         n_sz0 = degen[0]
+
+    # 3) find Sz=0 states knowing n_sz0
+    sz0_states = _numba_find_indices(sz_values, 0, n_sz0)
+
+    # 4) run parallel loop to get Sz-reflected states
+    # make it the simplest possible, do not construct coeff/indices arrays now
+    # we need to store refl_states and signs for fixed points anyway
+    # avoid constructing array of multi-index states, which may be large.
+    strides = np.array([np.uint64(1), *sh[-1:0:-1]]).cumprod()[::-1].copy()
+    refl_states = np.empty((n_sz0,), dtype=np.uint64)  # Sz-reversed mapped indices
+    signs = np.empty((n_sz0,), dtype=np.int8)
+    for i in numba.prange(n_sz0):
+        refl_s = 0
+        s_sign = 1
+        for j in range(nx):
+            ind = sz0_states[i] // strides[j] % sh[j]
+            refl_s += perm_axes[j][ind] * strides[j]
+            s_sign *= sign_axes[j][ind]
+        refl_states[i] = refl_s
+        signs[i] = s_sign
     n_doublets = (n_sz0 - nfxe - nfxo) // 2
 
     # initialize array sizes
@@ -204,50 +224,25 @@ def _numba_b0_arrays(o2_reps, sz_values):
     ecols = np.empty((nfxe + n_doublets, 2), dtype=np.uint64)
     ecoeff = np.empty((nfxe + n_doublets, 2))
 
-    # 3) find Sz=0 states knowing n_sz0
-    # 4) run parallel loop to get Sz-reflected states
-    # make it the simplest possible, do not construct coeff/indices arrays now
-    # we need to store refl_states and signs for fixed points anyway
-    # avoid constructing array of multi-index states, which may be large.
     # fixed points require non-parallel loop to be detected
-    strides = np.array([1, *sh[-1:0:-1]]).cumprod()[::-1].copy()
-    sz0_states = np.empty((n_sz0,), dtype=np.uint64)
-    refl_states = np.empty((n_sz0,), dtype=np.uint64)  # Sz-reversed mapped indices
-    signs = np.empty((n_sz0,), dtype=np.int8)
-    i = 0
-    k = 0
-    idoub = 0
-    ie = 0
-    io = 0
-    while k < n_sz0:
-        if sz_values[i] == 0:
-            sz0_states[k] = i
-            refl_s = 0
-            s_sign = 1
-            for j in range(nx):
-                ind = i // strides[j] % sh[j]
-                refl_s += perm_axes[j][ind] * strides[j]
-                s_sign *= sign_axes[j][ind]
-            refl_states[k] = refl_s
-            signs[k] = s_sign
-            if refl_s == i:  # fixed point
-                if s_sign < 0:  # odd
-                    ocols[io, 0] = k
-                    ocols[io, 1] = k
-                    ocoeff[io, 0] = 1.0
-                    ocoeff[io, 1] = 0.0
-                    io += 1
-                else:  # even
-                    ecols[ie, 0] = k
-                    ecols[ie, 1] = k
-                    ecoeff[ie, 0] = 1.0
-                    ecoeff[ie, 1] = 0.0
-                    ie += 1
-            elif i < refl_s:
-                notfx[idoub] = k
-                idoub += 1
-            k += 1
-        i += 1
+    io, ie, j = 0, 0, 0
+    for i in range(n_sz0):
+        if sz0_states[i] < refl_states[i]:
+            notfx[j] = i
+            j += 1
+        elif sz0_states[i] == refl_states[i]:  # fixed point
+            if signs[i] < 0:  # odd
+                ocols[io, 0] = i
+                ocols[io, 1] = i
+                ocoeff[io, 0] = 1.0
+                ocoeff[io, 1] = 0.0
+                io += 1
+            else:  # even
+                ecols[ie, 0] = i
+                ecols[ie, 1] = i
+                ecoeff[ie, 0] = 1.0
+                ecoeff[ie, 1] = 0.0
+                ie += 1
 
     # doublets are independent from each other once notfx is defined: parallel loop
     for i in numba.prange(n_doublets):
