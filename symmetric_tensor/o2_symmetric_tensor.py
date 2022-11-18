@@ -786,7 +786,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         # construct new row and column representations
         axes = row_axes + col_axes
         nrr = len(row_axes)
-        signature = []
+        signature = np.empty((self._ndim,), dtype=bool)
         reps = []
 
         u1_row_reps = [None] * self._nrr
@@ -806,14 +806,13 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
 
         old_u1_reps = u1_row_reps + u1_col_reps
         u1_reps = []
-        for ax in axes:
-            signature.append(self._signature[ax])
+        for i, ax in enumerate(axes):
+            signature[i] = self._signature[ax]
             u1_reps.append(old_u1_reps[ax])
             if ax < self._nrr:
                 reps.append(self._row_reps[ax])
             else:
                 reps.append(self._col_reps[ax - self._nrr])
-        signature = np.array(signature)
 
         # efficient O(2) product allows to precompute block_sz fast
         new_row_o2_rep = self.combine_representations(reps[:nrr], signature[:nrr])
