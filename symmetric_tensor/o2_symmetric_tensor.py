@@ -245,17 +245,19 @@ def _numba_b0_arrays(o2_reps, sz_values):
                 ie += 1
 
     # doublets are independent from each other once notfx is defined: parallel loop
-    for i in numba.prange(n_doublets):
-        j = np.searchsorted(sz0_states, refl_states[notfx[i]])
-        ocols[nfxo + i, 0] = notfx[i]
-        ocols[nfxo + i, 1] = j
-        ocoeff[nfxo + i, 0] = 1.0 / np.sqrt(2)
-        ocoeff[nfxo + i, 1] = -signs[j] / np.sqrt(2)
+    # we know sz0_states[notfx[j]] < refl_states[notfx[j]] for all j
+    # => we can optimize searchsorted range
+    for j in numba.prange(n_doublets):
+        i = notfx[j] + np.searchsorted(sz0_states[notfx[j] :], refl_states[notfx[j]])
+        ocols[nfxo + j, 0] = notfx[j]
+        ocols[nfxo + j, 1] = i
+        ocoeff[nfxo + j, 0] = 1.0 / np.sqrt(2)
+        ocoeff[nfxo + j, 1] = -signs[i] / np.sqrt(2)
 
-        ecols[nfxe + i, 0] = notfx[i]
-        ecols[nfxe + i, 1] = j
-        ecoeff[nfxe + i, 0] = 1.0 / np.sqrt(2)
-        ecoeff[nfxe + i, 1] = signs[j] / np.sqrt(2)
+        ecols[nfxe + j, 0] = notfx[j]
+        ecols[nfxe + j, 1] = i
+        ecoeff[nfxe + j, 0] = 1.0 / np.sqrt(2)
+        ecoeff[nfxe + j, 1] = signs[i] / np.sqrt(2)
 
         # ocols and ecols are the same beyond fixed points
         # e/o coeff differ only by sign
