@@ -479,13 +479,28 @@ def _numba_O2_transpose(
     for bi in range(old_block_sz.size):
         block_nrows, block_ncols = old_blocks[bi].shape
         ori = _numba_find_indices(old_row_sz, old_block_sz[bi], block_nrows)
+        rszb_mat = np.empty((block_nrows,), dtype=np.uint64)
+        rsign = np.empty((block_nrows,), dtype=np.int8)
+        for i in numba.prange(block_nrows):
+            permuted_s = 0
+            refl_s = 0
+            s_sign = 1
+            for j in range(old_nrr):
+                s = ori[i] // rstrides1[j] % rmod[j]
+                permuted_s += s * rstrides2[j]
+                refl_s += rmaps[j][s] * rstrides2[j]
+                s_sign *= rsigns[j][s]
+            ori[i] = permuted_s  # overwrite ori with permuted state
+            rszb_mat[i] = refl_s
+            rsign[i] = s_sign
+
         oci = _numba_find_indices(old_col_sz, old_block_sz[bi], block_ncols)
         cszb_mat = np.empty((block_ncols,), dtype=np.uint64)
         csign = np.empty((block_ncols,), dtype=np.int8)
         for i in numba.prange(block_ncols):
-            permuted_s = np.uint64(0)
-            refl_s = np.uint64(0)
-            s_sign = np.int8(1)
+            permuted_s = 0
+            refl_s = 0
+            s_sign = 1
             for j in range(old_ncr):
                 s = oci[i] // cstrides1[j] % cmod[j]
                 permuted_s += s * cstrides2[j]
@@ -496,16 +511,8 @@ def _numba_O2_transpose(
             csign[i] = s_sign
 
         for i in numba.prange(block_nrows):
-            permuted_s = np.uint64(0)
-            refl_s = np.uint64(0)
-            s_sign = np.int8(1)
-            for j in range(old_nrr):
-                s = ori[i] // rstrides1[j] % rmod[j]
-                permuted_s += s * rstrides2[j]
-                refl_s += rmaps[j][s] * rstrides2[j]
-                s_sign *= rsigns[j][s]
             for j in numba.prange(block_ncols):
-                nr, nc = divmod(permuted_s + oci[j], ncs)
+                nr, nc = divmod(ori[i] + oci[j], ncs)
 
                 # if new Sz >= 0, move coefficient, same as U(1)
                 if new_row_sz[nr] >= 0:
@@ -516,11 +523,11 @@ def _numba_O2_transpose(
 
                 # if new Sz <= 0, move old Sz-reversed coeff
                 if old_block_sz[bi] and new_row_sz[nr] <= 0:  # reflect
-                    nrb, ncb = divmod(refl_s + cszb_mat[j], ncs)
+                    nrb, ncb = divmod(rszb_mat[i] + cszb_mat[j], ncs)
                     new_bi = new_row_block_indices[nrb]
                     nri = block_rows[nrb]
                     nci = block_cols[ncb]
-                    s = s_sign * csign[j]
+                    s = rsign[i] * csign[j]
                     new_blocks[new_bi][nri, nci] = s * old_blocks[bi][i, j]
 
     return new_blocks
