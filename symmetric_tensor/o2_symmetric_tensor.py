@@ -543,10 +543,7 @@ def _numba_O2_transpose(
     if b0o.size or b0e.size:
         rocoeff, rocol, recoeff, recol = _numba_b0_arrays(old_o2_row_reps, old_row_sz)
         cocoeff, cocol, cecoeff, cecol = _numba_b0_arrays(old_o2_col_reps, old_col_sz)
-        b0 = _numba_merge_b0oe(
-            b0o, rocoeff, rocol, cocoeff, cocol, b0e, recoeff, recol, cecoeff, cecol
-        )
-        block_nrows, block_ncols = b0.shape
+        block_nrows = rocoeff.shape[0] + recoeff.shape[0]
         ori = _numba_find_indices(old_row_sz, 0, block_nrows)
         for i in numba.prange(block_nrows):
             permuted_s = 0
@@ -562,16 +559,31 @@ def _numba_O2_transpose(
                 permuted_s += oci[i] // cstrides1[j] % cmod[j] * cstrides2[j]
             oci[i] = permuted_s
 
-        # block Sz=0 contains both state s and its Sz-reflected image
-        # therefore no need to reflect state in this block
-        for i in numba.prange(block_nrows):
-            for j in numba.prange(block_ncols):
-                nr, nc = divmod(ori[i] + oci[j], ncs)
-                if new_row_sz[nr] >= 0:
-                    new_bi = new_row_block_indices[nr]
-                    nri = block_rows[nr]
-                    nci = block_cols[nc]
-                    new_blocks[new_bi][nri, nci] = b0[i, j]
+        for i in numba.prange(b0o.shape[0]):
+            for j in numba.prange(b0o.shape[1]):
+                for k1 in range(2):
+                    for k2 in range(2):
+                        nr, nc = divmod(ori[rocol[i, k1]] + oci[cocol[j, k2]], ncs)
+                        if new_row_sz[nr] >= 0:
+                            new_bi = new_row_block_indices[nr]
+                            nri = block_rows[nr]
+                            nci = block_cols[nc]
+                            new_blocks[new_bi][nri, nci] += (
+                                rocoeff[i, k1] * b0o[i, j] * cocoeff[j, k2]
+                            )
+
+        for i in numba.prange(b0e.shape[0]):
+            for j in numba.prange(b0e.shape[1]):
+                for k1 in range(2):
+                    for k2 in range(2):
+                        nr, nc = divmod(ori[recol[i, k1]] + oci[cecol[j, k2]], ncs)
+                        if new_row_sz[nr] >= 0:
+                            new_bi = new_row_block_indices[nr]
+                            nri = block_rows[nr]
+                            nci = block_cols[nc]
+                            new_blocks[new_bi][nri, nci] += (
+                                recoeff[i, k1] * b0e[i, j] * cecoeff[j, k2]
+                            )
 
     return new_blocks
 
