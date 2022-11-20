@@ -273,17 +273,17 @@ def _numba_b0_arrays(o2_reps, sz_values):
 def _numba_merge_b0oe(
     b0o, rocoeff, rocol, cocoeff, cocol, b0e, recoeff, recol, cecoeff, cecol
 ):
-    nr = rocoeff.shape[0] + recoeff.shape[0]
-    nc = cocoeff.shape[0] + cecoeff.shape[0]
-    b0 = np.zeros((nr, nc), dtype=b0o.dtype)
-    for i in numba.prange(rocoeff.shape[0]):
-        for j in numba.prange(cocoeff.shape[0]):
+    # b0o or b0e can be replaced by size-0 array
+    sh0 = (rocoeff.shape[0] + recoeff.shape[0], cocoeff.shape[0] + cecoeff.shape[0])
+    b0 = np.zeros(sh0, dtype=b0o.dtype)
+    for i in numba.prange(b0o.shape[0]):
+        for j in numba.prange(b0o.shape[1]):
             b0[rocol[i, 0], cocol[j, 0]] += rocoeff[i, 0] * b0o[i, j] * cocoeff[j, 0]
             b0[rocol[i, 0], cocol[j, 1]] += rocoeff[i, 0] * b0o[i, j] * cocoeff[j, 1]
             b0[rocol[i, 1], cocol[j, 0]] += rocoeff[i, 1] * b0o[i, j] * cocoeff[j, 0]
             b0[rocol[i, 1], cocol[j, 1]] += rocoeff[i, 1] * b0o[i, j] * cocoeff[j, 1]
-    for i in numba.prange(recoeff.shape[0]):
-        for j in numba.prange(cecoeff.shape[0]):
+    for i in numba.prange(b0e.shape[0]):
+        for j in numba.prange(b0e.shape[1]):
             b0[recol[i, 0], cecol[j, 0]] += recoeff[i, 0] * b0e[i, j] * cecoeff[j, 0]
             b0[recol[i, 0], cecol[j, 1]] += recoeff[i, 0] * b0e[i, j] * cecoeff[j, 1]
             b0[recol[i, 1], cecol[j, 0]] += recoeff[i, 1] * b0e[i, j] * cecoeff[j, 0]
@@ -361,36 +361,40 @@ def _numba_generate_refl_block(rso, cso, b, rsign, csign):
 
 @numba.njit(parallel=True)
 def _numba_O2_transpose(
-    old_shape,
+    b0o,
+    b0e,
     old_blocks,
     old_block_sz,
     old_row_sz,
     old_col_sz,
+    old_o2_row_reps,
+    old_o2_col_reps,
     axes,
     new_block_sz,
     new_row_sz,
     new_col_sz,
-    rmaps,
-    rsigns,
-    cmaps,
-    csigns,
 ):
     """
     Construct new irrep blocks after permutation.
 
     Parameters
     ----------
-    old_shape : (ndim,) uint64 array
-        Tensor shape before transpose.
-    old_blocks : homogeneous tuple of onb C-array
-        Blocks before transpose, with 0e and 0o combined in one Sz=0 block. Sz<0 blocks
-        should not be included.
+    b0o : 2D scalar C-array
+        Sz=0 odd O(2) block. Can be size 0 if absent in tensor.
+    b0e : 2D scalar C-array
+        Sz=0 even O(2) block. Can be size 0 if absent in tensor.
+    old_blocks : homogeneous tuple of onb scalar C-array
+        Blocks before transpose, without Sz=0 block.
     old_block_sz : (onb,) int8 ndarray
         Block Sz values before transpose.
     old_row_sz : (old_nrows,) int8 ndarray
         Row Sz values before transpose.
     old_col_sz : (old_ncols,) int8 ndarray
         Column Sz values before transpose.
+    old_o2_row_reps : tuple of old_nrr int64 2D array
+        row O(2) reprsentations before transpose.
+    old_o2_col_reps : tuple of ndim - old_nrr int64 2D array
+        column O(2) reprsentations before transpose.
     axes : tuple of ndim integers
         Axes permutation.
     new_block_sz: 1D int8 array
@@ -399,23 +403,12 @@ def _numba_O2_transpose(
         Row Sz values after transpose.
     new_col_sz : (new_ncols,) int8 ndarray
         Column Sz values after transpose.
-    rmaps: tuple of old_nrr uint64 1D array
-        Index mapping to Sz-reflected state for each row axis.
-    rsigns: tuple of old_nrr int8 1D array
-        Sign to add when reflecting for each row axis.
-    cmaps: tuple of ndim - old_nrr uint64 1D array
-        Index mapping to Sz-reflected state for each column axis.
-    csigns: tuple of ndim - old_nrr int8 1D array
-        Sign to add when reflecting for each column axis.
 
     Returns
     -------
-    blocks : tuple of nnb C-array
+    new_blocks : tuple of nnb C-array
         Blocks after transpose, with Sz=0 block instead of 0e/0o.
-    block_sz : (nnb,) int8 ndarray
-        Block Sz values after transpose.
 
-    Note that old_shape is a ndarray and not a tuple.
     old_blocks MUST be homogeneous tuple of C-array, using F-array sometimes
     fails in a non-deterministic way.
     """
@@ -423,14 +416,31 @@ def _numba_O2_transpose(
     # very similar to U(1)
     ###################################################################################
     # 1) construct strides before and after transpose for rows and cols
-    old_nrr = len(rmaps)
-    old_ncr = len(cmaps)
+    old_nrr = len(old_o2_row_reps)
+    old_ncr = len(old_o2_col_reps)
     ndim = old_nrr + old_ncr
+    old_shape = np.empty((ndim,), dtype=np.uint64)
+
+    rmaps = []
+    rsigns = []
+    for i in range(old_nrr):
+        rm, rs = _numba_get_reflection_perm_sign(old_o2_row_reps[i])
+        rmaps.append(rm)
+        rsigns.append(rs)
+        old_shape[i] = rs.size
+
+    cmaps = []
+    csigns = []
+    for i in range(old_ncr):
+        cm, cs = _numba_get_reflection_perm_sign(old_o2_col_reps[i])
+        cmaps.append(cm)
+        csigns.append(cs)
+        old_shape[old_nrr + i] = cs.size
+
     rstrides1 = np.ones((old_nrr,), dtype=np.uint64)
     rstrides1[1:] = old_shape[old_nrr - 1 : 0 : -1]
     rstrides1 = rstrides1.cumprod()[::-1].copy()
     rmod = old_shape[:old_nrr]
-
     cstrides1 = np.ones((old_ncr,), dtype=np.uint64)
     cstrides1[1:] = old_shape[-1:old_nrr:-1]
     cstrides1 = cstrides1.cumprod()[::-1].copy()
@@ -446,7 +456,7 @@ def _numba_O2_transpose(
     n = len(new_block_sz)
     block_rows = np.empty((new_row_sz.size,), dtype=np.uint64)
     row_irrep_count = np.zeros((n,), dtype=np.uint64)
-    new_row_block_indices = np.empty(new_row_sz.shape, dtype=np.uint64)
+    new_row_block_indices = np.empty((new_row_sz.size,), dtype=np.uint64)
     for i in range(new_row_sz.size):
         for j in range(n):
             if new_row_sz[i] == new_block_sz[j]:
@@ -467,68 +477,111 @@ def _numba_O2_transpose(
                 break
 
     # 4) initialize block sizes. We know blocks are non empty thanks to block_sz.
-    dt = old_blocks[0].dtype
+    dt = b0o.dtype
     new_blocks = [
         np.zeros((row_irrep_count[i], col_irrep_count[i]), dtype=dt) for i in range(n)
     ]
 
-    # 5) copy all coeff from all blocks to new destination
-    # use simpler O(2) mapping sz -sz?
-    # then map is i -> i + (sz[i] > 0) * 2 - bool(sz[i])
-    # still cannot be vectorized due to sz[i] call
-    for bi in range(old_block_sz.size):
-        block_nrows, block_ncols = old_blocks[bi].shape
-        ori = _numba_find_indices(old_row_sz, old_block_sz[bi], block_nrows)
-        rszb_mat = np.empty((block_nrows,), dtype=np.uint64)
-        rsign = np.empty((block_nrows,), dtype=np.int8)
+    # 5) copy all coeff from all blocks to new destination for Sz > 0
+    if len(old_blocks):
+        for bi, b in enumerate(old_blocks):
+            block_nrows, block_ncols = b.shape
+            ori = _numba_find_indices(old_row_sz, old_block_sz[bi], block_nrows)
+            rszb_mat = np.empty((block_nrows,), dtype=np.uint64)
+            rsign = np.empty((block_nrows,), dtype=np.int8)
+            for i in numba.prange(block_nrows):
+                permuted_s = 0
+                refl_s = 0
+                s_sign = 1
+                for j in range(old_nrr):
+                    s = ori[i] // rstrides1[j] % rmod[j]
+                    permuted_s += s * rstrides2[j]
+                    refl_s += rmaps[j][s] * rstrides2[j]
+                    s_sign *= rsigns[j][s]
+                ori[i] = permuted_s  # overwrite ori with permuted state
+                rszb_mat[i] = refl_s
+                rsign[i] = s_sign
+
+            oci = _numba_find_indices(old_col_sz, old_block_sz[bi], block_ncols)
+            cszb_mat = np.empty((block_ncols,), dtype=np.uint64)
+            csign = np.empty((block_ncols,), dtype=np.int8)
+            for i in numba.prange(block_ncols):
+                permuted_s = 0
+                refl_s = 0
+                s_sign = 1
+                for j in range(old_ncr):
+                    s = oci[i] // cstrides1[j] % cmod[j]
+                    permuted_s += s * cstrides2[j]
+                    refl_s += cmaps[j][s] * cstrides2[j]
+                    s_sign *= csigns[j][s]
+                oci[i] = permuted_s
+                cszb_mat[i] = refl_s
+                csign[i] = s_sign
+
+            for i in numba.prange(block_nrows):
+                for j in numba.prange(block_ncols):
+                    nr, nc = divmod(ori[i] + oci[j], ncs)
+                    # if new sz >= 0, move coefficient, same as U(1)
+                    if new_row_sz[nr] >= 0:
+                        new_bi = new_row_block_indices[nr]
+                        nri = block_rows[nr]
+                        nci = block_cols[nc]
+                        new_blocks[new_bi][nri, nci] = b[i, j]
+
+                    # if new Sz <= 0, move old Sz-reversed coeff
+                    if new_row_sz[nr] <= 0:  # reflect
+                        nrb, ncb = divmod(rszb_mat[i] + cszb_mat[j], ncs)
+                        new_bi = new_row_block_indices[nrb]
+                        nri = block_rows[nrb]
+                        nci = block_cols[ncb]
+                        s = rsign[i] * csign[j]
+                        new_blocks[new_bi][nri, nci] = s * b[i, j]
+
+    # 5) deal with special Sz=0 case
+    if b0o.size or b0e.size:
+        rocoeff, rocol, recoeff, recol = _numba_b0_arrays(old_o2_row_reps, old_row_sz)
+        cocoeff, cocol, cecoeff, cecol = _numba_b0_arrays(old_o2_col_reps, old_col_sz)
+        block_nrows = rocoeff.shape[0] + recoeff.shape[0]
+        ori = _numba_find_indices(old_row_sz, 0, block_nrows)
         for i in numba.prange(block_nrows):
             permuted_s = 0
-            refl_s = 0
-            s_sign = 1
             for j in range(old_nrr):
-                s = ori[i] // rstrides1[j] % rmod[j]
-                permuted_s += s * rstrides2[j]
-                refl_s += rmaps[j][s] * rstrides2[j]
-                s_sign *= rsigns[j][s]
+                permuted_s += ori[i] // rstrides1[j] % rmod[j] * rstrides2[j]
             ori[i] = permuted_s  # overwrite ori with permuted state
-            rszb_mat[i] = refl_s
-            rsign[i] = s_sign
 
-        oci = _numba_find_indices(old_col_sz, old_block_sz[bi], block_ncols)
-        cszb_mat = np.empty((block_ncols,), dtype=np.uint64)
-        csign = np.empty((block_ncols,), dtype=np.int8)
+        block_ncols = cocoeff.shape[0] + cecoeff.shape[0]
+        oci = _numba_find_indices(old_col_sz, 0, block_ncols)
         for i in numba.prange(block_ncols):
             permuted_s = 0
-            refl_s = 0
-            s_sign = 1
             for j in range(old_ncr):
-                s = oci[i] // cstrides1[j] % cmod[j]
-                permuted_s += s * cstrides2[j]
-                refl_s += cmaps[j][s] * cstrides2[j]
-                s_sign *= csigns[j][s]
+                permuted_s += oci[i] // cstrides1[j] % cmod[j] * cstrides2[j]
             oci[i] = permuted_s
-            cszb_mat[i] = refl_s
-            csign[i] = s_sign
 
-        for i in numba.prange(block_nrows):
-            for j in numba.prange(block_ncols):
-                nr, nc = divmod(ori[i] + oci[j], ncs)
+        for i in numba.prange(b0o.shape[0]):
+            for j in numba.prange(b0o.shape[1]):
+                for k1 in range(2):
+                    for k2 in range(2):
+                        nr, nc = divmod(ori[rocol[i, k1]] + oci[cocol[j, k2]], ncs)
+                        if new_row_sz[nr] >= 0:
+                            new_bi = new_row_block_indices[nr]
+                            nri = block_rows[nr]
+                            nci = block_cols[nc]
+                            new_blocks[new_bi][nri, nci] += (
+                                rocoeff[i, k1] * b0o[i, j] * cocoeff[j, k2]
+                            )
 
-                # if new Sz >= 0, move coefficient, same as U(1)
-                if new_row_sz[nr] >= 0:
-                    new_bi = new_row_block_indices[nr]
-                    nri = block_rows[nr]
-                    nci = block_cols[nc]
-                    new_blocks[new_bi][nri, nci] = old_blocks[bi][i, j]
-
-                # if new Sz <= 0, move old Sz-reversed coeff
-                if old_block_sz[bi] and new_row_sz[nr] <= 0:  # reflect
-                    nrb, ncb = divmod(rszb_mat[i] + cszb_mat[j], ncs)
-                    new_bi = new_row_block_indices[nrb]
-                    nri = block_rows[nrb]
-                    nci = block_cols[ncb]
-                    s = rsign[i] * csign[j]
-                    new_blocks[new_bi][nri, nci] = s * old_blocks[bi][i, j]
+        for i in numba.prange(b0e.shape[0]):
+            for j in numba.prange(b0e.shape[1]):
+                for k1 in range(2):
+                    for k2 in range(2):
+                        nr, nc = divmod(ori[recol[i, k1]] + oci[cecol[j, k2]], ncs)
+                        if new_row_sz[nr] >= 0:
+                            new_bi = new_row_block_indices[nr]
+                            nri = block_rows[nr]
+                            nci = block_cols[nc]
+                            new_blocks[new_bi][nri, nci] += (
+                                recoeff[i, k1] * b0e[i, j] * cecoeff[j, k2]
+                            )
 
     return new_blocks
 
@@ -738,13 +791,13 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             if self._block_irreps[0] == 0:  # no 0o block
                 # this should be highly uncommon, don't bother optimize
                 i1 = 1
-                b0o = np.zeros((rocol.shape[0], cocol.shape[0]), dtype=self.dtype)
+                b0o = np.zeros((0, 0), dtype=self.dtype)
                 b0e = self._blocks[0]
                 block_sz = np.hstack((block_sz, self._block_irreps[1:]))
             elif self.nblocks > 1 and self._block_irreps[1] > 0:  # no 0e block
                 i1 = 1
                 b0o = self._blocks[0]
-                b0e = np.zeros((recol.shape[0], cecol.shape[0]), dtype=self.dtype)
+                b0e = np.zeros((0, 0), dtype=self.dtype)
                 block_sz[-1] = 0
                 block_sz = np.hstack((block_sz, self._block_irreps[1:]))
             else:
@@ -782,28 +835,18 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         ):
             return self.T
 
+        # avoid numba problems with F-arrays
+        self._blocks = tuple(np.ascontiguousarray(b) for b in self._blocks)
+
         # construct new row and column representations
         axes = row_axes + col_axes
         nrr = len(row_axes)
         signature = np.empty((self._ndim,), dtype=bool)
+        old_u1_reps = []
+        for r in self._row_reps + self._col_reps:
+            old_u1_reps.append(_numba_O2_rep_to_U1(r))
+
         reps = []
-
-        u1_row_reps = [None] * self._nrr
-        rmaps = [None] * self._nrr
-        rsigns = [None] * self._nrr
-        for i, r in enumerate(self._row_reps):
-            u1_row_reps[i] = _numba_O2_rep_to_U1(r)
-            rmaps[i], rsigns[i] = _numba_get_reflection_perm_sign(r)
-
-        ncr = len(self._col_reps)
-        u1_col_reps = [None] * ncr
-        cmaps = [None] * ncr
-        csigns = [None] * ncr
-        for i, r in enumerate(self._col_reps):
-            u1_col_reps[i] = _numba_O2_rep_to_U1(r)
-            cmaps[i], csigns[i] = _numba_get_reflection_perm_sign(r)
-
-        old_u1_reps = u1_row_reps + u1_col_reps
         u1_reps = []
         for i, ax in enumerate(axes):
             signature[i] = self._signature[ax]
@@ -839,56 +882,37 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         )
 
         # construct Sz = 0 block (may not exist)
-        if self._block_irreps[0] < 1:
-            rocoeff, rocol, recoeff, recol = _numba_b0_arrays(
-                self._row_reps, old_row_sz
-            )
-            cocoeff, cocol, cecoeff, cecol = _numba_b0_arrays(
-                self._col_reps, old_col_sz
-            )
-            if self._block_irreps[0] == 0:  # no 0o block
-                # this should be highly uncommon, don't bother optimize
-                i1 = 1
-                b0o = np.zeros((rocol.shape[0], cocol.shape[0]), dtype=self.dtype)
-                b0e = self._blocks[0]
-                old_block_sz = self._block_irreps
-            elif self.nblocks > 1 and self._block_irreps[1] > 0:  # no 0e block
-                i1 = 1
-                b0o = self._blocks[0]
-                b0e = np.zeros((recol.shape[0], cecol.shape[0]), dtype=self.dtype)
-                old_block_sz = self._block_irreps.copy()
-                old_block_sz[0] = 0
-            else:
-                i1 = 2
-                old_block_sz = self._block_irreps[1:]
-                b0o = self._blocks[0]
-                b0e = self._blocks[1]
-            b0 = _numba_merge_b0oe(
-                b0o, rocoeff, rocol, cocoeff, cocol, b0e, recoeff, recol, cecoeff, cecol
-            )
-            old_blocks = (b0,) + self._blocks[i1:]
-            del b0
-        else:
-            old_blocks = self._blocks
-            old_block_sz = self._block_irreps
+        if self._nblocks > 1 and self._block_irreps[1] == 0:
+            i1 = 2
+            b0o = self._blocks[0]
+            b0e = self._blocks[1]
+        elif self._block_irreps[0] > 0:
+            b0o = np.zeros((0, 0), dtype=self.dtype)
+            b0e = np.zeros((0, 0), dtype=self.dtype)
+            i1 = 0
+        elif self._block_irreps[0] == 0:  # no 0o block
+            i1 = 1
+            b0o = np.zeros((0, 0), dtype=self.dtype)
+            b0e = self._blocks[0]
+        else:  # no 0e block
+            i1 = 1
+            b0o = self._blocks[0]
+            b0e = np.zeros((0, 0), dtype=self.dtype)
 
-        old_blocks = tuple(np.ascontiguousarray(b) for b in old_blocks)  # numba C/F
         blocks = _numba_O2_transpose(
-            np.array(self._shape, dtype=np.uint64),
-            old_blocks,
-            old_block_sz,
+            b0o,
+            b0e,
+            self._blocks[i1:],
+            self._block_irreps[i1:],
             old_row_sz,
             old_col_sz,
+            self._row_reps,
+            self._col_reps,
             axes,
             block_sz,
             new_row_sz,
             new_col_sz,
-            tuple(rmaps),
-            tuple(rsigns),
-            tuple(cmaps),
-            tuple(csigns),
         )
-        del old_blocks, old_row_sz, old_col_sz
 
         if block_sz[0] == 0:
             b0_blocks, b0_irreps = split_b0(
