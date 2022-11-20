@@ -561,29 +561,67 @@ def _numba_O2_transpose(
 
         for i in numba.prange(b0o.shape[0]):
             for j in numba.prange(b0o.shape[1]):
-                for k1 in range(2):
-                    for k2 in range(2):
-                        nr, nc = divmod(ori[rocol[i, k1]] + oci[cocol[j, k2]], ncs)
-                        if new_row_sz[nr] >= 0:
-                            new_bi = new_row_block_indices[nr]
-                            nri = block_rows[nr]
-                            nci = block_cols[nc]
-                            new_blocks[new_bi][nri, nci] += (
-                                rocoeff[i, k1] * b0o[i, j] * cocoeff[j, k2]
-                            )
+                for k in range(2):
+                    nr, nc = divmod(ori[rocol[i, 0]] + oci[cocol[j, k]], ncs)
+                    if new_row_sz[nr] > 0:
+                        new_bi = new_row_block_indices[nr]
+                        nri = block_rows[nr]
+                        nci = block_cols[nc]
+                        new_blocks[new_bi][nri, nci] += (
+                            rocoeff[i, 0] * b0o[i, j] * cocoeff[j, k]
+                        )
+                    elif new_row_sz[nr] < 0:
+                        nr, nc = divmod(ori[rocol[i, 1]] + oci[cocol[j, 1 - k]], ncs)
+                        new_bi = new_row_block_indices[nr]
+                        nri = block_rows[nr]
+                        nci = block_cols[nc]
+                        new_blocks[new_bi][nri, nci] += (
+                            rocoeff[i, 1] * b0o[i, j] * cocoeff[j, 1 - k]
+                        )
+                    else:
+                        nri = block_rows[nr]
+                        nci = block_cols[nc]
+                        new_blocks[0][nri, nci] += (
+                            rocoeff[i, 0] * b0o[i, j] * cocoeff[j, k]
+                        )
+                        nr, nc = divmod(ori[rocol[i, 1]] + oci[cocol[j, 1 - k]], ncs)
+                        nri = block_rows[nr]
+                        nci = block_cols[nc]
+                        new_blocks[0][nri, nci] += (
+                            rocoeff[i, 1] * b0o[i, j] * cocoeff[j, 1 - k]
+                        )
 
         for i in numba.prange(b0e.shape[0]):
             for j in numba.prange(b0e.shape[1]):
-                for k1 in range(2):
-                    for k2 in range(2):
-                        nr, nc = divmod(ori[recol[i, k1]] + oci[cecol[j, k2]], ncs)
-                        if new_row_sz[nr] >= 0:
-                            new_bi = new_row_block_indices[nr]
-                            nri = block_rows[nr]
-                            nci = block_cols[nc]
-                            new_blocks[new_bi][nri, nci] += (
-                                recoeff[i, k1] * b0e[i, j] * cecoeff[j, k2]
-                            )
+                for k in range(2):
+                    nr, nc = divmod(ori[recol[i, 0]] + oci[cecol[j, k]], ncs)
+                    if new_row_sz[nr] > 0:
+                        new_bi = new_row_block_indices[nr]
+                        nri = block_rows[nr]
+                        nci = block_cols[nc]
+                        new_blocks[new_bi][nri, nci] += (
+                            recoeff[i, 0] * b0e[i, j] * cecoeff[j, k]
+                        )
+                    elif new_row_sz[nr] < 0:
+                        nr, nc = divmod(ori[recol[i, 1]] + oci[cecol[j, 1 - k]], ncs)
+                        new_bi = new_row_block_indices[nr]
+                        nri = block_rows[nr]
+                        nci = block_cols[nc]
+                        new_blocks[new_bi][nri, nci] += (
+                            recoeff[i, 1] * b0e[i, j] * cecoeff[j, 1 - k]
+                        )
+                    else:
+                        nri = block_rows[nr]
+                        nci = block_cols[nc]
+                        new_blocks[0][nri, nci] += (
+                            recoeff[i, 0] * b0e[i, j] * cecoeff[j, k]
+                        )
+                        nr, nc = divmod(ori[recol[i, 1]] + oci[cecol[j, 1 - k]], ncs)
+                        nri = block_rows[nr]
+                        nci = block_cols[nc]
+                        new_blocks[0][nri, nci] += (
+                            recoeff[i, 1] * b0e[i, j] * cecoeff[j, 1 - k]
+                        )
 
     return new_blocks
 
