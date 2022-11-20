@@ -292,8 +292,10 @@ def _numba_merge_b0oe(
 
 
 @numba.njit(parallel=True)
-def _numba_split_b0(b0, rocoeff, rocol, cocoeff, cocol, recoeff, recol, cecoeff, cecol):
+def _numba_split_b0(b0, row_reps, rsz_values, col_reps, csz_values):
     # do not crash even if b0o or b0e has size 0
+    rocoeff, rocol, recoeff, recol = _numba_b0_arrays(row_reps, rsz_values)
+    cocoeff, cocol, cecoeff, cecol = _numba_b0_arrays(col_reps, csz_values)
     b0o = np.empty((rocoeff.shape[0], cocoeff.shape[0]), dtype=b0.dtype)
     for i in numba.prange(rocoeff.shape[0]):
         for j in numba.prange(cocoeff.shape[0]):
@@ -314,10 +316,8 @@ def _numba_split_b0(b0, rocoeff, rocol, cocoeff, cocol, recoeff, recol, cecoeff,
 
 
 def split_b0(b0, row_reps, rsz_values, col_reps, csz_values):
-    rocoeff, rocol, recoeff, recol = _numba_b0_arrays(tuple(row_reps), rsz_values)
-    cocoeff, cocol, cecoeff, cecol = _numba_b0_arrays(tuple(col_reps), csz_values)
     b0o, b0e = _numba_split_b0(
-        b0, rocoeff, rocol, cocoeff, cocol, recoeff, recol, cecoeff, cecol
+        b0, tuple(row_reps), rsz_values, tuple(col_reps), csz_values
     )
     assert abs(
         np.sqrt(lg.norm(b0o) ** 2 + lg.norm(b0e) ** 2) - lg.norm(b0)
