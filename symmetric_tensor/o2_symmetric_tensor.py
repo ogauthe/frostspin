@@ -313,6 +313,22 @@ def _numba_split_b0(b0, rocoeff, rocol, cocoeff, cocol, recoeff, recol, cecoeff,
     return b0o, b0e
 
 
+def split_b0(b0, row_reps, rsz_values, col_reps, csz_values):
+    rocoeff, rocol, recoeff, recol = _numba_b0_arrays(tuple(row_reps), rsz_values)
+    cocoeff, cocol, cecoeff, cecol = _numba_b0_arrays(tuple(col_reps), csz_values)
+    b0o, b0e = _numba_split_b0(
+        b0, rocoeff, rocol, cocoeff, cocol, recoeff, recol, cecoeff, cecol
+    )
+    assert abs(
+        np.sqrt(lg.norm(b0o) ** 2 + lg.norm(b0e) ** 2) - lg.norm(b0)
+    ) <= _tol * lg.norm(b0), "b0 splitting does not preserve norm"
+    if b0o.size and b0e.size:
+        return (b0o, b0e), (-1, 0)
+    if b0o.size:
+        return (b0o,), (-1,)
+    return (b0e,), (0,)
+
+
 @numba.njit(parallel=True)
 def _numba_generate_refl_block(rso, cso, b, rsign, csign):
     """
@@ -622,32 +638,20 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             for i, r in enumerate(col_reps)
         )
 
-        blocks = []
-        block_irreps = []
         i0 = tu1.block_irreps.searchsorted(0)
         if tu1.block_irreps[i0] == 0:  # tu1 is O(2) => i0 < len(tu1.block_irreps)
-            b0 = tu1.blocks[i0]
-            rocoeff, rocol, recoeff, recol = _numba_b0_arrays(
-                tuple(row_reps), tu1.get_row_representation()
+            blocks, block_irreps = split_b0(
+                tu1.blocks[i0],
+                row_reps,
+                tu1.get_row_representation(),
+                col_reps,
+                tu1.get_column_representation(),
             )
-            cocoeff, cocol, cecoeff, cecol = _numba_b0_arrays(
-                tuple(col_reps), tu1.get_column_representation()
-            )
-            b0o, b0e = _numba_split_b0(
-                b0, rocoeff, rocol, cocoeff, cocol, recoeff, recol, cecoeff, cecol
-            )
-            if b0o.size:
-                block_irreps.append(-1)
-                blocks.append(b0o)
-            if b0e.size:
-                block_irreps.append(0)
-                blocks.append(b0e)
-            assert abs(
-                np.sqrt(lg.norm(b0o) ** 2 + lg.norm(b0e) ** 2) - lg.norm(b0)
-            ) <= _tol * lg.norm(b0), "b0 splitting does not preserve norm"
-            i0 += 1
-        block_irreps.extend(tu1.block_irreps[i0:])
-        blocks.extend(tu1.blocks[i0:])
+            blocks = blocks + tu1._blocks[i0 + 1 :]
+            block_irreps = np.concatenate((block_irreps, tu1.block_irreps[i0 + 1 :]))
+        else:
+            blocks = tu1._blocks[i0:]
+            block_irreps = tu1.block_irreps[i0:]
         return cls(row_reps, col_reps, blocks, block_irreps, tu1.signature)
 
     def toarray(self, as_matrix=False):
@@ -862,7 +866,8 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             b0 = _numba_merge_b0oe(
                 b0o, rocoeff, rocol, cocoeff, cocol, b0e, recoeff, recol, cecoeff, cecol
             )
-            old_blocks = (b0, *self._blocks[i1:])
+            old_blocks = (b0,) + self._blocks[i1:]
+            del b0
         else:
             old_blocks = self._blocks
             old_block_sz = self._block_irreps
@@ -883,11 +888,16 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             tuple(cmaps),
             tuple(csigns),
         )
-        del old_blocks, old_row_sz, old_col_sz, new_row_sz, new_col_sz
-        tu1 = U1_SymmetricTensor(  # blocks Sz<0 are missing (will not be read)
-            u1_reps[:nrr], u1_reps[nrr:], blocks, block_sz, signature
-        )
-        tp = self.from_U1(tu1, reps[:nrr], reps[nrr:])
+        del old_blocks, old_row_sz, old_col_sz
+
+        if block_sz[0] == 0:
+            b0_blocks, b0_irreps = split_b0(
+                blocks[0], reps[:nrr], new_row_sz, reps[nrr:], new_col_sz
+            )
+            blocks = list(b0_blocks) + blocks[1:]
+            block_sz = np.concatenate((b0_irreps, block_sz[1:]))
+
+        tp = type(self)(reps[:nrr], reps[nrr:], blocks, block_sz, signature)
         assert abs(tp.norm() - self.norm()) <= _tol * self.norm(), "norm is different"
         return tp
 
