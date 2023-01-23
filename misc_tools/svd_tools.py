@@ -95,7 +95,10 @@ def sparse_svd(A, k=6, ncv=None, tol=0, maxiter=None, return_singular_vectors=Tr
 
     # lobpcg is not reliable, see scipy issue #10974.
     XH_X = slg.LinearOperator(matvec=dot_XH_X, shape=(dmin, dmin), dtype=A.dtype)
-    eigvals, eigvec = slg.eigsh(XH_X, k=k, tol=tol, maxiter=maxiter, ncv=ncv)
+    _, eigvec = slg.eigsh(XH_X, k=k, tol=tol, maxiter=maxiter, ncv=ncv)
+
+    # ensure exact orthogonality
+    eigvec, _ = lg.qr(eigvec, overwrite_a=True, mode="economic", check_finite=False)
 
     # improve stability following https://github.com/scipy/scipy/pull/11829
     # matrices should be small enough to avoid convergence errors in lg.svd
