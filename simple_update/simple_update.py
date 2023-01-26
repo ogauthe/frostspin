@@ -14,11 +14,7 @@ class SimpleUpdate:
     in subclasses.
     """
 
-    _unit_cell = NotImplemented
-    _classname = NotImplemented  # used in save/load to check consistency
-    _n_bonds = NotImplemented
-    _n_hamiltonians = NotImplemented
-    _n_tensors = NotImplemented
+    _classname = "SimpleUpdate"  # used in save/load to check consistency
 
     def __init__(
         self,
@@ -28,6 +24,8 @@ class SimpleUpdate:
         rcutoff,
         degen_ratio,
         tensors,
+        tensor_bond_indices,
+        update_data,
         hamiltonians,
         weights,
         verbosity,
@@ -40,7 +38,7 @@ class SimpleUpdate:
         ----------
         D : int
             Bond dimension to keep when renormalizing bonds. This is a target, the
-            actual largest value Dmax may differ due to cutoff or degeneracies.
+        actual largest value Dmax may differ due to cutoff or degeneracies.
         beta : float
             Inverse temperature.
         tau : float
@@ -59,28 +57,46 @@ class SimpleUpdate:
         verbosity : int
             Level of log verbosity.
         """
+        self._n_tensors = len(tensors)
 
-        if len(tensors) != self._n_tensors:
-            raise ValueError("Invalid number of tensors")
-        if len(hamiltonians) != self._n_hamiltonians:
-            raise ValueError("Invalid number of Hamiltonians")
-        if len(weights) != self._n_bonds:
-            raise ValueError("Invalid number of weights")
+        # check consistency: virtual legs must be labelled 0 to n_bonds - 1
+        # any virtual leg must appear exactly twice, and not twice on the same
+        # tensor
+        if len(tensor_bond_indices) != self._n_tensors:
+            raise ValueError("Number of tensor does not match tensor_bond_indices")
 
+        d = {}
+        for i in range(self._n_tensors):
+            tbi = list(tensor_bond_indices[i])
+            for j, leg in enumerate(tbi):
+                if tbi.index(leg) != j:
+                    raise ValueError(f"Leg {leg} apperars twice in tensor {i}")
+                try:
+                    d[leg] += 1
+                except KeyError:
+                    d[leg] = 1
+        if sorted(d.keys()) != list(range(len(weights))):
+            raise ValueError("Bond indices must be 0 to n_bonds - 1")
+        for bi in range(len(weights)):
+            if d[bi] != 2:
+                raise ValueError(f"Virtual bond {bi} does not appear exactly twice")
+
+        self._n_hamiltonians = len(hamiltonians)
+        self._n_bonds = len(weights)
+        self._tensor_bond_indices = tensor_bond_indices
         self.verbosity = verbosity
         self._symmetry = tensors[0].symmetry
+        self._symmetry = None
         if self.verbosity > 0:
             print(
                 f"Construct SimpleUpdate with {self._symmetry} symmetry,",
                 f"beta = {beta:.6g}",
             )
-            print(f"unit cell:\n{self._unit_cell}")
 
         self.D = D
         self._beta = beta
         self._tensors = list(tensors)
-        self._hamilts = list(hamiltonians)
-        self.tau = tau  # also set gates
+        self._raw_hamilts = list(hamiltonians)
         self.rcutoff = rcutoff
         self.degen_ratio = degen_ratio
         self._weights = weights
@@ -103,6 +119,8 @@ class SimpleUpdate:
                 return [w / x for w in weights]
 
         self._normalized_weights = normalized_weights
+        self.set_update_data(update_data)
+        self.tau = tau  # also set gates
 
         if self.verbosity > 1:
             print(self)
@@ -166,13 +184,16 @@ class SimpleUpdate:
             ST = get_symmetric_tensor_type(fin["_SimpleUpdate_symmetry"][()])
             hamiltonians = [
                 ST.load_from_dic(fin, prefix=f"_SimpleUpdate_hamiltonian_{i}")
-                for i in range(cls._n_hamiltonians)
+                for i in range(fin["_SimpleUpdate_n_hamiltonians"])
             ]
             tensors = [
                 ST.load_from_dic(fin, prefix=f"_SimpleUpdate_tensor_{i}")
-                for i in range(cls._n_tensors)
+                for i in range(fin["_SimpleUpdate_n_tensors"])
             ]
+            tensor_bond_indices = fin["_SimpleUpdate_tensor_bond_indices"]
+            update_data = fin["_SimpleUpdate_update_data"]
 
+            # weights are list of numpy array, one list for one symmetry sector
             weights = [None] * cls._n_bonds
             for i in range(cls._n_bonds):
                 n = fin[f"_SimpleUpdate_nw{i}"]
@@ -185,6 +206,8 @@ class SimpleUpdate:
             rcutoff,
             degen_ratio,
             tensors,
+            tensor_bond_indices,
+            update_data,
             hamiltonians,
             weights,
             verbosity,
@@ -207,6 +230,10 @@ class SimpleUpdate:
             "_SimpleUpdate_tau": self._tau,
             "_SimpleUpdate_rcutoff": self.rcutoff,
             "_SimpleUpdate_degen_ratio": self.degen_ratio,
+            "_SimpleUpdate_update_data": self._update_data,
+            "_SimpleUpdate_tensor_bond_indices,": self._tensor_bond_indices,
+            "_SimpleUpdate_n_tensors": self._n_tensors,
+            "_SimpleUpdate_n_hamiltonians": self._n_hamiltonians,
         }
         for i, h in enumerate(self._hamilts):
             data |= h.get_data_dic(prefix=f"_SimpleUpdate_hamiltonian_{i}")
@@ -233,9 +260,7 @@ class SimpleUpdate:
         if self.verbosity > 0:
             print(f"set tau to {tau}")
         self._tau = tau
-        self._gates = [(-tau * h).expm() for h in self._hamilts]
-        self._sqrt_gates = [(-0.5 * tau * h).expm() for h in self._hamilts]
-        self._squared_gates = [(-2 * tau * h).expm() for h in self._hamilts]
+        self._gates = tuple((-tau * h).expm() for h in self._hamiltonians)
         self._dbeta = 4 * tau  # 2nd order Trotter Suzuki + rho is quadratic in psi
 
     @property
@@ -251,8 +276,23 @@ class SimpleUpdate:
     def symmetry(self):
         return self._ST.symmetry
 
+    def get_bond_representation(self, i):
+        for j in range(self._n_tensors):
+            ind = (self._tensor_bond_indices[j] == i).nonzero()[0]
+            if ind.size:
+                return self._tensors[j].col_reps[ind[0]]
+        raise ValueError(f"Unknown bond {i}")
+
     def get_bond_representations(self):
-        raise NotImplementedError("Must be defined in derived class")
+        """
+        Obtain representations associated with all unit cell bonds
+        """
+        reps = []
+        for i in range(self._n_bonds):
+            # find tensor having this bond
+            r = self.get_bond_representation(i)
+            reps.append(r)
+        return reps
 
     def bond_entanglement_entropy(self):
         """
@@ -297,7 +337,26 @@ class SimpleUpdate:
         tensors : tuple of _n_tensors SymmetricTensor
             Optimized tensors, with sqrt(weights) on all virtual legs.
         """
-        raise NotImplementedError
+        # adding 1/sqrt(weights) is simpler in dense form
+        sqw = [
+            [1.0 / np.sqrt(w) for w in self.get_weights(sort=False)]
+            for i in range(self._nbonds)
+        ]
+        tensors = []
+        for i in range(self._n_tensors):
+            # we already imposed the two first legs to be physical and ancilla in the
+            # default configuration. Add weights on the virtual legs.
+            t0 = self._tensors[i]
+            args = [t0, list(range(t0.ndim))]
+            for j, leg in enumerate(self._tensor_bond_indices[i]):
+                args.append(sqw[leg])
+                args.append([j])
+
+            args.append(list(range(t0.ndim)))
+            t = np.einsum(*args)
+            t = self._ST.from_array(t, t0.row_reps, t0.col_reps, signature=t0.signature)
+            tensors.append(t)
+        return tensors
 
     def update_first_neighbor(self, left, right, weights, gate):
         r"""
@@ -458,3 +517,222 @@ class SimpleUpdate:
         new_mid = cstm @ effm
         newR = cstR @ effR
         return newL, new_mid, newR, new_weightsL, new_weightsR
+
+    def evolve(self, beta_evolve):
+        """
+        Evolve in imaginary time using second order Trotter-Suzuki up to beta.
+        Convention: temperature value is the bilayer tensor one, twice the monolayer
+        one.
+        """
+        if self.verbosity > 0:
+            print(
+                f"Evolve in imaginary time for beta from {self._beta:.6g} to "
+                f"{self._beta + beta_evolve:.6g}..."
+            )
+        if beta_evolve < -1e-12:
+            raise ValueError("Cannot evolve for negative imaginary time")
+        if beta_evolve < 0.9 * self._dbeta:  # care for float rounding
+            return  # else evolve for 1 step out of niter loop
+        niter = round(beta_evolve / self._dbeta)  # 2nd order: evolve 2*tau by step
+
+        # 2nd order update: update 0 is special as it may be squared or not
+        # depending whether it is at the very beginning / end of update sequence
+        self._initialize_update()
+        for i in range(niter - 1):  # there is 1 step out of the loop
+            for j in range(self._n_updates):
+                self._elementary_update(j)
+        self._finalize_update()
+        self._beta += niter * self._dbeta
+
+    def _elementary_update(self, i):
+        """
+        Elementary update bond between tensors iL and iR.
+        """
+        # This function is made to be fast: assume current state is fine and use
+        # precomputed indices to select bonds, kind of update, tensors as well as
+        # precomputed leg permutation.
+        left = self._tensors[self._left_indices[i]].permutate(*self._lperm[i])
+        right = self._tensors[self._right_indices[i]].permutate(*self._rperm[i])
+        b1 = self._1st_updated_bond[i]
+        b2 = self._2nd_updated_bond[i]
+        if b1 == b2:  # 1st neighbor update
+            left, right, nw1 = self.update_first_neighbor(
+                left, right, self._weights[b1], self._gates[self._gate_indices[i]]
+            )
+
+        else:  # update through middle site im
+            mid = self._tensors[self._middle_indices[i]].permutate(*self._mperm[i])
+            left, mid, right, nw1, nw2 = self.update_through_proxy(
+                left,
+                mid,
+                right,
+                self._weights[b1],
+                self._weights[b2],
+                self._gates[self._gate_indices[i]],
+            )
+            self._weights[b2] = nw2
+            self._tensors[self._middle_indices[i]] = mid
+
+        self._weights[b1] = nw1
+        self._tensors[self._left_indices[i]] = left
+        self._tensors[self._right_indices[i]] = right
+
+    def _initialize_update(self):
+        # For a given tensor, its structure is defined by tensor_bond_indices between
+        # updates. This structure needs to change at each update the tensor is involved
+        # in. To avoid swappping back and forth for each elementary update, the tensor
+        # structure constraint is relaxed inside evolve and changes within updates, as
+        # defined by lperm, rperm and mperm. One cycle of updates will leave tensors
+        # in a given final state structure, one needs to start from this state to be
+        # able to loop over it.
+        for i in range(self._n_tensors):
+            self._tensors[i] = self._tensors[i].permutate(*self._initial_swap[i])
+
+        # run last elementary update with time step tau instead of 2*tau
+        self._elementary_update(self._n_updates)
+
+        # run one cycle of update but the first one
+        for j in range(1, self._n_updates):
+            self._elementary_update(j)
+
+    def _finalize_update(self):
+        # run the last one with time step tau
+        self._elementary_update(self._n_updates)
+
+        # come back to default form, as defined in tensor_bond_indices
+        for i in range(self._n_tensors):
+            self._tensors[i] = self._tensors[i].permutate(*self._final_swap[i])
+
+    def set_update_data(self, update_data):
+        """
+        update_data is a convenient way to store all information concerning update in a
+        compact form. Construct all needed objects (swaps, indices...) used in evolve.
+
+        From update_data, automatically generate second order Trotter-Suzuki scheme.
+        """
+        # this functions defines all variables needed to run updates. It is run only at
+        # initialization, performances do not matter much here. The goal is to make
+        # everything else simple and fast.
+
+        # impose all tensors to have a physical and an ancilla leg as their two first
+        # legs in default configuration, although they may be dummy legs.
+
+        # define second order scheme
+        n_updates = 2 * update_data.shape[0] - 2
+        update_data_2nd = np.vstack((update_data, update_data[-2:0:-1]))
+        assert update_data_2nd.shape == (n_updates, 6)
+
+        def check(bi, ti):
+            if bi not in self._tensor_bond_indices[ti]:
+                raise ValueError(f"Bond {bi} does not exist in tensor {ti}")
+
+        eff_leg_state = [None] * self._n_tensors  # index of active legs after update
+        bond1 = list(update_data_2nd[:, 0])
+        bond2 = list(update_data_2nd[:, 1])
+        gate_indices = list(update_data_2nd[:, 2])
+        left_indices = list(update_data_2nd[:, 3])
+        right_indices = list(update_data_2nd[:, 4])
+        middle_indices = [None] * self._n_tensors
+        for i, u in enumerate(update_data_2nd):
+            check(bond1[i], left_indices[i])
+            check(bond2[i], right_indices[i])
+            eff_leg_state[left_indices[i]] = [-1, bond1[i]]
+            eff_leg_state[right_indices[i]] = [-1, bond2[i]]
+            if bond1[i] != bond2[i]:  # there is an intermediate site
+                middle_indices[i] = u[5]
+                check(bond1[i], middle_indices[i])
+                check(bond2[i], middle_indices[i])
+                eff_leg_state[middle_indices[i]] = [bond1[i], bond2[i]]
+
+        # now, leg_state is at the end of an update cycle: use it to define initial swap
+        initial_swap = [None] * self._n_tensors
+        leg_state = [None] * self._n_tensors
+        for i in range(self._n_tensors):
+            init = [-1, -2] + list(self._tensor_bond_indices[i])
+            end = sorted(set(init) - set(eff_leg_state[i])) + eff_leg_state[i]
+            swap = [init.index(i) for i in end]
+            initial_swap[i] = (tuple(swap[:-2]), tuple(swap[-2:]))
+            leg_state[i] = end
+
+        # check all tensors and all bonds are updated
+        if None in eff_leg_state:
+            raise ValueError(f"Tensor {leg_state.index(None)} is never updated")
+        for b in range(self._n_bonds):
+            if b not in bond1 and b not in bond2:
+                raise ValueError(f"Bond {b} is never updated")
+
+        # now that we know final and initial states, we can run again all updates to
+        # compute swaps
+        lperm = [None] * n_updates
+        rperm = [None] * n_updates
+        mperm = [None] * n_updates
+        for i in range(n_updates):
+            init = leg_state[left_indices[i]]
+            end = sorted(set(init) - set([-1, bond1[i]])) + [-1, bond1[i]]
+            swap = [init.index(i) for i in end]
+            leg_state[left_indices[i]] = end
+            lperm[i] = (tuple(swap[:-2]), tuple(swap[-2:]))
+
+            init = leg_state[right_indices[i]]
+            end = sorted(set(init) - set([-1, bond2[i]])) + [-1, bond2[i]]
+            swap = [init.index(i) for i in end]
+            leg_state[right_indices[i]] = end
+            rperm[i] = (tuple(swap[:-2]), tuple(swap[-2:]))
+            if bond1[i] != bond2[i]:
+                init = leg_state[middle_indices[i]]
+                b12 = [bond1[i], bond2[i]]
+                end = sorted(set(init) - set(b12)) + b12
+                swap = [init.index(i) for i in end]
+                leg_state[middle_indices[i]] = end
+                mperm[i] = (tuple(swap[:-2]), tuple(swap[-2:]))
+
+        # special case: i = n_update, corresponds to i = 0 with dbeta = tau
+        for x in [
+            bond1,
+            bond2,
+            gate_indices,
+            left_indices,
+            right_indices,
+            middle_indices,
+            lperm,
+            rperm,
+            mperm,
+        ]:
+            x.append(x[0])
+
+        eff_leg_state[left_indices[0]] = [-1, bond1[0]]
+        eff_leg_state[right_indices[0]] = [-1, bond2[0]]
+        if bond1[0] != bond2[0]:
+            eff_leg_state[middle_indices[0]] = [bond1[0], bond2[0]]
+
+        # Define final swap, which contains addiditional update by first bond
+        final_swap = [None] * self._n_tensors
+        for i in range(self._n_tensors):
+            end = [-1, -2] + list(self._tensor_bond_indices[i])
+            init = sorted(set(end) - set(eff_leg_state[i])) + eff_leg_state[i]
+            swap = [init.index(i) for i in end]
+            final_swap[i] = (tuple(swap[:-2]), tuple(swap[-2:]))
+
+        # we need two additional Hamiltonians, with a factor 2, for the 2 extremities of
+        # the second order string, corresponding to gates with 2*tau
+        hamiltonians = self._raw_hamilts.copy()
+        hamiltonians.append(2 * self._raw_hamilts[gate_indices[0]])
+        gate_indices[0] = self._n_hamiltonians
+        hamiltonians.append(2 * self._raw_hamilts[gate_indices[n_updates // 2]])
+        gate_indices[n_updates // 2] = self._n_hamiltonians + 1
+
+        # set data
+        self._update_data = update_data  # not used out of here but my be saved to file
+        self._n_updates = n_updates
+        self._left_indices = left_indices
+        self._right_indices = right_indices
+        self._middle_indices = middle_indices
+        self._gate_indices = gate_indices
+        self._lperm = lperm
+        self._rperm = rperm
+        self._mperm = mperm
+        self._1st_updated_bond = bond1
+        self._2nd_updated_bond = bond2
+        self._initial_swap = initial_swap
+        self._final_swap = final_swap
+        self._hamiltonians = hamiltonians
