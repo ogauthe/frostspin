@@ -942,21 +942,14 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         )
 
     def update_signature(self, sign_update):
-        # same as abelian case, bending an index to the left or to the right makes no
-        # difference, signs can be ignored.
+        # blocks coeff are defined as identical to abelian U(1) case, which are
+        # unaffected by update_signature.
+        # Additionnaly, every O(2) representation is self-conjugate, therefore signature
+        # has no effect on O(2) tensor with current conventions (another fine convention
+        # would be to change a sign here, when conjugating 0odd and in toU1)
         up = np.asarray(sign_update, dtype=bool)
         assert up.shape == (self._ndim,)
-        row_reps = list(self._row_reps)
-        col_reps = list(self._col_reps)
-        for i in up.nonzero()[0]:
-            if i < self._nrr:
-                row_reps[i] = self.conjugate_representation(row_reps[i])
-            else:
-                j = i - self._nrr
-                col_reps[j] = self.conjugate_representation(col_reps[j])
-        self._row_reps = tuple(row_reps)
-        self._col_reps = tuple(col_reps)
-        self._signature = self._signature ^ up
+        self._signature ^= up
         assert self.check_blocks_fit_representations()
 
     def check_blocks_fit_representations(self):
