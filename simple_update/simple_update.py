@@ -230,15 +230,26 @@ class SimpleUpdate:
         verbosity : int
             Level of log verbosity.
         """
-        self.verbosity = int(verbosity)
+        # input validation
+        D = int(D)
+        beta = float(beta)
+        tau = float(tau)
+        rcutoff = float(rcutoff)
+        degen_ratio = float(degen_ratio)
+        tensors = list(tensors)
+        tensor_bond_indices = [np.array(tbi, dtype=int) for tbi in tensor_bond_indices]
+        raw_update_data = np.asarray(raw_update_data, dtype=int)
+        raw_hamilts = list(raw_hamilts)
+        weights = list(weights)
+        verbosity = int(verbosity)
 
         # quick crash for very simple errors
-        tensor_bond_indices = [np.array(tbi, dtype=int) for tbi in tensor_bond_indices]
         check_tensor_bond_indices(tensor_bond_indices)
         check_hamiltonians(raw_hamilts)
         if len(tensors) != len(tensor_bond_indices):
             raise ValueError("Invalid tensor number")
 
+        self.verbosity = int(verbosity)
         # 1st order should be fine but has not been tested
         second_order = True
 
