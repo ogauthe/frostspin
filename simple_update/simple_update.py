@@ -30,6 +30,23 @@ def check_tensor_bond_indices(tensor_bond_indices):
     return
 
 
+def check_hamiltonians(hamiltonians):
+    ST = type(hamiltonians[0])
+    for i, h in enumerate(hamiltonians):
+        if type(h) != ST:
+            raise ValueError(f"Invalid type for Hamiltonian {i}")
+        if h.ndim != 4 or h.n_row_reps != 2:
+            raise ValueError(f"Hamiltonian {i} has invalid shape")
+        for a in range(2):
+            if h.row_reps[a].shape != h.col_reps[a].shape:
+                raise ValueError(f"Hamiltonian {i} has invalid representations")
+            if (h.row_reps[a] != h.col_reps[a]).any():
+                raise ValueError(f"Hamiltonian {i} has invalid representations")
+            if not h.signature[a] ^ h.signature[a + 2]:
+                raise ValueError(f"Hamiltonian {i} has invalid signature")
+    return
+
+
 def decode_raw_update_data(raw_update_data, second_order):
     """
     raw_update_data is a convenient way to store all information concerning updates in
@@ -218,6 +235,7 @@ class SimpleUpdate:
         # quick crash for very simple errors
         tensor_bond_indices = [np.array(tbi, dtype=int) for tbi in tensor_bond_indices]
         check_tensor_bond_indices(tensor_bond_indices)
+        check_hamiltonians(raw_hamilts)
         if len(tensors) != len(tensor_bond_indices):
             raise ValueError("Invalid tensor number")
 
@@ -298,20 +316,20 @@ class SimpleUpdate:
         s = s + f"degen_ratio = {self.degen_ratio}"
         return s
 
-    """
     @classmethod
     def from_infinite_temperature(
         cls,
         D,
+        beta,
         tau,
-        tensor_bond_indices,
-        update_data,
-        hamiltonians,
         rcutoff,
         degen_ratio,
+        tensor_bond_indices,
+        raw_update_data,
+        raw_hamilts,
         verbosity,
     ):
-        " ""
+        """
         Initialize simple update at beta = 0 product state.
 
         Parameters
@@ -330,40 +348,78 @@ class SimpleUpdate:
             Consider singular values degenerate if their quotient is above degen_ratio.
         verbosity : int
             Level of log verbosity. Default is no log.
-        " ""
-        n_tensors = len(tensor_bond_indices)
-        n_bonds = max(tensor_bond_indices) + 1
+        """
+        check_tensor_bond_indices(tensor_bond_indices)
 
-        # initialize tensors to infinite temperature product state
-        # if tensor never interact with a Hamiltonian, add dummy legs
-        phys_rep = [singlet for i in range(n_tensors)]
+        n_tensors = len(tensor_bond_indices)
+        n_bonds = max(max(tbi) for tbi in tensor_bond_indices) + 1
+        ST = type(raw_hamilts[0])
 
         # find local representation by looking at Hamiltonians acting on tensor
-        # set signature according to simple rule: bond goes from larger index tensor
-        # to lower index. This convention does matter: it will be replaced after an
-        # update cycle by the signature convention imposed by SVD.
-        # EN FAIT NON, JE PEUX DIRECTEMENT METTRE LA CONVENTION QUE LES UPDATES
-        # VONT IMPOSER
-        signature = [None, None]
-        left_indices = tensor_update_data[:, 3].copy()
-        right_indices = tensor_update_data[:, 4].copy()
-        for i in range(n_tensors):
-            ind = (left_indices == i).nonzero()[0]
-            if ind.size:
-                s = True
-                rep = hamiltonians[ind[0]].row_reps[0]
-            ind = (right_indices == i).nonzero()[0]
-            if ind.size:
-                s = False
-                rep = hamiltonians[ind[0]].row_reps[1]
+        # ancilla leg signature never changes as this leg is never updated
+        # physical lef signature also never changes as gates do not modify signature
+        # virtual leg signatures may change depending on tensor position in update.
 
-            # initalize tensor
+        second_order = True
+        data = get_update_data(
+            tensor_bond_indices, raw_update_data, raw_hamilts, second_order
+        )
+        (
+            bond1,
+            bond2,
+            gate_indices,
+            left_indices,
+            right_indices,
+            middle_indices,
+            _,
+            _,
+            _,
+            hamiltonians,
+            _,
+            _,
+        ) = data
+
+        # initialize tensors to infinite temperature product state
+        # if tensor is purely virtual and no Hamiltonian acts on it, add dummy leg
+        phys_reps = [ST.singlet for i in range(n_tensors)]
+        signatures = [[None] * (2 + len(tbi)) for tbi in tensor_bond_indices]
+        for j, (b1, b2) in enumerate(zip(bond1, bond2)):
+            h = hamiltonians[gate_indices[j]]
+
+            iL = left_indices[j]
+            phys_reps[iL] = h.row_reps[0]
+            signatures[iL][0] = ~h.signature[0]
+            signatures[iL][1] = h.signature[0]
+            leg = list(tensor_bond_indices[iL]).index(b1)
+            signatures[iL][2 + leg] = True
+
+            iR = right_indices[j]
+            phys_reps[iR] = h.row_reps[1]
+            signatures[iR][0] = ~h.signature[1]
+            signatures[iR][1] = h.signature[1]
+            leg = list(tensor_bond_indices[iR]).index(b2)
+            signatures[iR][2 + leg] = False
+
+            if b2 != b1:
+                im = middle_indices[j]
+                leg = list(tensor_bond_indices[im]).index(b1)
+                signatures[im][2 + leg] = False
+                leg = list(tensor_bond_indices[im]).index(b2)
+                signatures[im][2 + leg] = True
+
+        # initalize tensors
+        tensors = []
+        for i in range(n_tensors):
+            d = ST.representation_dimension(phys_reps[i])
             sh = (d, d) + (1,) * len(tensor_bond_indices[i])
             mat = np.eye(d).reshape(sh)
-            t = ST.from_array(mat, row_reps, col_reps)
+            row_reps = (phys_reps[i], phys_reps[i])
+            col_reps = (ST.singlet,) * len(tensor_bond_indices[i])
+            t = ST.from_array(mat, row_reps, col_reps, signature=signatures[i])
             tensors.append(t)
+
         beta = 0.0
-        weight = [[np.ones((1,))] for i in range(n_bonds)]
+        weights = [[np.ones((1,))] for i in range(n_bonds)]
 
         return SimpleUpdate(
             D,
@@ -378,7 +434,6 @@ class SimpleUpdate:
             weights,
             verbosity,
         )
-    """
 
     @classmethod
     def load_from_file(cls, savefile, verbosity=0):
@@ -859,18 +914,7 @@ class SimpleUpdate:
                 raise ValueError(f"Bond {b} is never updated")
 
         # check gates are 2-site operators
-        for i, g in enumerate(self._gates):
-            if type(g) != self._ST:
-                raise ValueError(f"Invalid type for gate {i}")
-            if g.ndim != 4 or g.n_row_reps != 2:
-                raise ValueError(f"Gate {i} has invalid shape")
-            for a in range(2):
-                if g.row_reps[a].shape != g.col_reps[a].shape:
-                    raise ValueError(f"Gate {i} has invalid representations")
-                if (g.row_reps[a] != g.col_reps[a]).any():
-                    raise ValueError(f"Gate {i} has invalid representations")
-                if not g.signature[a] ^ g.signature[a + 2]:
-                    raise ValueError(f"Gate {i} has invalid signature")
+        check_hamiltonians(self._gates)
 
         # check update lists have correct length
         if len(self._1st_bond_indices) != self._n_updates + 1:
