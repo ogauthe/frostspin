@@ -246,7 +246,7 @@ class SimpleUpdate:
         self._beta = float(beta)
         self._is_second_order = second_order
         self._n_bonds = len(weights)
-        self._n_updates = len(self._1st_updated_bond) - second_order
+        self._n_updates = len(self._1st_updated_bond) - 1
         self._n_tensors = len(tensors)
         self._ST = type(tensors[0])
         self._tensor_bond_indices = tensor_bond_indices
@@ -849,10 +849,6 @@ class SimpleUpdate:
             raise ValueError("Number of tensor does not match n_tensors")
         check_tensor_bond_indices(self._tensor_bond_indices, self._n_bonds)
 
-        for i, t in enumerate(self._tensors):
-            if type(t) != self._ST:
-                raise ValueError(f"Invalid type for tensor {i}")
-
         # Check all bonds are updated
         if len(self._weights) != self._n_bonds:
             raise ValueError("Number of weights does not match n_bonds")
@@ -873,6 +869,31 @@ class SimpleUpdate:
                     raise ValueError(f"Gate {i} has invalid representations")
                 if not g.signature[a] ^ g.signature[a + 2]:
                     raise ValueError(f"Gate {i} has invalid signature")
+
+        # check update lists have correct length
+        if len(self._1st_bond_indices) != self._n_updates + 1:
+            raise ValueError("Invalid size for 1st_bond_indices")
+        if len(self._2nd_bond_indices) != self._n_updates + 1:
+            raise ValueError("Invalid size for 2nd_bond_indices")
+        if len(self._gate_indices) != self._n_updates + 1:
+            raise ValueError("Invalid size for gate_indices")
+        if len(self._left_indices) != self._n_updates + 1:
+            raise ValueError("Invalid size for left_indices")
+        if len(self._right_indices) != self._n_updates + 1:
+            raise ValueError("Invalid size for right_indices")
+        if len(self._middle_indices) != self._n_updates + 1:
+            raise ValueError("Invalid size for middle_indices")
+        if len(self._lperm) != self._n_updates + 1:
+            raise ValueError("Invalid size for lperm")
+        if len(self._rperm) != self._n_updates + 1:
+            raise ValueError("Invalid size for rperm")
+        if len(self._mperm) != self._n_updates + 1:
+            raise ValueError("Invalid size for mperm")
+
+        if len(self._initial_swap) != self._n_tensors:
+            raise ValueError("Invalid size for initial_swap")
+        if len(self._final_swap) != self._n_tensors:
+            raise ValueError("Invalid size for final_swap")
 
         def swap_legs(legs, swap):
             # swap has to match tensor legs and to produce a tensor with 2 column legs
@@ -977,6 +998,8 @@ class SimpleUpdate:
 
         tensor_legs = []
         for i in range(self._n_tensors):
+            if type(self._tensors[i]) != self._ST:
+                raise ValueError(f"Invalid type for tensor {i}")
             if self._tensors[i].ndim != 2 + len(self._tensor_bond_indices[i]):
                 raise ValueError(f"Tensor {i} does not match tensor_bond_indices")
             if i not in self._left_indices + self._right_indices + self._middle_indices:
