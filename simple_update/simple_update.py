@@ -4,7 +4,7 @@ from symmetric_tensor.tools import get_symmetric_tensor_type
 from symmetric_tensor.non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 
 
-def check_tensor_bond_indices(tensor_bond_indices, n_bonds):
+def check_tensor_bond_indices(tensor_bond_indices):
     """
     Check tensor_bond_indices abides by conventions:
     - virtual legs are labelled by integers from 0 to n_bonds
@@ -14,6 +14,7 @@ def check_tensor_bond_indices(tensor_bond_indices, n_bonds):
     Note that the number of virtual legs is allowed to be different on different
     tensors.
     """
+    n_bonds = max(max(tbi) for tbi in tensor_bond_indices) + 1
     count = np.zeros((n_bonds,), dtype=int)
     for i, tbi in enumerate(tensor_bond_indices):
         for j, leg in enumerate(tbi):
@@ -216,8 +217,7 @@ class SimpleUpdate:
 
         # quick crash for very simple errors
         tensor_bond_indices = [np.array(tbi, dtype=int) for tbi in tensor_bond_indices]
-        n_bonds = len(weights)
-        check_tensor_bond_indices(tensor_bond_indices, n_bonds)
+        check_tensor_bond_indices(tensor_bond_indices)
         if len(tensors) != len(tensor_bond_indices):
             raise ValueError("Invalid tensor number")
 
@@ -843,11 +843,13 @@ class SimpleUpdate:
         Only tensor_bond_indices and information called in evolve are used.
         """
         # check tensors match graph topology
-        if len(self._tensor_bond_indices) != self._n_tensors:
-            raise ValueError("Number of tensor_bond_indices does not match n_tensors")
         if len(self._tensors) != self._n_tensors:
             raise ValueError("Number of tensor does not match n_tensors")
-        check_tensor_bond_indices(self._tensor_bond_indices, self._n_bonds)
+        if len(self._tensor_bond_indices) != self._n_tensors:
+            raise ValueError("Number of tensor_bond_indices does not match n_tensors")
+        if max(max(tbi) for tbi in self._tensor_bond_indices) + 1 != self._n_bonds:
+            raise ValueError("tensor_bond_indices does not match n_bonds")
+        check_tensor_bond_indices(self._tensor_bond_indices)
 
         # Check all bonds are updated
         if len(self._weights) != self._n_bonds:
