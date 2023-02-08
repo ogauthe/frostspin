@@ -49,12 +49,46 @@ def check_hamiltonians(hamiltonians):
 
 def decode_raw_update_data(raw_update_data, second_order):
     """
-    raw_update_data is a convenient way to store all information concerning updates in
-    a compact form. Its format may evolve, the point is it is only read here to
-    construct elementary update data.
+    Parameters
+    ----------
+    raw_update_data : int ndarray of shape (n, 6)
+        Elementary information for each update. See notes for precise data format.
+    second_order : bool
+        Whether to generate second order update by reversing elementary order sequence.
+        If False, output list length m is equal to n, else it is doubled m = 2*n - 2.
 
-    From update_data, automatically generate second order Trotter-Suzuki scheme.
+    Returns
+    -------
+    bond1 : list of size m
+        Index of first updated bond in elementary update.
+    bond2 : list of size m
+        Index of second updated bonds in elementary update. Same as bond1 for a first
+        neighbor elementary update.
+    gate_indices : list of size m
+        Index of gate in elementary update.
+    left_indices : list of size m
+        Index of left tensor in elementary update.
+    right_indices : list of size m
+        Index of right tensor in elementary update.
+    middle_indices : list of size m
+        Index of middle tensor in elementary update.
+
+    Notes
+    -----
+    raw_update_data is a convenient way to store all information concerning updates in
+    a compact form that can be easily stored in a npz file. Its format may evolve, the
+    point is it is only read here to construct lists that are actually used in
+    elementary updates.
+
+    raw_update_data is a (n, 6) int array, where n is the number of first order updates.
+    One row gives (bond1, bond2, gate_index, left_index, right_index, middle_index) for
+    one elementary update. If bond1 == bond2, the update is first neighbor and the last
+    column element middle_index is not read.
     """
+    # also possible not to specify iL, iR and im and to recover them from b1 and b2
+    # using tensor_bond_indices information. However this requires to set some
+    # convention on which tensor is left or right, and this prevents fine control on
+    # tensor signatures.
     update_data = np.asarray(raw_update_data, dtype=int)
     if second_order:
         update_data = np.vstack((update_data, update_data[-2:0:-1]))
@@ -72,10 +106,7 @@ def decode_raw_update_data(raw_update_data, second_order):
 
 def get_update_data(tensor_bond_indices, raw_update_data, raw_hamilts, second_order):
     """
-    update_data is a convenient way to store all information concerning update in a
-    compact form. Construct all needed objects (swaps, indices...) used in evolve.
-
-    From update_data, automatically generate second order Trotter-Suzuki scheme.
+    Construct all needed objects (swaps, indices...) used in evolve.
     """
     # this functions defines all variables needed to run updates. It is run only at
     # initialization, performances do not matter much here. The goal is to make
@@ -85,8 +116,8 @@ def get_update_data(tensor_bond_indices, raw_update_data, raw_hamilts, second_or
     # legs in default configuration, although they may be dummy legs.
 
     # define second order scheme
-    ret = decode_raw_update_data(raw_update_data, second_order=second_order)
-    bond1, bond2, gate_indices, left_indices, right_indices, middle_indices = ret
+    indices = decode_raw_update_data(raw_update_data, second_order=second_order)
+    bond1, bond2, gate_indices, left_indices, right_indices, middle_indices = indices
     n_updates = len(bond1)
     n_tensors = len(tensor_bond_indices)
     hamiltonians = list(raw_hamilts)
@@ -173,7 +204,20 @@ def get_update_data(tensor_bond_indices, raw_update_data, raw_hamilts, second_or
         swap = [init.index(i) for i in end]
         final_swap[i] = (tuple(swap[:-2]), tuple(swap[-2:]))
 
-    ret = ret + (lperm, rperm, mperm, hamiltonians, initial_swap, final_swap)
+    ret = (
+        bond1,
+        bond2,
+        gate_indices,
+        left_indices,
+        right_indices,
+        middle_indices,
+        lperm,
+        rperm,
+        mperm,
+        hamiltonians,
+        initial_swap,
+        final_swap,
+    )
     return ret
 
 
@@ -196,16 +240,15 @@ class SimpleUpdate:
         tau,
         rcutoff,
         degen_ratio,
-        tensors,
         tensor_bond_indices,
+        tensors,
         raw_update_data,
         raw_hamilts,
         weights,
         verbosity,
     ):
         """
-        Initialize SimpleUpdate from values. Consider calling from_infinite_temperature
-        or from_file class methods instead of calling directly __init__.
+        Initialize SimpleUpdate from values.
 
         Parameters
         ----------
@@ -221,14 +264,37 @@ class SimpleUpdate:
             improve stability.
         degen_ratio : float
             Consider singular values degenerate if their quotient is above degen_ratio.
+        tensor_bond_indices : list of enumerable of int
+            Information on which bonds belongs to which tensor. See notes for exact
+            format.
         tensors : enumerable of SymmetricTensor
-            List of tensors in the unit cell.
-        hamiltonians : enumerable of SymmetricTensor
-            List of Hamiltonians defined on the unit cell.
-        weights : list of numpy array
-            Simple update weights for each bond of the unit cell.
+            List of simple update tensors, following tensor_bond_indices order and
+            conventions. See notes for details.
+        raw_update_data : 2D array
+            Raw data on updates, exact format is specified in decode_raw_update_data.
+        raw_hamilts : enumerable of SymmetricTensor
+            List of elementary bond Hamiltonians acting on the tensors.
+        weights : list of list of numpy array
+            Simple update weights for each symmetry sector for each bond.
         verbosity : int
             Level of log verbosity.
+
+        Notes
+        -----
+        tensor_bond_indices contains all information on the topology of the graph. It
+        is a list of enumerable of int, where element i corresponds to the list of
+        virtual legs for SymmetricTensor i in tensors. These virtual legs must be
+        labelled from 0 to n_bonds and are associated with the simple update weights
+        provided in weights.
+        A given bond has to be shared by exactly two different tensors. A given tensor
+        cannot carry twice the same virtual leg. Any graph following these constraints
+        is allowed.
+
+        SymmetricTensors in tensors must have one additional physical leg as first leg
+        and one additional ancilla leg as second leg. They may be dummy legs with
+        trivial representation if the tensor is purely virtual (no physical variable) or
+        if it represents a pure wavefunction (no ancilla variable). The other legs must
+        correspond to the bonds specified by tensor_bond_indices.
         """
         # input validation
         D = int(D)
@@ -236,8 +302,8 @@ class SimpleUpdate:
         tau = float(tau)
         rcutoff = float(rcutoff)
         degen_ratio = float(degen_ratio)
-        tensors = list(tensors)
         tensor_bond_indices = [np.array(tbi, dtype=int) for tbi in tensor_bond_indices]
+        tensors = list(tensors)
         raw_update_data = np.asarray(raw_update_data, dtype=int)
         raw_hamilts = list(raw_hamilts)
         weights = list(weights)
@@ -272,16 +338,16 @@ class SimpleUpdate:
             self._final_swap,
         ) = data
 
-        self._beta = float(beta)
+        self._beta = beta
         self._is_second_order = second_order
         self._n_bonds = len(weights)
         self._n_updates = len(self._1st_updated_bond) - 1
         self._n_tensors = len(tensors)
-        self._ST = type(tensors[0])
+        self._ST = type(raw_hamilts[0])
         self._tensor_bond_indices = tensor_bond_indices
-        self._tensors = list(tensors)
+        self._tensors = tensors
         self._weights = weights
-        self.D = int(D)
+        self.D = D
         self.rcutoff = rcutoff
         self.degen_ratio = degen_ratio
         self.tau = tau  # also set gates
@@ -329,9 +395,7 @@ class SimpleUpdate:
 
     @classmethod
     def from_infinite_temperature(
-        cls,
         D,
-        beta,
         tau,
         rcutoff,
         degen_ratio,
@@ -341,24 +405,29 @@ class SimpleUpdate:
         verbosity,
     ):
         """
-        Initialize simple update at beta = 0 product state.
+        Initialize finite temperature SimpleUpdate at beta = 0 eact product state.
 
         Parameters
         ----------
         D : int
-            Maximal number of independent multiplets to keep when truncating bonds. For
-            abelian symmetries, this is the same as the bond dimension D.
+            Bond dimension to keep when renormalizing bonds. This is a target, the
+        actual largest value Dmax may differ due to cutoff or degeneracies.
         tau : float
             Imaginary time step.
-        hamilts : enumerable of (d**2, d**2) ndarray
-            Bond Hamltionians. Must be real symmetric or hermitian.
-        rcutoff : float, optional.
+        rcutoff : float
             Singular values smaller than cutoff = rcutoff * sv[0] are set to zero to
             improve stability.
         degen_ratio : float
             Consider singular values degenerate if their quotient is above degen_ratio.
+        tensor_bond_indices : list of enumerable of int
+            Information on which bonds belongs to which tensor. See SimpleUpdate for
+            more information on format.
+        raw_update_data : 2D array
+            Raw data on updates, exact format is specified in decode_raw_update_data.
+        raw_hamilts : enumerable of SymmetricTensor
+            List of elementary bond Hamiltonians acting on the tensors.
         verbosity : int
-            Level of log verbosity. Default is no log.
+            Level of log verbosity.
         """
         check_tensor_bond_indices(tensor_bond_indices)
 
