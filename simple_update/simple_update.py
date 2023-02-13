@@ -685,7 +685,7 @@ class SimpleUpdate:
 
     @property
     def Dmax(self):
-        return max(t.shape[2:] for t in self._tensors)
+        return max(max(t.shape[2:]) for t in self._tensors)
 
     @property
     def beta(self):
