@@ -22,7 +22,7 @@ def check_tensor_bond_indices(tensor_bond_indices):
         for j, leg in enumerate(tbi):
             if not 0 <= leg < n_bonds:
                 raise ValueError("Bond indices must be 0 to n_bonds - 1")
-            if leg in tbi[j:]:
+            if leg in tbi[j + 1 :]:
                 raise ValueError(f"Leg {leg} apperars twice in tensor {i}")
             count[leg] += 1
 
@@ -204,7 +204,7 @@ def get_update_data(tensor_bond_indices, raw_update_data, raw_hamilts, second_or
         end = [-1, -2] + list(tensor_bond_indices[i])
         init = sorted(set(end) - set(eff_leg_state[i])) + eff_leg_state[i]
         swap = [init.index(i) for i in end]
-        final_swap[i] = (tuple(swap[:-2]), tuple(swap[-2:]))
+        final_swap[i] = (tuple(swap[:2]), tuple(swap[2:]))
 
     ret = (
         bond1,
@@ -396,7 +396,9 @@ class SimpleUpdate:
         return s
 
     @classmethod
-    def square_lattice_first_neighbor(cls, h1, D, tau, rcutoff, degen_ratio, verbosity):
+    def square_lattice_first_neighbor(
+        cls, h1, D, tau, rcutoff=1e-10, degen_ratio=1.0, verbosity=0
+    ):
         """
         Initialize first neighbor model on the square lattice at infinite temperature.
         """
@@ -423,7 +425,7 @@ class SimpleUpdate:
 
     @classmethod
     def square_lattice_second_neighbor(
-        cls, h1, h2, D, tau, rcutoff, degen_ratio, verbosity, model="J1-J2"
+        cls, h1, h2, D, tau, model="J1-J2", rcutoff=1e-10, degen_ratio=1.0, verbosity=0
     ):
         """
         Initialize neighbor model on the square lattice at infinite temperature.
@@ -457,6 +459,7 @@ class SimpleUpdate:
 
     @classmethod
     def from_infinite_temperature(
+        cls,
         D,
         tau,
         rcutoff,
@@ -569,8 +572,8 @@ class SimpleUpdate:
             tau,
             rcutoff,
             degen_ratio,
-            tensors,
             tensor_bond_indices,
+            tensors,
             raw_update_data,
             raw_hamilts,
             weights,
@@ -630,8 +633,8 @@ class SimpleUpdate:
             tau,
             rcutoff,
             degen_ratio,
-            tensors,
             tensor_bond_indices,
+            tensors,
             raw_update_data,
             raw_hamilts,
             weights,
@@ -666,9 +669,9 @@ class SimpleUpdate:
         for i, h in enumerate(self._raw_hamilts):
             data |= h.get_data_dic(prefix=f"_SimpleUpdate_hamiltonian_{i}")
 
-        for i, t in enumerate(self._tensors):
-            data |= t.get_data_dic(prefix=f"_SimpleUpdate_tensor_{i}")
-            data["_SimpleUpdate_tensor_bond_indices_{i}"] = self._tensor_bond_indices[i]
+        for i, tbi in enumerate(self._tensor_bond_indices):
+            data |= self._tensors[i].get_data_dic(prefix=f"_SimpleUpdate_tensor_{i}")
+            data[f"_SimpleUpdate_tensor_bond_indices_{i}"] = tbi
 
         for i in range(self._n_bonds):
             n = len(self._weights[i])
@@ -767,19 +770,16 @@ class SimpleUpdate:
             Optimized tensors, with sqrt(weights) on all virtual legs.
         """
         # adding 1/sqrt(weights) is simpler in dense form
-        sqw = [
-            [1.0 / np.sqrt(w) for w in self.get_weights(sort=False)]
-            for i in range(self._nbonds)
-        ]
+        sqw = [1.0 / np.sqrt(w) for w in self.get_weights(sort=False)]
         tensors = []
         for i in range(self._n_tensors):
             # we already imposed the two first legs to be physical and ancilla in the
             # default configuration. Add weights on the virtual legs.
             t0 = self._tensors[i]
-            args = [t0, list(range(t0.ndim))]
+            args = [t0.toarray(), list(range(t0.ndim))]
             for j, leg in enumerate(self._tensor_bond_indices[i]):
                 args.append(sqw[leg])
-                args.append([j])
+                args.append([j + 2])
 
             args.append(list(range(t0.ndim)))
             t = np.einsum(*args)
@@ -1025,7 +1025,7 @@ class SimpleUpdate:
             self._elementary_update(j)
 
     def _finalize_update(self):
-        if self._is_second_order():
+        if self._is_second_order:
             # run the very last/first update with time step tau
             self._elementary_update(self._n_updates)
 
@@ -1059,9 +1059,9 @@ class SimpleUpdate:
         check_hamiltonians(self._gates)
 
         # check update lists have correct length
-        if len(self._1st_bond_indices) != self._n_updates + 1:
+        if len(self._1st_updated_bond) != self._n_updates + 1:
             raise ValueError("Invalid size for 1st_bond_indices")
-        if len(self._2nd_bond_indices) != self._n_updates + 1:
+        if len(self._2nd_updated_bond) != self._n_updates + 1:
             raise ValueError("Invalid size for 2nd_bond_indices")
         if len(self._gate_indices) != self._n_updates + 1:
             raise ValueError("Invalid size for gate_indices")
@@ -1209,8 +1209,8 @@ class SimpleUpdate:
                 raise ValueError(f"Tensor {i} does not come back to initial state")
 
         for x in [
-            self._1st_bond_indices,
-            self._2nd_bond_indices,
+            self._1st_updated_bond,
+            self._2nd_updated_bond,
             self._left_indices,
             self._right_indices,
             self._middle_indices,
@@ -1221,7 +1221,7 @@ class SimpleUpdate:
             if x[0] != x[self._n_updates]:
                 raise ValueError("Last and first update differ")
 
-        if self._is_second_order():
+        if self._is_second_order:
             check_update(self._n_updates, tensor_legs)
             g0 = self._gates[self._gate_indices[0]]
             g1 = self._gates[self._gate_indices[self._n_updates]]
@@ -1232,7 +1232,12 @@ class SimpleUpdate:
                 raise ValueError("Last and first update differ")
 
         for i in range(self._n_tensors):
-            tl = swap_legs(tensor_legs[i], self._final_swap[i])
+            if len(self._final_swap[i]) != 2 or len(self._final_swap[i][0]) != 2:
+                raise ValueError("Invalid final swap")
+            sw = self._final_swap[i][0] + self._final_swap[i][1]
+            if sorted(sw) != list(range(len(tensor_legs[i]))):
+                raise ValueError("Swap does not match legs")
+            tl = [tensor_legs[i][j] for j in sw]
             tl0 = [-1, -2] + list(self._tensor_bond_indices[i])
             if tl != tl0:
                 raise ValueError(f"Tensor {i} does not come back to default state")
