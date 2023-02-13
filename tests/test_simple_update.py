@@ -7,7 +7,7 @@ from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
 from symmetric_tensor.su2_symmetric_tensor import O2_SymmetricTensor
 from symmetric_tensor.su2_symmetric_tensor import SU2_SymmetricTensor
 from symmetric_tensor.asymmetric_tensor import AsymmetricTensor
-from simple_update.simple_update1x2 import SimpleUpdate1x2
+from simple_update.simple_update import SimpleUpdate
 from ctmrg.ctmrg import CTMRG
 
 d = 2
@@ -50,15 +50,16 @@ reps_As = (np.array([d]),) * 2
 reps_U1 = (np.arange(d - 1, -d, -2, dtype=np.int8),) * 2
 reps_O2 = (np.array([[1], [1]]),) * 2
 reps_SU2 = (np.array([[1], [d]]),) * 2
-hU1 = [U1_SymmetricTensor.from_array(SdS, reps_U1, reps_U1)]
-hAs = [AsymmetricTensor.from_array(SdS, reps_As, reps_As)]
-hO2 = [O2_SymmetricTensor.from_array(SdS, reps_O2, reps_O2)]
-hSU2 = [SU2_SymmetricTensor.from_array(SdS, reps_SU2, reps_SU2)]
+hAs = AsymmetricTensor.from_array(SdS, reps_As, reps_As)
+hU1 = U1_SymmetricTensor.from_array(SdS, reps_U1, reps_U1)
+hO2 = O2_SymmetricTensor.from_array(SdS, reps_O2, reps_O2)
+hSU2 = SU2_SymmetricTensor.from_array(SdS, reps_SU2, reps_SU2)
 
-suU1 = SimpleUpdate1x2.from_infinite_temperature(4, tau, hU1)
-suAs = SimpleUpdate1x2.from_infinite_temperature(4, tau, hAs)
-suO2 = SimpleUpdate1x2.from_infinite_temperature(4, tau, hO2)
-suSU2 = SimpleUpdate1x2.from_infinite_temperature(4, tau, hSU2)
+D = 4
+suAs = SimpleUpdate.square_lattice_first_neighbor(hAs, D, tau)
+suU1 = SimpleUpdate.square_lattice_first_neighbor(hU1, D, tau)
+suO2 = SimpleUpdate.square_lattice_first_neighbor(hO2, D, tau)
+suSU2 = SimpleUpdate.square_lattice_first_neighbor(hSU2, D, tau)
 
 suAs.evolve(beta)
 suU1.evolve(beta)
@@ -81,7 +82,7 @@ print("suO2 weights:", *suO2._weights, sep="\n")
 print("suSU2 weights:", *suSU2._weights, sep="\n")
 
 suU1.save_to_file("save_su.npz")
-su2 = SimpleUpdate1x2.load_from_file("save_su.npz")
+su2 = SimpleUpdate.load_from_file("save_su.npz")
 
 
 tensorsAs = suAs.get_tensors()
