@@ -173,7 +173,7 @@ class SimpleUpdate1x2(SimpleUpdate):
             self._update_bond(1, self._squared_gates[0], ((0, 5, 2, 3), (4, 1)))
         self._update_bond(2, self._gates[0], ((0, 5, 2, 3), (4, 1)))
         self._update_bond(3, self._gates[0], ((0, 1, 5, 3), (4, 2)))
-        self._update_bond(4, self._gates[0], ((0, 1, 2, 5), (4, 3)))
+        self._update_bond(4, self._squared_gates[0], ((0, 1, 2, 5), (4, 3)))
         self._update_bond(3, self._gates[0], ((0, 1, 2, 5), (4, 3)))
         self._update_bond(2, self._gates[0], ((0, 1, 5, 3), (4, 2)))
         self._update_bond(1, self._gates[0], ((0, 5, 2, 3), (4, 1)))
