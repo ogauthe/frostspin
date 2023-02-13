@@ -3,6 +3,8 @@ import numpy as np
 from symmetric_tensor.tools import get_symmetric_tensor_type
 from symmetric_tensor.non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 
+from .su_models import j1_j2_models
+
 
 def check_tensor_bond_indices(tensor_bond_indices):
     """
@@ -392,6 +394,66 @@ class SimpleUpdate:
         s = s + f"\nDmax = {self.Dmax}, tau = {self._tau}, rcutoff = {self.rcutoff}, "
         s = s + f"degen_ratio = {self.degen_ratio}"
         return s
+
+    @classmethod
+    def square_lattice_first_neighbor(cls, h1, D, tau, rcutoff, degen_ratio, verbosity):
+        """
+        Initialize first neighbor model on the square lattice at infinite temperature.
+        """
+        hamilts = [h1]
+        tensor_bond_indices = [[0, 1, 2, 3], [2, 3, 0, 1]]
+        update_data = np.array(
+            [
+                [0, 0, 0, 0, 1, -1],
+                [1, 1, 0, 0, 1, -1],
+                [2, 2, 0, 0, 1, -1],
+                [3, 3, 0, 0, 1, -1],
+            ]
+        )
+        return cls.from_infinite_temperature(
+            D,
+            tau,
+            rcutoff,
+            degen_ratio,
+            tensor_bond_indices,
+            update_data,
+            hamilts,
+            verbosity,
+        )
+
+    @classmethod
+    def square_lattice_second_neighbor(
+        cls, h1, h2, D, tau, rcutoff, degen_ratio, verbosity, model="J1-J2"
+    ):
+        """
+        Initialize neighbor model on the square lattice at infinite temperature.
+
+        The simplest model is the J1-J2, other similar models are implemented in models.
+
+        For each second neighbor gate, Hamiltonian h2 will be applied twice with two
+        different positions for the intermediate site.
+        """
+        hamilts = [h1, h2 / 2]
+        tensor_bond_indices = [
+            [0, 1, 2, 3],
+            [4, 3, 5, 1],
+            [2, 6, 0, 7],
+            [5, 7, 4, 6],
+        ]
+
+        if model not in j1_j2_models.keys():
+            raise KeyError(f"Unknown model: {model}")
+        update_data = j1_j2_models[model]
+        return cls.from_infinite_temperature(
+            D,
+            tau,
+            rcutoff,
+            degen_ratio,
+            tensor_bond_indices,
+            update_data,
+            hamilts,
+            verbosity,
+        )
 
     @classmethod
     def from_infinite_temperature(
