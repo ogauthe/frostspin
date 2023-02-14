@@ -1136,7 +1136,7 @@ class SimpleUpdate:
                 raise ValueError(f"update {i}: invalid left physical leg position")
             if tensor_legs[iL][-1] != b1:
                 raise ValueError(f"update {i}: invalid left virtual leg position")
-            tensor_legs[iR] = swap_legs(tensor_legs[iR], self._lperm[i])
+            tensor_legs[iR] = swap_legs(tensor_legs[iR], self._rperm[i])
             if tensor_legs[iR][-2] != -1:
                 raise ValueError(f"update {i}: invalid right physical leg position")
             if tensor_legs[iR][-1] != b2:
@@ -1162,11 +1162,10 @@ class SimpleUpdate:
                     raise ValueError(f"update {i}: right/middle tensors are the same")
 
                 tensor_legs[im] = swap_legs(tensor_legs[im], self._mperm[i])
-                if tensor_legs[im][-1] != b1:
-                    raise ValueError(
-                        f"update {i}: invalid middle physical leg position"
-                    )
-                if tensor_legs[im][-2] != b2:
+                print(tensor_legs[im], b1, b2)
+                if tensor_legs[im][-2] != b1:
+                    raise ValueError(f"update {i}: invalid middle virtual leg position")
+                if tensor_legs[im][-1] != b2:
                     raise ValueError(f"update {i}: invalid middle virtual leg position")
                 tm = self._tensors[im]
                 rm = tm.col_reps[list(self._tensor_bond_indices[im]).index(b1)]
