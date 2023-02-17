@@ -4,7 +4,7 @@ import scipy.sparse.linalg as slg
 import numba
 
 
-def find_chi_largest(block_s, chi, dims, rcutoff=0.0, degen_ratio=1.0):
+def find_chi_largest(block_s, chi, dims=None, rcutoff=0.0, degen_ratio=1.0):
     """
     Find chi largest values from a tuple of blockwise, decreasing singular values.
     Assume number of blocks is small: block_max_val is never sorted and elements
@@ -16,9 +16,10 @@ def find_chi_largest(block_s, chi, dims, rcutoff=0.0, degen_ratio=1.0):
         Sorted values by block.
     chi: int
         Number of values to keep. This is a target, the actual value may be bigger to
-        conserve multiplets.
+        preserve multiplets.
     dims: array of integer
-        Dimension of each block. If None, assumed to be 1 everywhere.
+        Degeneracy of each block. A given value in block i counts for dims[i] * i to
+        reach chi. If None, assumed to be 1 everywhere.
     rcutoff: float
         relative cutoff on small values. Default to 0 (no cutoff)
     degen_ratio: float
@@ -37,7 +38,12 @@ def find_chi_largest(block_s, chi, dims, rcutoff=0.0, degen_ratio=1.0):
     is not optimal. A warning is displayed whenever this happens.
     """
     block_s = tuple(block_s)
-    dims = np.asarray(dims)
+    chi = int(chi)
+    if dims is None:
+        dims = np.ones((len(block_s),), dtype=int)
+    dims = np.asarray(dims, dtype=int)
+    rcutoff = float(rcutoff)
+    degen_ratio = float(degen_ratio)
     assert dims.shape == (len(block_s),)
     assert degen_ratio <= 1.0
     block_cuts = _numba_find_chi_largest(block_s, chi, dims, rcutoff, degen_ratio)
