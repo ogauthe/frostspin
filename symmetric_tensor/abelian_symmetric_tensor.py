@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.linalg as lg
+import scipy.sparse as ssp
 import numba
 
 from misc_tools.sparse_tools import _numba_find_indices
@@ -34,6 +35,26 @@ def _numba_reduce_to_blocks(m, row_irreps, col_irreps):
         if ci.size:
             ri = row_sort[row_blocks[rbi] : row_blocks[rbi + 1]]
             b = _numba_fill_block(m, ri, ci)  # parallel
+            blocks.append(b)
+            block_irreps.append(sorted_row_irreps[row_blocks[rbi]])
+    return blocks, block_irreps
+
+
+def _blocks_from_sparse(sm, row_irreps, col_irreps):
+    row_sort = row_irreps.argsort(kind="mergesort")
+    sorted_row_irreps = row_irreps[row_sort]
+    row_blocks = (
+        [0]
+        + list((sorted_row_irreps[:-1] != sorted_row_irreps[1:]).nonzero()[0] + 1)
+        + [row_irreps.size]
+    )
+    blocks = []
+    block_irreps = []
+    for rbi in range(len(row_blocks) - 1):
+        ci = (col_irreps == sorted_row_irreps[row_blocks[rbi]]).nonzero()[0]
+        if ci.size:
+            ri = row_sort[row_blocks[rbi] : row_blocks[rbi + 1]]
+            b = sm[ri[:, None], ci].toarray()
             blocks.append(b)
             block_irreps.append(sorted_row_irreps[row_blocks[rbi]])
     return blocks, block_irreps
@@ -265,7 +286,9 @@ class AbelianSymmetricTensor(SymmetricTensor):
     ####################################################################################
     @classmethod
     def from_array(cls, arr, row_reps, col_reps, signature=None):
-        assert arr.shape == tuple(r.size for r in row_reps + col_reps)
+        """
+        AbelianSymmetricTensor.from_array also allows for sparse array as input.
+        """
         nrr = len(row_reps)
         if signature is None:
             signature = np.arange(nrr + len(col_reps)) >= nrr
@@ -275,13 +298,20 @@ class AbelianSymmetricTensor(SymmetricTensor):
 
         row_irreps = cls.combine_representations(row_reps, signature[:nrr])
         col_irreps = cls.combine_representations(col_reps, ~signature[nrr:])
+        shm = (row_irreps.size, col_irreps.size)
+        sht = tuple(r.size for r in row_reps + col_reps)
+        assert arr.shape == shm or arr.shape == sht
         # requires copy if arr is not contiguous
         # using flatiter on non-contiguous is too slow, no other way
-        M = arr.reshape(row_irreps.size, col_irreps.size)
-        blocks, block_irreps = _numba_reduce_to_blocks(M, row_irreps, col_irreps)
+        M = arr.reshape(shm)
+        if ssp.issparse(arr):
+            n0 = ssp.linalg.norm(arr)
+            blocks, block_irreps = _blocks_from_sparse(M, row_irreps, col_irreps)
+        else:
+            n0 = lg.norm(arr)
+            blocks, block_irreps = _numba_reduce_to_blocks(M, row_irreps, col_irreps)
         assert (
-            abs((n := lg.norm(arr)) - np.sqrt(sum(lg.norm(b) ** 2 for b in blocks)))
-            <= 1e-13 * n  # allows for arr = 0
+            abs(n0 - np.sqrt(sum(lg.norm(b) ** 2 for b in blocks))) <= 1e-13 * n0
         ), "norm is not conserved in AbelianSymmetricTensor cast"
         return cls(row_reps, col_reps, blocks, block_irreps, signature)
 
