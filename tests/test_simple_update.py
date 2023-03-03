@@ -42,7 +42,7 @@ SdS_33 = np.array(
 
 hff = [None, None, SdS_22, SdS_33]
 SdS = hff[d].reshape(d, d, d, d)
-print(f"Test SimpleUpdate1x2 for SU(2) irrep {d}")
+print(f"Test 2-site SimpleUpdate for SU(2) irrep {d}")
 print("Benchmark Asymmetric, U1_Symmetric and SU2_Symmetric results")
 print(f"evolve from beta = 0 to beta = {beta} with tau = {tau}, keeping 2 multiplets")
 
