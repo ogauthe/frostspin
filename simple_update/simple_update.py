@@ -772,10 +772,9 @@ class SimpleUpdate:
         # adding 1/sqrt(weights) is simpler in dense form
         sqw = [1.0 / np.sqrt(w) for w in self.get_weights(sort=False)]
         tensors = []
-        for i in range(self._n_tensors):
+        for i, t0 in enumerate(self._tensors):
             # we already imposed the two first legs to be physical and ancilla in the
             # default configuration. Add weights on the virtual legs.
-            t0 = self._tensors[i]
             args = [t0.toarray(), list(range(t0.ndim))]
             for j, leg in enumerate(self._tensor_bond_indices[i]):
                 args.append(sqw[leg])
@@ -1162,7 +1161,6 @@ class SimpleUpdate:
                     raise ValueError(f"update {i}: right/middle tensors are the same")
 
                 tensor_legs[im] = swap_legs(tensor_legs[im], self._mperm[i])
-                print(tensor_legs[im], b1, b2)
                 if tensor_legs[im][-2] != b1:
                     raise ValueError(f"update {i}: invalid middle virtual leg position")
                 if tensor_legs[im][-1] != b2:
