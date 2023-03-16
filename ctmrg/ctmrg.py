@@ -107,7 +107,7 @@ class CTMRG:
         self.ncv_ratio = ncv_ratio
         self.cutoff = cutoff
         self.degen_ratio = degen_ratio
-        self._neq_coords = self._env.neq_coords
+        self._site_coords = self._env.site_coords
 
         if self.verbosity > 0:
             print(self)
@@ -230,8 +230,12 @@ class CTMRG:
             print("CTMRG saved in file", filename)
 
     @property
-    def symmetry(self):
-        return self._env.symmetry
+    def Dmax(self):
+        return self._env.Dmax
+
+    @property
+    def Dmin(self):
+        return self._env.Dmin
 
     @property
     def Lx(self):
@@ -246,32 +250,32 @@ class CTMRG:
         return self._env.cell
 
     @property
-    def neq_coords(self):
-        return self._neq_coords
-
-    @property
-    def cell_number_neq_sites(self):
-        return self._env.Nneq
-
-    @property
-    def Dmin(self):
-        return self._env.Dmin
-
-    @property
-    def Dmax(self):
-        return self._env.Dmax
+    def chi_max(self):  # maximal corner dimension, may differ from chi
+        return self.chi_values[-1]
 
     @property
     def chi_min(self):  # minimal corner dimension
-        return self._env.chi_min
+        return self.chi_values[0]
 
     @property
     def chi_values(self):
         return self._env.chi_values
 
     @property
-    def chi_max(self):  # maximal corner dimension, may differ from chi
-        return self._env.chi_max
+    def n_sites(self):
+        return self._env.Nneq
+
+    @property
+    def symmetry(self):
+        return self._env.symmetry
+
+    @property
+    def site_coords(self):
+        return self._site_coords
+
+    @property
+    def tiling(self):
+        return "\n".join("".join(s) for s in self.cell)
 
     def __repr__(self):
         return (
@@ -300,7 +304,7 @@ class CTMRG:
         """
         if self.verbosity > 0:
             print("Restart brand new environment from elementary tensors.")
-        tensors = [self._env.get_A(x, y) for (x, y) in self.neq_coords]
+        tensors = [self._env.get_A(x, y) for (x, y) in self.site_coords]
         tiling = "\n".join("".join(line) for line in self.cell)
         self._env = CTM_Environment.from_elementary_tensors(tiling, tensors)
         if self.verbosity > 0:
@@ -341,7 +345,7 @@ class CTMRG:
 
     def print_tensor_shapes(self):
         print("tensor shapes for C1 T1 C2 // T4 A T2 // C4 T3 C4:")
-        for (x, y) in self._neq_coords:
+        for (x, y) in self._site_coords:
             print(
                 f"({x},{y}):",
                 self._env.get_C1(x, y).shape,
@@ -480,7 +484,7 @@ class CTMRG:
             )
         rdm1x2_cell = []
         rdm2x1_cell = []
-        for x, y in self._neq_coords:
+        for x, y in self._site_coords:
             rdm1x2_cell.append(self.compute_rdm1x2(x, y))
             rdm2x1_cell.append(self.compute_rdm2x1(x, y))
         return rdm1x2_cell, rdm2x1_cell
@@ -498,7 +502,7 @@ class CTMRG:
             print("Compute rdm for every cell next nearest neighbor sites")
         rdm_dr_cell = []
         rdm_ur_cell = []
-        for x, y in self._neq_coords:
+        for x, y in self._site_coords:
             rdm_dr_cell.append(self.compute_rdm_diag_dr(x, y, free_memory=free_memory))
             rdm_ur_cell.append(self.compute_rdm_diag_ur(x, y, free_memory=free_memory))
         return rdm_dr_cell, rdm_ur_cell
@@ -659,7 +663,7 @@ class CTMRG:
         # and reduce total number of computed singular vecotrs
         # Note that last renormalized corner coordinates correspond to the new corner,
         # obtain from the isometries under construction.
-        for x, y in self._neq_coords:
+        for x, y in self._site_coords:
             P, Pt = construct_projectors(
                 self.construct_reduced_dr(x, y),
                 self.construct_reduced_ur(x, y, free_memory=True),
@@ -678,7 +682,7 @@ class CTMRG:
         # need all projectors to be constructed at this time
         if self.verbosity > 2:
             print("Projectors constructed, renormalize tensors")
-        for x, y in self._neq_coords:
+        for x, y in self._site_coords:
             P = self._env.get_P(x + 1, y)
             Pt = self._env.get_Pt(x, y)
             nC1 = renormalize_C1_up(
@@ -709,7 +713,7 @@ class CTMRG:
         if self.verbosity > 1:
             print("\nstart right move")
         # 1) compute isometries for every non-equivalent sites
-        for x, y in self._neq_coords:
+        for x, y in self._site_coords:
             P, Pt = construct_projectors(
                 self.construct_reduced_dl(x, y),
                 self.construct_reduced_dr(x, y, free_memory=True),
@@ -727,7 +731,7 @@ class CTMRG:
         # 2) renormalize tensors by absorbing column
         if self.verbosity > 2:
             print("Projectors constructed, renormalize tensors")
-        for x, y in self._neq_coords:
+        for x, y in self._site_coords:
             P = self._env.get_P(x, y + 1)
             Pt = self._env.get_Pt(x, y)
             nC2 = renormalize_C2_right(
@@ -756,7 +760,7 @@ class CTMRG:
         if self.verbosity > 1:
             print("\nstart down move")
         # 1) compute isometries for every non-equivalent sites
-        for x, y in self._neq_coords:
+        for x, y in self._site_coords:
             P, Pt = construct_projectors(
                 self.construct_reduced_ul(x, y),
                 self.construct_reduced_dl(x, y, free_memory=True),
@@ -774,7 +778,7 @@ class CTMRG:
         # 2) renormalize every non-equivalent C3, T3 and C4
         if self.verbosity > 2:
             print("Projectors constructed, renormalize tensors")
-        for x, y in self._neq_coords:
+        for x, y in self._site_coords:
             P = self._env.get_P(x - 1, y)
             Pt = self._env.get_Pt(x, y)
             nC3 = renormalize_C3_down(
@@ -803,7 +807,7 @@ class CTMRG:
         if self.verbosity > 1:
             print("\nstart left move")
         # 1) compute isometries for every non-equivalent sites
-        for x, y in self._neq_coords:
+        for x, y in self._site_coords:
             P, Pt = construct_projectors(
                 self.construct_reduced_ur(x, y),
                 self.construct_reduced_ul(x, y, free_memory=True),
@@ -821,7 +825,7 @@ class CTMRG:
         # 2) renormalize every non-equivalent C4, T4 and C1
         if self.verbosity > 2:
             print("Projectors constructed, renormalize tensors")
-        for x, y in self._neq_coords:
+        for x, y in self._site_coords:
             P = self._env.get_P(x, y - 1)
             Pt = self._env.get_Pt(x, y)
             nC4 = renormalize_C4_left(
@@ -844,7 +848,7 @@ class CTMRG:
     def up_move_no_absorb(self):
         # renormalize tensors without adding A-A* to reduce corner dimension
         # here renormalize bond C1-C2. Very similar to up_move, keep structure
-        for x, y in self._neq_coords:
+        for x, y in self._site_coords:
             self._env.set_corner_ur(x, y, None)
             self._env.set_corner_ul(x, y, None)
             C2 = self._env.get_C2(x + 1, y)
@@ -861,7 +865,7 @@ class CTMRG:
                 C2,
             )
             self._env.store_projectors(x + 1, y, P, Pt)
-        for x, y in self._neq_coords:
+        for x, y in self._site_coords:
             # in place change: read and write C1(x,y), T1(x,y), C2(x,y)
             P = self._env.get_P(x + 1, y)
             Pt = self._env.get_Pt(x, y)
@@ -873,7 +877,7 @@ class CTMRG:
         self._env.set_renormalized_tensors_up()
 
     def right_move_no_absorb(self):
-        for (x, y) in self._neq_coords:
+        for (x, y) in self._site_coords:
             self._env.set_corner_ur(x, y, None)
             self._env.set_corner_dr(x, y, None)
             C3 = self._env.get_C3(x + 1, y + 1).T
@@ -890,7 +894,7 @@ class CTMRG:
                 C3,
             )
             self._env.store_projectors(x + 1, y + 1, P, Pt)
-        for x, y in self._neq_coords:
+        for x, y in self._site_coords:
             P = self._env.get_P(x, y + 1)
             Pt = self._env.get_Pt(x, y)
             nC2 = P.T @ self._env.get_C2(x, y)
@@ -901,7 +905,7 @@ class CTMRG:
         self._env.set_renormalized_tensors_right()
 
     def down_move_no_absorb(self):
-        for x, y in self._neq_coords:
+        for x, y in self._site_coords:
             self._env.set_corner_dl(x, y, None)
             self._env.set_corner_dr(x, y, None)
             C4 = self._env.get_C4(x, y + 1)
@@ -918,7 +922,7 @@ class CTMRG:
                 C4,
             )
             self._env.store_projectors(x, y + 1, P, Pt)
-        for x, y in self._neq_coords:
+        for x, y in self._site_coords:
             P = self._env.get_P(x - 1, y)
             Pt = self._env.get_Pt(x, y)
             nC3 = self._env.get_C3(x, y) @ P
@@ -929,7 +933,7 @@ class CTMRG:
         self._env.set_renormalized_tensors_down()
 
     def left_move_no_absorb(self):
-        for x, y in self._neq_coords:
+        for x, y in self._site_coords:
             self._env.set_corner_ul(x, y, None)
             self._env.set_corner_dl(x, y, None)
             C1 = self._env.get_C1(x, y)
@@ -946,7 +950,7 @@ class CTMRG:
                 C1,
             )
             self._env.store_projectors(x, y, P, Pt)
-        for x, y in self._neq_coords:
+        for x, y in self._site_coords:
             P = self._env.get_P(x, y - 1)
             Pt = self._env.get_Pt(x, y)
             nC4 = P.T @ self._env.get_C4(x, y)
