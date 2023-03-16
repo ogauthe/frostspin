@@ -490,6 +490,12 @@ class SymmetricTensor:
         """
         Compute block-wise SVD of self and keep only cut largest singular values. Keep
         only values larger than rcutoff * max(sv).
+
+        The truncation tries to preserve multiplets. If all computed singular values are
+        kept in a given block (but less than the block size), this may not be possible
+        as some values that will be kept in another block were not computed here. This
+        may break a non-abelian symmetry, and also produces a suboptimal truncation.
+        A warning is displayed whenever this happens.
         """
         if max_dense_dim is None:
             max_dense_dim = 8 * cut
@@ -521,12 +527,16 @@ class SymmetricTensor:
         dims = np.array([self.irrep_dimension(r) for r in self._block_irreps])
         block_cuts = find_chi_largest(raw_s, cut, dims, rcutoff, degen_ratio)
         non_empty = block_cuts.nonzero()[0]
+        warn = 0
         for bi in non_empty:
             bcut = block_cuts[bi]
+            warn += bcut == raw_s[bi].size and bcut < min(self._blocks[bi].shape)
             u_blocks.append(np.ascontiguousarray(raw_u[bi][:, :bcut]))
             s_values.append(raw_s[bi][:bcut])
             v_blocks.append(raw_v[bi][:bcut])
 
+        if warn:
+            print(f"*** WARNING *** kept all computed singular values in {warn} blocks")
         block_irreps = self._block_irreps[non_empty]
         mid_rep = self.init_representation(block_cuts[non_empty], block_irreps)
         usign = np.hstack((self._signature[: self._nrr], np.array([True])))

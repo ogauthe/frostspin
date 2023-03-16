@@ -29,27 +29,17 @@ def find_chi_largest(block_s, chi, dims=None, rcutoff=0.0, degen_ratio=1.0):
     -------
     block_cuts: integer ndarray
         Number of values to keep in each block.
-
-    Notes
-    -----
-    This function is designed to preserve multiplets when a truncation is made. If all
-    singular values are kept in a given block, this may not be possible as some values
-    that should be kept were not computed. Regardless of degeneracies, such a truncation
-    is not optimal. A warning is displayed whenever this happens.
     """
     block_s = tuple(block_s)
     chi = int(chi)
     if dims is None:
         dims = np.ones((len(block_s),), dtype=int)
-    dims = np.asarray(dims, dtype=int)
+    dims = np.asarray(dims, dtype=int, order="C")
     rcutoff = float(rcutoff)
     degen_ratio = float(degen_ratio)
     assert dims.shape == (len(block_s),)
     assert degen_ratio <= 1.0
     block_cuts = _numba_find_chi_largest(block_s, chi, dims, rcutoff, degen_ratio)
-    n = sum(c == s.size for (c, s) in zip(block_cuts, block_s))
-    if n:
-        print(f"*** WARNING *** all computed singular values were kept in {n} blocks")
     return block_cuts
 
 
