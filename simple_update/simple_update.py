@@ -769,20 +769,17 @@ class SimpleUpdate:
         tensors : tuple of _n_tensors SymmetricTensor
             Optimized tensors, with sqrt(weights) on all virtual legs.
         """
-        # adding 1/sqrt(weights) is simpler in dense form
-        sqw = [1.0 / np.sqrt(w) for w in self.get_weights(sort=False)]
+        sqw = [[1.0 / np.sqrt(ws) for ws in w] for w in self._weights]
         tensors = []
         for i, t0 in enumerate(self._tensors):
             # we already imposed the two first legs to be physical and ancilla in the
             # default configuration. Add weights on the virtual legs.
-            args = [t0.toarray(), list(range(t0.ndim))]
+            rswap = (0, 1) + tuple(range(3, t0.ndim))
+            t = t0
             for j, leg in enumerate(self._tensor_bond_indices[i]):
-                args.append(sqw[leg])
-                args.append([j + 2])
-
-            args.append(list(range(t0.ndim)))
-            t = np.einsum(*args)
-            t = self._ST.from_array(t, t0.row_reps, t0.col_reps, signature=t0.signature)
+                t = t.permutate(rswap, (2,))
+                t = t.diagonal_mul(sqw[leg])
+            t = t.permutate((0, 1), tuple(range(2, t0.ndim)))
             tensors.append(t)
         return tensors
 
