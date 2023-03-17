@@ -5,6 +5,7 @@ import numba
 
 from misc_tools.sparse_tools import _numba_find_indices
 from .symmetric_tensor import SymmetricTensor
+from .asymmetric_tensor import AsymmetricTensor
 
 
 @numba.njit(parallel=True)
@@ -421,6 +422,12 @@ class AbelianSymmetricTensor(SymmetricTensor):
 
     def toabelian(self):
         return self
+
+    def totrivial(self):
+        ar = self.toarray()
+        rr = self.shape[: self._nrr]
+        cr = self.shape[self._nrr :]
+        return AsymmetricTensor.from_array(ar, rr, cr, signature=self.signature)
 
     def update_signature(self, sign_update):
         # in the abelian case, bending an index to the left or to the right makes no
