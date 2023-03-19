@@ -69,7 +69,14 @@ class CTMRG:
     """
 
     def __init__(
-        self, env, chi, block_chi_ratio, ncv_ratio, cutoff, degen_ratio, verbosity
+        self,
+        env,
+        chi_target,
+        block_chi_ratio,
+        ncv_ratio,
+        cutoff,
+        degen_ratio,
+        verbosity,
     ):
         """
         Constructor for totally asymmetric CTMRG algorithm. Consider using from_file or
@@ -79,11 +86,11 @@ class CTMRG:
         ----------
         env: CTM_Environment
             Environment object, as construced by from_file or from_elementary_tensors.
-        chi : integer
-            Maximal corner dimension. This is a target, actual maximal corner dimension
-            chi_max may differ due to cutoff or multiplets.
+        chi_target : integer
+            Target for corner dimension. This is a target, actual corner dimension chi
+            may differ differ independently on a any corner due to cutoff or multiplets.
         block_chi_ratio: float
-            Compute min(chi, block_chi_ratio * last_block_chi) singular values
+            Compute min(chi_target, block_chi_ratio * last_block_chi) singular values
             in each symmetry block during projector construction, where last_block_chi
             is the number of singular values in this block last iteration.
         ncv_ratio : float
@@ -102,11 +109,11 @@ class CTMRG:
         if self.verbosity > 0:
             print(f"initalize CTMRG with verbosity = {self.verbosity}")
         self._env = env
-        self.chi = chi
-        self.block_chi_ratio = block_chi_ratio
-        self.ncv_ratio = ncv_ratio
-        self.cutoff = cutoff
-        self.degen_ratio = degen_ratio
+        self.chi_target = int(chi_target)
+        self.block_chi_ratio = float(block_chi_ratio)
+        self.ncv_ratio = float(ncv_ratio)
+        self.cutoff = float(cutoff)
+        self.degen_ratio = float(degen_ratio)
         self._site_coords = self._env.site_coords
 
         if self.verbosity > 0:
@@ -114,7 +121,7 @@ class CTMRG:
             if self.verbosity > 2:
                 self.print_tensor_shapes()
 
-        if self.chi < 2:
+        if self.chi_target < 2:
             raise ValueError("chi must be greater than 2")
         if self.block_chi_ratio < 1.0:
             raise ValueError("block_chi_ratio must be greater than 1.0")
@@ -131,7 +138,7 @@ class CTMRG:
         cls,
         tiling,
         tensors,
-        chi,
+        chi_target,
         block_chi_ratio=1.2,
         ncv_ratio=3.0,
         cutoff=1e-11,
@@ -148,11 +155,11 @@ class CTMRG:
             Elementary tensors of unit cell, from left to right from top to bottom.
         tiling : string
             String defining the shape of the unit cell, typically "A" or "AB\nCD".
-        chi : integer
-            Maximal corner dimension. This is a target, actual maximal corner dimension
-            chi_max may differ due to cutoff or multiplets.
+        chi_target : integer
+            Target for corner dimension. This is a target, actual corner dimension chi
+            may differ differ independently on a any corner due to cutoff or multiplets.
         block_chi_ratio: float
-            Compute min(chi, block_chi_ratio * last_block_chi) singular values
+            Compute min(chi_target, block_chi_ratio * last_block_chi) singular values
             in each symmetry block during projector construction, where last_block_chi
             is the number of singular values in this block last iteration.
         ncv_ratio : float
@@ -170,7 +177,9 @@ class CTMRG:
         if verbosity > 0:
             print("Start CTMRG from elementary tensors")
         env = CTM_Environment.from_elementary_tensors(tiling, tensors)
-        return cls(env, chi, block_chi_ratio, ncv_ratio, cutoff, degen_ratio, verbosity)
+        return cls(
+            env, chi_target, block_chi_ratio, ncv_ratio, cutoff, degen_ratio, verbosity
+        )
 
     def set_tensors(self, tensors):
         """
@@ -198,13 +207,15 @@ class CTMRG:
         with np.load(filename) as fin:
             block_chi_ratio = float(fin["_CTM_block_chi_ratio"])
             ncv_ratio = float(fin["_CTM_ncv_ratio"])
-            chi = int(fin["_CTM_chi"])
+            chi_target = int(fin["_CTM_chi_target"])
             cutoff = float(fin["_CTM_cutoff"])
             degen_ratio = float(fin["_CTM_degen_ratio"])
         # better to open and close savefile twice (here and in env) to have env __init__
         # outside of file opening block.
         env = CTM_Environment.load_from_file(filename)
-        return cls(env, chi, block_chi_ratio, ncv_ratio, cutoff, degen_ratio, verbosity)
+        return cls(
+            env, chi_target, block_chi_ratio, ncv_ratio, cutoff, degen_ratio, verbosity
+        )
 
     def save_to_file(self, filename, additional_data={}):
         """
@@ -218,7 +229,7 @@ class CTMRG:
             Data to store together with environment data. Keys have to be string type.
         """
         data = {
-            "_CTM_chi": self.chi,
+            "_CTM_chi_target": self.chi_target,
             "_CTM_block_chi_ratio": self.block_chi_ratio,
             "_CTM_ncv_ratio": self.ncv_ratio,
             "_CTM_cutoff": self.cutoff,
@@ -250,14 +261,6 @@ class CTMRG:
         return self._env.cell
 
     @property
-    def chi_max(self):  # maximal corner dimension, may differ from chi
-        return self.chi_values[-1]
-
-    @property
-    def chi_min(self):  # minimal corner dimension
-        return self.chi_values[0]
-
-    @property
     def chi_values(self):
         return self._env.chi_values
 
@@ -278,16 +281,14 @@ class CTMRG:
         return "\n".join("".join(s) for s in self.cell)
 
     def __repr__(self):
-        return (
-            f"{self.symmetry} symmetric CTMRG with Dmax = {self.Dmax} and chi_max"
-            f" = {self.chi_max}"
-        )
+        s = f"{self.symmetry} symmetric CTMRG with Dmax = {self.Dmax}"
+        s = s + f"and chi_target = {self.chi_target}"
+        return s
 
     def __str__(self):
         return "\n".join(
             (
                 repr(self),
-                f"chi target = {self.chi}",
                 f"chi values = {self.chi_values}",
                 f"block_chi_ratio = {self.block_chi_ratio}",
                 f"ncv_ratio = {self.ncv_ratio}",
@@ -327,7 +328,7 @@ class CTMRG:
     def truncate_corners(self):
         """
         Truncate corners C1, C2, C3 and C4 without constructing ul, ur, dl and dr
-        Use before first move to reduce corner dimension if chi < D^2
+        Use before first move to reduce corner dimension if chi_target < D^2
         """
         # we cannot approximate independently each corner with an SVD: this would
         # introduce an arbitrary unitary matrix between two corners U_1 @ V_2. To keep
@@ -335,7 +336,7 @@ class CTMRG:
         # So we renormalize bond between corners, without inserting edge tensors
         # basically the same thing as a standard move, without absorption.
         if self.verbosity > 0:
-            print(f"Truncate corners to chi = {self.chi}")
+            print(f"Truncate corners to chi ~ {self.chi_target}")
         self.up_move_no_absorb()
         self.right_move_no_absorb()
         self.down_move_no_absorb()
@@ -669,7 +670,7 @@ class CTMRG:
                 self.construct_reduced_ur(x, y, free_memory=True),
                 self.construct_reduced_ul(x, y, free_memory=True),
                 self.construct_reduced_dl(x, y),
-                self.chi,
+                self.chi_target,
                 self.block_chi_ratio,
                 self.ncv_ratio,
                 self.cutoff,
@@ -719,7 +720,7 @@ class CTMRG:
                 self.construct_reduced_dr(x, y, free_memory=True),
                 self.construct_reduced_ur(x, y, free_memory=True),
                 self.construct_reduced_ul(x, y),
-                self.chi,
+                self.chi_target,
                 self.block_chi_ratio,
                 self.ncv_ratio,
                 self.cutoff,
@@ -766,7 +767,7 @@ class CTMRG:
                 self.construct_reduced_dl(x, y, free_memory=True),
                 self.construct_reduced_dr(x, y, free_memory=True),
                 self.construct_reduced_ur(x, y),
-                self.chi,
+                self.chi_target,
                 self.block_chi_ratio,
                 self.ncv_ratio,
                 self.cutoff,
@@ -813,7 +814,7 @@ class CTMRG:
                 self.construct_reduced_ul(x, y, free_memory=True),
                 self.construct_reduced_dl(x, y, free_memory=True),
                 self.construct_reduced_dr(x, y),
-                self.chi,
+                self.chi_target,
                 self.block_chi_ratio,
                 self.ncv_ratio,
                 self.cutoff,
@@ -857,7 +858,7 @@ class CTMRG:
                 C2,
                 self._env.get_C1(x, y),
                 self._env.get_C4(x, y + 1),
-                self.chi,
+                self.chi_target,
                 self.block_chi_ratio,
                 self.ncv_ratio,
                 self.cutoff,
@@ -886,7 +887,7 @@ class CTMRG:
                 C3,
                 self._env.get_C2(x + 1, y),
                 self._env.get_C1(x, y),
-                self.chi,
+                self.chi_target,
                 self.block_chi_ratio,
                 self.ncv_ratio,
                 self.cutoff,
@@ -914,7 +915,7 @@ class CTMRG:
                 C4,
                 self._env.get_C3(x + 1, y + 1).T,
                 self._env.get_C2(x + 1, y),
-                self.chi,
+                self.chi_target,
                 self.block_chi_ratio,
                 self.ncv_ratio,
                 self.cutoff,
@@ -942,7 +943,7 @@ class CTMRG:
                 C1,
                 self._env.get_C4(x, y + 1),
                 self._env.get_C3(x + 1, y + 1).T,
-                self.chi,
+                self.chi_target,
                 self.block_chi_ratio,
                 self.ncv_ratio,
                 self.cutoff,
