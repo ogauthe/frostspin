@@ -420,7 +420,7 @@ class SimpleUpdate:
             tensor_bond_indices,
             update_data,
             hamilts,
-            verbosity,
+            verbosity=verbosity,
         )
 
     @classmethod
@@ -454,7 +454,7 @@ class SimpleUpdate:
             tensor_bond_indices,
             update_data,
             hamilts,
-            verbosity,
+            verbosity=verbosity,
         )
 
     @classmethod
@@ -467,7 +467,7 @@ class SimpleUpdate:
         tensor_bond_indices,
         raw_update_data,
         raw_hamilts,
-        verbosity,
+        verbosity=0,
     ):
         """
         Initialize finite temperature SimpleUpdate at beta = 0 eact product state.
@@ -492,7 +492,7 @@ class SimpleUpdate:
         raw_hamilts : enumerable of SymmetricTensor
             List of elementary bond Hamiltonians acting on the tensors.
         verbosity : int
-            Level of log verbosity.
+            Level of log verbosity. Default is no log.
         """
         check_tensor_bond_indices(tensor_bond_indices)
 
