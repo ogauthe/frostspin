@@ -109,7 +109,7 @@ class AsymmetricTensor(SymmetricTensor):
     def norm(self):
         return lg.norm(self._blocks[0])
 
-    def toabelian(self):
+    def totrivial(self):
         return self
 
     def update_signature(self, sign_update):

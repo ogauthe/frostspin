@@ -103,25 +103,25 @@ class CTM_Environment:
         Initialize environment tensors. Consider calling from_elementary_tensors
         or from_file instead of directly calling this function.
         """
-        # 1) Define indices and neq_coords from cell
+        # 1) Define indices and non-equivalent site_coordinates from cell
         # construct list of unique letters sorted according to appearance order in cell
         # (may be different from lexicographic order)
         seen = set()
         seen_add = seen.add
         letters = [c for c in cell.flat if not (c in seen or seen_add(c))]
-        self._Nneq = len(letters)
+        self._n_sites = len(letters)
 
         # [row,col] indices are transposed from (x,y) coordinates but (x,y) is natural
         # to specify positions, so we need to transpose indices here to get simple CTMRG
-        # code. Construct indices and neq_coords such that
-        # - for all i in range(Nneq), i == indices[neq_coords[i][0], neq_coords[i][1]]
-        # - for all (x,y) in neq_coords, (x,y) == neq_coords[indices[x,y]]
-        self._neq_coords = np.empty((self._Nneq, 2), dtype=np.int8)
+        # code. Construct indices and site_coords such that
+        # -for all site i, i == indices[site_coords[i][0], site_coords[i][1]]
+        # -for all site_coords (x,y), (x,y) == site_coords[indices[x,y]]
+        self._site_coords = np.empty((self._n_sites, 2), dtype=np.int8)
         indices = np.empty(cell.shape, dtype=int)
         for i, l in enumerate(letters):
             inds_l = cell == l  # a tensor can appear more than once in tiling
             ind_values = inds_l.nonzero()
-            self._neq_coords[i] = ind_values[1][0], ind_values[0][0]  # transpose
+            self._site_coords[i] = ind_values[1][0], ind_values[0][0]  # transpose
             indices[inds_l] = i
 
         self._Ly, self._Lx = cell.shape
@@ -145,7 +145,7 @@ class CTM_Environment:
         self._ST = type(As[0])
 
         def check(tensors, ndim, name):
-            if len(tensors) != self._Nneq:
+            if len(tensors) != self._n_sites:
                 raise ValueError(f"Invalid {name} number")
             for t in tensors:
                 if type(t) != self._ST:
@@ -167,7 +167,7 @@ class CTM_Environment:
         # and conjugation. Little risk of error, _initialize_env and from_file are safe.
 
         # 4) check elementary tensors match together (need cell and coords)
-        for (x, y) in self._neq_coords:
+        for (x, y) in self._site_coords:
             A = self.get_A(x, y)
             Ay = self.get_A(x, y - 1)
             if A.signature[2] == Ay.signature[4]:
@@ -181,30 +181,31 @@ class CTM_Environment:
                 raise ValueError(f"rep mismatch between {(x+1, y)} and {(x, y)}")
 
         # 5) init enlarged corner and projectors lists
-        self._corners_ul = [None] * self._Nneq
-        self._corners_ur = [None] * self._Nneq
-        self._corners_dl = [None] * self._Nneq
-        self._corners_dr = [None] * self._Nneq
+        self._corners_ul = [None] * self._n_sites
+        self._corners_ur = [None] * self._n_sites
+        self._corners_dl = [None] * self._n_sites
+        self._corners_dr = [None] * self._n_sites
         self._reset_temp_lists()
-
-    @property
-    def symmetry(self):
-        return self._ST.symmetry
-
-    @property
-    def Dmin(self):
-        return self._Dmin
 
     @property
     def Dmax(self):
         return self._Dmax
 
     @property
-    def chi_min(self):
-        return min(
-            min(C.shape)
-            for C in self._neq_C1s + self._neq_C2s + self._neq_C3s + self._neq_C4s
-        )
+    def Dmin(self):
+        return self._Dmin
+
+    @property
+    def Lx(self):
+        return self._Lx
+
+    @property
+    def Ly(self):
+        return self._Ly
+
+    @property
+    def cell(self):
+        return self._cell
 
     @property
     def chi_values(self):
@@ -215,11 +216,16 @@ class CTM_Environment:
         return sorted(s)
 
     @property
-    def chi_max(self):
-        return max(
-            max(C.shape)
-            for C in self._neq_C1s + self._neq_C2s + self._neq_C3s + self._neq_C4s
-        )
+    def n_sites(self):
+        return self._n_sites
+
+    @property
+    def site_coords(self):
+        return self._site_coords
+
+    @property
+    def symmetry(self):
+        return self._ST.symmetry
 
     @classmethod
     def from_elementary_tensors(cls, tiling, tensors):
@@ -230,7 +236,7 @@ class CTM_Environment:
         ----------
         tiling : string
             Tiling pattern, such as 'AB\nBA' or 'AB\nCD'.
-        tensors : iterable of Nneq SymmetricTensor
+        tensors : iterable of n_sites SymmetricTensor
             Tensors given from left to right and up to down (as in array.flat)
         """
         txt = [" ".join(w) for w in tiling.strip().splitlines()]
@@ -278,7 +284,7 @@ class CTM_Environment:
         data = {"_CTM_cell": self._cell, "_CTM_symmetry": self.symmetry}
 
         # use SymmetricTensor nice I/O, pure npz file without pickle
-        for i in range(self._Nneq):
+        for i in range(self._n_sites):
             data |= self._neq_As[i].get_data_dic(prefix=f"_CTM_A_{i}")
             data |= self._neq_C1s[i].get_data_dic(prefix=f"_CTM_C1_{i}")
             data |= self._neq_C2s[i].get_data_dic(prefix=f"_CTM_C2_{i}")
@@ -291,17 +297,17 @@ class CTM_Environment:
         return data
 
     def reset_constructed_corners(self):
-        self._corners_ul = [None] * self._Nneq
-        self._corners_ur = [None] * self._Nneq
-        self._corners_dl = [None] * self._Nneq
-        self._corners_dr = [None] * self._Nneq
+        self._corners_ul = [None] * self._n_sites
+        self._corners_ur = [None] * self._n_sites
+        self._corners_dl = [None] * self._n_sites
+        self._corners_dr = [None] * self._n_sites
 
     def set_tensors(self, tensors):
         """
         Set new elementary tensors. Type, shape and representations have to match
         current elementary tensors.
         """
-        if len(tensors) != self._Nneq:
+        if len(tensors) != self._n_sites:
             raise ValueError("Incompatible cell and tensors")
         for i, A in enumerate(tensors):
             if not A.match_representations(self._neq_As[i]):
@@ -325,26 +331,6 @@ class CTM_Environment:
             self._neq_T2s = [T2.cast(symmetry) for T2 in self._neq_T2s]
             self._neq_T3s = [T3.cast(symmetry) for T3 in self._neq_T3s]
             self._neq_T4s = [T4.cast(symmetry) for T4 in self._neq_T4s]
-
-    @property
-    def cell(self):
-        return self._cell
-
-    @property
-    def Nneq(self):
-        return self._Nneq
-
-    @property
-    def Lx(self):
-        return self._Lx
-
-    @property
-    def Ly(self):
-        return self._Ly
-
-    @property
-    def neq_coords(self):
-        return self._neq_coords
 
     def get_tensor_type(self, x, y):
         return self._cell[x % self._Lx, y % self._Ly]
@@ -419,11 +405,11 @@ class CTM_Environment:
 
     def _reset_temp_lists(self):
         # reset is needed because no list copy occurs
-        self._neq_P = [None] * self._Nneq
-        self._neq_Pt = [None] * self._Nneq
-        self._nCX = [None] * self._Nneq
-        self._nT = [None] * self._Nneq
-        self._nCY = [None] * self._Nneq
+        self._neq_P = [None] * self._n_sites
+        self._neq_Pt = [None] * self._n_sites
+        self._nCX = [None] * self._n_sites
+        self._nT = [None] * self._n_sites
+        self._nCY = [None] * self._n_sites
 
     def set_renormalized_tensors_up(self):
         self._neq_C1s = self._nCX

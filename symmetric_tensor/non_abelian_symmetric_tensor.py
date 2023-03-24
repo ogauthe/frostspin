@@ -2,6 +2,7 @@ import numpy as np
 import scipy.linalg as lg
 
 from .symmetric_tensor import SymmetricTensor
+from .asymmetric_tensor import AsymmetricTensor
 
 
 class NonAbelianSymmetricTensor(SymmetricTensor):
@@ -53,3 +54,9 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
         for (irr, b) in zip(self._block_irreps, self._blocks):
             n2 += self.irrep_dimension(irr) * lg.norm(b) ** 2
         return np.sqrt(n2)
+
+    def totrivial(self):
+        ar = self.toarray()
+        rr = self.shape[: self._nrr]
+        cr = self.shape[self._nrr :]
+        return AsymmetricTensor.from_array(ar, rr, cr, signature=self.signature)
