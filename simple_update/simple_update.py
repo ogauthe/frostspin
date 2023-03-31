@@ -1171,7 +1171,7 @@ class SimpleUpdate:
                     raise ValueError(f"update {i}: left/middle signatures do not match")
                 rm = tm.col_reps[list(self._tensor_bond_indices[im]).index(b2)]
                 sm = tm.signature[2 + list(self._tensor_bond_indices[im]).index(b2)]
-                if rR.shape != rm.shape or (rL != rm).any():
+                if rR.shape != rm.shape or (rR != rm).any():
                     raise ValueError(f"update {i}: right and middle legs do not match")
                 if sR == sm:
                     raise ValueError(
