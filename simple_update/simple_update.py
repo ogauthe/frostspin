@@ -567,6 +567,147 @@ class SimpleUpdate:
         )
 
     @classmethod
+    def random_wavefunction(
+        cls,
+        D,
+        tau,
+        rcutoff,
+        degen_ratio,
+        tensor_bond_indices,
+        raw_update_data,
+        raw_hamilts,
+        bond_representations,
+        rng=None,
+        verbosity=0,
+    ):
+        """
+        Initialize zero temperature SimpleUpdate from random state
+
+        Parameters
+        ----------
+        D : int
+            Bond dimension to keep when renormalizing bonds. This is a target, the
+        actual largest value Dmax may differ due to cutoff or degeneracies.
+        tau : float
+            Imaginary time step.
+        rcutoff : float
+            Singular values smaller than cutoff = rcutoff * sv[0] are set to zero to
+            improve stability.
+        degen_ratio : float
+            Consider singular values degenerate if their quotient is above degen_ratio.
+        tensor_bond_indices : list of enumerable of int
+            Information on which bonds belongs to which tensor. See SimpleUpdate for
+            more information on format.
+        raw_update_data : 2D array
+            Raw data on updates, exact format is specified in decode_raw_update_data.
+        raw_hamilts : enumerable of SymmetricTensor
+            List of elementary bond Hamiltonians acting on the tensors.
+        bond_representations : list of n_bonds representations.
+            Reprensentations on the virtual bonds. Representation format has to match
+            raw_hamilts type.
+        rng : numpy random Generator
+            If None, a new generator will be initialized.
+        verbosity : int
+            Level of log verbosity. Default is no log.
+        """
+        if rng is None:
+            rng = np.random.default_rng()
+
+        check_tensor_bond_indices(tensor_bond_indices)
+
+        n_tensors = len(tensor_bond_indices)
+        n_bonds = max(max(tbi) for tbi in tensor_bond_indices) + 1
+        if n_bonds != len(bond_representations):
+            raise ValueError("Invalid bond_representations length")
+        ST = type(raw_hamilts[0])
+
+        # find local representation by looking at Hamiltonians acting on tensor
+        # ancilla leg signature never changes as this leg is never updated
+        # physical lef signature also never changes as gates do not modify signature
+        # virtual leg signatures may change depending on tensor position in update.
+
+        second_order = True
+        data = get_update_data(
+            tensor_bond_indices, raw_update_data, raw_hamilts, second_order
+        )
+        (
+            bond1,
+            bond2,
+            gate_indices,
+            left_indices,
+            right_indices,
+            middle_indices,
+            _,
+            _,
+            _,
+            hamiltonians,
+            _,
+            _,
+        ) = data
+
+        # find signatures
+        phys_reps = [ST.singlet for i in range(n_tensors)]
+        signatures = [[None] * (2 + len(tbi)) for tbi in tensor_bond_indices]
+        for j, (b1, b2) in enumerate(zip(bond1, bond2)):
+            h = hamiltonians[gate_indices[j]]
+
+            iL = left_indices[j]
+            phys_reps[iL] = h.row_reps[0]
+            signatures[iL][0] = ~h.signature[0]
+            signatures[iL][1] = h.signature[0]
+            leg = list(tensor_bond_indices[iL]).index(b1)
+            signatures[iL][2 + leg] = True
+
+            iR = right_indices[j]
+            phys_reps[iR] = h.row_reps[1]
+            signatures[iR][0] = ~h.signature[1]
+            signatures[iR][1] = h.signature[1]
+            leg = list(tensor_bond_indices[iR]).index(b2)
+            signatures[iR][2 + leg] = False
+
+            if b2 != b1:
+                im = middle_indices[j]
+                leg = list(tensor_bond_indices[im]).index(b1)
+                signatures[im][2 + leg] = False
+                leg = list(tensor_bond_indices[im]).index(b2)
+                signatures[im][2 + leg] = True
+
+        # initialize tensors to random state
+        # add dummy ancilla leg to be able to use finite temperature code
+        # if tensor is purely virtual and no Hamiltonian acts on it, add dummy physical
+        # leg
+        tensors = []
+        for i in range(n_tensors):
+            row_reps = (phys_reps[i], ST.singlet)
+            col_reps = tuple(bond_representations[j] for j in tensor_bond_indices[i])
+            t = ST.random(row_reps, col_reps, signature=signatures[i], rng=rng)
+            tensors.append(t)
+
+        beta = np.inf  # zero temperature
+
+        # initialize weights: inefficient but simple and fast enough
+        weights = []
+        for i in range(n_bonds):
+            reps = (bond_representations[i],)
+            t = ST.random(reps, reps, rng=rng)
+            _, s, _ = t.svd()
+            weights.append(s)
+
+        return SimpleUpdate(
+            D,
+            beta,
+            tau,
+            rcutoff,
+            degen_ratio,
+            tensor_bond_indices,
+            tensors,
+            raw_update_data,
+            raw_hamilts,
+            weights,
+            verbosity,
+        )
+
+    @classmethod
     def load_from_file(cls, savefile, verbosity=0):
         """
         Load simple update from given file.
