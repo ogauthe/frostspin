@@ -20,6 +20,14 @@ class DiagonalTensor:
     # getters
     ####################################################################################
     @property
+    def diagonal_blocks(self):
+        return self._diagonal_blocks
+
+    @property
+    def block_irreps(self):
+        return self._block_irreps
+
+    @property
     def nblocks(self):
         return self._nblocks
 
@@ -28,12 +36,20 @@ class DiagonalTensor:
         return 1
 
     @property
+    def representation(self):
+        return self._representation
+
+    @property
     def shape(self):
         return self._shape
 
     @property
+    def symmetric_type(self):
+        return self._symmetric_type
+
+    @property
     def symmetry(self):
-        return self._symmetry_type.symmetry
+        return self._symmetric_type.symmetry
 
     @property
     def dtype(self):

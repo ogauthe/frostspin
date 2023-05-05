@@ -2,6 +2,7 @@ import numpy as np
 import scipy.linalg as lg
 
 from misc_tools.svd_tools import sparse_svd, find_chi_largest
+from symmetric_tensor.diagonal_tensor import DiagonalTensor
 
 
 # choices are made to make code light and fast:
@@ -249,11 +250,40 @@ class SymmetricTensor:
     def __sub__(self, other):
         return self + (-other)  # much simplier than dedicated implem for tiny perf loss
 
-    def __mul__(self, x):
-        assert np.isscalar(x) or x.size == 1
-        blocks = tuple(x * b for b in self._blocks)
+    def __mul__(self, other):
+        if type(other) == DiagonalTensor:
+            # check multiplication can be done on last leg
+            assert self._ndim - self._nrr == 1
+            assert self._signature[-1]
+
+            # check DiagonalTensor matches self
+            assert type(self) == other.symmetric_type
+            assert (self._col_reps[0] == other.representation).all()
+
+            # weights have been obtained by SVD on current last leg
+            # therefore last representation and weight representation have to match
+            # however due to changes on other legs, blocks may not all match
+            # (from SVD, all blocks should appear in other, but keep it general here)
+            i1 = 0
+            i2 = 0
+            blocks = []
+            block_irreps = []
+            while i1 < self._nblocks:
+                if self._block_irreps[i1] == other.block_irreps[i2]:
+                    blocks.append(self._blocks[i1] * other.diagonal_blocks[i2])
+                    block_irreps.append(self._block_irreps[i1])
+                    i1 += 1
+                    i2 += 1
+                elif self._block_irreps[i1] < other._block_irreps[i2]:
+                    i1 += 1
+                else:
+                    i2 += 1
+
+        elif np.isscalar(other) or other.size == 1:
+            blocks = tuple(other * b for b in self._blocks)
+            block_irreps = self._block_irreps
         return type(self)(
-            self._row_reps, self._col_reps, blocks, self._block_irreps, self._signature
+            self._row_reps, self._col_reps, blocks, block_irreps, self._signature
         )
 
     def __rmul__(self, x):
@@ -480,9 +510,10 @@ class SymmetricTensor:
         mid_rep = self.init_representation(degen, self._block_irreps)
         usign = np.hstack((self._signature[: self._nrr], np.array([True])))
         U = type(self)(self._row_reps, (mid_rep,), u_blocks, self._block_irreps, usign)
+        s = DiagonalTensor(s_blocks, mid_rep, self._block_irreps, type(self))
         vsign = np.hstack((np.array([False]), self._signature[self._nrr :]))
         V = type(self)((mid_rep,), self._col_reps, v_blocks, self._block_irreps, vsign)
-        return U, s_blocks, V
+        return U, s, V
 
     def truncated_svd(
         self, cut, max_dense_dim=None, window=0, rcutoff=0.0, degen_ratio=1.0
@@ -522,7 +553,7 @@ class SymmetricTensor:
             raw_v[bi] = v
 
         u_blocks = []
-        s_values = []
+        s_blocks = []
         v_blocks = []
         dims = np.array([self.irrep_dimension(r) for r in self._block_irreps])
         block_cuts = find_chi_largest(raw_s, cut, dims, rcutoff, degen_ratio)
@@ -532,7 +563,7 @@ class SymmetricTensor:
             bcut = block_cuts[bi]
             warn += bcut == raw_s[bi].size and bcut < min(self._blocks[bi].shape)
             u_blocks.append(np.ascontiguousarray(raw_u[bi][:, :bcut]))
-            s_values.append(raw_s[bi][:bcut])
+            s_blocks.append(raw_s[bi][:bcut])
             v_blocks.append(raw_v[bi][:bcut])
 
         if warn:
@@ -541,9 +572,10 @@ class SymmetricTensor:
         mid_rep = self.init_representation(block_cuts[non_empty], block_irreps)
         usign = np.hstack((self._signature[: self._nrr], np.array([True])))
         U = type(self)(self._row_reps, (mid_rep,), u_blocks, block_irreps, usign)
+        s = DiagonalTensor(s_blocks, mid_rep, block_irreps, type(self))
         vsign = np.hstack((np.array([False]), self._signature[self._nrr :]))
         V = type(self)((mid_rep,), self._col_reps, v_blocks, block_irreps, vsign)
-        return U, s_values, V
+        return U, s, V
 
     def expm(self):
         blocks = tuple(lg.expm(b) for b in self._blocks)
