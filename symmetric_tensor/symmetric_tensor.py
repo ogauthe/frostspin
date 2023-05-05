@@ -251,14 +251,29 @@ class SymmetricTensor:
         return self + (-other)  # much simplier than dedicated implem for tiny perf loss
 
     def __mul__(self, other):
-        if type(other) == DiagonalTensor:
+        """
+        Matrix product with a diagonal matrix with matching symmetry. If left is True,
+        matrix multiplication is from the left.
+
+        Convention: diag_blocks is understood as diagonal weights coming from a SVD in
+        terms of representation and signature. Therefore it can only be added to the
+        right if self has only one column leg and its signature is True and added to the
+        left if self has only one row leg with signature False. If this is not the case,
+        then self is transposed, weights are added on the other side and the result is
+        transposed back to initial shape
+        """
+        if type(other) == DiagonalTensor:  # add diagonal weights on last column leg
             # check multiplication can be done on last leg
             assert self._ndim - self._nrr == 1
             assert self._signature[-1]
 
             # check DiagonalTensor matches self
-            assert type(self) == other.symmetric_type
+            assert self.symmetry == other.symmetry
             assert (self._col_reps[0] == other.representation).all()
+            assert (
+                other.block_degen
+                == [self.irrep_dimension(irr) for irr in other.block_irreps]
+            ).all()
 
             # weights have been obtained by SVD on current last leg
             # therefore last representation and weight representation have to match
@@ -286,8 +301,45 @@ class SymmetricTensor:
             self._row_reps, self._col_reps, blocks, block_irreps, self._signature
         )
 
-    def __rmul__(self, x):
-        return self * x
+    def __rmul__(self, other):
+        if type(other) == DiagonalTensor:  # add diagonal weights on 1st row leg
+            # check multiplication can be done on first leg
+            assert self._nrr == 1
+            assert not self._signature[0]
+
+            # check DiagonalTensor matches self
+            assert self.symmetry == other.symmetry
+            assert (self._row_reps[0] == other.representation).all()
+            assert (
+                other.block_degen
+                == [self.irrep_dimension(irr) for irr in other.block_irreps]
+            ).all()
+
+            # weights have been obtained by SVD on current last leg
+            # therefore last representation and weight representation have to match
+            # however due to changes on other legs, blocks may not all match
+            # (from SVD, all blocks should appear in other, but keep it general here)
+            i1 = 0
+            i2 = 0
+            blocks = []
+            block_irreps = []
+            while i1 < self._nblocks:
+                if self._block_irreps[i1] == other.block_irreps[i2]:
+                    blocks.append(self._blocks[i1] * other.diagonal_blocks[i2][:, None])
+                    block_irreps.append(self._block_irreps[i1])
+                    i1 += 1
+                    i2 += 1
+                elif self._block_irreps[i1] < other._block_irreps[i2]:
+                    i1 += 1
+                else:
+                    i2 += 1
+
+        elif np.isscalar(other) or other.size == 1:
+            blocks = tuple(other * b for b in self._blocks)
+            block_irreps = self._block_irreps
+        return type(self)(
+            self._row_reps, self._col_reps, blocks, block_irreps, self._signature
+        )
 
     def __truediv__(self, x):
         return self * (1.0 / x)
@@ -392,44 +444,6 @@ class SymmetricTensor:
             self._col_reps, ~self._signature[self._nrr :]
         )
 
-    def diagonal_mul(self, diag_blocks, left=False):
-        """
-        Matrix product with a diagonal matrix with matching symmetry. If left is True,
-        matrix multiplication is from the left.
-
-        Convention: diag_blocks is understood as diagonal weights coming from a SVD in
-        terms of representation and signature. Therefore it can only be added to the
-        right if self has only one column leg and its signature is True and added to the
-        left if self has only one row leg with signature False. If this is not the case,
-        then self is transposed, weights are added on the other side and the result is
-        transposed back to initial shape.
-
-        Parameters
-        ----------
-        diag_blocks : enum of 1D array
-            Must have same length as _nblocks
-        left : bool
-            Whether to multiply from the right (default) or from the left.
-        """
-        if len(diag_blocks) != self._nblocks:
-            raise ValueError("Diagonal blocks do not match tensor")
-        blocks = []
-        if left:
-            assert self._nrr == 1
-            if self._signature[0]:
-                return self.T.diagonal_mul(diag_blocks).T
-            for b, diag in zip(self._blocks, diag_blocks):
-                blocks.append(b * diag[:, None])
-        else:
-            assert self._ndim - self._nrr == 1
-            if not self._signature[-1]:
-                return self.T.diagonal_mul(diag_blocks, left=True).T
-            for b, diag in zip(self._blocks, diag_blocks):
-                blocks.append(b * diag)
-        return type(self)(
-            self._row_reps, self._col_reps, blocks, self._block_irreps, self._signature
-        )
-
     ####################################################################################
     # transpose and permutate
     ####################################################################################
@@ -510,7 +524,8 @@ class SymmetricTensor:
         mid_rep = self.init_representation(degen, self._block_irreps)
         usign = np.hstack((self._signature[: self._nrr], np.array([True])))
         U = type(self)(self._row_reps, (mid_rep,), u_blocks, self._block_irreps, usign)
-        s = DiagonalTensor(s_blocks, mid_rep, self._block_irreps, type(self))
+        degens = [self.irrep_dimension(irr) for irr in self._block_irreps]
+        s = DiagonalTensor(s_blocks, mid_rep, self._block_irreps, degens, self.symmetry)
         vsign = np.hstack((np.array([False]), self._signature[self._nrr :]))
         V = type(self)((mid_rep,), self._col_reps, v_blocks, self._block_irreps, vsign)
         return U, s, V
@@ -572,7 +587,8 @@ class SymmetricTensor:
         mid_rep = self.init_representation(block_cuts[non_empty], block_irreps)
         usign = np.hstack((self._signature[: self._nrr], np.array([True])))
         U = type(self)(self._row_reps, (mid_rep,), u_blocks, block_irreps, usign)
-        s = DiagonalTensor(s_blocks, mid_rep, block_irreps, type(self))
+        degens = [self.irrep_dimension(irr) for irr in block_irreps]
+        s = DiagonalTensor(s_blocks, mid_rep, block_irreps, degens, self.symmetry)
         vsign = np.hstack((np.array([False]), self._signature[self._nrr :]))
         V = type(self)((mid_rep,), self._col_reps, v_blocks, block_irreps, vsign)
         return U, s, V
