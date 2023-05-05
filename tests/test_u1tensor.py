@@ -70,5 +70,5 @@ temp = temp.permutate((3, 0, 2), (1, 4))
 assert (temp.toarray() == t0.transpose(3, 0, 2, 1, 4)).all()
 
 u, s, v = tu1.svd()
-u = u.diagonal_mul(s)
+u = u * s
 assert (tu1 - u @ v).norm() < 1e-12

@@ -76,10 +76,10 @@ print(*suO2.get_bond_representations(), sep="\n", end="\n\n")
 print("SU(2) bond representations =")
 print(*suSU2.get_bond_representations(), sep="\n", end="\n\n")
 
-print("suAs weights:", *suAs._weights, sep="\n")
-print("suU1 weights:", *suU1._weights, sep="\n")
-print("suO2 weights:", *suO2._weights, sep="\n")
-print("suSU2 weights:", *suSU2._weights, sep="\n")
+print("suAs weights:", *suAs.get_weights(), sep="\n")
+print("suU1 weights:", *suU1.get_weights(), sep="\n")
+print("suO2 weights:", *suO2.get_weights(), sep="\n")
+print("suSU2 weights:", *suSU2.get_weights(), sep="\n")
 
 suU1.save_to_file("save_su.npz")
 su2 = SimpleUpdate.load_from_file("save_su.npz")
@@ -104,17 +104,18 @@ rdmU1 = ctmU1.compute_rdm1x2(0, 0)
 rdmU1_2 = ctmU1_fromSU2.compute_rdm1x2(0, 0)
 rdmO2 = ctmO2_fromSU2.compute_rdm1x2(0, 0)
 rdmSU2 = ctmSU2.compute_rdm1x2(0, 0)
-print("Asym", lg.eigvalsh(rdmAs), f" {lg.norm(rdmAs-rdmAs.T.conj()):.0e}")
-print("U(1)", lg.eigvalsh(rdmU1), f" {lg.norm(rdmU1-rdmU1.T.conj()):.0e}")
+print("Initial reduced density matrix spectrum:")
+print("Asym...........", lg.eigvalsh(rdmAs), f" {lg.norm(rdmAs-rdmAs.T.conj()):.0e}")
+print("U(1)...........", lg.eigvalsh(rdmU1), f" {lg.norm(rdmU1-rdmU1.T.conj()):.0e}")
 print(
     "U(1) from SU(2)", lg.eigvalsh(rdmU1_2), f" {lg.norm(rdmU1_2-rdmU1_2.T.conj()):.0e}"
 )
 print("O(2) from SU(2)", lg.eigvalsh(rdmO2), f" {lg.norm(rdmO2-rdmO2.T.conj()):.0e}")
-print("SU(2)", lg.eigvalsh(rdmSU2), f" {lg.norm(rdmSU2-rdmSU2.T.conj()):.0e}")
+print("SU(2)..........", lg.eigvalsh(rdmSU2), f" {lg.norm(rdmSU2-rdmSU2.T.conj()):.0e}")
 
 
 ctm_iter = 10
-print(f"Run CTMRG for {ctm_iter} iterations...")
+print(f"\nRun CTMRG for {ctm_iter} iterations...")
 for i in range(ctm_iter):
     ctmAs.iterate()
     ctmU1.iterate()
