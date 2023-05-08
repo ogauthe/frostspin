@@ -52,6 +52,10 @@ class DiagonalTensor:
         return self._representation
 
     @property
+    def signature(self):
+        return np.array([False, True])
+
+    @property
     def shape(self):
         return self._shape
 
@@ -81,9 +85,10 @@ class DiagonalTensor:
                 self._block_degen,
                 self._symmetry,
             )
-        return NotImplemented
+        return NotImplemented  # call x.__rmul__(self)
 
     def __imul__(self, x):
+        assert np.array(x).size == 1 and complex(x) == x
         for db in self._diagonal_blocks:
             db *= x
         return self
@@ -92,12 +97,11 @@ class DiagonalTensor:
         return self * (1.0 / x)
 
     def __itruediv__(self, x):
-        for db in self._diagonal_blocks:
-            db /= x
+        self *= 1.0 / x
         return self
 
     def __pow__(self, x):
-        assert np.isscalar(x) or (type(x) == np.ndarray and x.size == 1)
+        assert np.array(x).size == 1 and complex(x) == x
         blocks = []
         for db in self._diagonal_blocks:
             blocks.append(db**x)

@@ -262,81 +262,111 @@ class SymmetricTensor:
         then self is transposed, weights are added on the other side and the result is
         transposed back to initial shape
         """
-        if type(other) == DiagonalTensor:  # add diagonal weights on last column leg
-            # check multiplication can be done on last leg
-            assert self._ndim - self._nrr == 1
-            assert self._signature[-1]
-
+        if type(other) == DiagonalTensor:  # add diagonal weights on last col leg
             # check DiagonalTensor matches self
             assert self.symmetry == other.symmetry
-            assert (self._col_reps[0] == other.representation).all()
+            assert (self._col_reps[-1] == other.representation).all()
             assert (
                 other.block_degen
                 == [self.irrep_dimension(irr) for irr in other.block_irreps]
             ).all()
-
-            # weights have been obtained by SVD on current last leg
-            # therefore last representation and weight representation have to match
-            # however due to changes on other legs, blocks may not all match
-            # (from SVD, all blocks should appear in other, but keep it general here)
-            i1 = 0
-            i2 = 0
-            blocks = []
-            block_irreps = []
-            while i1 < self._nblocks:
-                if self._block_irreps[i1] == other.block_irreps[i2]:
-                    blocks.append(self._blocks[i1] * other.diagonal_blocks[i2])
-                    block_irreps.append(self._block_irreps[i1])
-                    i1 += 1
-                    i2 += 1
-                elif self._block_irreps[i1] < other._block_irreps[i2]:
-                    i1 += 1
-                else:
-                    i2 += 1
-
-        elif np.isscalar(other) or other.size == 1:
+            return self.diagonal_mul(other.diagonal_blocks, other.block_irreps)
+        if np.isscalar(other) or (type(other) == np.array and other.size) == 1:
             blocks = tuple(other * b for b in self._blocks)
-            block_irreps = self._block_irreps
-        return type(self)(
-            self._row_reps, self._col_reps, blocks, block_irreps, self._signature
-        )
+            return type(self)(
+                self._row_reps,
+                self._col_reps,
+                blocks,
+                self._block_irreps,
+                self._signature,
+            )
+        raise TypeError("unsupported operation")
 
     def __rmul__(self, other):
         if type(other) == DiagonalTensor:  # add diagonal weights on 1st row leg
-            # check multiplication can be done on first leg
-            assert self._nrr == 1
-            assert not self._signature[0]
-
-            # check DiagonalTensor matches self
             assert self.symmetry == other.symmetry
             assert (self._row_reps[0] == other.representation).all()
             assert (
                 other.block_degen
                 == [self.irrep_dimension(irr) for irr in other.block_irreps]
             ).all()
-
-            # weights have been obtained by SVD on current last leg
-            # therefore last representation and weight representation have to match
-            # however due to changes on other legs, blocks may not all match
-            # (from SVD, all blocks should appear in other, but keep it general here)
-            i1 = 0
-            i2 = 0
-            blocks = []
-            block_irreps = []
-            while i1 < self._nblocks:
-                if self._block_irreps[i1] == other.block_irreps[i2]:
-                    blocks.append(self._blocks[i1] * other.diagonal_blocks[i2][:, None])
-                    block_irreps.append(self._block_irreps[i1])
-                    i1 += 1
-                    i2 += 1
-                elif self._block_irreps[i1] < other._block_irreps[i2]:
-                    i1 += 1
-                else:
-                    i2 += 1
-
-        elif np.isscalar(other) or other.size == 1:
+            return self.diagonal_mul(
+                other.diagonal_blocks, other.block_irreps, left=True
+            )
+        if np.isscalar(other) or (type(other) == np.array and other.size) == 1:
             blocks = tuple(other * b for b in self._blocks)
-            block_irreps = self._block_irreps
+            return type(self)(
+                self._row_reps,
+                self._col_reps,
+                blocks,
+                self._block_irreps,
+                self._signature,
+            )
+        raise TypeError("unsupported operation")
+
+    def diagonal_mul(self, diag_blocks, diag_block_irreps, left=False):
+        """
+        Matrix product with a diagonal matrix with matching symmetry. If left is True,
+        matrix multiplication is from the left.
+
+        Convention: diag_blocks is understood as diagonal weights coming from a SVD in
+        terms of representation and signature. Therefore it can only be added to the
+        right if self has only one column leg and added to the left if self has only one
+        row leg. Its signature is assumed to be trivial [False, True].
+
+        Consider calling mul or rmul with a DiagonalTensor object for a more robust
+        interface.
+
+        Parameters
+        ----------
+        diag_blocks : enum of 1D array
+            Diagonal block to apply to self.blocks
+        diag_block_irreps : enum of int array
+            Irreducible representation corresponding to each block
+        left : bool
+            Whether to multiply from the right (default) or from the left.
+        """
+        # Its signature is assumed to be trivial [False, True]. If it does not
+        # match self, then a signature change is done by conjugating diag_block_irreps.
+        # => would require a conjugate_irreps method that is not defined
+        # conjugating irreps is crucial to account for signature change, which may
+        # swaps diagonal blocks, although coefficients will never be affected
+
+        # quickfix: this function is fast, go for simple fix with .T.T
+        # TODO transpose weights instead of tensor
+
+        n = len(diag_blocks)
+        assert len(diag_block_irreps) == n
+
+        if (left and not self._signature[0]) or (not left and self._signature[-1]):
+            # conj_irreps = self.conjugate_irreps(block_irreps)  # not defined yet
+            return self.T.diagonal_mul(diag_blocks, diag_block_irreps, left=not left).T
+
+        if left:
+            assert self._nrr == 1
+            s = (slice(None, None, None), None)
+        else:
+            assert self._ndim - self._nrr == 1
+            s = None
+
+        i1 = 0
+        i2 = 0
+        blocks = []
+        block_irreps = []
+        while i1 < self._nblocks and i2 < n:
+            if self._block_irreps[i1] == diag_block_irreps[i2]:
+                blocks.append(self._blocks[i1] * diag_blocks[i2][s])
+                block_irreps.append(self._block_irreps[i1])
+                i1 += 1
+                i2 += 1
+            elif self._block_irreps[i1] < block_irreps[i2]:
+                # the operation is valid but this should not happen for diagonal_irreps
+                # coming from a SVD
+                print("Warning: missing block in diagonal blocks")
+                i1 += 1
+            else:
+                i2 += 1
+
         return type(self)(
             self._row_reps, self._col_reps, blocks, block_irreps, self._signature
         )
