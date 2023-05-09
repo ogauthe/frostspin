@@ -166,6 +166,10 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         return reps[0]
 
     @staticmethod
+    def conjugate_irrep(irr):
+        return irr
+
+    @staticmethod
     def conjugate_representation(rep):
         return rep
 
