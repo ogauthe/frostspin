@@ -216,6 +216,10 @@ class CTM_Environment:
         return sorted(s)
 
     @property
+    def elementary_tensors(self):
+        return self._neq_As
+
+    @property
     def n_sites(self):
         return self._n_sites
 
