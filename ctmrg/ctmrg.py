@@ -264,6 +264,10 @@ class CTMRG:
         return self._env.chi_values
 
     @property
+    def elementary_tensors(self):
+        return self._env.elementary_tensors
+
+    @property
     def n_sites(self):
         return self._env.Nneq
 
