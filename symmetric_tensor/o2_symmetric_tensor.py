@@ -30,8 +30,8 @@ def _numba_elementary_combine_O2(degen1, irreps1, degen2, irreps2):
     nmax = max(irreps1[-1], 0) + max(irreps2[-1], 0)
     degen = np.zeros((nmax + 2,), dtype=np.int64)
 
-    for (d1, irr1) in zip(degen1, irreps1):
-        for (d2, irr2) in zip(degen2, irreps2):
+    for d1, irr1 in zip(degen1, irreps1):
+        for d2, irr2 in zip(degen2, irreps2):
             d = d1 * d2
             if irr1 < 1:
                 if irr2 < 1:

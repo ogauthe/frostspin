@@ -26,7 +26,7 @@ def construct_dense_transfer_matrix(Tup_list, Tdown_list):
     # 1=    |   =0
     #   \3-d0-1/
     tm = tm.swapaxes(1, 2).reshape(u0.shape[0] * d0.shape[2], -1)
-    for (u, d) in zip(Tup_list[1:], Tdown_list[1:]):
+    for u, d in zip(Tup_list[1:], Tdown_list[1:]):
         #  1-u-0
         #    |
         #  3-d-2
@@ -96,7 +96,7 @@ def construct_mps_transfer_matrix(Tup_list, Tdown_list, transpose=False):
         #  |         |               |      |          |
         #  -1     1-Tdown-2          -2  1-Tdown-2     -1
         y = x.reshape(sh_vec)
-        for (m_u, m_d) in zip(up_matrices, down_matrices):
+        for m_u, m_d in zip(up_matrices, down_matrices):
             y = (m_u @ y).reshape(-1, m_d.shape[0]) @ m_d
         return y.ravel()
 
@@ -178,7 +178,7 @@ def compute_mps_rdm(up_mps_list, down_mps_list, ncell=1):
     left_edge = np.ascontiguousarray(left_edge.real.reshape(D, 1, D))
 
     for i in range(ncell):
-        for (up, down) in zip(up_mps_list, down_mps_list):
+        for up, down in zip(up_mps_list, down_mps_list):
             left_edge = mps_tranfer_open_leg(left_edge, up, down)
 
     nt = len(up_mps_list) * ncell

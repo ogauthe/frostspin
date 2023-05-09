@@ -269,7 +269,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
     def init_representation(degen, irreps):
         rep = np.empty((degen.sum(),), dtype=np.int8)
         k = 0
-        for (d, irr) in zip(degen, irreps):
+        for d, irr in zip(degen, irreps):
             rep[k : k + d] = irr
             k += d
         return rep
@@ -409,7 +409,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
         assert len(self._blocks) == self._nblocks
         row_irreps = self.get_row_representation()
         col_irreps = self.get_column_representation()
-        for (irr, b) in zip(self._block_irreps, self._blocks):
+        for irr, b in zip(self._block_irreps, self._blocks):
             nr = (row_irreps == irr).sum()
             nc = (col_irreps == irr).sum()
             assert nr > 0
