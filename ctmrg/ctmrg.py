@@ -346,7 +346,7 @@ class CTMRG:
 
     def print_tensor_shapes(self):
         print("tensor shapes for C1 T1 C2 // T4 A T2 // C4 T3 C4:")
-        for (x, y) in self._site_coords:
+        for x, y in self._site_coords:
             print(
                 f"({x},{y}):",
                 self._env.get_C1(x, y).shape,
@@ -878,7 +878,7 @@ class CTMRG:
         self._env.set_renormalized_tensors_up()
 
     def right_move_no_absorb(self):
-        for (x, y) in self._site_coords:
+        for x, y in self._site_coords:
             self._env.set_corner_ur(x, y, None)
             self._env.set_corner_dr(x, y, None)
             C3 = self._env.get_C3(x + 1, y + 1).T

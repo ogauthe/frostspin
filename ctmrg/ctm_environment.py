@@ -167,7 +167,7 @@ class CTM_Environment:
         # and conjugation. Little risk of error, _initialize_env and from_file are safe.
 
         # 4) check elementary tensors match together (need cell and coords)
-        for (x, y) in self._site_coords:
+        for x, y in self._site_coords:
             A = self.get_A(x, y)
             Ay = self.get_A(x, y - 1)
             if A.signature[2] == Ay.signature[4]:

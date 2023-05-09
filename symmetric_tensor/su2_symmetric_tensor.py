@@ -124,8 +124,8 @@ def _get_projector_chained(rep_in, signature, singlet_only=False):
 @numba.njit
 def _numba_elementary_combine_SU2(degen1, irreps1, degen2, irreps2):
     degen = np.zeros(irreps1[-1] + irreps2[-1] - 1, dtype=np.int64)
-    for (d1, irr1) in zip(degen1, irreps1):
-        for (d2, irr2) in zip(degen2, irreps2):
+    for d1, irr1 in zip(degen1, irreps1):
+        for d2, irr2 in zip(degen2, irreps2):
             for irr in range(abs(irr1 - irr2), irr1 + irr2 - 1, 2):
                 degen[irr] += d1 * d2  # shit irr-1 <-- irr to start at 0
     nnz = degen.nonzero()[0]
@@ -311,7 +311,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         for r in self._row_reps + self._col_reps:
             sz = np.empty((r[0] @ r[1],), dtype=np.int8)
             k = 0
-            for (d, irr) in zip(r[0], r[1]):
+            for d, irr in zip(r[0], r[1]):
                 sz_irr = np.arange(irr - 1, -irr - 1, -2, dtype=np.int8)
                 sz[k : k + d * irr].reshape(d, irr)[:] = sz_irr
                 k += d * irr
@@ -391,7 +391,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
             sz_rep_o2 = np.empty(sz_rep.shape, dtype=np.int8)
             k = 0
             signs_rep = np.empty(sz_rep.shape, dtype=bool)
-            for (d, irr) in zip(r[0], r[1]):
+            for d, irr in zip(r[0], r[1]):
                 sz_irr = np.arange(irr - 1, -irr - 1, -2, dtype=np.int8)
                 sz_rep[k : k + d * irr].reshape(d, irr)[:] = sz_irr
                 sz_irr_o2 = np.abs(sz_irr)

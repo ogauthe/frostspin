@@ -51,7 +51,7 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
 
     def norm(self):
         n2 = 0.0
-        for (irr, b) in zip(self._block_irreps, self._blocks):
+        for irr, b in zip(self._block_irreps, self._blocks):
             n2 += self.irrep_dimension(irr) * lg.norm(b) ** 2
         return np.sqrt(n2)
 

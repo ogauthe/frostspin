@@ -86,7 +86,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         for i, (k, v) in enumerate(cls._unitary_dic.items()):
             legs = np.array([k[0], k[1], len(k[2]), *k[2], *k[3]])
             reps = [np.frombuffer(b, dtype=int) for b in k[4:]]
-            for (j, repj) in enumerate(reps):
+            for j, repj in enumerate(reps):
                 data[f"_ST_unitary_{i}_rep_{j}"] = repj
             data[f"_ST_unitary_{i}_legs"] = legs
             data[f"_ST_unitary_{i}_data"] = v.data
