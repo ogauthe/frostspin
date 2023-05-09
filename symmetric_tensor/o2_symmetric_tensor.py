@@ -645,6 +645,10 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         return reps[0]
 
     @staticmethod
+    def conjugate_irrep(irr):
+        return irr
+
+    @staticmethod
     def conjugate_representation(rep):
         return rep
 

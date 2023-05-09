@@ -70,5 +70,11 @@ temp = temp.permutate((3, 0, 2), (1, 4))
 assert (temp.toarray() == t0.transpose(3, 0, 2, 1, 4)).all()
 
 u, s, v = tu1.svd()
-u = u * s
-assert (tu1 - u @ v).norm() < 1e-12
+us = u * s
+assert (tu1 - us @ v).norm() < 1e-12
+sv = s * v
+assert (tu1 - u @ sv).norm() < 1e-12
+s12 = s**0.5
+us2 = u * s12
+s2v = s12 * v
+assert (tu1 - us2 @ s2v).norm() < 1e-12

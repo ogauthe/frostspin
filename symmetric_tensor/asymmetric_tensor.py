@@ -34,6 +34,10 @@ class AsymmetricTensor(SymmetricTensor):
         return np.prod([r for r in reps], axis=0)
 
     @staticmethod
+    def conjugate_irrep(irr):
+        return irr
+
+    @staticmethod
     def conjugate_representation(rep):
         return rep
 

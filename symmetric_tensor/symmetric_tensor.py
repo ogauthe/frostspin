@@ -42,6 +42,12 @@ class SymmetricTensor:
     def combine_representations(reps, signature):
         raise NotImplementedError("Must be defined in derived class")
 
+    # conjugate one irrep
+    @staticmethod
+    def conjugate_irrep(irr):
+        raise NotImplementedError("Must be defined in derived class")
+
+    # conjugate a whole representation, may include swapping irreps
     @staticmethod
     def conjugate_representation(rep):
         raise NotImplementedError("Must be defined in derived class")
@@ -252,16 +258,20 @@ class SymmetricTensor:
 
     def __mul__(self, other):
         """
-        Matrix product with a diagonal matrix with matching symmetry. If left is True,
-        matrix multiplication is from the left.
+        If other is a scalar, this is standard scalar multiplication.
 
-        Convention: diag_blocks is understood as diagonal weights coming from a SVD in
-        terms of representation and signature. Therefore it can only be added to the
-        right if self has only one column leg and its signature is True and added to the
-        left if self has only one row leg with signature False. If this is not the case,
-        then self is transposed, weights are added on the other side and the result is
-        transposed back to initial shape
+        If other is a DiagonalTensor, this is a blockwise matrix product with a diagonal
+        matrix. Symmetries must match.
         """
+        if np.issubdtype(type(other), np.number):
+            blocks = tuple(other * b for b in self._blocks)
+            return type(self)(
+                self._row_reps,
+                self._col_reps,
+                blocks,
+                self._block_irreps,
+                self._signature,
+            )
         if type(other) == DiagonalTensor:  # add diagonal weights on last col leg
             # check DiagonalTensor matches self
             assert self.symmetry == other.symmetry
@@ -271,7 +281,10 @@ class SymmetricTensor:
                 == [self.irrep_dimension(irr) for irr in other.block_irreps]
             ).all()
             return self.diagonal_mul(other.diagonal_blocks, other.block_irreps)
-        if np.isscalar(other) or (type(other) == np.array and other.size) == 1:
+        raise TypeError("unsupported operation")
+
+    def __rmul__(self, other):
+        if np.issubdtype(type(other), np.number):
             blocks = tuple(other * b for b in self._blocks)
             return type(self)(
                 self._row_reps,
@@ -280,9 +293,6 @@ class SymmetricTensor:
                 self._block_irreps,
                 self._signature,
             )
-        raise TypeError("unsupported operation")
-
-    def __rmul__(self, other):
         if type(other) == DiagonalTensor:  # add diagonal weights on 1st row leg
             assert self.symmetry == other.symmetry
             assert (self._row_reps[0] == other.representation).all()
@@ -292,15 +302,6 @@ class SymmetricTensor:
             ).all()
             return self.diagonal_mul(
                 other.diagonal_blocks, other.block_irreps, left=True
-            )
-        if np.isscalar(other) or (type(other) == np.array and other.size) == 1:
-            blocks = tuple(other * b for b in self._blocks)
-            return type(self)(
-                self._row_reps,
-                self._col_reps,
-                blocks,
-                self._block_irreps,
-                self._signature,
             )
         raise TypeError("unsupported operation")
 
@@ -312,7 +313,8 @@ class SymmetricTensor:
         Convention: diag_blocks is understood as diagonal weights coming from a SVD in
         terms of representation and signature. Therefore it can only be added to the
         right if self has only one column leg and added to the left if self has only one
-        row leg. Its signature is assumed to be trivial [False, True].
+        Its signature is assumed to be trivial [False, True]. If it does not match self
+        then a signature change is done by conjugating diag_block_irreps.
 
         Consider calling mul or rmul with a DiagonalTensor object for a more robust
         interface.
@@ -321,26 +323,22 @@ class SymmetricTensor:
         ----------
         diag_blocks : enum of 1D array
             Diagonal block to apply to self.blocks
-        diag_block_irreps : enum of int array
+        diag_block_irreps : int array
             Irreducible representation corresponding to each block
         left : bool
             Whether to multiply from the right (default) or from the left.
         """
-        # Its signature is assumed to be trivial [False, True]. If it does not
-        # match self, then a signature change is done by conjugating diag_block_irreps.
-        # => would require a conjugate_irreps method that is not defined
-        # conjugating irreps is crucial to account for signature change, which may
-        # swaps diagonal blocks, although coefficients will never be affected
-
-        # quickfix: this function is fast, go for simple fix with .T.T
-        # TODO transpose weights instead of tensor
-
         n = len(diag_blocks)
         assert len(diag_block_irreps) == n
 
-        if (left and not self._signature[0]) or (not left and self._signature[-1]):
-            # conj_irreps = self.conjugate_irreps(block_irreps)  # not defined yet
-            return self.T.diagonal_mul(diag_blocks, diag_block_irreps, left=not left).T
+        # if signatures do not match, transpose diag_blocks. This requires to conjugate
+        # diag_block_irreps and swap blocks to keep them sorted.
+        # since signature structure is trivial, block coefficients are not affected.
+        if (left and self._signature[0]) or (not left and not self._signature[-1]):
+            conj_irreps = np.array([self.conjugate_irrep(r) for r in diag_block_irreps])
+            so = conj_irreps.argsort()
+            diag_block_irreps = conj_irreps[so]
+            diag_blocks = [diag_blocks[i] for i in so]
 
         if left:
             assert self._nrr == 1

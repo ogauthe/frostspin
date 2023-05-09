@@ -11,7 +11,7 @@ class DiagonalTensor:
         self, diag_blocks, representation, block_irreps, block_degen, symmetry
     ):
         # store symmetry as a string instead of storing SymmetricTensor type
-        # requires to store block_degen (which could be retrieve from SymmetricTensor
+        # requires to store block_degen (which could be recovered from SymmetricTensor
         # and representation), but makes I/O simpler and avoids cross import
         self._diagonal_blocks = tuple(np.asarray(db) for db in diag_blocks)
         self._representation = representation
@@ -74,7 +74,7 @@ class DiagonalTensor:
         return f"DiagonalTensor with {self.nblocks} blocks and {self.symmetry} symmetry"
 
     def __mul__(self, x):
-        if np.isscalar(x) or (type(x) == np.ndarray and x.size == 1):
+        if np.issubdtype(type(x), np.number):
             blocks = []
             for db in self._diagonal_blocks:
                 blocks.append(x * db)
@@ -88,7 +88,7 @@ class DiagonalTensor:
         return NotImplemented  # call x.__rmul__(self)
 
     def __imul__(self, x):
-        assert np.array(x).size == 1 and complex(x) == x
+        assert np.issubdtype(type(x), np.number)
         for db in self._diagonal_blocks:
             db *= x
         return self
@@ -101,7 +101,7 @@ class DiagonalTensor:
         return self
 
     def __pow__(self, x):
-        assert np.array(x).size == 1 and complex(x) == x
+        assert np.issubdtype(type(x), np.number)
         blocks = []
         for db in self._diagonal_blocks:
             blocks.append(db**x)
