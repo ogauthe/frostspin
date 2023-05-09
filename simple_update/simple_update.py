@@ -742,10 +742,7 @@ class SimpleUpdate:
             t = t0
             for j, leg in enumerate(self._tensor_bond_indices[i]):
                 t = t.permutate(rswap, (2,))
-                if t.signature[-1]:
-                    t = t * sqw[leg]
-                else:
-                    t = (sqw[leg] * t.T).T
+                t = t * sqw[leg]
             t = t.permutate((0, 1), tuple(range(2, t0.ndim)))
             tensors.append(t)
         return tensors
