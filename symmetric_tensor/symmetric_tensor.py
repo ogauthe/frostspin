@@ -357,7 +357,7 @@ class SymmetricTensor:
                 block_irreps.append(self._block_irreps[i1])
                 i1 += 1
                 i2 += 1
-            elif self._block_irreps[i1] < block_irreps[i2]:
+            elif self._block_irreps[i1] < diag_block_irreps[i2]:
                 # the operation is valid but this should not happen for diagonal_irreps
                 # coming from a SVD
                 print("Warning: missing block in diagonal blocks")
