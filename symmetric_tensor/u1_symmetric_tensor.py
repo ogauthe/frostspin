@@ -42,6 +42,10 @@ class U1_SymmetricTensor(AbelianSymmetricTensor):
         return (1 - 2 * signature[0]) * reps[0]
 
     @staticmethod
+    def conjugate_irrep(irr):
+        return -irr
+
+    @staticmethod
     def conjugate_representation(rep):
         return -rep
 

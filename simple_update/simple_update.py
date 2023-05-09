@@ -1,7 +1,7 @@
 import numpy as np
 
 from symmetric_tensor.tools import get_symmetric_tensor_type
-from symmetric_tensor.non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
+from symmetric_tensor.diagonal_tensor import DiagonalTensor
 
 from .su_models import j1_j2_models
 
@@ -276,8 +276,8 @@ class SimpleUpdate:
             Raw data on updates, exact format is specified in decode_raw_update_data.
         raw_hamilts : enumerable of SymmetricTensor
             List of elementary bond Hamiltonians acting on the tensors.
-        weights : list of list of numpy array
-            Simple update weights for each symmetry sector for each bond.
+        weights : list of DiagonalTensor
+            Simple update weights for each bond.
         verbosity : int
             Level of log verbosity.
 
@@ -348,7 +348,7 @@ class SimpleUpdate:
         self._ST = type(raw_hamilts[0])
         self._tensor_bond_indices = tensor_bond_indices
         self._tensors = tensors
-        self._weights = weights
+        self._weights = list(weights)
         self.D = D
         self.rcutoff = rcutoff
         self.degen_ratio = degen_ratio
@@ -363,24 +363,6 @@ class SimpleUpdate:
         if self.verbosity > 0:
             print(f"Construct SimpleUpdate with {self.symmetry} symmetry")
             print(f"beta = {beta:.6g}")
-
-        # quick and dirty: define on the fly method to normalize weights
-        if issubclass(self._ST, NonAbelianSymmetricTensor):
-
-            def normalized_weights(weights, rep):
-                assert len(weights) == rep.shape[1]
-                x = 0
-                for i, w in enumerate(weights):
-                    x += self._ST.irrep_dimension(rep[1, i]) * w.sum()
-                return [w / x for w in weights]
-
-        else:
-
-            def normalized_weights(weights, rep):
-                x = sum(w.sum() for w in weights)
-                return [w / x for w in weights]
-
-        self._normalized_weights = normalized_weights
 
         if self.verbosity > 1:
             print(self)
@@ -564,7 +546,11 @@ class SimpleUpdate:
             tensors.append(t)
 
         beta = 0.0
-        weights = [[np.ones((1,))] for i in range(n_bonds)]
+        irr = t.block_irreps
+        w = [np.ones((1,))]
+        weights = [
+            DiagonalTensor(w, ST.singlet, irr, [1], ST.symmetry) for i in range(n_bonds)
+        ]
 
         return SimpleUpdate(
             D,
@@ -620,11 +606,10 @@ class SimpleUpdate:
 
             raw_update_data = fin["_SimpleUpdate_raw_update_data"]
 
-            # weights are list of numpy array, one list for one symmetry sector
             weights = []
             for i in range(fin["_SimpleUpdate_n_bonds"]):
-                n = fin[f"_SimpleUpdate_nw{i}"]
-                w = [fin[f"_SimpleUpdate_weights_{i}_{j}"] for j in range(n)]
+                prefix = f"_SimpleUpdate_weights_{i}"
+                w = DiagonalTensor.load_from_dic(fin, prefix=prefix)
                 weights.append(w)
 
         return cls(
@@ -673,11 +658,8 @@ class SimpleUpdate:
             data |= self._tensors[i].get_data_dic(prefix=f"_SimpleUpdate_tensor_{i}")
             data[f"_SimpleUpdate_tensor_bond_indices_{i}"] = tbi
 
-        for i in range(self._n_bonds):
-            n = len(self._weights[i])
-            data[f"_SimpleUpdate_nw{i}"] = n
-            for j in range(n):
-                data[f"_SimpleUpdate_weights_{i}_{j}"] = self._weights[i][j]
+        for i, w in enumerate(self._weights):
+            data |= w.get_data_dic(prefix=f"_SimpleUpdate_weights_{i}")
 
         np.savez_compressed(savefile, **data, **additional_data)
         if self.verbosity > 0:
@@ -739,27 +721,9 @@ class SimpleUpdate:
         """
         Return simple update weights for each bond with degeneracies.
         """
-        if issubclass(self._ST, NonAbelianSymmetricTensor):
-            # self._weights is a list of size self._n_bonds
-            # self._weights[i] is a tuple of numpy arrays, as produced by ST.svd
-            # self._weights[i][j] is a numpy array of shape (deg,), corresponding to
-            # irrep irr, where deg and irr are given by get_bond_representations[i].
-            weights = []
-            for (wt, rep) in zip(self._weights, self.get_bond_representations()):
-                dw = np.empty(self._ST.representation_dimension(rep))
-                k = 0
-                for (w, deg, irr) in zip(wt, rep[0], rep[1]):
-                    dim = self._ST.irrep_dimension(irr)
-                    for i in range(deg):
-                        dw[k : k + dim] = w[i]
-                        k += dim
-                weights.append(dw)
-        else:
-            weights = [np.concatenate(w) for w in self._weights]
-        if sort:
-            for i, w in enumerate(weights):
-                w.sort()
-                weights[i] = w[::-1]
+        weights = []
+        for w in self._weights:
+            weights.append(w.toarray(sort=sort))
         return weights
 
     def get_tensors(self):
@@ -769,7 +733,7 @@ class SimpleUpdate:
         tensors : tuple of _n_tensors SymmetricTensor
             Optimized tensors, with sqrt(weights) on all virtual legs.
         """
-        sqw = [[1.0 / np.sqrt(ws) for ws in w] for w in self._weights]
+        sqw = [w**-0.5 for w in self._weights]
         tensors = []
         for i, t0 in enumerate(self._tensors):
             # we already imposed the two first legs to be physical and ancilla in the
@@ -778,7 +742,7 @@ class SimpleUpdate:
             t = t0
             for j, leg in enumerate(self._tensor_bond_indices[i]):
                 t = t.permutate(rswap, (2,))
-                t = t.diagonal_mul(sqw[leg])
+                t = t * sqw[leg]
             t = t.permutate((0, 1), tuple(range(2, t0.ndim)))
             tensors.append(t)
         return tensors
@@ -814,13 +778,13 @@ class SimpleUpdate:
         """
         # cut left and right between const and effective parts
         cstL, svL, effL = left.svd()  # auxL-effL=p,m
-        effL = effL.diagonal_mul(svL, left=True)
+        effL = svL * effL
         cstR, svR, effR = right.svd()  # auxR-effR=p,m
-        effR = effR.diagonal_mul(svR, left=True)
+        effR = svR * effR
 
         # change tensor structure to contract mid
         effL = effL.permutate((0, 1), (2,))  # auxL,p=effL-m
-        effL = effL.diagonal_mul([1.0 / w for w in weights])  # apply *on effL right*
+        effL = effL * weights**-1
         effR = effR.permutate((2,), (0, 1))  # m-effR=auxR,p
 
         # construct matrix theta and apply gate
@@ -836,9 +800,9 @@ class SimpleUpdate:
         )
 
         # normalize weights and apply them to new left and new right
-        new_weights = self._normalized_weights(new_weights, effL.col_reps[0])
-        effL = effL.diagonal_mul(new_weights)
-        effR = effR.diagonal_mul(new_weights, left=True)
+        new_weights /= new_weights.sum()
+        effL = effL * new_weights
+        effR = new_weights * effR
 
         # reshape to initial tree structure
         effL = effL.permutate((0,), (1, 2))  # auxL - effL = pL,m
@@ -890,18 +854,18 @@ class SimpleUpdate:
 
         # 1) SVD cut between constant tensors and effective tensors to update
         cstL, svL, effL = left.svd()  # auxL - effL = pL, mL
-        effL = effL.diagonal_mul(svL, left=True)
+        effL = svL * effL
         effL = effL.permutate((0, 1), (2,))  # auxL,pL = effL - mL
-        effL = effL.diagonal_mul([1.0 / w for w in weightsL])
+        effL = effL * weightsL**-1
 
         cstm, svm, effm = mid.svd()  # auxm - effm = mL, mR
-        effm = effm.diagonal_mul(svm, left=True)
+        effm = svm * effm
         effm = effm.permutate((1,), (2, 0))  # mL - effm = mR, auxm
 
         cstR, svR, effR = right.svd()  # auxR - effR = pR, mR
-        effR = effR.diagonal_mul(svR, left=True)
+        effR = svR * effR
         effR = effR.permutate((0, 1), (2,))  # auR, pR = effR - mR
-        effR = effR.diagonal_mul([1.0 / w for w in weightsR])
+        effR = effR * weightsR**-1
 
         # contract tensor network
         #                         ||
@@ -919,18 +883,18 @@ class SimpleUpdate:
         effR, new_weightsR, theta = theta.truncated_svd(
             self.D, rcutoff=self.rcutoff, degen_ratio=self.degen_ratio
         )
-        new_weightsR = self._normalized_weights(new_weightsR, effR.col_reps[0])
-        effR = effR.diagonal_mul(new_weightsR)  # pR, auxR = effR - mR
+        new_weightsR /= new_weightsR.sum()
+        effR = effR * new_weightsR  # pR, auxR = effR - mR
 
         # 2nd SVD
-        theta = theta.diagonal_mul(new_weightsR, left=True)  # mR-theta = auL,pL,auxm
+        theta = new_weightsR * theta  # mR-theta = auL,pL,auxm
         theta = theta.permutate((1, 2), (3, 0))  # auxL, pL = theta = auxm, mR
         effL, new_weightsL, effm = theta.truncated_svd(
             self.D, rcutoff=self.rcutoff, degen_ratio=self.degen_ratio
         )
-        new_weightsL = self._normalized_weights(new_weightsL, effL.col_reps[0])
-        effm = effm.diagonal_mul(new_weightsL, left=True)  # mL - effm = auxm, mR
-        effL = effL.diagonal_mul(new_weightsL)  # auxL, pL = effL - mL
+        new_weightsL /= new_weightsL.sum()
+        effm = new_weightsL * effm  # mL - effm = auxm, mR
+        effL = effL * new_weightsL  # auxL, pL = effL - mL
 
         # reshape to initial tree structure
         effL = effL.permutate((0,), (1, 2))  # auxL - effL = pL, mL
