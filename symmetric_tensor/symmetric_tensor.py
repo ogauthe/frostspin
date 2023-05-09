@@ -435,14 +435,21 @@ class SymmetricTensor:
         signature on every legs as self. block_irreps and blocks are not used.
         Return bool, do not raise.
         """
-        return (
-            type(self) == type(other)
-            and self._shape == other._shape
-            and self._nrr == other._nrr
-            and (self._signature == other._signature).all()
-            and all((r == r2).all() for (r, r2) in zip(self._row_reps, other._row_reps))
-            and all((r == r2).all() for (r, r2) in zip(self._col_reps, other._col_reps))
-        )
+        if type(self) != type(other):
+            return False
+        if self._shape != other._shape:
+            return False
+        if self._nrr != other._nrr:
+            return False
+        if (self._signature != other._signature).any():
+            return False
+        for r, r2 in zip(self._row_reps, other._row_reps):
+            if r.shape != r2.shape or (r != r2).any():
+                return False
+        for r, r2 in zip(self._col_reps, other._col_reps):
+            if r.shape != r2.shape or (r != r2).any():
+                return False
+        return True
 
     @classmethod
     def random(cls, row_reps, col_reps, signature=None, rng=None):
