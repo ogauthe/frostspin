@@ -567,6 +567,119 @@ class SimpleUpdate:
         )
 
     @classmethod
+    def uniform_tensor(
+        cls,
+        tensor,
+        D,
+        tau,
+        rcutoff,
+        degen_ratio,
+        tensor_bond_indices,
+        raw_update_data,
+        raw_hamilts,
+        verbosity=0,
+    ):
+        # initialize zero-temperature wavefunction with same tensor everywhere and ones
+        # as weights. This may not be possible depending on tensor_bond_indices.
+        # Signature will be updated independently on each site to match SimpleUpdate
+        # conventions. If the ancilla leg is missing, a singlet will be added.
+        check_tensor_bond_indices(tensor_bond_indices)
+
+        ST = type(raw_hamilts[0])
+        n_tensors = len(tensor_bond_indices)
+        n_bonds = max(max(tbi) for tbi in tensor_bond_indices) + 1
+
+        second_order = True
+        data = get_update_data(
+            tensor_bond_indices, raw_update_data, raw_hamilts, second_order
+        )
+        (
+            bond1,
+            bond2,
+            gate_indices,
+            left_indices,
+            right_indices,
+            middle_indices,
+            _,
+            _,
+            _,
+            hamiltonians,
+            _,
+            _,
+        ) = data
+
+        # find signatures
+        signatures = [[None] * (2 + len(tbi)) for tbi in tensor_bond_indices]
+        for j, (b1, b2) in enumerate(zip(bond1, bond2)):
+            h = hamiltonians[gate_indices[j]]
+
+            iL = left_indices[j]
+            signatures[iL][0] = ~h.signature[0]
+            signatures[iL][1] = h.signature[0]
+            leg = list(tensor_bond_indices[iL]).index(b1)
+            signatures[iL][2 + leg] = True
+
+            iR = right_indices[j]
+            signatures[iR][0] = ~h.signature[1]
+            signatures[iR][1] = h.signature[1]
+            leg = list(tensor_bond_indices[iR]).index(b2)
+            signatures[iR][2 + leg] = False
+
+            if b2 != b1:
+                im = middle_indices[j]
+                leg = list(tensor_bond_indices[im]).index(b1)
+                signatures[im][2 + leg] = False
+                leg = list(tensor_bond_indices[im]).index(b2)
+                signatures[im][2 + leg] = True
+
+        tensors = []
+        t0 = tensor
+        if tensor.ndim == len(tensor_bond_indices[0]) + 1:
+            row_reps = [t0.row_reps[0], ST.singlet]
+            signature = [t0.signature[0], False] + list(t0.signature[1:])
+            t0 = ST(row_reps, t0.col_reps, t0.blocks, t0.block_irreps, signature)
+        elif tensor.ndim != len(tensor_bond_indices[0]) + 2:
+            raise ValueError("Tensor does not fit geometry")
+        for i in range(n_tensors):
+            t = t0.copy()
+            sig_diff = t.signature ^ signatures[i]
+            t.update_signature(sig_diff)
+            tensors.append(t)
+
+        beta = np.inf  # zero temperature
+
+        # initialize weights to ones
+        weights = []
+        for i in range(n_bonds):
+            rep = None
+            for j in range(n_tensors):
+                try:
+                    ind = list(tensor_bond_indices[j]).index(i)
+                    rep = tensors[j].col_reps[ind]
+                    break
+                except ValueError:
+                    pass
+            t = ST.random((rep,), (rep,))
+            _, s, _ = t.svd()
+            for db in s.diagonal_blocks:
+                db[:] = 1.0
+            weights.append(s)
+
+        return SimpleUpdate(
+            D,
+            beta,
+            tau,
+            rcutoff,
+            degen_ratio,
+            tensor_bond_indices,
+            tensors,
+            raw_update_data,
+            raw_hamilts,
+            weights,
+            verbosity,
+        )
+
+    @classmethod
     def random_wavefunction(
         cls,
         D,
