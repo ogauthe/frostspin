@@ -87,3 +87,14 @@ assert lg.norm(sto2.toarray() - arr) < 1e-14
 # check merge_legs
 _ = st.merge_legs(0, 1)
 _ = st.merge_legs(2, 3)
+
+
+# check missing blocks
+r3 = np.array([[1], [3]])
+blocks = (-np.eye(1), 2 * np.eye(1))
+block_irreps = np.array([1, 5])
+sign = np.array([False, False, True, True])
+t = SU2_SymmetricTensor((r3, r3), (r3, r3), blocks, block_irreps, sign)
+tp = t.permutate((3, 1, 2), (0,))
+tp2 = tp.permutate((3, 1), (2, 0))
+assert (tp2 - t).norm() < 1e-14
