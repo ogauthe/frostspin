@@ -184,7 +184,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
     ####################################################################################
     # Non-abelian specific symmetry implementation
     ####################################################################################
-    _unitary_dic = {}
+    _isometry_dic = {}
 
     @classmethod
     def construct_matrix_projector(cls, row_reps, col_reps, signature):
@@ -237,20 +237,10 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
     # Symmetry specific methods with fixed signature
     ####################################################################################
     def group_conjugated(self):
-        signature = ~self._signature
-        p = self.construct_matrix_projector(
-            self._row_reps, self._col_reps, self._signature
-        )
-        p2 = self.construct_matrix_projector(self._row_reps, self._col_reps, signature)
-        # can avoid computing p2 by taking kron( (-1)^(irr+1)) @ p
-        # can also be stored in unitary dic with permutation = Id
-        raw_data = p2.T @ (p @ self.to_raw_data())
-        blocks, block_irreps = self._blocks_from_raw_data(
-            raw_data, self.get_row_representation(), self.get_column_representation()
-        )
-        return type(self)(
-            self._row_reps, self._col_reps, blocks, block_irreps, signature
-        )
+        # .T makes use of precomputed isometries and .H is costless
+        ret = self.T.H
+        ret._blocks = tuple(b.conj() for b in ret._blocks)
+        return ret
 
     def update_signature(self, sign_update):
         # In the non-abelian case, updating signature can be done from the left or from
@@ -287,7 +277,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
 
             # could be stored in unitary_dic if too expensive, expect uncommon operation
             diag = diag.todia()  # we know the matrix is diagonal
-            raw_data = p.T @ (diag @ (p @ self.to_raw_data()))
+            raw_data = p.T @ (diag @ (p @ self._to_raw_data()))
             blocks, block_irreps = self._blocks_from_raw_data(
                 raw_data,
                 self.get_row_representation(),
@@ -343,7 +333,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         proj = self.construct_matrix_projector(
             self._row_reps, self._col_reps, self._signature
         )
-        raw = self.to_raw_data()
+        raw = self._to_raw_data()
         for sz in block_irreps:
             ri = (row_irreps == sz).nonzero()[0]
             ci = (col_irreps == sz).nonzero()[0]
@@ -453,7 +443,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         proj = self.construct_matrix_projector(
             self._row_reps, self._col_reps, self._signature
         )
-        raw = self.to_raw_data()
+        raw = self._to_raw_data()
         for sz in block_irreps:
             rsz_mat = (row_irreps == sz).nonzero()[0]
             rsz_t = (rsz_mat // row_cp[:, None]).T % shr  # multi-index form

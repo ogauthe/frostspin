@@ -10,8 +10,8 @@ from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
     """
     Efficient storage and manipulation for a tensor with non-abelian symmetry defined
-    by a Lie group. Axis permutation is done using unitary matrices defined by fusion
-    trees of representations.
+    by a Lie group. Axis permutation is done using isometries defined by fusion trees of
+    representations.
     """
 
     ####################################################################################
@@ -22,7 +22,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
     ####################################################################################
     # Non-abelian specific symmetry implementation
     ####################################################################################
-    _unitary_dic = NotImplemented
+    _isometry_dic = NotImplemented
 
     @classmethod
     def construct_matrix_projector(row_reps, col_reps, signature):
@@ -54,51 +54,43 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         raise NotImplementedError("Must be defined in derived class")
 
     @classmethod
-    def load_unitaries(cls, savefile):
+    def load_isometries(cls, savefile):
         with np.load(savefile) as fin:
             if fin["_ST_symmetry"] != cls.symmetry:
-                raise ValueError("Savefile symmetry do not match SymmetricTensor")
-            n = fin["_ST_n_unitary"]
-            for i in range(n):
-                legs = fin[f"_ST_unitary_{i}_legs"]
-                k = (
-                    legs[0],
-                    legs[1],
-                    tuple(legs[3 : legs[2] + 3]),
-                    tuple(legs[legs[2] + 3 :]),
-                )
-                reps = [fin[f"_ST_unitary_{i}_rep_{j}"] for j in range(legs.size - 3)]
-                k = k + tuple(r.tobytes() for r in reps)
-                data = fin[f"_ST_unitary_{i}_data"]
-                indices = fin[f"_ST_unitary_{i}_indices"]
-                indptr = fin[f"_ST_unitary_{i}_indptr"]
-                shape = fin[f"_ST_unitary_{i}_shape"]
-                v = ssp.csr_matrix((data, indices, indptr), shape=shape)
-                cls._unitary_dic[k] = v
+                raise ValueError("Savefile symmetry does not match SymmetricTensor")
+            for i in range(fin["_ST_n_iso"]):
+                key = tuple(fin[f"_ST_iso_{i}_key"])
+                block_irreps = fin[f"_ST_iso_{i}_block_irreps"]
+                blocks = []
+                for j in range(block_irreps.size):
+                    data = fin[f"_ST_iso_{i}_{j}_data"]
+                    indices = fin[f"_ST_iso_{i}_{j}_indices"]
+                    indptr = fin[f"_ST_iso_{i}_{j}_indptr"]
+                    shape = fin[f"_ST_iso_{i}_{j}_shape"]
+                    b = ssp.csc_matrix((data, indices, indptr), shape=shape)
+                    blocks.append(b)
+                cls._isometry_dic[key] = (np.array(block_irreps), blocks)
 
     @classmethod
-    def save_unitaries(cls, savefile):
-        data = {"_ST_symmetry": cls.symmetry, "_ST_n_unitary": len(cls._unitary_dic)}
-        # cannot use dict key directly as savefile keyword: it has to be a valid zip
-        # filename, which decoded bytes are not (some values are not allowed)
-        # can use workardound with cast to string, but keys becomes very long, may get
-        # trouble if larger than 250 char. Just use dumb count and save reps as arrays.
-        for i, (k, v) in enumerate(cls._unitary_dic.items()):
-            legs = np.array([k[0], k[1], len(k[2]), *k[2], *k[3]])
-            reps = [np.frombuffer(b, dtype=int) for b in k[4:]]
-            for j, repj in enumerate(reps):
-                data[f"_ST_unitary_{i}_rep_{j}"] = repj
-            data[f"_ST_unitary_{i}_legs"] = legs
-            data[f"_ST_unitary_{i}_data"] = v.data
-            data[f"_ST_unitary_{i}_indices"] = v.indices
-            data[f"_ST_unitary_{i}_indptr"] = v.indptr
-            data[f"_ST_unitary_{i}_shape"] = v.shape
+    def save_isometries(cls, savefile):
+        data = {"_ST_symmetry": cls.symmetry, "_ST_n_iso": len(cls._isometry_dic)}
+        # keys may be very long, may get into trouble as valid archive name beyond 250
+        # char. Just count values and save keys as arrays.
+        for i, (k, v) in enumerate(cls._isometry_dic.items()):
+            data[f"_ST_iso_{i}_key"] = np.array(k, dtype=int)
+            data[f"_ST_iso_{i}_block_irreps"] = v[0]
+            assert len(v[1]) == v[0].size
+            for j, b in enumerate(v[1]):
+                data[f"_ST_iso_{i}_{j}_data"] = b.data
+                data[f"_ST_iso_{i}_{j}_indices"] = b.indices
+                data[f"_ST_iso_{i}_{j}_indptr"] = b.indptr
+                data[f"_ST_iso_{i}_{j}_shape"] = b.shape
         np.savez_compressed(savefile, **data)
 
     ####################################################################################
     # Non-abelian shared symmetry implementation
     ####################################################################################
-    def construct_unitary(self, new_row_reps, new_col_reps, axes):
+    def construct_isometry(self, new_row_reps, new_col_reps, axes):
         r"""
         Construct isometry corresponding to change of non-abelian tensor tree structure.
 
@@ -120,13 +112,38 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         Parameters
         ----------
         new_row_reps: tuple of representations
-            Representation of transposed tensor row legs
+            Representation of transposed tensor row legs.
         new_col_reps: tuple of representations
-            Representation of transposed tensor column legs
+            Representation of transposed tensor column legs.
         axes: tuple of int
-            axes permutation
+            axes permutation.
+
+        Returns
+        -------
+        block_irreps : 1D integer array
+            Irreps associated to each isometry blocks.
+        iso_blocks : tuple of csc_matrix
+            Isometries to send a given irrep block to its new values. See notes for
+            details.
+
+        Notes
+        -----
+        block_irreps and iso_blocks have same length. For each index i, iso_blocks[i]
+        acts on flattened block with same irrep (some blocks may be missing in self) and
+        sends it to a flat 1D array which can be reshaped as blocks for the permutated
+        tensor. Coefficients sqrt(irrep dimension) are included in the isometry.
+
+        While csr can be slighlty faster than csc, the matrices here are very
+        rectangular. They have as many columns as the block they are acting on, but as
+        many rows as the number of tensor coefficients. In terms of memory, csr is
+        inefficient for such matrices, while csc is great.
         """
-        # when half-integer and interger spins are mixed, errors may appear
+        # there are 2 ways to do a basis change: calling to_raw_data, applying some
+        # unitary transformation (typically the product of 2 matrix projectors), then
+        # calling blocks_from_raw_data. Sqrt(irrep) are applied back and forth in
+        # raw_data transformations. Else one can use precomputed isometries which
+        # already include these factors. This is faster and cleaner.
+
         proj1 = self.construct_matrix_projector(
             self._row_reps, self._col_reps, self._signature
         )
@@ -150,15 +167,56 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         # with several order of magnitude between them and real non-zeros.
         unitary.data[np.abs(unitary.data) < 1e-14] = 0.0
         unitary.eliminate_zeros()
-        unitary = unitary.sorted_indices()  # copy to get clean data array
         assert lg.norm(
             (unitary @ unitary.T.conj() - ssp.eye(unitary.shape[0])).data
         ) < 1e-13 * np.sqrt(unitary.shape[0]), "unitary transformation is not unitary"
-        return unitary
+
+        # add sqrt(irr) factors on output
+        iso = unitary.sorted_indices()
+        nnrr = len(new_row_reps)
+        rrep = self.combine_representations(new_row_reps, signature[:nnrr])
+        crep = self.combine_representations(new_col_reps, signature[nnrr:])
+        k, ir, ic = 0, 0, 0
+        while ir < rrep.shape[1] and ic < crep.shape[1]:
+            if rrep[1, ir] == crep[1, ic]:
+                n = rrep[0, ir] * crep[0, ic]
+                iso[k : k + n] /= np.sqrt(self.irrep_dimension(rrep[1, ir]))
+                k += n
+                ir += 1
+                ic += 1
+            elif rrep[1, ir] < crep[1, ic]:
+                ir += 1
+            else:
+                ic += 1
+        assert k == unitary.shape[0]
+
+        # slice isometry + add sqrt on input to get blocks
+        iso = iso.tocsc()
+        rrep = self.combine_representations(self._row_reps, self.signature[: self._nrr])
+        crep = self.combine_representations(self._col_reps, self.signature[self._nrr :])
+        blocks, block_irreps = [], []
+        k, ir, ic = 0, 0, 0
+        while ir < rrep.shape[1] and ic < crep.shape[1]:
+            if rrep[1, ir] == crep[1, ic]:
+                n = rrep[0, ir] * crep[0, ic]
+                p = iso[:, k : k + n] * np.sqrt(self.irrep_dimension(rrep[1, ir]))
+                blocks.append(p)
+                block_irreps.append(rrep[1, ir])
+                k += n
+                ir += 1
+                ic += 1
+            elif rrep[1, ir] < crep[1, ic]:
+                ir += 1
+            else:
+                ic += 1
+        assert k == unitary.shape[0]
+
+        return np.array(block_irreps), tuple(blocks)
 
     @classmethod
     def _blocks_from_raw_data(cls, raw_data, row_rep, col_rep):
-        # TODO put sqrt(dim) in "unitary" and jit me
+        # raw_data transformations are convenient, especially for cast. They should not
+        # be often used, performance is not a priority.
         i1 = 0
         i2 = 0
         blocks = []
@@ -177,12 +235,12 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                 i1 += 1
             else:
                 i2 += 1
+        assert k == raw_data.size
         return blocks, block_irreps
 
-    def to_raw_data(self):
-        # some blocks may be missing, yet raw_data has to include the corresponding
-        # zeros at the accurate position. This is inefficient.
-        # TODO: remove this method
+    def _to_raw_data(self):
+        # raw_data transformations are convenient, especially for cast. They should not
+        # be often used, performance is not a priority.
         row_rep = self.get_row_representation()
         col_rep = self.get_column_representation()
         shared, indL, indR = np.intersect1d(  # bruteforce numpy > clever python
@@ -190,7 +248,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         )
         data = np.zeros(row_rep[0, indL] @ col_rep[0, indR])
         k = 0
-        # hard to jit, need to call self._blocks[i] which may be heterogenous
+        # take care of potentially missing blocks
         for i, irr in enumerate(shared):
             j = bisect.bisect_left(self._block_irreps, irr)
             if j < self._nblocks and self._block_irreps[j] == irr:
@@ -199,6 +257,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                 k += b.size
             else:  # missing block
                 k += row_rep[0, indL[i]] * col_rep[0, indR[i]]
+        assert k == data.size
         return data
 
     ####################################################################################
@@ -233,7 +292,8 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         proj = self.construct_matrix_projector(
             self._row_reps, self._col_reps, self._signature
         )
-        arr = proj @ self.to_raw_data()
+        raw = self._to_raw_data()
+        arr = proj @ raw
         if as_matrix:
             return arr.reshape(self.matrix_shape)
         return arr.reshape(self._shape)
@@ -265,22 +325,53 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                 reps.append(self._col_reps[ax - self._nrr])
         signature = np.array(signature)
 
-        # if hash is too slow, can be decomposed: at init, set dic corresponding to
-        # representations, then permutate only needs hash from row_axes and col_axes
-        key = tuple(r.tobytes() for r in self._row_reps + self._col_reps)
+        # retrieve or compute unitary
         si = int(2 ** np.arange(self._ndim) @ self._signature)
-        key = (si, self._nrr, row_axes, col_axes) + key
+        key = [self._ndim, self._nrr, si, len(row_axes), *axes]
+        for r in self._row_reps + self._col_reps:
+            key.append(r.shape[1])
+            key.extend(r.flat)
+        key = tuple(key)
         try:
-            unitary = self._unitary_dic[key]
+            isometry = self._isometry_dic[key]
         except KeyError:
-            unitary = self.construct_unitary(reps[:nrr], reps[nrr:], axes)
-            self._unitary_dic[key] = unitary
-        # TODO slice unitary to do product blockwise, allowing for missing blocks
-        # also include sqrt(dim) in input and output
-        raw_data = unitary @ self.to_raw_data()
-        blocks, block_irreps = self._blocks_from_raw_data(
-            raw_data,
-            self.combine_representations(reps[:nrr], signature[:nrr]),
-            self.combine_representations(reps[nrr:], signature[nrr:]),
-        )
-        return type(self)(reps[:nrr], reps[nrr:], blocks, block_irreps, signature)
+            isometry = self.construct_isometry(reps[:nrr], reps[nrr:], axes)
+            self._isometry_dic[key] = isometry
+
+        # compute new blocks as flat array
+        # "isometry" is a tuple (block_irreps, iso_blocks). block_irreps is a 1D integer
+        # array containg all block_irreps reachable from row and col representations.
+        # iso_blocks is a tuple of csr_matrix arrays, each matrix is an isometry sending
+        # the associated block to its new values in a flat array.
+        inds = isometry[0].searchsorted(self._block_irreps)
+        assert (isometry[0][inds] == self._block_irreps).all()
+        flat = np.zeros((isometry[1][0].shape[0],), dtype=self.dtype)
+        for bi in range(self._nblocks):
+            flat += isometry[1][inds[bi]] @ self._blocks[bi].ravel()
+
+        # reconstruct blocks
+        row_rep = self.combine_representations(reps[:nrr], signature[:nrr])
+        col_rep = self.combine_representations(reps[nrr:], signature[nrr:])
+        i1 = 0
+        i2 = 0
+        blocks = []
+        block_irreps = []
+        k = 0
+        while i1 < row_rep.shape[1] and i2 < col_rep.shape[1]:
+            if row_rep[1, i1] == col_rep[1, i2]:
+                sh = (row_rep[0, i1], col_rep[0, i2])
+                m = flat[k : k + sh[0] * sh[1]].reshape(sh)
+                blocks.append(m)
+                block_irreps.append(row_rep[1, i1])
+                k += m.size
+                i1 += 1
+                i2 += 1
+            elif row_rep[1, i1] < col_rep[1, i2]:
+                i1 += 1
+            else:
+                i2 += 1
+        assert k == flat.size
+
+        ret = type(self)(reps[:nrr], reps[nrr:], blocks, block_irreps, signature)
+        assert abs(ret.norm() - self.norm()) < 1e-13 * self.norm()
+        return ret
