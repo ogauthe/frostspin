@@ -646,7 +646,7 @@ class SimpleUpdate:
             t.update_signature(sig_diff)
             tensors.append(t)
 
-        beta = np.inf  # zero temperature
+        beta = 0.0
 
         # initialize weights to ones
         weights = []
@@ -796,7 +796,10 @@ class SimpleUpdate:
             t = ST.random(row_reps, col_reps, signature=signatures[i], rng=rng)
             tensors.append(t)
 
-        beta = np.inf  # zero temperature
+        # a random state corresponds to infinite temperature beta=0.0
+        # although the objective is to get zero temperature physics, it is still
+        # convenient to keep beta at a finite value to evaluate past time evolution.
+        beta = 0.0
 
         # initialize weights: inefficient but simple and fast enough
         weights = []
