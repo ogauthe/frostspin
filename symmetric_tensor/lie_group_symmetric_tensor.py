@@ -67,7 +67,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     indices = fin[f"_ST_iso_{i}_{j}_indices"]
                     indptr = fin[f"_ST_iso_{i}_{j}_indptr"]
                     shape = fin[f"_ST_iso_{i}_{j}_shape"]
-                    b = ssp.csr_matrix((data, indices, indptr), shape=shape)
+                    b = ssp.csc_matrix((data, indices, indptr), shape=shape)
                     blocks.append(b)
                 cls._isometry_dic[key] = (np.array(block_irreps), blocks)
 
@@ -122,7 +122,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         -------
         block_irreps : 1D integer array
             Irreps associated to each isometry blocks.
-        iso_blocks : tuple of csr_matrix
+        iso_blocks : tuple of csc_matrix
             Isometries to send a given irrep block to its new values. See notes for
             details.
 
@@ -132,6 +132,11 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         acts on flattened block with same irrep (some blocks may be missing in self) and
         sends it to a flat 1D array which can be reshaped as blocks for the permutated
         tensor. Coefficients sqrt(irrep dimension) are included in the isometry.
+
+        While csr can be slighlty faster than csc, the matrices here are very
+        rectangular. They have as many columns as the block they are acting on, but as
+        many rows as the number of tensor coefficients. In terms of memory, csr is
+        inefficient for such matrices, while csc is great.
         """
         # there are 2 ways to do a basis change: calling to_raw_data, applying some
         # unitary transformation (typically the product of 2 matrix projectors), then
@@ -186,6 +191,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         assert k == unitary.shape[0]
 
         # slice isometry + add sqrt on input to get blocks
+        iso = iso.tocsc()
         rrep = self.combine_representations(self._row_reps, self.signature[: self._nrr])
         crep = self.combine_representations(self._col_reps, self.signature[self._nrr :])
         blocks, block_irreps = [], []
@@ -194,7 +200,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             if rrep[1, ir] == crep[1, ic]:
                 n = rrep[0, ir] * crep[0, ic]
                 p = iso[:, k : k + n] * np.sqrt(self.irrep_dimension(rrep[1, ir]))
-                blocks.append(p.tocsr())
+                blocks.append(p)
                 block_irreps.append(rrep[1, ir])
                 k += n
                 ir += 1
