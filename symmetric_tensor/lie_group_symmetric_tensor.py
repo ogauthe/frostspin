@@ -67,7 +67,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     indices = fin[f"_ST_iso_{i}_{j}_indices"]
                     indptr = fin[f"_ST_iso_{i}_{j}_indptr"]
                     shape = fin[f"_ST_iso_{i}_{j}_shape"]
-                    b = ssp.csc_matrix((data, indices, indptr), shape=shape)
+                    b = ssp.csc_array((data, indices, indptr), shape=shape)
                     blocks.append(b)
                 cls._isometry_dic[key] = (np.array(block_irreps), blocks)
 
@@ -122,7 +122,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         -------
         block_irreps : 1D integer array
             Irreps associated to each isometry blocks.
-        iso_blocks : tuple of csc_matrix
+        iso_blocks : tuple of csc_array
             Isometries to send a given irrep block to its new values. See notes for
             details.
 
@@ -341,7 +341,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         # compute new blocks as flat array
         # "isometry" is a tuple (block_irreps, iso_blocks). block_irreps is a 1D integer
         # array containg all block_irreps reachable from row and col representations.
-        # iso_blocks is a tuple of csr_matrix arrays, each matrix is an isometry sending
+        # iso_blocks is a tuple of csr_array arrays, each matrix is an isometry sending
         # the associated block to its new values in a flat array.
         inds = isometry[0].searchsorted(self._block_irreps)
         assert (isometry[0][inds] == self._block_irreps).all()

@@ -59,7 +59,7 @@ def _get_projector(in1, in2, s1, s2, max_irrep=2**30):
                     shift3[irr3] += d2 * irr3
                     shift1 += irr1
     sh = (in1[0] @ in1[1], in2[0] @ in2[1] * out_dim)  # contract 1st leg in chained
-    return ssp.csr_matrix((data, (row, col)), shape=sh)
+    return ssp.csr_array((data, (row, col)), shape=sh)
 
 
 def _get_projector_chained(rep_in, signature, singlet_only=False):
@@ -230,7 +230,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
                 shift_out += degenR
 
         assert shift_out == repL[0, indL] @ repR[0, indR]
-        full_proj = ssp.csr_matrix((data, (row, col)), shape=(dimLR, shift_out))
+        full_proj = ssp.csr_array((data, (row, col)), shape=(dimLR, shift_out))
         return full_proj
 
     ####################################################################################
@@ -270,7 +270,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
                         if not irr % 2:
                             coeff[k : k + degen * irr] = -1
                         k += degen * irr
-                    m = ssp.coo_matrix((coeff, (inds, inds)), shape=(d, d))
+                    m = ssp.coo_array((coeff, (inds, inds)), shape=(d, d))
                 else:
                     m = ssp.eye(d, format="coo")
                 diag = ssp.kron(diag, m)
