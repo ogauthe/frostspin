@@ -45,8 +45,7 @@ def find_chi_largest(block_s, chi, dims=None, rcutoff=0.0, degen_ratio=1.0):
 
 @numba.njit
 def _numba_find_chi_largest(block_s, chi, dims, rcutoff, degen_ratio):
-    # numba issue #7394
-    block_max_vals = np.array([block_s[bi][0] for bi in range(len(block_s))])
+    block_max_vals = np.array([b[0] for b in block_s])
     cutoff = block_max_vals.max() * rcutoff
     block_cuts = np.zeros((len(block_s),), dtype=np.int64)
     kept = 0
