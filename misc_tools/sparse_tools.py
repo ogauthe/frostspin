@@ -111,7 +111,7 @@ def sparse_transpose(m, shape, axes, n_row_axes, copy=False):
 
     Parameters
     ----------
-    m : sparse matrix
+    m : sparse array
         Sparse matrix to transpose.
     shape : tuple of ints
         Input shape when viewed as a tensor.
@@ -124,8 +124,8 @@ def sparse_transpose(m, shape, axes, n_row_axes, copy=False):
 
     Returns
     -------
-    out : coo_matrix
-        Transposed tensor cast as a coo_matrix.
+    out : coo_array
+        Transposed tensor cast as a coo_array.
     """
     if sorted(axes) != list(range(len(shape))):
         raise ValueError("axes do not match shape")
@@ -142,7 +142,7 @@ def sparse_transpose(m, shape, axes, n_row_axes, copy=False):
     ind1D = np.ravel_multi_index((mcoo.row, mcoo.col), mcoo.shape)
     ind1D = (ind1D[:, None] // strides1 % shape) @ strides2
     row, col = np.unravel_index(ind1D, nsh)
-    out = ssp.coo_matrix((m.data, (row, col)), shape=nsh, copy=copy)
+    out = ssp.coo_array((m.data, (row, col)), shape=nsh, copy=copy)
     return out
 
 
