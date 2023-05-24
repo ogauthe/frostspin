@@ -1273,6 +1273,8 @@ class SimpleUpdate:
         for b in range(self._n_bonds):
             if not (b in self._1st_updated_bond or b in self._2nd_updated_bond):
                 raise ValueError(f"Bond {b} is never updated")
+            if self._weights[b].symmetry != self._ST.symmetry:
+                raise ValueError(f"Bond {b} has invalid symmetry")
 
         # check gates are 2-site operators
         check_hamiltonians(self._gates)
@@ -1402,13 +1404,20 @@ class SimpleUpdate:
                     )
 
         tensor_legs = []
-        for i in range(self._n_tensors):
-            if type(self._tensors[i]) != self._ST:
+        for i, t in enumerate(self._tensors):
+            if type(t) != self._ST:
                 raise ValueError(f"Invalid type for tensor {i}")
-            if self._tensors[i].ndim != 2 + len(self._tensor_bond_indices[i]):
+            if t.ndim != 2 + len(self._tensor_bond_indices[i]):
                 raise ValueError(f"Tensor {i} does not match tensor_bond_indices")
             if i not in self._left_indices + self._right_indices + self._middle_indices:
                 raise ValueError(f"Tensor {i} is never updated")
+            if t.n_row_reps != 2:
+                raise ValueError(f"Tensor {i} has invalid leg structure")
+            for j, bi in enumerate(self._tensor_bond_indices[i]):
+                if t.col_reps[j].shape != self._weights[bi].representation.shape:
+                    raise ValueError(f"Tensor {i} has invalid representation shape")
+                if (t.col_reps[j] != self._weights[bi].representation).any():
+                    raise ValueError(f"Tensor {i} has invalid representation")
             tl0 = [-1, -2] + list(self._tensor_bond_indices[i])
             tl = swap_legs(tl0, self._initial_swap[i])
             tensor_legs.append(tl)
