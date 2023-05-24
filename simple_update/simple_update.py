@@ -586,6 +586,8 @@ class SimpleUpdate:
         check_tensor_bond_indices(tensor_bond_indices)
 
         ST = type(raw_hamilts[0])
+        if type(tensor) != ST:
+            raise ValueError("Tensor type must match Hamiltonians")
         n_tensors = len(tensor_bond_indices)
         n_bonds = max(max(tbi) for tbi in tensor_bond_indices) + 1
 
