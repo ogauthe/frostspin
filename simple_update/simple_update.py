@@ -368,7 +368,9 @@ class SimpleUpdate:
             print(self)
 
     def __repr__(self):
-        return f"SimpleUpdate with {self.symmetry} symmetry and D = {self.D}"
+        s = f"SimpleUpdate with {self.symmetry} symmetry and D = {self.D}"
+        s = s + f" at beta = {self._beta}"
+        return s
 
     def __str__(self):
         s = repr(self)
