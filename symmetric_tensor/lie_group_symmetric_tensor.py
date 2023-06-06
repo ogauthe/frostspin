@@ -172,7 +172,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         ) < 1e-13 * np.sqrt(unitary.shape[0]), "unitary transformation is not unitary"
 
         # add sqrt(irr) factors on output
-        iso = unitary.sorted_indices()
+        iso = unitary.tocoo()
         nnrr = len(new_row_reps)
         rrep = self.combine_representations(new_row_reps, signature[:nnrr])
         crep = self.combine_representations(new_col_reps, signature[nnrr:])
@@ -180,7 +180,8 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         while ir < rrep.shape[1] and ic < crep.shape[1]:
             if rrep[1, ir] == crep[1, ic]:
                 n = rrep[0, ir] * crep[0, ic]
-                iso[k : k + n] /= np.sqrt(self.irrep_dimension(rrep[1, ir]))
+                x = 1 / np.sqrt(self.irrep_dimension(rrep[1, ir]))
+                iso.data[(iso.row >= k) * (iso.row < k + n)] *= x  # workaround bug
                 k += n
                 ir += 1
                 ic += 1
