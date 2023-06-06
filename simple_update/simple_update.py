@@ -369,7 +369,7 @@ class SimpleUpdate:
 
     def __repr__(self):
         s = f"SimpleUpdate with {self.symmetry} symmetry and D = {self.D}"
-        s = s + f" at beta = {self._beta}"
+        s = s + f" at beta = {self._beta:.10g}"
         return s
 
     def __str__(self):
