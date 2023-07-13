@@ -93,6 +93,37 @@ def _initialize_env(A):
     return C1, T1, C2, T2, C3, T3, C4, T4
 
 
+def _initialize_dummy(A):
+    ST = type(A)
+
+    rr = (ST.singlet,)
+    C1 = ST.from_array(np.eye(1), rr, rr, signature=[A.signature[3], A.signature[4]])
+    C2 = ST.from_array(np.eye(1), rr, rr, signature=[A.signature[4], A.signature[5]])
+    C3 = ST.from_array(np.eye(1), rr, rr, signature=[A.signature[2], A.signature[5]])
+    C4 = ST.from_array(np.eye(1), rr, rr, signature=[A.signature[2], A.signature[3]])
+
+    rr = (ST.singlet,)
+    rc = (A.col_reps[2], A.col_reps[2], ST.singlet)
+    sig = np.array([A.signature[3], A.signature[4], ~A.signature[4], A.signature[5]])
+    T1 = ST.from_array(np.eye(A.shape[4])[None, :, :, None], rr, rc, signature=sig)
+
+    rr = (ST.singlet,)
+    rc = (ST.singlet, A.col_reps[3], A.col_reps[3])
+    sig = np.array([A.signature[2], A.signature[4], A.signature[5], ~A.signature[5]])
+    T2 = ST.from_array(np.eye(A.shape[5])[None, None, :, :], rr, rc, signature=sig)
+
+    rr = (A.col_reps[0], A.col_reps[0], ST.singlet)
+    rc = (ST.singlet,)
+    sig = np.array([A.signature[2], ~A.signature[2], A.signature[3], A.signature[5]])
+    T3 = ST.from_array(np.eye(A.shape[2])[:, :, None, None], rr, rc, signature=sig)
+
+    rr = (ST.singlet,)
+    rc = (A.col_reps[1], A.col_reps[1], ST.singlet)
+    sig = np.array([A.signature[2], A.signature[3], ~A.signature[3], A.signature[4]])
+    T4 = ST.from_array(np.eye(A.shape[3])[None, :, :, None], rr, rc, signature=sig)
+    return C1, T1, C2, T2, C3, T3, C4, T4
+
+
 class CTM_Environment:
     """
     Container for CTMRG environment tensors. Follow leg conventions from CTMRG.
@@ -232,9 +263,12 @@ class CTM_Environment:
         return self._ST.symmetry
 
     @classmethod
-    def from_elementary_tensors(cls, tiling, tensors):
+    def from_elementary_tensors(cls, tiling, tensors, dummy):
         """
-        Construct CTM_Environment from elementary tensors according to tiling.
+        Construct CTM_Environment from elementary tensors according to tiling. If dummy,
+        environment is initalized as dummy: corners are (1x1) identity matrices with
+        trivial representation, edges are identiy matrices between layers with dummy
+        legs for chi.
 
         Parameters
         ----------
@@ -242,6 +276,8 @@ class CTM_Environment:
             Tiling pattern, such as 'AB\nBA' or 'AB\nCD'.
         tensors : iterable of n_sites SymmetricTensor
             Tensors given from left to right and up to down (as in array.flat)
+        dummy : bool
+            Whether to initalize the environment tensors as dummy or from site tensors.
         """
         txt = [" ".join(w) for w in tiling.strip().splitlines()]
         cell = np.atleast_2d(np.genfromtxt(txt, dtype="U1"))
@@ -249,7 +285,10 @@ class CTM_Environment:
             raise ValueError("Incompatible cell and tensor number")
         C1s, C2s, C3s, C4s, T1s, T2s, T3s, T4s = [[] for i in range(8)]
         for A in tensors:
-            C1, T1, C2, T2, C3, T3, C4, T4 = _initialize_env(A)
+            if dummy:
+                C1, T1, C2, T2, C3, T3, C4, T4 = _initialize_dummy(A)
+            else:
+                C1, T1, C2, T2, C3, T3, C4, T4 = _initialize_env(A)
             C1s.append(C1)
             T1s.append(T1)
             C2s.append(C2)

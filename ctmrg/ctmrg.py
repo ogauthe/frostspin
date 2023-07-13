@@ -139,6 +139,7 @@ class CTMRG:
         tiling,
         tensors,
         chi_target,
+        dummy=False,
         block_chi_ratio=1.2,
         ncv_ratio=3.0,
         cutoff=1e-11,
@@ -146,8 +147,13 @@ class CTMRG:
         verbosity=0,
     ):
         """
-        Construct CTMRG from elementary tensors and tiling. Symmetry is NOT checked for
-        elementary tensors.
+        Construct CTMRG from elementary tensors and tiling. If dummy is False (default),
+        each environment tensor is initalized from double-layer elementary site tensor
+        after tracing over directions absent from said tensor. Else environment tensors
+        are initialized as dummy and act as identity between bra and ket layers: corners
+        are (1x1) identity matrices with trivial representation and edges are identiy
+        matrices between layers with a representation matching site tensor, with dummy
+        legs added to match corners.
 
         Parameters
         ----------
@@ -158,6 +164,9 @@ class CTMRG:
         chi_target : integer
             Target for corner dimension. This is a target, actual corner dimension chi
             may differ differ independently on a any corner due to cutoff or multiplets.
+        dummy : bool
+            Whether to initalize the environment tensors as dummy or from site tensors.
+            Default is False.
         block_chi_ratio: float
             Compute min(chi_target, block_chi_ratio * last_block_chi) singular values
             in each symmetry block during projector construction, where last_block_chi
@@ -176,7 +185,7 @@ class CTMRG:
         """
         if verbosity > 0:
             print("Start CTMRG from elementary tensors")
-        env = CTM_Environment.from_elementary_tensors(tiling, tensors)
+        env = CTM_Environment.from_elementary_tensors(tiling, tensors, dummy=dummy)
         return cls(
             env, chi_target, block_chi_ratio, ncv_ratio, cutoff, degen_ratio, verbosity
         )
@@ -302,7 +311,7 @@ class CTMRG:
             )
         )
 
-    def restart_environment(self):
+    def restart_environment(self, dummy=False):
         """
         Restart environment tensors from elementary ones. ERASE current environment,
         use with caution.
@@ -311,7 +320,9 @@ class CTMRG:
             print("Restart brand new environment from elementary tensors.")
         tensors = [self._env.get_A(x, y) for (x, y) in self.site_coords]
         tiling = "\n".join("".join(line) for line in self.cell)
-        self._env = CTM_Environment.from_elementary_tensors(tiling, tensors)
+        self._env = CTM_Environment.from_elementary_tensors(
+            tiling, tensors, dummy=dummy
+        )
         if self.verbosity > 0:
             print(self)
 

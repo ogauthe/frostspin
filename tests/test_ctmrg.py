@@ -310,3 +310,38 @@ for x, y in ctm.site_coords:
     assert eq_st(ctm._env.get_T4(x, y), ctm2._env.get_T4(x, y))
 
 os.remove(savefile)
+
+
+# check dummy environment initialization
+ctm = CTMRG.from_elementary_tensors(
+    tiling,
+    tensors,
+    13,
+    dummy=True,
+    block_chi_ratio=1.2,
+    ncv_ratio=2.5,
+    cutoff=1e-10,
+    degen_ratio=1.0,
+)
+
+rdm2x1_cell, rdm1x2_cell = ctm.compute_rdm_1st_neighbor_cell()
+for m in rdm2x1_cell:
+    assert lg.norm(m - m.T) < 1e-8
+for m in rdm1x2_cell:
+    assert lg.norm(m - m.T) < 1e-8
+
+rdm_dr_cell, rdm_ur_cell = ctm.compute_rdm_2nd_neighbor_cell()
+for m in rdm_dr_cell:
+    assert lg.norm(m - m.T) < 1e-8
+for m in rdm_ur_cell:
+    assert lg.norm(m - m.T) < 1e-8
+
+ctm.iterate()
+ctm.iterate()
+
+ctm.restart_environment(dummy=True)
+ctm.truncate_corners()
+ctm.iterate()
+ctm.iterate()
+rdm2x1_cell, rdm1x2_cell = ctm.compute_rdm_1st_neighbor_cell()
+rdm_dr_cell, rdm_ur_cell = ctm.compute_rdm_2nd_neighbor_cell()
