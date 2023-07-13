@@ -178,3 +178,12 @@ check_ctm(ctmU1_dl, ctmO2_dl)
 ctmU1_dl.restart_environment()
 ctmSU2_dl = CTMRG.from_elementary_tensors("A", (tdl_SU2,), 20, degen_ratio=0.99)
 check_ctm(ctmU1_dl, ctmSU2_dl)
+
+
+# test dummy leg with non trivial signature
+ctmd = CTMRG.from_elementary_tensors("A", (tdl_SU2,), 20, dummy=True)
+rdm = ctmd.compute_rdm2x1(0, 0)
+for i in range(4):
+    ctmd.iterate()
+
+rdm = ctmd.compute_rdm2x1(0, 0)
