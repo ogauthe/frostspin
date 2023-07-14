@@ -184,8 +184,11 @@ class CTMRG:
             Level of log verbosity. Default is no log.
         """
         if verbosity > 0:
-            print("Start CTMRG from elementary tensors")
-        env = CTM_Environment.from_elementary_tensors(tiling, tensors, dummy=dummy)
+            if dummy:
+                print("Start CTMRG from dummy environment")
+            else:
+                print("Start CTMRG from elementary tensors")
+        env = CTM_Environment.from_elementary_tensors(tiling, tensors, dummy)
         return cls(
             env, chi_target, block_chi_ratio, ncv_ratio, cutoff, degen_ratio, verbosity
         )
@@ -320,9 +323,7 @@ class CTMRG:
             print("Restart brand new environment from elementary tensors.")
         tensors = [self._env.get_A(x, y) for (x, y) in self.site_coords]
         tiling = "\n".join("".join(line) for line in self.cell)
-        self._env = CTM_Environment.from_elementary_tensors(
-            tiling, tensors, dummy=dummy
-        )
+        self._env = CTM_Environment.from_elementary_tensors(tiling, tensors, dummy)
         if self.verbosity > 0:
             print(self)
 
