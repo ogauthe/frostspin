@@ -547,7 +547,7 @@ class SymmetricTensor:
             try:
                 u, s, v = lg.svd(b, full_matrices=False, check_finite=False)
             except lg.LinAlgError as err:
-                print("Error in scipy dense SVD:", err)
+                print("Warning: gesdd returned an error, try gesvd. Error:", err)
                 u, s, v = lg.svd(
                     b, full_matrices=False, check_finite=False, lapack_driver="gesvd"
                 )
@@ -589,7 +589,7 @@ class SymmetricTensor:
                 try:
                     u, s, v = lg.svd(b, full_matrices=False, check_finite=False)
                 except lg.LinAlgError as err:
-                    print("Error in scipy dense SVD:", err)
+                    print("Warning: gesdd returned an error, try gesvd. Error:", err)
                     u, s, v = lg.svd(
                         b,
                         full_matrices=False,
