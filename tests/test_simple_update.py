@@ -39,20 +39,30 @@ SdS_33 = np.array(
     ]
 )
 
-
-hff = [None, None, SdS_22, SdS_33]
-SdS = hff[d].reshape(d, d, d, d)
 print(f"Test 2-site SimpleUpdate for SU(2) irrep {d}")
-print("Benchmark Asymmetric, U1_Symmetric and SU2_Symmetric results")
+print("Benchmark Asymmetric, U1_Symmetric, O2_Symmetric and SU2_Symmetric results")
 print(f"evolve from beta = 0 to beta = {beta} with tau = {tau}, keeping 2 multiplets")
+
+if d == 2:
+    SdS = SdS_22.reshape(d, d, d, d)
+    reps_O2 = (np.array([[1], [1]]),) * 2
+    hO2 = O2_SymmetricTensor.from_array(SdS, reps_O2, reps_O2)
+elif d == 3:
+    SdS = SdS_33.reshape(d, d, d, d)
+    reps_O2 = (np.array([[1, 1], [-1, 2]]),) * 2
+
+    # set O(2) conventions
+    p = np.array([1, 0, 2])
+    hO2 = SdS[p[:, None, None, None], p[:, None, None], p[:, None], p]
+    hO2 = O2_SymmetricTensor.from_array(hO2, reps_O2, reps_O2)
+else:
+    raise ValueError("unknown d")
 
 reps_As = (np.array([d]),) * 2
 reps_U1 = (np.arange(d - 1, -d, -2, dtype=np.int8),) * 2
-reps_O2 = (np.array([[1], [1]]),) * 2
 reps_SU2 = (np.array([[1], [d]]),) * 2
 hAs = AsymmetricTensor.from_array(SdS, reps_As, reps_As)
 hU1 = U1_SymmetricTensor.from_array(SdS, reps_U1, reps_U1)
-hO2 = O2_SymmetricTensor.from_array(SdS, reps_O2, reps_O2)
 hSU2 = SU2_SymmetricTensor.from_array(SdS, reps_SU2, reps_SU2)
 
 D = 4
