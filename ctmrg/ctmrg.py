@@ -68,16 +68,7 @@ class CTMRG:
     in addition to C and T environment tensors, 4*Lx*Ly corners are stored.
     """
 
-    def __init__(
-        self,
-        env,
-        chi_target,
-        block_chi_ratio,
-        ncv_ratio,
-        cutoff,
-        degen_ratio,
-        verbosity,
-    ):
+    def __init__(self, env, chi_target, verbosity, **ctm_params):
         """
         Constructor for totally asymmetric CTMRG algorithm. Consider using from_file or
         from_elementary_tensors methods instead of calling this one directly.
@@ -89,32 +80,42 @@ class CTMRG:
         chi_target : integer
             Target for corner dimension. This is a target, actual corner dimension chi
             may differ differ independently on a any corner due to cutoff or multiplets.
+        verbosity : int
+            Level of log verbosity.
+
+
+        Additional parameters
+        ---------------------
         block_chi_ratio: float
             Compute min(chi_target, block_chi_ratio * last_block_chi) singular values
             in each symmetry block during projector construction, where last_block_chi
             is the number of singular values in this block last iteration.
+            Default is 1.1.
         ncv_ratio : float
             Compute ncv_ratio * block_chi Lanczos vectors in each symmetry block.
+            Default is 2.0.
         cutoff : float
             Singular value cutoff to improve stability.
+            Default is 1e-11.
         degen_ratio : float
             Used to define multiplets in projector singular values and truncate between
             two multiplets. Two consecutive (decreasing) values are considered
             degenerate if 1 >= s[i+1]/s[i] >= degen_ratio > 0.
-        verbosity : int
-            Level of log verbosity.
+            Default is 0.9999.
         """
         self.verbosity = verbosity
         print(" *** DEV MODE ***")
         if self.verbosity > 0:
             print(f"initalize CTMRG with verbosity = {self.verbosity}")
         self._env = env
+        self._site_coords = env.site_coords
         self.chi_target = int(chi_target)
-        self.block_chi_ratio = float(block_chi_ratio)
-        self.ncv_ratio = float(ncv_ratio)
-        self.cutoff = float(cutoff)
-        self.degen_ratio = float(degen_ratio)
-        self._site_coords = self._env.site_coords
+
+        # set parameters.
+        self.block_chi_ratio = float(ctm_params.get("block_chi_ratio", 1.1))
+        self.ncv_ratio = float(ctm_params.get("block_ncv_ratio", 2.0))
+        self.cutoff = float(ctm_params.get("cutoff", 1e-11))
+        self.degen_ratio = float(ctm_params.get("degen_ratio", 0.9999))
 
         if self.verbosity > 0:
             print(self)
@@ -135,25 +136,17 @@ class CTMRG:
 
     @classmethod
     def from_elementary_tensors(
-        cls,
-        tiling,
-        tensors,
-        chi_target,
-        dummy=False,
-        block_chi_ratio=1.2,
-        ncv_ratio=3.0,
-        cutoff=1e-11,
-        degen_ratio=1.0,
-        verbosity=0,
+        cls, tiling, tensors, chi_target, dummy=True, verbosity=0, **ctm_params
     ):
         """
-        Construct CTMRG from elementary tensors and tiling. If dummy is False (default),
-        each environment tensor is initalized from double-layer elementary site tensor
-        after tracing over directions absent from said tensor. Else environment tensors
-        are initialized as dummy and act as identity between bra and ket layers: corners
-        are (1x1) identity matrices with trivial representation and edges are identiy
-        matrices between layers with a representation matching site tensor, with dummy
-        legs added to match corners.
+        Construct CTMRG from elementary tensors and tiling.
+        If dummy is True (default), environment tensors are initialized as dummy and act
+        as identity between bra and ket layers: corners are (1x1) identity matrices with
+        trivial representation and edges are identiy matrices between layers with a
+        representation matching site tensor, with dummy legs added to match corners.
+        If dummy is False, each environment tensor is initalized from double-layer
+        elementary site tensor after tracing over directions absent from said tensor.
+        This should be equivalent to starting with dummy and running one iteration.
 
         Parameters
         ----------
@@ -167,21 +160,10 @@ class CTMRG:
         dummy : bool
             Whether to initalize the environment tensors as dummy or from site tensors.
             Default is False.
-        block_chi_ratio: float
-            Compute min(chi_target, block_chi_ratio * last_block_chi) singular values
-            in each symmetry block during projector construction, where last_block_chi
-            is the number of singular values in this block last iteration.
-        ncv_ratio : float
-            Compute ncv_ratio * block_chi Lanczos vectors in each symmetry block.
-        cutoff : float
-            Singular value cutoff to improve stability. Default is 0.0 (no cutoff)
-        degen_ratio : float
-            Used to define multiplets in projector singular values and truncate between
-            two multiplets. Two consecutive (decreasing) values are considered
-            degenerate if 1 >= s[i+1]/s[i] >= degen_ratio > 0. Default is 1.0 (exact
-            degeneracies)
         verbosity : int
             Level of log verbosity. Default is no log.
+
+        See `__init__` for a description of additional parameters.
         """
         if verbosity > 0:
             if dummy:
@@ -189,9 +171,7 @@ class CTMRG:
             else:
                 print("Start CTMRG from elementary tensors")
         env = CTM_Environment.from_elementary_tensors(tiling, tensors, dummy)
-        return cls(
-            env, chi_target, block_chi_ratio, ncv_ratio, cutoff, degen_ratio, verbosity
-        )
+        return cls(env, chi_target, verbosity, **ctm_params)
 
     def set_tensors(self, tensors):
         """
@@ -216,18 +196,18 @@ class CTMRG:
         """
         if verbosity > 0:
             print("Restart CTMRG from file", filename)
+
+        ctm_params = {}
         with np.load(filename) as fin:
-            block_chi_ratio = float(fin["_CTM_block_chi_ratio"])
-            ncv_ratio = float(fin["_CTM_ncv_ratio"])
             chi_target = int(fin["_CTM_chi_target"])
-            cutoff = float(fin["_CTM_cutoff"])
-            degen_ratio = float(fin["_CTM_degen_ratio"])
+            ctm_params["block_chi_ratio"] = fin["_CTM_block_chi_ratio"]
+            ctm_params["ncv_ratio"] = fin["_CTM_ncv_ratio"]
+            ctm_params["cutoff"] = fin["_CTM_cutoff"]
+            ctm_params["degen_ratio"] = fin["_CTM_degen_ratio"]
         # better to open and close savefile twice (here and in env) to have env __init__
         # outside of file opening block.
         env = CTM_Environment.load_from_file(filename)
-        return cls(
-            env, chi_target, block_chi_ratio, ncv_ratio, cutoff, degen_ratio, verbosity
-        )
+        return cls(env, chi_target, verbosity, **ctm_params)
 
     def save_to_file(self, filename, additional_data={}):
         """
@@ -314,7 +294,7 @@ class CTMRG:
             )
         )
 
-    def restart_environment(self, dummy=False):
+    def restart_environment(self, dummy=True):
         """
         Restart environment tensors from elementary ones. ERASE current environment,
         use with caution.
