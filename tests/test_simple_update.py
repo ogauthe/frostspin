@@ -95,20 +95,17 @@ suU1.save_to_file("save_su.npz")
 su2 = SimpleUpdate.load_from_file("save_su.npz")
 
 
-tensorsAs = suAs.get_tensors()
-tensorsU1 = suU1.get_tensors()
-tensorsO2 = suO2.get_tensors()
-tensorsSU2 = suSU2.get_tensors()
 til = "AB\nBA"
-
-ctmAs = CTMRG.from_elementary_tensors(til, tensorsAs, 30, **params)
-ctmU1 = CTMRG.from_elementary_tensors(til, tensorsU1, 30, **params)
-ctmO2 = CTMRG.from_elementary_tensors(til, tensorsO2, 30, **params)
-ctmU1_fromSU2 = CTMRG.from_elementary_tensors(til, tensorsSU2, 30, **params)
+chi = 30
+ctmAs = CTMRG.from_elementary_tensors(til, suAs.get_tensors(), chi, **params)
+ctmU1 = CTMRG.from_elementary_tensors(til, suU1.get_tensors(), chi, **params)
+ctmO2 = CTMRG.from_elementary_tensors(til, suO2.get_tensors(), chi, **params)
+tensorsSU2 = suSU2.get_tensors()
+ctmU1_fromSU2 = CTMRG.from_elementary_tensors(til, tensorsSU2, chi, **params)
 ctmU1_fromSU2.set_symmetry("U1")
-ctmO2_fromSU2 = CTMRG.from_elementary_tensors(til, tensorsSU2, 30, **params)
+ctmO2_fromSU2 = CTMRG.from_elementary_tensors(til, tensorsSU2, chi, **params)
 ctmO2_fromSU2.set_symmetry("O2")
-ctmSU2 = CTMRG.from_elementary_tensors(til, tensorsSU2, 30, **params)
+ctmSU2 = CTMRG.from_elementary_tensors(til, tensorsSU2, chi, **params)
 
 
 def get_tol(rdm):
