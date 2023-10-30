@@ -11,28 +11,70 @@ from groups.su2_representation import SU2_Representation  # TODO remove me
 _singlet = np.array([[1], [1]])
 
 
-def _get_projector(in1, in2, s1, s2, max_irrep=2**30):
-    # max_irrep cannot be set to None since irr3 loop depends on it
-    degen, irreps = _numba_elementary_combine_SU2(in1[0], in1[1], in2[0], in2[1])
+def _get_projector(rep1, rep2, s1, s2, max_irrep=2**30):
+    """
+    Construct Clebsch-Gordan fusion tensor for representations rep1 and rep2 with
+    signatures s1 and s2.
+
+    Parameters
+    ----------
+    rep1 : 2D int array
+        Left incoming SU(2) representation to fuse.
+    rep2 : 2D int array
+        Right incoming SU(2) representation to fuse.
+    s1 : bool
+        Signature for rep1.
+    s2 : bool
+        Signature for rep2.
+    max_irrep : int
+        Dimension of maximal irrep to consider in the product. Irrep larger than
+        max_irrep will be truncated. Default is 2**30, i.e. no truncation.
+
+    Returns
+    -------
+    ret : csr_array
+        CG projector fusing rep1 and rep2 on sum of irreps, truncated up to max_irrep.
+        It has a 2D shape (dim_rep1, dim_rep2 * dim_out), where dim_out may be smaller
+        than array dim_rep1 * dim_rep2 if truncation occured.
+
+    Notes
+    -----
+        The output matrix hides a structure
+        (degen1, irrep1, degen2, irrep2, degen1, degen2, irrep3).
+        This is not exactly a tensor but corresponds to how row and columns relates to
+        degeneracies and irreducible representations.
+    """
+    degen, irreps = _numba_elementary_combine_SU2(rep1[0], rep1[1], rep2[0], rep2[1])
     trunc = irreps.searchsorted(max_irrep + 1)
     degen = degen[:trunc]
     irreps = irreps[:trunc]
     out_dim = degen @ irreps
-    shift3 = np.zeros(irreps[-1] + 1, dtype=int)
-    n = 0
+
+    # construct sparse matrix from row, col and data lists
     row = []
     col = []
     data = []
+
+    # shift in sparse matrix indices corresponding to different output irreps
+    shift3 = np.zeros((irreps[-1] + 1,), dtype=int)
+    n = 0
     for d3, irr3 in zip(degen, irreps):
         shift3[irr3] = n  # indexed with IRREP, not index
         n += d3 * irr3
-    cs1 = [0, *(in1[0] * in1[1]).cumsum()]  # remember where to restart in in1
-    cs2 = [0, *(in2[0] * in2[1]).cumsum()]  # remember where to restart in in2
-    for i1, irr1 in enumerate(in1[1]):
+
+    # shift for different input irreps
+    cs1 = [0, *(rep1[0] * rep1[1]).cumsum()]  # remember where to restart in rep1
+    cs2 = [0, *(rep2[0] * rep2[1]).cumsum()]  # remember where to restart in rep2
+
+    for i1, irr1 in enumerate(rep1[1]):
+        # Sz-reversal signs for irrep1
         diag1 = (np.arange(irr1 % 2, irr1 + irr1 % 2) % 2 * 2 - 1)[:, None, None]
-        for i2, irr2 in enumerate(in2[1]):
+
+        for i2, irr2 in enumerate(rep2[1]):
+            # Sz-reversal signs for irrep2
             diag2 = (np.arange(irr2 % 2, irr2 + irr2 % 2) % 2 * 2 - 1)[None, :, None]
-            d2 = in2[0, i2]
+
+            d2 = rep2[0, i2]
             ar = np.arange(d2)
             sl2 = np.arange(cs2[i2], cs2[i2] + d2 * irr2)[:, None] * out_dim
             for irr3 in range(abs(irr1 - irr2) + 1, min(irr1 + irr2, max_irrep + 1), 2):
@@ -42,24 +84,31 @@ def _get_projector(in1, in2, s1, s2, max_irrep=2**30):
                     p123 = p123[::-1] * diag1
                 if s2:
                     p123 = p123[:, ::-1] * diag2
+
+                # broadcast elementary projector for degen2
                 sh = (irr1, d2, irr2, d2, irr3)
                 temp = np.zeros(sh)
                 temp[:, ar, :, ar] = p123
-                temp = temp.reshape(irr1, d2**2 * irr2 * irr3)
-                row123, col123 = temp.nonzero()
-                data123 = temp[row123, col123]
+                temp = temp.reshape(irr1, d2 * irr2 * d2 * irr3)  # reshape as matrix
+
+                row123, col123 = temp.nonzero()  # get non-zero coeff position
+                data123 = temp[row123, col123]  # get non-zero coeff as a 1D array
+
                 shift1 = cs1[i1]
-                for d1 in range(in1[0, i1]):
-                    full_col = (
-                        sl2 + np.arange(shift3[irr3], shift3[irr3] + d2 * irr3)
-                    ).ravel()
+                for d1 in range(rep1[0, i1]):  # broadcast for degen1
+                    full_col = (sl2 + shift3[irr3] + np.arange(d2 * irr3)).ravel()
                     row.extend(shift1 + row123)
                     col.extend(full_col[col123])
                     data.extend(data123)
                     shift3[irr3] += d2 * irr3
                     shift1 += irr1
-    sh = (in1[0] @ in1[1], in2[0] @ in2[1] * out_dim)  # contract 1st leg in chained
-    return ssp.csr_array((data, (row, col)), shape=sh)
+
+    # construct 2D sparse array merging rep2 with out
+    dim_rep1 = rep1[0] @ rep1[1]
+    dim_rep2 = rep2[0] @ rep2[1]
+    sh = (dim_rep1, dim_rep2 * out_dim)  # contract 1st leg in chained
+    ret = ssp.csr_array((data, (row, col)), shape=sh)
+    return ret
 
 
 def _get_projector_chained(rep_in, signature, singlet_only=False):
