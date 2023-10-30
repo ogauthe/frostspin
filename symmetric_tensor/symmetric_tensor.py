@@ -272,7 +272,7 @@ class SymmetricTensor:
                 self._block_irreps,
                 self._signature,
             )
-        if type(other) == DiagonalTensor:  # add diagonal weights on last col leg
+        if isinstance(other, DiagonalTensor):  # add diagonal weights on last col leg
             # check DiagonalTensor matches self
             assert self.symmetry == other.symmetry
             assert (self._col_reps[-1] == other.representation).all()
@@ -293,7 +293,7 @@ class SymmetricTensor:
                 self._block_irreps,
                 self._signature,
             )
-        if type(other) == DiagonalTensor:  # add diagonal weights on 1st row leg
+        if isinstance(other, DiagonalTensor):  # add diagonal weights on 1st row leg
             assert self.symmetry == other.symmetry
             assert (self._row_reps[0] == other.representation).all()
             assert (
@@ -399,7 +399,7 @@ class SymmetricTensor:
         Note that some allowed block may be missing in the output tensor, if the
         associated irrep does not appear in the contracted bond.
         """
-        assert type(self) == type(other)
+        assert type(self) is type(other)
         assert self._shape[self._nrr :] == other._shape[: other._nrr]
         assert (self._signature[self._nrr :] ^ other._signature[: other._nrr]).all()
         assert all((r == r2).all() for (r, r2) in zip(self._col_reps, other._row_reps))
@@ -435,7 +435,7 @@ class SymmetricTensor:
         signature on every legs as self. block_irreps and blocks are not used.
         Return bool, do not raise.
         """
-        if type(self) != type(other):
+        if type(self) is not type(other):
             return False
         if self._shape != other._shape:
             return False
