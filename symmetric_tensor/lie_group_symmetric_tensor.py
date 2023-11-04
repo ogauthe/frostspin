@@ -25,7 +25,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
     _isometry_dic = NotImplemented
 
     @classmethod
-    def construct_matrix_projector(row_reps, col_reps, signature):
+    def construct_matrix_projector(cls, row_reps, col_reps, signature):
         r"""
                     singlet space
                     /          \
