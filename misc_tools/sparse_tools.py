@@ -135,7 +135,7 @@ def sparse_transpose(m, shape, axes, n_row_axes, copy=False):
 
     strides1 = np.array([1, *shape[:0:-1]]).cumprod()[::-1]
     strides2 = np.array([1, *[shape[i] for i in axes[:0:-1]]]).cumprod()
-    nsh = (size // strides2[n_row_axes - 1], strides2[n_row_axes - 1])
+    nsh = (size // strides2[n_row_axes], strides2[n_row_axes])
     # swap strides instead of swapping the full array of tensor indices
     strides2 = strides2[-np.argsort(axes) - 1].copy()
     mcoo = m.tocoo()

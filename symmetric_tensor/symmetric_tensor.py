@@ -513,29 +513,8 @@ class SymmetricTensor:
         s = ~np.hstack((self.signature[self._nrr :], self._signature[: self._nrr]))
         return type(self)(self._col_reps, self._row_reps, blocks, self._block_irreps, s)
 
-    # TODO raise NotImplementedError and let subclasses deal with it
     def merge_legs(self, i1, i2):
-        assert self._signature[i1] == self._signature[i2]
-        s = np.array([False, False])
-        if i2 < self._nrr:
-            assert 0 < i1 + 1 == i2
-            r = self.combine_representations(
-                (self._row_reps[i1], self._row_reps[i2]), s
-            )
-            row_reps = self._row_reps[:i1] + (r,) + self._row_reps[i2 + 1 :]
-            col_reps = self._col_reps
-        else:
-            assert self._nrr < i1 + 1 == i2 < self._ndim
-            j = i1 - self._nrr
-            r = self.combine_representations(
-                (self._col_reps[j], self._col_reps[j + 1]), s
-            )
-            col_reps = self._col_reps[:j] + (r,) + self._col_reps[j + 2 :]
-            row_reps = self._row_reps
-        signature = np.hstack((self._signature[:i1], self._signature[i2:]))
-        return type(self)(
-            row_reps, col_reps, self._blocks, self._block_irreps, signature
-        )
+        raise NotImplementedError("Must be defined in derived class")
 
     ####################################################################################
     # Linear algebra

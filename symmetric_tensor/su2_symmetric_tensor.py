@@ -1,5 +1,4 @@
 import numpy as np
-import scipy.sparse as ssp
 import scipy.linalg as lg
 import numba
 
@@ -7,8 +6,6 @@ from .lie_group_symmetric_tensor import LieGroupSymmetricTensor
 from .u1_symmetric_tensor import U1_SymmetricTensor
 from .o2_symmetric_tensor import O2_SymmetricTensor
 from groups.su2_representation import SU2_Representation  # TODO remove me
-
-_singlet = np.array([[1], [1]])
 
 
 def _get_projector(rep1, rep2, s1, s2, max_irrep=2**30):
@@ -32,10 +29,8 @@ def _get_projector(rep1, rep2, s1, s2, max_irrep=2**30):
 
     Returns
     -------
-    ret : csr_array
+    ret : 3D float array
         CG projector fusing rep1 and rep2 on sum of irreps, truncated up to max_irrep.
-        It has a 2D shape (dim_rep1, dim_rep2 * dim_out), where dim_out may be smaller
-        than array dim_rep1 * dim_rep2 if truncation occured.
 
     Notes
     -----
@@ -44,74 +39,59 @@ def _get_projector(rep1, rep2, s1, s2, max_irrep=2**30):
         This is not exactly a tensor but corresponds to how row and columns relates to
         degeneracies and irreducible representations.
     """
+    # precompute projector size
     degen, irreps = _numba_elementary_combine_SU2(rep1[0], rep1[1], rep2[0], rep2[1])
     trunc = irreps.searchsorted(max_irrep + 1)
     degen = degen[:trunc]
     irreps = irreps[:trunc]
-    out_dim = degen @ irreps
+    projector = np.zeros(
+        (rep1[0] @ rep1[1], rep2[0] @ rep2[1], degen @ irreps),
+    )
 
-    # construct sparse matrix from row, col and data lists
-    row = []
-    col = []
-    data = []
-
-    # shift in sparse matrix indices corresponding to different output irreps
-    shift3 = np.zeros((irreps[-1] + 1,), dtype=int)
+    # initialize shifts in output, with different irrep sectors
+    shifts3 = np.empty((irreps[-1] + 1,), dtype=int)
     n = 0
     for d3, irr3 in zip(degen, irreps):
-        shift3[irr3] = n  # indexed with IRREP, not index
+        shifts3[irr3] = n  # indexed with IRREP, not index (shortcut searchsorted)
         n += d3 * irr3
 
-    # shift for different input irreps
-    cs1 = [0, *(rep1[0] * rep1[1]).cumsum()]  # remember where to restart in rep1
-    cs2 = [0, *(rep2[0] * rep2[1]).cumsum()]  # remember where to restart in rep2
-
-    for i1, irr1 in enumerate(rep1[1]):
+    shift1 = 0
+    for d1, irr1 in rep1.T:
         # Sz-reversal signs for irrep1
         diag1 = (np.arange(irr1 % 2, irr1 + irr1 % 2) % 2 * 2 - 1)[:, None, None]
-
-        for i2, irr2 in enumerate(rep2[1]):
+        slices1 = slice(shift1, shift1 + irr1 * d1, 1)
+        inds1 = np.arange(d1)[:, None]
+        shift2 = 0
+        for d2, irr2 in rep2.T:
             # Sz-reversal signs for irrep2
             diag2 = (np.arange(irr2 % 2, irr2 + irr2 % 2) % 2 * 2 - 1)[None, :, None]
-
-            d2 = rep2[0, i2]
-            ar = np.arange(d2)
-            sl2 = np.arange(cs2[i2], cs2[i2] + d2 * irr2)[:, None] * out_dim
+            inds2 = np.arange(d2)
+            inds3 = d2 * inds1 + inds2
+            slices2 = slice(shift2, shift2 + irr2 * d2, 1)
             for irr3 in range(abs(irr1 - irr2) + 1, min(irr1 + irr2, max_irrep + 1), 2):
+                # here we are implicitly assuming there are no inner degeneracies
                 p123 = SU2_Representation.elementary_projectors[irr1, irr2, irr3]
-                # apply spin-reversal operator according to signatures
+
+                # apply SU(2) spin-reversal operator according to signatures
                 if s1:
                     p123 = p123[::-1] * diag1
                 if s2:
                     p123 = p123[:, ::-1] * diag2
 
-                # broadcast elementary projector for degen2
-                sh = (irr1, d2, irr2, d2, irr3)
-                temp = np.zeros(sh)
-                temp[:, ar, :, ar] = p123
-                temp = temp.reshape(irr1, d2 * irr2 * d2 * irr3)  # reshape as matrix
+                d3 = d1 * d2
+                slices3 = slice(shifts3[irr3], shifts3[irr3] + d3 * irr3)
+                arr_ele = projector[slices1, slices2, slices3]
+                arr_ele = arr_ele.reshape(d1, irr1, d2, irr2, d3, irr3)
+                arr_ele[inds1, :, inds2, :, inds3] = p123
+                shifts3[irr3] += d3 * irr3
+            shift2 += d2 * irr2
+        shift1 += d1 * irr1
 
-                row123, col123 = temp.nonzero()  # get non-zero coeff position
-                data123 = temp[row123, col123]  # get non-zero coeff as a 1D array
-
-                shift1 = cs1[i1]
-                for d1 in range(rep1[0, i1]):  # broadcast for degen1
-                    full_col = (sl2 + shift3[irr3] + np.arange(d2 * irr3)).ravel()
-                    row.extend(shift1 + row123)
-                    col.extend(full_col[col123])
-                    data.extend(data123)
-                    shift3[irr3] += d2 * irr3
-                    shift1 += irr1
-
-    # construct 2D sparse array merging rep2 with out
-    dim_rep1 = rep1[0] @ rep1[1]
-    dim_rep2 = rep2[0] @ rep2[1]
-    sh = (dim_rep1, dim_rep2 * out_dim)  # contract 1st leg in chained
-    ret = ssp.csr_array((data, (row, col)), shape=sh)
-    return ret
+    new_rep = np.array([degen, irreps])  # due to truncation, may be != rep1 * rep2
+    return new_rep, projector
 
 
-def _get_projector_chained(rep_in, signature, singlet_only=False):
+def _get_projector_chained(rep_in, signature, max_irrep=2**30):
     r"""
     Tree structure: only first leg has depth
                 product
@@ -124,50 +104,26 @@ def _get_projector_chained(rep_in, signature, singlet_only=False):
             /  \   \
            1    2   3 ...
     """
+    assert len(signature) == len(rep_in)
+
     n = len(rep_in)
     if n == 1:
-        r = rep_in[0]
-        if singlet_only:
-            if r[1, 0] != 1:
-                raise ValueError("No singlet in product")
-            return ssp.eye(r[0] @ r[1], r[0, 0])
-        return _get_projector(r, _singlet, signature[0], False)  # care for conj
+        # add a dummy singlet and let get_projector deal with signature
+        rep_in = [rep_in[0], np.ones((2, 1), dtype=int)]
+        signature = [signature[0], False]
 
-    forwards = [rep_in[0]]
-    for i in range(1, n):
-        forwards.append(_numba_combine_SU2(forwards[i - 1], rep_in[i]))
-
-    if singlet_only:
-        if forwards[-1][1, 0] != 1:
-            raise ValueError("No singlet in product")
-        # projection is made only on singlet. Remove irreps that wont fuse to 1.
-        backwards = [rep_in[-1]]
-        for i in range(1, n):
-            backwards.append(_numba_combine_SU2(backwards[i - 1], rep_in[-i - 1]))
-        truncations = [1]
-        forwards[-1] = forwards[-1][:, : forwards[-1][1].searchsorted(2)]
-        for i in range(n - 1):
-            trunc = backwards[i][1, -1]
-            cut = forwards[-i - 2][1].searchsorted(trunc + 1)
-            forwards[-i - 2] = forwards[-i - 2][:, :cut]
-            truncations.append(trunc)
-    else:
-        truncations = [2**30] * n
-
-    proj = _get_projector(
-        forwards[0], rep_in[1], signature[0], signature[1], max_irrep=truncations[-2]
+    # remove irreps that wont fuse to max_irrep
+    trunc = max_irrep + sum(r[1, -1] for r in rep_in[2:])
+    nr, p = _get_projector(
+        rep_in[0], rep_in[1], signature[0], signature[1], max_irrep=trunc
     )
-    for i in range(1, n - 1):
-        p = _get_projector(
-            forwards[i],
-            rep_in[i + 1],
-            False,
-            signature[i + 1],
-            max_irrep=truncations[-i - 2],
-        )
-        proj = proj.reshape(-1, p.shape[0]) @ p
-    proj = proj.reshape(-1, forwards[-1][0] @ forwards[-1][1])
-    return proj.tocsc()  # need to slice columns
+    proj = p
+    for i in range(2, n):
+        trunc += rep_in[i][1, -1]
+        nr, p = _get_projector(nr, rep_in[i], False, signature[i], max_irrep=trunc)
+        proj = proj.reshape(-1, p.shape[0]) @ p.reshape(p.shape[0], -1)
+    proj = proj.reshape(-1, p.shape[2])
+    return proj
 
 
 @numba.njit
@@ -206,7 +162,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
     @classmethod
     @property
     def singlet(cls):
-        return _singlet
+        return np.ones((2, 1), dtype=int)
 
     @staticmethod
     def combine_representations(reps, signature):
@@ -233,53 +189,44 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
     ####################################################################################
     # Non-abelian specific symmetry implementation
     ####################################################################################
-    _isometry_dic = {}
+    _structural_data_dic = {}
 
     @classmethod
     def construct_matrix_projector(cls, row_reps, col_reps, signature):
         nrr = len(row_reps)
         assert signature.shape == (nrr + len(col_reps),)
-        repL = cls.combine_representations(row_reps, signature[:nrr])
-        repR = cls.combine_representations(col_reps, signature[nrr:])
-        dimLR = cls.representation_dimension(repL) * cls.representation_dimension(repR)
-        projL = _get_projector_chained(row_reps, signature[:nrr])
-        projR = _get_projector_chained(col_reps, ~signature[nrr:])
+        rrep = cls.combine_representations(row_reps, signature[:nrr])
+        crep = cls.combine_representations(col_reps, signature[nrr:])
+        shared, rinds, cinds = np.intersect1d(
+            rrep[1], crep[1], assume_unique=True, return_indices=True
+        )
+        projL = _get_projector_chained(row_reps, signature[:nrr], max_irrep=shared[-1])
+        projR = _get_projector_chained(col_reps, ~signature[nrr:], max_irrep=shared[-1])
 
-        target = sorted(set(repL[1]).intersection(repR[1]))
-        if not target:
-            raise ValueError("Representations have no common irrep")
-        indL = repL[1].searchsorted(target)
-        indR = repR[1].searchsorted(target)
-
-        row = []
-        col = []
-        data = []
-        shiftL = np.hstack((0, repL[0] * repL[1])).cumsum()
-        shiftR = np.hstack((0, repR[0] * repR[1])).cumsum()
+        dsing = rrep[0, rinds] @ crep[0, cinds]
+        rshifts = (rrep[0] * rrep[1]).cumsum()
+        cshifts = (crep[0] * crep[1]).cumsum()
         shift_out = 0
-        for i, irr in enumerate(target):
-            degenL = repL[0, indL[i]]
-            degenR = repR[0, indR[i]]
-            matR = projR[:, shiftR[indR[i]] : shiftR[indR[i] + 1]]
-            matR = matR.reshape(-1, irr).T.tocsr() / np.sqrt(irr)
+        dfull = projL.shape[0] * projR.shape[0]
+        full_proj = np.empty((dfull, dsing))
+        for i, irr in enumerate(shared):
+            degen_r = rrep[0, rinds[i]]
+            degen_c = crep[0, cinds[i]]
+            rs = rshifts[rinds[i]]
+            cs = cshifts[cinds[i]]
+            rmat = projL[:, rs - degen_r * irr : rs].reshape(-1, irr)
+            cmat = projR[:, cs - degen_c * irr : cs].reshape(-1, irr)
+            cmat = cmat.T / np.sqrt(irr)
+            irrep_proj = rmat @ cmat
 
-            # it is not memory efficient to contract directly with the full matL: in
-            # csr, indptr has size nrows, which would be dimL * degenL, much too large
-            # (saturates memory). It also requires some sparse transpose. Using csc just
-            # puts the problem on matR instead of matL. So to save memory, slice projL
-            # irrep by irrep instead of taking all of them with degenL * irr. Slower but
-            # memory efficient.
-            for j in range(shiftL[indL[i]], shiftL[indL[i]] + degenL * irr, irr):
-                matLR = projL[:, j : j + irr].tocsr()  # avoid large indptr
-                matLR = matLR @ matR
-                matLR = matLR.tocoo().reshape(dimLR, degenR)  # force coo cast
-                row.extend(matLR.row)
-                col.extend(shift_out + matLR.col)
-                data.extend(matLR.data)
-                shift_out += degenR
+            sh_in = (projL.shape[0], degen_r, projR.shape[0], degen_c)
+            irrep_proj = irrep_proj.reshape(sh_in).swapaxes(1, 2)
+            dblock = degen_r * degen_c
+            irrep_proj = irrep_proj.reshape(dfull, dblock)
+            full_proj[:, shift_out : shift_out + dblock] = irrep_proj
+            shift_out += dblock
 
-        assert shift_out == repL[0, indL] @ repR[0, indR]
-        full_proj = ssp.csr_array((data, (row, col)), shape=(dimLR, shift_out))
+        assert shift_out == full_proj.shape[1]
         return full_proj
 
     ####################################################################################
@@ -291,52 +238,6 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         ret._blocks = tuple(b.conj() for b in ret._blocks)
         return ret
 
-    def update_signature(self, sign_update):
-        # In the non-abelian case, updating signature can be done from the left or from
-        # right, yielding different results.
-        up = np.asarray(sign_update, dtype=np.int8)
-        assert up.shape == (self._ndim,)
-        assert (np.abs(up) < 2).all()
-
-        # only construct projector if needed, ie there is a -1
-        # For this case, add diagonal -1 for half integer spins in legs with a loop
-        if (up < 0).any():
-            p = self.construct_matrix_projector(
-                self._row_reps, self._col_reps, self._signature
-            )
-            diag = ssp.eye(1, format="coo")  # kron operates in coo format
-            for i in range(self._ndim):
-                d = self._shape[i]
-                if up[i] < 0:
-                    inds = np.arange(d)
-                    coeff = np.ones((d,), dtype=int)
-                    if i < self._nrr:
-                        r = self._row_reps[i]
-                    else:
-                        r = self._col_reps[i - self._nrr]
-                    k = 0
-                    for degen, irr in r.T:
-                        if not irr % 2:
-                            coeff[k : k + degen * irr] = -1
-                        k += degen * irr
-                    m = ssp.coo_array((coeff, (inds, inds)), shape=(d, d))
-                else:
-                    m = ssp.eye(d, format="coo")
-                diag = ssp.kron(diag, m)
-
-            # could be stored in unitary_dic if too expensive, expect uncommon operation
-            diag = diag.todia()  # we know the matrix is diagonal
-            raw_data = p.T @ (diag @ (p @ self._to_raw_data()))
-            blocks, block_irreps = self._blocks_from_raw_data(
-                raw_data,
-                self.get_row_representation(),
-                self.get_column_representation(),
-            )
-            self._blocks = blocks
-            self._block_irreps = block_irreps
-
-        self._signature = self._signature ^ up.astype(bool)
-
     def toSU2(self):
         return self
 
@@ -344,6 +245,9 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         return self.toU1()
 
     def toU1(self):
+        # yet to adapt to elementary block structure for SU(2)
+        raise NotImplementedError("TODO!")
+
         # efficient cast to U(1): project directly raw data to U(1) blocks
         # 1) construct U(1) representations
         reps = []
@@ -404,6 +308,9 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         and adding some diagonal -1 signs on every legs. This does not matter once legs
         are contracted.
         """
+        # yet to adapt to elementary block structure for SU(2)
+        raise NotImplementedError("TODO!")
+
         # When casting to U(1), O(2) has different irrep ordering conventions:
         # here for SU(2), each spin appears contiguously with all its Sz value
         # For O(2), dim 2 irreps are mixed to get a contiguous +n sector and a
