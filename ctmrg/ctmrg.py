@@ -104,7 +104,6 @@ class CTMRG:
             Default is 0.9999.
         """
         self.verbosity = verbosity
-        print(" *** DEV MODE ***")
         if self.verbosity > 0:
             print(f"initalize CTMRG with verbosity = {self.verbosity}")
         self._env = env
@@ -132,7 +131,10 @@ class CTMRG:
             raise ValueError("degen_ratio must obey 0.0 <= self.degen_ratio < 1.0")
 
         if self.Dmin != self.Dmax:
-            print(f"WARNING: Dmin = {self.Dmin} != Dmax = {self.Dmax}")
+            print(
+                f"WARNING: initialize CTMRG with Dmin = {self.Dmin} != Dmax ="
+                f" {self.Dmax}"
+            )
 
     @classmethod
     def from_elementary_tensors(

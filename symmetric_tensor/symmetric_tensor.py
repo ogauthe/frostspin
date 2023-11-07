@@ -4,6 +4,7 @@ import scipy.linalg as lg
 from misc_tools.svd_tools import sparse_svd, find_chi_largest
 from symmetric_tensor.diagonal_tensor import DiagonalTensor
 
+print("\n *** DEV MODE ***\n")
 
 # choices are made to make code light and fast:
 # irreps are labelled by integers (non-simple groups need another class using lexsort)
