@@ -17,7 +17,6 @@ ctm0 = CTMRG.from_elementary_tensors(
     "AB\nBA",
     [a, a.conjugate()],
     20,
-    verbosity=2,
     block_chi_ratio=1.2,
     block_ncv_ratio=2.2,
     cutoff=1e-10,
@@ -279,8 +278,6 @@ tensors = (
 
 tiling = "ABCD\nEFGH\nIJKL\nMNOP"
 ctm = CTMRG.from_elementary_tensors(tiling, tensors, 13)
-
-print(ctm)
 
 rdm2x1_cell, rdm1x2_cell = ctm.compute_rdm_1st_neighbor_cell()
 for m in rdm2x1_cell:
