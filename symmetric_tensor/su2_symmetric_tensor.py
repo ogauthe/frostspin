@@ -1,5 +1,4 @@
 import numpy as np
-import scipy.linalg as lg
 import numba
 
 from .lie_group_symmetric_tensor import LieGroupSymmetricTensor
@@ -246,7 +245,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
 
     def toU1(self):
         # yet to adapt to elementary block structure for SU(2)
-        raise NotImplementedError("TODO!")
+        print("WARNING: toU1() currently casts to intermediate dense form")
 
         # efficient cast to U(1): project directly raw data to U(1) blocks
         # 1) construct U(1) representations
@@ -260,47 +259,12 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
                 k += d * irr
             reps.append(sz)
 
-        # 2) combine into row and column
-        row_irreps = U1_SymmetricTensor.combine_representations(
-            reps[: self._nrr], self._signature[: self._nrr]
+        arr = self.toarray()
+        out = U1_SymmetricTensor.from_array(
+            arr, reps[: self._nrr], reps[self._nrr :], self._signature
         )
-        col_irreps = U1_SymmetricTensor.combine_representations(
-            reps[self._nrr :], ~self._signature[self._nrr :]
-        )
-        ncols = col_irreps.size
-
-        # 3) find non-empty U(1) blocks directly from current block_irreps
-        sze = (self._block_irreps % 2).nonzero()[0]  # integer spins
-        szo = ((self._block_irreps + 1) % 2).nonzero()[0]  # half interger spins
-        block_irreps = []
-        if sze.size:
-            sze_maxp1 = self._block_irreps[sze[-1]]
-            block_irreps.extend(np.arange(-sze_maxp1 + 1, sze_maxp1, 2))
-        if szo.size:
-            szo_maxp1 = self._block_irreps[szo[-1]]
-            block_irreps.extend(np.arange(-szo_maxp1 + 1, szo_maxp1, 2))
-        block_irreps = np.sort(block_irreps)
-
-        # 4) construct U(1) block by slicing Clebsh-Gordon projector
-        blocks = []
-        proj = self.construct_matrix_projector(
-            self._row_reps, self._col_reps, self._signature
-        )
-        raw = self._to_raw_data()
-        for sz in block_irreps:
-            ri = (row_irreps == sz).nonzero()[0]
-            ci = (col_irreps == sz).nonzero()[0]
-            inds = ncols * ri[:, None] + ci
-            b = (proj[inds.ravel()] @ raw).reshape(inds.shape)
-            blocks.append(b)
-
-        assert (
-            abs(np.sqrt(sum(lg.norm(b) ** 2 for b in blocks)) - self.norm())
-            <= 1e-13 * self.norm()
-        )
-        return U1_SymmetricTensor(
-            reps[: self._nrr], reps[self._nrr :], blocks, block_irreps, self._signature
-        )
+        assert abs(out.norm() - self.norm()) <= 1e-13 * self.norm()
+        return out
 
     def toO2(self):
         """
@@ -309,7 +273,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         are contracted.
         """
         # yet to adapt to elementary block structure for SU(2)
-        raise NotImplementedError("TODO!")
+        print("WARNING: toO2() currently casts to intermediate dense form")
 
         # When casting to U(1), O(2) has different irrep ordering conventions:
         # here for SU(2), each spin appears contiguously with all its Sz value
@@ -329,7 +293,6 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         # reuse U(1) code in spirit
         # 1) construct U(1) and O(2) representations
         swaps = []  # SU(2) and O(2) have different ordering convention: swap needed
-        u1_reps = []
         o2_reps = []
         signs = []  # change vector signs to fit O(2) signs conventions
         for r in self._row_reps + self._col_reps:
@@ -353,82 +316,23 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
                 k += d * irr
             swap_rep = (-sz_rep).argsort(kind="stable")
             swap_rep = swap_rep[sz_rep_o2[swap_rep].argsort(kind="stable")]
-            u1_reps.append(sz_rep[swap_rep])  # swap U(1) indices to O(2) format
-            signs.append(signs_rep)
+            signs.append(1 - 2 * signs_rep)
             swaps.append(swap_rep)  # store swap
             irreps, degen = np.unique(sz_rep_o2, return_counts=True)
             degen[irreps > 0] //= 2
             o2_reps.append(np.array([degen, irreps]))
 
-        row_signs = signs[0]
-        for i in range(1, self._nrr):
-            row_signs = (row_signs[:, None] ^ signs[i]).ravel()
-        col_signs = signs[self._nrr]
-        for i in range(self._nrr, self._ndim):
-            col_signs = (col_signs[:, None] ^ signs[i]).ravel()
-
         # 2) combine into row and column
-        row_irreps = U1_SymmetricTensor.combine_representations(
-            u1_reps[: self._nrr], self._signature[: self._nrr]
+        arr = self.toarray()
+        perm = tuple(range(1, self._ndim)) + (0,)
+        for ax in range(self._ndim):
+            mat = np.eye(self._shape[ax])
+            mat = (mat * signs[ax])[swaps[ax]]
+            arr = np.tensordot(mat, arr, ((1,), (0,)))
+            arr = arr.transpose(perm)
+
+        out = O2_SymmetricTensor.from_array(
+            arr, o2_reps[: self._nrr], o2_reps[self._nrr :], self._signature
         )
-        col_irreps = U1_SymmetricTensor.combine_representations(
-            u1_reps[self._nrr :], ~self._signature[self._nrr :]
-        )
-        ncols = col_irreps.size
-
-        # 3) find non-empty U(1) blocks directly from current block_irreps
-        sze = (self._block_irreps % 2).nonzero()[0]  # integer spins
-        szo = ((self._block_irreps + 1) % 2).nonzero()[0]  # half interger spins
-        block_irreps = []
-        if sze.size:
-            sze_maxp1 = self._block_irreps[sze[-1]]
-            block_irreps.extend(np.arange(0, sze_maxp1, 2))  # remove Sz < 0
-        if szo.size:
-            szo_maxp1 = self._block_irreps[szo[-1]]
-            block_irreps.extend(np.arange(1, szo_maxp1, 2))  # remove Sz < 0
-        block_irreps = np.sort(block_irreps)
-
-        # 4) construct U(1) blocks by slicing Clebsh-Gordon projector
-        # need to include swapping
-        shr = np.array(self.shape[: self._nrr])
-        row_cp = np.array([1, *shr[-1:0:-1]]).cumprod()[::-1]
-        shc = np.array(self.shape[self._nrr :])
-        col_cp = np.array([1, *shc[-1:0:-1]]).cumprod()[::-1]
-
-        blocks = []
-        proj = self.construct_matrix_projector(
-            self._row_reps, self._col_reps, self._signature
-        )
-        raw = self._to_raw_data()
-        for sz in block_irreps:
-            rsz_mat = (row_irreps == sz).nonzero()[0]
-            rsz_t = (rsz_mat // row_cp[:, None]).T % shr  # multi-index form
-            rsz_mat[:] = 0  # unswapped form
-            for i, r in enumerate(self._row_reps):
-                rsz_mat += swaps[i][rsz_t[:, i]] * row_cp[i]  # map to unswapped Sz
-
-            csz_mat = (col_irreps == sz).nonzero()[0]
-            csz_t = (csz_mat // col_cp[:, None]).T % shc  # multi-index form
-            csz_mat[:] = 0
-            for i, r in enumerate(self._col_reps):
-                csz_mat += swaps[i + self._nrr][csz_t[:, i]] * col_cp[i]
-
-            # rsz_mat and csz_mat contains the same indices as without the swap, however
-            # they are swapped according to axis-wise swap imposed by O(2) irreps order
-            inds = ncols * rsz_mat[:, None] + csz_mat
-            b = (proj[inds.ravel()] @ raw).reshape(inds.shape)
-            b = (1 - 2 * row_signs[rsz_mat, None]) * b * (1 - 2 * col_signs[csz_mat])
-            blocks.append(b)
-
-        tu1 = U1_SymmetricTensor(  # blocks Sz<0 are missing (will not be read)
-            u1_reps[: self._nrr],
-            u1_reps[self._nrr :],
-            blocks,
-            block_irreps,
-            self._signature,
-        )
-        to2 = O2_SymmetricTensor.from_U1(
-            tu1, o2_reps[: self._nrr], o2_reps[self._nrr :]
-        )
-        assert abs(to2.norm() - self.norm()) <= 1e-13 * self.norm()
-        return to2
+        assert abs(out.norm() - self.norm()) <= 1e-13 * self.norm()
+        return out
