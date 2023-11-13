@@ -73,6 +73,15 @@ assert (stbp - stbp2).norm() < 1e-14
 stb2 = stbp.permutate((1, 3), (2, 0))
 assert (stb - stb2).norm() < 1e-14
 
+
+# try tensor with external degeneracies
+r1 = np.array([[1], [1]])
+r12 = np.array([[1, 2, 1], [1, 3, 5]])
+arr = np.eye(12).reshape(1, 12, 12, 1)
+st3 = SU2_SymmetricTensor.from_array(arr, (r1,), (r12, r12, r1), signature=[0, 0, 1, 1])
+assert lg.norm(st3.toarray() - arr) < 1e-14
+
+
 # try I/O for isometries
 st.save_isometries("data_test_su2_isometries.npz")
 st.load_isometries("data_test_su2_isometries.npz")
