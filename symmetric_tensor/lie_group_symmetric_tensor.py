@@ -784,7 +784,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         nrr_out = len(row_axes)
         trivial = np.arange(self._ndim)
 
-        if (np.sort(axes) != trivial).any():
+        if axes.shape != (self._ndim,) or (np.sort(axes) != trivial).any():
             raise ValueError("axes do not match tensor")
 
         # return early for identity only, matrix transpose is not trivial
