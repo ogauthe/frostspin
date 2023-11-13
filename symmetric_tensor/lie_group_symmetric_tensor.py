@@ -146,7 +146,9 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         elementary_block_per_axis = np.array([r.shape[1] for r in in_reps])
         n_ele = elementary_block_per_axis.prod()
 
-        block_irreps_in, _ = self.get_block_sizes(self._row_reps, self._col_reps)
+        block_irreps_in, _ = self.get_block_sizes(
+            self._row_reps, self._col_reps, self._signature
+        )
         nblocks_in = len(block_irreps_in)
 
         # data on elementary block: lists [i_ele]
@@ -169,7 +171,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             out_signature = self._signature[axes]
             out_reps = tuple(in_reps[i] for i in axes)
             block_irreps_out, _ = self.get_block_sizes(
-                out_reps[:nrr_out], out_reps[nrr_out:]
+                out_reps[:nrr_out], out_reps[nrr_out:], out_signature
             )
             nblocks_out = len(block_irreps_out)
 
@@ -181,6 +183,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         else:
             block_irreps_out = block_irreps_in
             nblocks_out = nblocks_in
+            out_signature = self._signature ^ signature_update.astype(bool)
 
             def compute_elementary_unitary(ele_r_in, ele_c_in, ele_r_out, ele_c_out):
                 return self._compute_elementary_conjugate(
@@ -196,13 +199,13 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             )
             ele_in = tuple(np.array([[1], [irr]]) for irr in in_ele_irreps)
             block_irreps_in_ele, block_shapes_in_ele = self.get_block_sizes(
-                ele_in[: self._nrr], ele_in[self._nrr :]
+                ele_in[: self._nrr], ele_in[self._nrr :], self._signature
             )
             if block_irreps_in_ele.size:  # if elementary block is allowed
                 # compute out only if block contributes
                 ele_out = tuple(ele_in[i] for i in axes)
                 block_irreps_out_ele, block_shapes_out_ele = self.get_block_sizes(
-                    ele_out[:nrr_out], ele_out[nrr_out:]
+                    ele_out[:nrr_out], ele_out[nrr_out:], out_signature
                 )
 
                 isometry_ele = compute_elementary_unitary(
@@ -367,11 +370,13 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
         # need to initalize blocks_out in case of missing blocks_in
         block_irreps_out, block_shapes_out = self.get_block_sizes(
-            out_reps[:nrr_out], out_reps[nrr_out:]
+            out_reps[:nrr_out], out_reps[nrr_out:], self._signature[axes]
         )
         blocks_out = tuple(np.zeros(sh) for sh in block_shapes_out)
         nblocks_out = len(blocks_out)
-        block_irreps_in, _ = self.get_block_sizes(self._row_reps, self._col_reps)
+        block_irreps_in, _ = self.get_block_sizes(
+            self._row_reps, self._col_reps, self._signature
+        )
 
         data_perm = tuple(ax + 1 if ax < self._nrr else ax + 2 for ax in axes)
         data_perm = (0, self._nrr + 1) + data_perm
@@ -459,7 +464,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
     # helper function
     @classmethod
-    def get_block_sizes(cls, row_reps, col_reps):
+    def get_block_sizes(cls, row_reps, col_reps, signature):
         """
         Compute shapes of blocks authorized with row_reps and col_reps and their
         associated irreps
@@ -470,6 +475,8 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             Row representations
         col_reps : tuple of representations
             Column representations
+        signature : 1D bool array
+            Signature on each leg.
 
         Returns
         -------
@@ -478,9 +485,8 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         block_shapes : list of 2-tuple
             Shape of each block
         """
-        # TODO remove signature from combine_representations arguments
-        row_tot = cls.combine_representations(row_reps, None)
-        col_tot = cls.combine_representations(col_reps, None)
+        row_tot = cls.combine_representations(row_reps, signature[: len(row_reps)])
+        col_tot = cls.combine_representations(col_reps, signature[len(row_reps) :])
         i1 = 0
         i2 = 0
         block_irreps = []
@@ -521,7 +527,9 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         # define a generic function that precompute elementary blocks
         # as well as their block_irreps, extern and inner row and col degen?
 
-        block_irreps, block_shapes_in = cls.get_block_sizes(row_reps, col_reps)
+        block_irreps, block_shapes_in = cls.get_block_sizes(
+            row_reps, col_reps, signature
+        )
         nblocks = block_irreps.size
         shifts = []
         elementary_block_per_axis = np.empty((ndim,), dtype=int)
@@ -545,6 +553,8 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
         blocks = tuple(np.empty(sh) for sh in block_shapes_in)
         block_shifts_row = np.zeros((nblocks,), dtype=int)
+        ele_sign = np.zeros((ndim - nrr + 1,), dtype=bool)
+        ele_sign[1:] = signature[nrr:]
 
         # loop over row elementary blocks
         for ir_ele in range(n_ele_row):
@@ -577,7 +587,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     ele_c_in.append(np.array([[1], [rep[1]]]))
 
                 block_irreps_ele, block_shapes_in_ele = cls.get_block_sizes(
-                    [rep_row_in], ele_c_in
+                    [rep_row_in], ele_c_in, ele_sign
                 )
 
                 if block_irreps_ele.size:  # if there is a singlet
@@ -667,6 +677,9 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         )
         reverse_perm = np.argsort(degen_irrep_perm)
 
+        ele_sign = self._signature[self._nrr - 1 :].copy()
+        ele_sign[0] = False
+
         # loop over row elementary blocks
         for ir_ele in range(n_ele_row):
             ele_r_out = []
@@ -699,7 +712,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     ele_c_out.append(np.array([[1], [rep[1]]]))
 
                 block_irreps_ele, block_shapes_out_ele = self.get_block_sizes(
-                    [rep_row_out], ele_c_out
+                    [rep_row_out], ele_c_out, ele_sign
                 )
 
                 if block_irreps_ele.size:  # if there is a singlet
