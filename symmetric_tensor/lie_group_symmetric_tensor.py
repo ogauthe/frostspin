@@ -531,7 +531,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             for i in range(rep.shape[1]):
                 s.append(cls.representation_dimension(rep[:, : i + 1]))
             shifts.append(s)
-        degen_irrep_perm = tuple(range(0, 2 * ndim, 2)) + tuple(range(1, 2 * ndim, 2))
+        degen_irrep_perm = tuple(range(1, 2 * ndim, 2)) + tuple(range(0, 2 * ndim, 2))
 
         # determine elementary block number
         n_ele_row = elementary_block_per_axis[:nrr].prod()
