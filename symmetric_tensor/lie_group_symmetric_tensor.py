@@ -238,14 +238,15 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                 idirb_ele = np.zeros((nblocks_in), dtype=int)
                 idicb_ele = np.zeros((nblocks_in), dtype=int)
 
-                # do not slice columns, but add sqrt(irr) factor
+                # do not slice columns, but add sqrt(irr_dim) factor
                 shift_bo = 0
                 for ibo, irr in enumerate(block_irreps_out_ele):
                     ibo_full = block_irreps_out.searchsorted(irr)
                     idorb_ele[ibo_full] = block_shapes_out_ele[ibo][0]
                     idocb_ele[ibo_full] = block_shapes_out_ele[ibo][1]
                     idob = block_shapes_out_ele[ibo][0] * block_shapes_out_ele[ibo][1]
-                    isometry_ele[shift_bo : shift_bo + idob] /= np.sqrt(irr)
+                    norm = np.sqrt(self.irrep_dimension(irr))
+                    isometry_ele[shift_bo : shift_bo + idob] /= norm
                     shift_bo += idob
                 assert shift_bo == isometry_ele.shape[0]
 
@@ -258,7 +259,8 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     idirb_ele[ibi_full] = block_shapes_in_ele[ibi][0]
                     idicb_ele[ibi_full] = block_shapes_in_ele[ibi][1]
                     idib = block_shapes_in_ele[ibi][0] * block_shapes_in_ele[ibi][1]
-                    block = np.sqrt(irr) * isometry_ele[:, shift_bi : shift_bi + idib]
+                    norm = np.sqrt(self.irrep_dimension(irr))
+                    block = norm * isometry_ele[:, shift_bi : shift_bi + idib]
                     shift_bi += idib
                     isometry_blocks_ele[ibi_full] = block
                 assert shift_bi == isometry_ele.shape[0]
@@ -614,9 +616,8 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     for ibi, irr in enumerate(block_irreps_ele):
                         idirb, idicb = block_shapes_in_ele[ibi]
                         idib = idirb * idicb
-                        block_ele_proj = p_in[:, ishift : ishift + idib].T / np.sqrt(
-                            irr
-                        )
+                        norm = np.sqrt(cls.irrep_dimension(irr))
+                        block_ele_proj = p_in[:, ishift : ishift + idib].T / norm
                         ishift += idib
                         data_block = block_ele_proj @ data
 
@@ -755,7 +756,8 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                                 1,
                             )
                             block_ele_proj = p_out[:, oshift : oshift + idob]
-                            block_ele_proj = np.sqrt(irr) * block_ele_proj
+                            norm = np.sqrt(self.irrep_dimension(irr))
+                            block_ele_proj = norm * block_ele_proj
 
                             data_block = self._blocks[bi_self][rs, cs]
                             data_block = data_block.reshape(idorb, edor, idocb, edoc)
