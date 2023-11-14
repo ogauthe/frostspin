@@ -649,7 +649,6 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         return st
 
     def toarray(self, as_matrix=False):
-        arr = np.zeros(self._shape)
         out_reps = self._row_reps + self._col_reps
 
         shifts = []
@@ -680,6 +679,8 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
         ele_sign = self._signature[self._nrr - 1 :].copy()
         ele_sign[0] = False
+
+        arr = np.zeros(self._shape, dtype=self.dtype)
 
         # loop over row elementary blocks
         for ir_ele in range(n_ele_row):
@@ -722,17 +723,9 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                         ele_r_out, ele_c_out, self._signature
                     )
 
-                    # construct elementary block sector in dense tensor
-                    slices = [
-                        slice(shifts[i][mul_ind[i]], shifts[i][mul_ind[i] + 1], 1)
-                        for i in range(self._ndim)
-                    ]
-                    arr_ele = arr[tuple(slices)]
-
                     edoc = ele_degen_dimensions[self._nrr :, 0].prod()
                     edo = edor * edoc
-                    sh_ele = tuple(ele_degen_dimensions.T[::-1].ravel())
-                    assert arr_ele.shape == tuple(ele_degen_dimensions.prod(axis=1))
+                    ele_dense = np.zeros((p_out.shape[0], edo), dtype=self.dtype)
 
                     # need to loop over all authorized blocks to get correct oshift
                     oshift = 0
@@ -761,17 +754,21 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
                             data_block = self._blocks[bi_self][rs, cs]
                             data_block = data_block.reshape(idorb, edor, idocb, edoc)
-                            data_block = data_block.swapaxes(1, 2)
-                            data_block = data_block.reshape(idob, edo)
-                            data = block_ele_proj @ data_block
-                            data = data.reshape(sh_ele)
-                            data = data.transpose(reverse_perm)
-
-                            arr_ele += data.reshape(arr_ele.shape)
+                            data_block = data_block.swapaxes(1, 2).reshape(idob, edo)
+                            ele_dense += block_ele_proj @ data_block
                             block_shifts_col[bi_self] += edoc * idocb
 
                         oshift += idob
                     assert oshift == p_out.shape[1]
+
+                    # construct elementary block sector in dense tensor
+                    sh_ele = ele_degen_dimensions.T[::-1].ravel()
+                    ele_dense = ele_dense.reshape(sh_ele).transpose(reverse_perm)
+                    slices = tuple(
+                        slice(shifts[i][mul_ind[i]], shifts[i][mul_ind[i] + 1], 1)
+                        for i in range(self._ndim)
+                    )
+                    arr[slices] = ele_dense.reshape(ele_degen_dimensions.prod(axis=1))
 
             # set shifts for rows
             for idorb, irr in rep_row_out.T:
