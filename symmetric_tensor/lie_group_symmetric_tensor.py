@@ -123,6 +123,66 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         unitary_ele = p_in.T @ mid @ p_in
         return unitary_ele
 
+    @classmethod
+    def sliced_elementary_trees(cls, reps, signature, target_irreps=None):
+        """
+        Construct Clebsch-Gordon tree for all elementary blocks
+
+        Parameters
+        ----------
+        reps : enumerable of n representations
+            Representations to decompose in elementary blocks and fuse.
+        signature : (n,) bool array
+            Signature on each axis.
+        target_irreps : 1D integer array or None
+            Irreps to consider in total representation. If None, all irreps are
+            conserved.
+        """
+        # assume irrep is just one integer
+        # do not assume irrep = dimension(irrep)
+        if target_irreps is None:
+            total_rep = cls.combine_representations(reps, signature)
+            target_irreps = total_rep[1]
+
+        elementary_block_per_axis = np.array([r.shape[1] for r in reps])
+        n_ele_blocks = elementary_block_per_axis.prod()
+        n_irreps = len(target_irreps)
+        internal_degeneracies = np.zeros((n_ele_blocks, n_irreps), dtype=int)
+        ele_trees = np.empty((n_ele_blocks, n_irreps), dtype=object)
+        max_irrep = target_irreps[-1]
+
+        for i_ele in range(n_ele_blocks):
+            # construct CG tree for this elementary block
+            mul_ind = np.unravel_index(i_ele, elementary_block_per_axis)
+            ele_reps = tuple(
+                np.array([[1], [r[1, mul_ind[i]]]]) for i, r in enumerate(reps)
+            )
+            # some trees will actually be empty, truncated to nothing by max_irrep
+            # we cannot know it here as we are still symmetry-agnostic
+            # cls.compute_clebsch_gordan_tree must detect it and return rep = [[], []]
+            rep, tree = cls.compute_clebsch_gordan_tree(
+                ele_reps, signature, max_irrep=max_irrep
+            )
+
+            # slice according to irrep sectors
+            k = 0
+            sh = [cls.irrep_dimension(r[1, 0]) for r in ele_reps] + [-1, -1]
+            for i in range(rep.shape[1]):
+                internal_degen = rep[0, i]
+                irrep = rep[1, i]
+                irrep_dim = cls.irrep_dimension(irrep)
+                sector_dim = internal_degen * irrep_dim
+                bi = target_irreps.searchsorted(irrep)
+                if bi < n_irreps and irrep == target_irreps[bi]:
+                    sh[-2] = internal_degen
+                    sh[-1] = irrep_dim
+                    proj = np.ascontiguousarray(tree[:, k : k + sector_dim].reshape(sh))
+                    ele_trees[i_ele, bi] = proj
+                    internal_degeneracies[i_ele, bi] = internal_degen
+                k += sector_dim
+            assert k == tree.shape[1]
+        return internal_degeneracies, ele_trees
+
     def _compute_structural_data(self, axes, nrr_out, signature_update=None):
         """
         Parameters
@@ -139,222 +199,194 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         structural data
         """
         # Purely structural. Can be precomputed.
-        # may be optimized by computing separetly cg_tree row and cg_tree col
-        # without calling construct_matrix_projector
-        in_reps = self._row_reps + self._col_reps
-
-        elementary_block_per_axis = np.array([r.shape[1] for r in in_reps])
-        n_ele = elementary_block_per_axis.prod()
 
         block_irreps_in, _ = self.get_block_sizes(
             self._row_reps, self._col_reps, self._signature
         )
         nblocks_in = len(block_irreps_in)
 
-        # data on elementary block: lists [i_ele]
-        ele_reps_indices = np.array(
-            np.unravel_index(np.arange(n_ele), elementary_block_per_axis)
-        ).T
-        contribute_ele = []
+        out_signature = self._signature[axes]
+        in_reps = self._row_reps + self._col_reps
+        out_row_reps = tuple(in_reps[i] for i in axes[:nrr_out])
+        out_col_reps = tuple(in_reps[i] for i in axes[nrr_out:])
+        block_irreps_out, _ = self.get_block_sizes(
+            out_row_reps, out_col_reps, out_signature
+        )
+        nblocks_out = len(block_irreps_out)
 
-        # data on block irreps: array (n_ele, nblocks_in)
-        isometry_in_blocks = []
-        idirb = []
-        idicb = []
+        # precompute CG trees
+        # a few ones may never be used (think elementary row block with only
+        # half-integer spin row when all elementary column blocks are integer spins)
+        # do not bother pruning them, max_irrep already limits tree cost
+        idirb, irb_trees = self.sliced_elementary_trees(
+            self._row_reps, self._signature[: self._nrr], target_irreps=block_irreps_in
+        )
+        idicb, icb_trees = self.sliced_elementary_trees(
+            self._col_reps, ~self._signature[self._nrr :], target_irreps=block_irreps_in
+        )
+        idorb, orb_trees = self.sliced_elementary_trees(
+            out_row_reps, out_signature[:nrr_out], target_irreps=block_irreps_out
+        )
+        idocb, ocb_trees = self.sliced_elementary_trees(
+            out_col_reps, ~out_signature[nrr_out:], target_irreps=block_irreps_out
+        )
+        assert (idirb @ idicb.T).sum() == (idorb @ idocb.T).sum()  # coefficient number
 
-        # data on block_irreps out: array (n_ele, nblocks_out)
-        idorb = []
-        idocb = []
+        # indices of elementary blocks authorized by symmetry
+        contribute_ele = (idirb @ idicb.T).ravel().nonzero()[0]
+        n_ele = contribute_ele.size
 
-        if signature_update is None:
-            perm = tuple([*axes, self._ndim])
-            out_signature = self._signature[axes]
-            out_reps = tuple(in_reps[i] for i in axes)
-            block_irreps_out, _ = self.get_block_sizes(
-                out_reps[:nrr_out], out_reps[nrr_out:], out_signature
-            )
-            nblocks_out = len(block_irreps_out)
+        # we need to find the row and col indices ot these elementary blocks in OUT
+        elementary_block_per_axis = np.array([r.shape[1] for r in in_reps])
+        ncol_blocks_in = elementary_block_per_axis[self._nrr :].prod()
+        ele_indices = np.empty((4, n_ele), dtype=int)
+        ele_indices[:2] = np.divmod(contribute_ele, ncol_blocks_in)
+        mul = np.array(np.unravel_index(contribute_ele, elementary_block_per_axis))
+        strides = np.zeros((2, self._ndim), dtype=int)
+        s = 1
+        for i in reversed(range(nrr_out)):
+            strides[0, axes[i]] = s
+            s *= elementary_block_per_axis[axes[i]]
+        s = 1
+        for i in reversed(range(nrr_out, self._ndim)):
+            strides[1, axes[i]] = s
+            s *= elementary_block_per_axis[axes[i]]
+        ele_indices[2:] = strides @ mul
+        ele_indices = ele_indices.T.copy()
 
-            def compute_elementary_unitary(ele_r_in, ele_c_in, ele_r_out, ele_c_out):
-                return self._compute_elementary_transpose(
-                    ele_r_in, ele_c_in, ele_r_out, ele_c_out, perm, out_signature
-                )
+        # normalizing factor
+        dims_out = [self.irrep_dimension(irr) for irr in block_irreps_out]
 
-        else:
-            block_irreps_out = block_irreps_in
-            nblocks_out = nblocks_in
-            out_signature = self._signature ^ signature_update.astype(bool)
+        # convention: return elementary unitary blocked sliced for IN irrep blocks
+        isometry_in_blocks = np.empty((n_ele, nblocks_in), dtype=object)
 
-            def compute_elementary_unitary(ele_r_in, ele_c_in, ele_r_out, ele_c_out):
-                return self._compute_elementary_conjugate(
-                    ele_r_in, ele_c_in, signature_update
-                )
+        # need to add idirb and idicb axes in permutation
+        perm = np.empty((self._ndim + 2,), dtype=int)
+        perm[self._ndim + 1] = self._ndim + 1
+        perm[self._ndim] = self._nrr
+        perm[: self._ndim] = axes
+        perm[: self._ndim][axes >= self._nrr] += 1
 
         for i_ele in range(n_ele):
-            mul_ind = ele_reps_indices[i_ele]
+            ir_in, ic_in, ir_out, ic_out = ele_indices[i_ele]
 
-            # find irreps appearing in this elementary block
-            in_ele_irreps = np.array(
-                [in_reps[i][1, mul_ind[i]] for i in range(self._ndim)]
-            )
-            ele_in = tuple(np.array([[1], [irr]]) for irr in in_ele_irreps)
-            block_irreps_in_ele, block_shapes_in_ele = self.get_block_sizes(
-                ele_in[: self._nrr], ele_in[self._nrr :], self._signature
-            )
-            if block_irreps_in_ele.size:  # if elementary block is allowed
-                # compute out only if block contributes
-                ele_out = tuple(ele_in[i] for i in axes)
-                block_irreps_out_ele, block_shapes_out_ele = self.get_block_sizes(
-                    ele_out[:nrr_out], ele_out[nrr_out:], out_signature
+            # precompute OUT singlet projector for all OUT block irreps that appear
+            out_block_indices = (idorb[ir_out] * idocb[ic_out]).nonzero()[0]
+            out_proj_block = [None] * nblocks_out
+            for bi in out_block_indices:
+                rtree = orb_trees[ir_out, bi]  # shape (*dim_ele_r, idorb, irr)
+                ctree = ocb_trees[ic_out, bi]  # shape (*dim_ele_c, idocb, irr)
+                dim = rtree.shape[-1]  # dim(irrep)
+                rt = rtree.reshape(-1, dim)  # shape (dim_ele_r * idorb, irrep_dim)
+                ct = ctree.reshape(-1, dim)  # shape (irrep_dim, dim_ele_c * idocb)
+                block_proj = rt @ ct.T  # shape (dim_ele_r * idorb, dim_ele_c * idocb)
+                sh = (
+                    rt.shape[0] // rtree.shape[-2],
+                    rtree.shape[-2],
+                    ct.shape[0] // ctree.shape[-2],
+                    ctree.shape[-2],
                 )
+                block_proj = block_proj.reshape(sh).swapaxes(1, 2)
+                nsh = (sh[0] * sh[2], sh[1] * sh[3])  # shape (dim_ele, idorb * idocb)
+                out_proj_block[bi] = block_proj.reshape(nsh).T
 
-                isometry_ele = compute_elementary_unitary(
-                    ele_in[: self._nrr],
-                    ele_in[self._nrr :],
-                    ele_out[:nrr_out],
-                    ele_out[nrr_out:],
+            for bi_in in (idirb[ir_in] * idicb[ic_in]).nonzero()[0]:
+                rtree = irb_trees[ir_in, bi_in]
+                ctree = icb_trees[ic_in, bi_in]
+                irrep_dim = rtree.shape[-1]
+                rt = rtree.reshape(-1, irrep_dim)
+                ct = ctree.reshape(-1, irrep_dim)
+                block_proj = rt @ ct.T  # shape (dim_ele_r * idirb, dim_ele_c * idicb)
+                sh = rtree.shape[:-1] + ctree.shape[:-1]
+                swapped = block_proj.reshape(sh).transpose(perm)
+                swapped = swapped.reshape(-1, rtree.shape[-2] * ctree.shape[-2])
+
+                sh = (
+                    idorb[ir_out] @ idocb[ic_out],
+                    idirb[ir_in, bi_in] * idicb[ic_in, bi_in],
                 )
+                isometry_bi = np.empty(sh)
 
-                # right now isometry_ele is a unitary matrix
-                # it is safe to delete smalle values that are numerical zeros
-                # typical density around 0.5: keep it as a dense array
-                isometry_ele[np.abs(isometry_ele) < 1e-14] = 0
-                assert lg.norm(
-                    isometry_ele @ isometry_ele.T.conj() - np.eye(isometry_ele.shape[0])
-                    < 1e-12
-                )
+                k = 0
+                for bi_out in out_block_indices:
+                    d = idorb[ir_out, bi_out] * idocb[ic_out, bi_out]
+                    isometry = out_proj_block[bi_out] @ swapped
+                    # not a unitary: not square + sqrt(irrep_dim) not included
+                    # with sqrt(irrep) and packed with matrices from other irrep blocks
+                    # it becomes unitary => coefficients are of order 1, it is safe to
+                    # delete numerical zeros according to absolute tolerance
+                    isometry[np.abs(isometry) < 1e-14] = 0
+                    isometry_bi[k : k + d] = isometry / dims_out[bi_out]
+                    k += d
 
-                # We obtained the elementary unitary corresponding to one elementary
-                # block basis change. It is probably dense, altough the format is
-                # csr_matrix
-                # Now we need to apply it to the data.
-                # the difficult part is to find the indices where it appears and
-                # broadcast it over degeneracies.
-                # First we need to slice by block_irreps for both in and out
-                # once done, we can easily apply sqrt(irr_in/irr_out) to get an isometry
+                assert k == isometry_bi.shape[0]
+                isometry_in_blocks[i_ele, bi_in] = isometry_bi
 
-                idorb_ele = np.zeros((nblocks_out), dtype=int)
-                idocb_ele = np.zeros((nblocks_out), dtype=int)
-                idirb_ele = np.zeros((nblocks_in), dtype=int)
-                idicb_ele = np.zeros((nblocks_in), dtype=int)
-
-                # do not slice columns, but add sqrt(irr_dim) factor
-                shift_bo = 0
-                for ibo, irr in enumerate(block_irreps_out_ele):
-                    ibo_full = block_irreps_out.searchsorted(irr)
-                    idorb_ele[ibo_full] = block_shapes_out_ele[ibo][0]
-                    idocb_ele[ibo_full] = block_shapes_out_ele[ibo][1]
-                    idob = block_shapes_out_ele[ibo][0] * block_shapes_out_ele[ibo][1]
-                    norm = np.sqrt(self.irrep_dimension(irr))
-                    isometry_ele[shift_bo : shift_bo + idob] /= norm
-                    shift_bo += idob
-                assert shift_bo == isometry_ele.shape[0]
-
-                filler = np.zeros((0, 0))
-                isometry_blocks_ele = [filler] * nblocks_in
-
-                shift_bi = 0
-                for ibi, irr in enumerate(block_irreps_in_ele):
-                    ibi_full = block_irreps_in.searchsorted(irr)
-                    idirb_ele[ibi_full] = block_shapes_in_ele[ibi][0]
-                    idicb_ele[ibi_full] = block_shapes_in_ele[ibi][1]
-                    idib = block_shapes_in_ele[ibi][0] * block_shapes_in_ele[ibi][1]
-                    norm = np.sqrt(self.irrep_dimension(irr))
-                    block = norm * isometry_ele[:, shift_bi : shift_bi + idib]
-                    shift_bi += idib
-                    isometry_blocks_ele[ibi_full] = block
-                assert shift_bi == isometry_ele.shape[0]
-
-                contribute_ele.append(i_ele)
-                isometry_in_blocks.append(isometry_blocks_ele)
-                idirb.append(idirb_ele)
-                idicb.append(idicb_ele)
-                idorb.append(idorb_ele)
-                idocb.append(idocb_ele)
-
-        contribute_ele = np.array(contribute_ele)
-        idirb = np.array(idirb)
-        idicb = np.array(idicb)
-        idorb = np.array(idorb)
-        idocb = np.array(idocb)
-
-        structual_data = contribute_ele, idirb, idicb, idorb, idocb, isometry_in_blocks
+        structual_data = (
+            ele_indices,
+            idirb,
+            idicb,
+            idorb,
+            idocb,
+            isometry_in_blocks,
+        )
         return structual_data
 
     def _compute_degen_data(self, axes, nrr_out, structural_data):
         """
         Compute indices and slices, depending on both internal external degeneracies.
-        Symmetry-agnostic, but depends on self degeneracies. Data is not accessed
+        Symmetry-agnostic, but depends on self degeneracies. Data is not accessed.
         """
         # should be possible to compile it
-        contribute_ele, idirb, idicb, idorb, idocb, _ = structural_data
-        nblocks_in = idirb.shape[1]
-        nblocks_out = idorb.shape[1]
+        (
+            ele_indices,
+            idirb,
+            idicb,
+            idorb,
+            idocb,
+            _,
+        ) = structural_data
         in_reps = self._row_reps + self._col_reps
-        elementary_block_per_axis = np.array([r.shape[1] for r in in_reps])
+        out_row_reps = [in_reps[ax] for ax in axes[:nrr_out]]
+        out_col_reps = [in_reps[ax] for ax in axes[nrr_out:]]
 
-        n_ele_contributing = contribute_ele.size
-        ele_reps_indices = np.array(
-            np.unravel_index(contribute_ele, elementary_block_per_axis)
+        def compute_external_degen(reps):
+            nr = len(reps)
+            strides = np.array([r.shape[1] for r in reps])
+            n_ele_blocks = strides.prod()
+            mul_indices = np.unravel_index(np.arange(n_ele_blocks), strides)
+            external_degen = np.empty((nr, n_ele_blocks), dtype=int)
+            for i in range(nr):
+                external_degen[i] = reps[i][0, mul_indices[i]]
+            return external_degen
+
+        external_degen_ir = compute_external_degen(self._row_reps)
+        external_degen_ic = compute_external_degen(self._col_reps)
+        external_degen_or = compute_external_degen(out_row_reps)
+        external_degen_oc = compute_external_degen(out_col_reps)
+
+        edir = external_degen_ir.prod(axis=0)
+        edic = external_degen_ic.prod(axis=0)
+        edor = external_degen_or.prod(axis=0)
+        edoc = external_degen_oc.prod(axis=0)
+
+        slices_ir = (edir[:, None] * idirb).cumsum(axis=0)
+        slices_ic = (edic[:, None] * idicb).cumsum(axis=0)
+        slices_or = (edor[:, None] * idorb).cumsum(axis=0)
+        slices_oc = (edoc[:, None] * idocb).cumsum(axis=0)
+
+        degen_data = (
+            external_degen_ir.T.copy(),
+            external_degen_ic.T.copy(),
+            edir,
+            edic,
+            edor,
+            edoc,
+            slices_ir,
+            slices_ic,
+            slices_or,
+            slices_oc,
         )
-
-        external_degen_in = np.empty((self._ndim, n_ele_contributing), dtype=int)
-        for j in range(self._ndim):
-            external_degen_in[j] = in_reps[j][0, ele_reps_indices[j]]
-
-        edir = external_degen_in[: self._nrr].prod(axis=0)
-        edic = external_degen_in[self._nrr :].prod(axis=0)
-        edor = external_degen_in[axes[:nrr_out]].prod(axis=0)
-        edoc = external_degen_in[axes[nrr_out:]].prod(axis=0)
-
-        slices_in = np.zeros((4, n_ele_contributing, nblocks_in), dtype=int)
-        _, new_row = np.unique(ele_reps_indices[: self._nrr], axis=1, return_index=True)
-        new_row = [*new_row, n_ele_contributing]
-        dirb = idirb * edir[:, None]
-        dicb = idicb * edic[:, None]
-        k = 0
-        rs = np.zeros((nblocks_in,), dtype=int)
-        for nr1, nr2 in zip(new_row, new_row[1:]):
-            nk = k + nr2 - nr1
-            cs = dicb[nr1:nr2].cumsum(axis=0)
-            slices_in[2, k + 1 : nk] = cs[:-1]
-            slices_in[3, k:nk] = cs
-            slices_in[0, k:nk] += rs
-            rs += dirb[nr1:nr2].max(axis=0)
-            slices_in[1, k:nk] += rs
-            k = nk
-
-        slices_in = np.ascontiguousarray(slices_in.transpose(1, 2, 0))
-
-        # sorting order for elementary blocks in OUT
-        block_perm = np.ravel_multi_index(
-            ele_reps_indices[axes], elementary_block_per_axis[axes]
-        ).argsort()
-
-        slices_out = np.zeros((4, n_ele_contributing, nblocks_out), dtype=int)
-        _, new_row = np.unique(
-            ele_reps_indices[axes[:nrr_out, None], block_perm],
-            axis=1,
-            return_index=True,
-        )
-        new_row = [*new_row, n_ele_contributing]
-        dorb = (idorb * edor[:, None])[block_perm]
-        docb = (idocb * edoc[:, None])[block_perm]
-        k = 0
-        rs = np.zeros((nblocks_out,), dtype=int)
-        for nr1, nr2 in zip(new_row, new_row[1:]):
-            nk = k + nr2 - nr1
-            cs = docb[nr1:nr2].cumsum(axis=0)
-            slices_out[2, k + 1 : nk] = cs[:-1]
-            slices_out[3, k:nk] = cs
-            slices_out[0, k:nk] += rs
-            rs += dorb[nr1:nr2].max(axis=0)
-            slices_out[1, k:nk] += rs
-            k = nk
-
-        reverse_perm = block_perm.argsort()
-        slices_out = np.ascontiguousarray(slices_out.transpose(1, 2, 0)[reverse_perm])
-        degen_data = (external_degen_in.T.copy(), edor, edoc, slices_in, slices_out)
         return degen_data
 
     def _transpose_data(self, axes, nrr_out, structural_data, degen_data):
@@ -364,8 +396,26 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         # 3 nested loops: elementary blocks, rows, columns
         # change loop order?
 
-        _, idirb, idicb, idorb, idocb, isometry_in_blocks = structural_data
-        (external_degen_in, edor, edoc, slices_in, slices_out) = degen_data
+        (
+            ele_indices,
+            idirb,
+            idicb,
+            idorb,
+            idocb,
+            isometry_in_blocks,
+        ) = structural_data
+        (
+            external_degen_ir,
+            external_degen_ic,
+            edir,
+            edic,
+            edor,
+            edoc,
+            slices_ir,
+            slices_ic,
+            slices_or,
+            slices_oc,
+        ) = degen_data
 
         in_reps = self._row_reps + self._col_reps
         out_reps = tuple(in_reps[i] for i in axes)
@@ -383,46 +433,51 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         data_perm = tuple(ax + 1 if ax < self._nrr else ax + 2 for ax in axes)
         data_perm = (0, self._nrr + 1) + data_perm
 
-        for i_ele, external_degen_in_ele in enumerate(external_degen_in):
+        for i_ele, indices in enumerate(ele_indices):
             # edor = external degeneracy out row
             # idicb = internal degeneracy in column block
-            edir_tuple = tuple(external_degen_in_ele[: self._nrr])
-            edic_tuple = tuple(external_degen_in_ele[self._nrr :])
-            edor_ele = edor[i_ele]
-            edoc_ele = edoc[i_ele]
-            ed = edor_ele * edoc_ele
 
-            out_data = np.zeros((idirb[i_ele] @ idicb[i_ele], ed))
+            i_ir, i_ic, i_or, i_oc = indices
+            edir_ele = edir[i_ir]
+            edic_ele = edic[i_ic]
+            ele_sh = [0, *external_degen_ir[i_ir], 0, *external_degen_ic[i_ic]]
+            edor_ele = edor[i_or]
+            edoc_ele = edoc[i_oc]
+            ed = edor_ele * edoc_ele
+            assert ed == edir_ele * edic_ele
+
+            out_data = np.zeros((idirb[i_ir] @ idicb[i_ic], ed))
 
             for ibi, irr in enumerate(block_irreps_in):
                 # need to check if this block_irrep_in appears in elementary_block
                 # AND if the block exists in tensor
-                idirb_ele = idirb[i_ele, ibi]
-                idicb_ele = idicb[i_ele, ibi]
-                idib = idirb_ele * idicb_ele
+                idib = idirb[i_ir, ibi] * idicb[i_ic, ibi]
                 ib_self = self._block_irreps.searchsorted(irr)
                 if (
                     idib > 0
                     and ib_self < self._nblocks
                     and self._block_irreps[ib_self] == irr
                 ):
-                    iso_iblock_ele = isometry_in_blocks[i_ele][ibi]
-                    sri1, sri2, sci1, sci2 = slices_in[i_ele, ibi]
+                    assert isometry_in_blocks[i_ele, ibi] is not None
+                    sir2 = slices_ir[i_ir, ibi]
+                    sir1 = sir2 - edir_ele * idirb[i_ir, ibi]
+                    sic2 = slices_ic[i_ic, ibi]
+                    sic1 = sic2 - edic_ele * idicb[i_ic, ibi]
 
                     # there are two operations: changing basis with elementary AND
                     # swapping axes in external degeneracy part. Transpose tensor BEFORE
-                    # applying unitary to do only one transpose, before slicing into
-                    # out block_irreps
+                    # applying unitary to do only one transpose
 
-                    in_data = self._blocks[ib_self][sri1:sri2, sci1:sci2]
+                    in_data = self._blocks[ib_self][sir1:sir2, sic1:sic2]
 
                     # initial tensor shape = (
                     # internal degeneracy in row block,
                     # *external degeneracies per in row axes,
                     # internal degeneracy in col block,
                     # *external degeneracies per in col axes)
-                    sh = (idirb_ele,) + edir_tuple + (idicb_ele,) + edic_tuple
-                    in_data = in_data.reshape(sh)
+                    ele_sh[0] = idirb[i_ir, ibi]
+                    ele_sh[self._nrr + 1] = idicb[i_ic, ibi]
+                    in_data = in_data.reshape(ele_sh)
 
                     # transpose to shape = (
                     # internal degeneracy in row block,
@@ -435,13 +490,13 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     # but not for its rows = "OUT"
                     # meaning it is applied to "IN" irrep block data, but generates data
                     # for all OUT irrep blocks
-                    out_data += iso_iblock_ele @ in_data
+                    out_data += isometry_in_blocks[i_ele, ibi] @ in_data
 
-            # transpose out_data only once everything is written
+            # transpose out_data only after every IN blocks have been processed
             oshift = 0
             for ibo in range(nblocks_out):
-                idorb_ele = idorb[i_ele, ibo]
-                idocb_ele = idocb[i_ele, ibo]
+                idorb_ele = idorb[i_or, ibo]
+                idocb_ele = idocb[i_oc, ibo]
                 idob = idorb_ele * idocb_ele
 
                 if idob > 0:
@@ -452,11 +507,14 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     out_block = out_block.reshape(sh2)
 
                     # different IN block irreps may contribute: need +=
-                    sro1, sro2, sco1, sco2 = slices_out[i_ele, ibo]
-                    assert sh2 == (sro2 - sro1, sco2 - sco1)
-                    blocks_out[ibo][sro1:sro2, sco1:sco2] = out_block
+                    sor2 = slices_or[i_or, ibo]
+                    sor1 = sor2 - edor[i_or] * idorb[i_or, ibo]
+                    soc2 = slices_oc[i_oc, ibo]
+                    soc1 = soc2 - edoc[i_oc] * idocb[i_oc, ibo]
+                    assert sh2 == (sor2 - sor1, soc2 - soc1)
+                    blocks_out[ibo][sor1:sor2, soc1:soc2] = out_block
                     oshift += idob
-            assert oshift == idirb[i_ele] @ idicb[i_ele]
+            assert oshift == idirb[i_ir] @ idicb[i_ic]
 
         return block_irreps_out, blocks_out
 

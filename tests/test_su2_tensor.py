@@ -79,6 +79,8 @@ r12 = np.array([[1, 2, 1], [1, 3, 5]])
 arr = np.eye(12).reshape(1, 12, 12, 1)
 st3 = SU2_SymmetricTensor.from_array(arr, (r1,), (r12, r12, r1), signature=[0, 0, 1, 1])
 assert lg.norm(st3.toarray() - arr) < 1e-14
+st3p = st3.permutate((0, 1), (2, 3))
+assert lg.norm(st3.toarray() - arr) < 1e-14
 
 
 # check cast

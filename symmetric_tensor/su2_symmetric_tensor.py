@@ -49,6 +49,8 @@ def _get_projector(rep1, rep2, s1, s2, max_irrep=2**30):
     projector = np.zeros(
         (rep1[0] @ rep1[1], rep2[0] @ rep2[1], degen @ irreps),
     )
+    if trunc == 0:  # no irrep allowed
+        return np.array([[], []], dtype=int), projector
 
     # initialize shifts in output, with different irrep sectors
     shifts3 = np.empty((irreps[-1] + 1,), dtype=int)
@@ -91,41 +93,6 @@ def _get_projector(rep1, rep2, s1, s2, max_irrep=2**30):
 
     new_rep = np.array([degen, irreps])  # due to truncation, may be != rep1 * rep2
     return new_rep, projector
-
-
-def _get_projector_chained(rep_in, signature, max_irrep=2**30):
-    r"""
-    Tree structure: only first leg has depth
-                product
-                  /
-                ...
-                /
-               /\
-              /  \
-             /\   \
-            /  \   \
-           1    2   3 ...
-    """
-    assert len(signature) == len(rep_in)
-
-    n = len(rep_in)
-    if n == 1:
-        # add a dummy singlet and let get_projector deal with signature
-        rep_in = [rep_in[0], np.ones((2, 1), dtype=int)]
-        signature = [signature[0], False]
-
-    # remove irreps that wont fuse to max_irrep
-    trunc = max_irrep + sum(r[1, -1] for r in rep_in[2:])
-    nr, p = _get_projector(
-        rep_in[0], rep_in[1], signature[0], signature[1], max_irrep=trunc
-    )
-    proj = p
-    for i in range(2, n):
-        trunc += rep_in[i][1, -1]
-        nr, p = _get_projector(nr, rep_in[i], False, signature[i], max_irrep=trunc)
-        proj = proj.reshape(-1, p.shape[0]) @ p.reshape(p.shape[0], -1)
-    proj = proj.reshape(-1, p.shape[2])
-    return proj
 
 
 @numba.njit
@@ -186,12 +153,70 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
 
     @classmethod
     def irrep_dimension(cls, irr):
-        return irr
+        return int(irr)
 
     ####################################################################################
     # Non-abelian specific symmetry implementation
     ####################################################################################
     _structural_data_dic = {}
+
+    @classmethod
+    def compute_clebsch_gordan_tree(cls, rep_in, signature, max_irrep=2**30):
+        r"""
+        Construct chained Clebsch-Gordan fusion tensor for representations *rep_in with
+        signatures signatures. Truncate final representation at max_irrep.
+
+        Tree structure: only first leg has depth
+                    product
+                      /
+                    ...
+                    /
+                   /\
+                  /  \
+                 /\   \
+                /  \   \
+               1    2   3 ...
+
+        Parameters
+        ----------
+        rep_in : enum of n 2D int array
+            SU(2) representations to fuse.
+        signature : (n,) bool array
+            Representation signatures.
+        max_irrep : int
+            Dimension of maximal irrep to consider in the total product. Irreps larger
+            than max_irrep will be truncated. Default is 2**30, i.e. no truncation.
+
+        Returns
+        -------
+        ret : 2D float array
+            CG projector fusing rep_in on sum of irreps, truncated up to max_irrep.
+            Reshaped as a 2D matrix.
+        """
+        assert len(signature) == len(rep_in)
+
+        n = len(rep_in)
+        if n == 1:
+            # add a dummy singlet and let get_projector deal with signature
+            rep_in = [rep_in[0], np.ones((2, 1), dtype=int)]
+            signature = [signature[0], False]
+
+        # remove irreps that wont fuse to max_irrep
+        trunc = max_irrep + sum(r[1, -1] for r in rep_in[2:])
+
+        nr, p = _get_projector(
+            rep_in[0], rep_in[1], signature[0], signature[1], max_irrep=trunc
+        )
+        if nr.size == 0:  # pathological case where no irrep is kept
+            return nr, np.zeros((np.prod([r[0] @ r[1] for r in rep_in]), 0))
+
+        proj = p
+        for i in range(2, n):
+            trunc += rep_in[i][1, -1]
+            nr, p = _get_projector(nr, rep_in[i], False, signature[i], max_irrep=trunc)
+            proj = proj.reshape(-1, p.shape[0]) @ p.reshape(p.shape[0], -1)
+        proj = proj.reshape(-1, p.shape[2])
+        return nr, proj
 
     @classmethod
     def construct_matrix_projector(cls, row_reps, col_reps, signature):
@@ -202,8 +227,12 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         shared, rinds, cinds = np.intersect1d(
             rrep[1], crep[1], assume_unique=True, return_indices=True
         )
-        projL = _get_projector_chained(row_reps, signature[:nrr], max_irrep=shared[-1])
-        projR = _get_projector_chained(col_reps, ~signature[nrr:], max_irrep=shared[-1])
+        _, projL = cls.compute_clebsch_gordan_tree(
+            row_reps, signature[:nrr], max_irrep=shared[-1]
+        )
+        _, projR = cls.compute_clebsch_gordan_tree(
+            col_reps, ~signature[nrr:], max_irrep=shared[-1]
+        )
 
         dsing = rrep[0, rinds] @ crep[0, cinds]
         rshifts = (rrep[0] * rrep[1]).cumsum()
