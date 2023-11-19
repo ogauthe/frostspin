@@ -356,23 +356,25 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         )
         return structual_data
 
-    def _compute_degen_data(self, axes, nrr_out, structural_data):
+    def _transpose_data(self, axes, nrr_out, structural_data):
         """
-        Compute indices and slices, depending on both internal external degeneracies.
-        Symmetry-agnostic, but depends on self degeneracies. Data is not accessed.
+        Move data and construct new data blocks
         """
-        # should be possible to compile it
+        # 3 nested loops: elementary blocks, rows, columns
+        # change loop order?
+
+        in_reps = self._row_reps + self._col_reps
+        out_row_reps = tuple(in_reps[i] for i in axes[:nrr_out])
+        out_col_reps = tuple(in_reps[i] for i in axes[nrr_out:])
+
         (
             ele_indices,
             idirb,
             idicb,
             idorb,
             idocb,
-            _,
+            isometry_in_blocks,
         ) = structural_data
-        in_reps = self._row_reps + self._col_reps
-        out_row_reps = [in_reps[ax] for ax in axes[:nrr_out]]
-        out_col_reps = [in_reps[ax] for ax in axes[nrr_out:]]
 
         external_degen_ir = _compute_external_degen(self._row_reps)
         external_degen_ic = _compute_external_degen(self._col_reps)
@@ -384,68 +386,31 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         edor = external_degen_or.prod(axis=0)
         edoc = external_degen_oc.prod(axis=0)
 
+        if self._nblocks != idirb.shape[1]:  # if a block is missing
+            block_irreps_in, _ = self.get_block_sizes(
+                self._row_reps, self._col_reps, self._signature
+            )
+            _, present = (self._block_irreps[:, None] == block_irreps_in).nonzero()
+            # filter out missing blocks
+            # this creates a view on previous array, no modification on structural_data
+            idirb = idirb[:, present]
+            idicb = idicb[:, present]
+            isometry_in_blocks = isometry_in_blocks[:, present]
+            # also filter ele_indices with (idirb.T @ idicb).nonzero()[0]?
+
         slices_ir = (edir[:, None] * idirb).cumsum(axis=0)
         slices_ic = (edic[:, None] * idicb).cumsum(axis=0)
         slices_or = (edor[:, None] * idorb).cumsum(axis=0)
         slices_oc = (edoc[:, None] * idocb).cumsum(axis=0)
 
-        degen_data = (
-            external_degen_ir.T.copy(),
-            external_degen_ic.T.copy(),
-            edir,
-            edic,
-            edor,
-            edoc,
-            slices_ir,
-            slices_ic,
-            slices_or,
-            slices_oc,
-        )
-        return degen_data
-
-    def _transpose_data(self, axes, nrr_out, structural_data, degen_data):
-        """
-        Move data and construct new data blocks
-        """
-        # 3 nested loops: elementary blocks, rows, columns
-        # change loop order?
-
-        (
-            ele_indices,
-            idirb,
-            idicb,
-            idorb,
-            idocb,
-            isometry_in_blocks,
-        ) = structural_data
-        (
-            external_degen_ir,
-            external_degen_ic,
-            edir,
-            edic,
-            edor,
-            edoc,
-            slices_ir,
-            slices_ic,
-            slices_or,
-            slices_oc,
-        ) = degen_data
-
-        in_reps = self._row_reps + self._col_reps
-        out_reps = tuple(in_reps[i] for i in axes)
-
         # need to initalize blocks_out in case of missing blocks_in
         block_irreps_out, block_shapes_out = self.get_block_sizes(
-            out_reps[:nrr_out], out_reps[nrr_out:], self._signature[axes]
+            out_row_reps, out_col_reps, self._signature[axes]
         )
         blocks_out = tuple(np.zeros(sh) for sh in block_shapes_out)
         nblocks_out = len(blocks_out)
-        block_irreps_in, _ = self.get_block_sizes(
-            self._row_reps, self._col_reps, self._signature
-        )
 
-        data_perm = tuple(ax + 1 if ax < self._nrr else ax + 2 for ax in axes)
-        data_perm = (0, self._nrr + 1) + data_perm
+        data_perm = (0, self._nrr + 1, *(axes + 1 + (axes >= self._nrr)))
 
         for i_ele, indices in enumerate(ele_indices):
             # edor = external degeneracy out row
@@ -454,24 +419,18 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             i_ir, i_ic, i_or, i_oc = indices
             edir_ele = edir[i_ir]
             edic_ele = edic[i_ic]
-            ele_sh = [0, *external_degen_ir[i_ir], 0, *external_degen_ic[i_ic]]
+            ele_sh = [0, *external_degen_ir[:, i_ir], 0, *external_degen_ic[:, i_ic]]
             edor_ele = edor[i_or]
             edoc_ele = edoc[i_oc]
             ed = edor_ele * edoc_ele
             assert ed == edir_ele * edic_ele
 
-            out_data = np.zeros((idirb[i_ir] @ idicb[i_ic], ed))
+            out_data = np.zeros((idorb[i_or] @ idocb[i_oc], ed))
 
-            for ibi, irr in enumerate(block_irreps_in):
-                # need to check if this block_irrep_in appears in elementary_block
-                # AND if the block exists in tensor
+            for ibi in range(self._nblocks):  # missing blocks already filtered
                 idib = idirb[i_ir, ibi] * idicb[i_ic, ibi]
-                ib_self = self._block_irreps.searchsorted(irr)
-                if (
-                    idib > 0
-                    and ib_self < self._nblocks
-                    and self._block_irreps[ib_self] == irr
-                ):
+                # need to check if this block_irrep_in appears in elementary_block
+                if idib > 0:
                     assert isometry_in_blocks[i_ele, ibi] is not None
                     sir2 = slices_ir[i_ir, ibi]
                     sir1 = sir2 - edir_ele * idirb[i_ir, ibi]
@@ -482,7 +441,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     # swapping axes in external degeneracy part. Transpose tensor BEFORE
                     # applying unitary to do only one transpose
 
-                    in_data = self._blocks[ib_self][sir1:sir2, sic1:sic2]
+                    in_data = self._blocks[ibi][sir1:sir2, sic1:sic2]
 
                     # initial tensor shape = (
                     # internal degeneracy in row block,
@@ -528,7 +487,6 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     assert sh2 == (sor2 - sor1, soc2 - soc1)
                     blocks_out[ibo][sor1:sor2, soc1:soc2] = out_block
                     oshift += idob
-            assert oshift == idirb[i_ir] @ idicb[i_ic]
 
         return block_irreps_out, blocks_out
 
@@ -876,10 +834,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             structural_data = self._compute_structural_data(axes, nrr_out)
             self._structural_data_dic[key] = structural_data
 
-        degen_data = self._compute_degen_data(axes, nrr_out, structural_data)
-        block_irreps, blocks = self._transpose_data(
-            axes, nrr_out, structural_data, degen_data
-        )
+        block_irreps, blocks = self._transpose_data(axes, nrr_out, structural_data)
 
         reps = []
         for ax in axes:
