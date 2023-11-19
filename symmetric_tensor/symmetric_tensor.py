@@ -160,7 +160,6 @@ class SymmetricTensor:
         self._signature = np.ascontiguousarray(signature, dtype=bool)
         self._blocks = tuple(blocks)
         self._block_irreps = np.asarray(block_irreps)
-        self._ncoeff = sum(b.size for b in blocks)
         assert self._nblocks > 0
         assert 0 < self._nrr < self._ndim
         assert self._signature.shape == (self.ndim,)
@@ -201,7 +200,11 @@ class SymmetricTensor:
 
     @property
     def ncoeff(self):
-        return self._ncoeff
+        """
+        Return number of stored coefficients. May be less than number of
+        allowed coefficients if some allowed blocks are missing.
+        """
+        return sum(b.size for b in self._blocks)
 
     @property
     def blocks(self):
