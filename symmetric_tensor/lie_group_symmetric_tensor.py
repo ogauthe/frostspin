@@ -5,6 +5,31 @@ import scipy.sparse as ssp
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 
 
+def _compute_external_degen(reps):
+    """
+    Compute external degeneracies on each axis for all combination of elementary blocks
+
+    Parameters
+    ----------
+    reps : enumerable of n 2D int array
+        Representations to fuse. Only the first row, corresponding to degeneracies, is
+        read.
+
+    Returns
+    -------
+    external_degen : (n_ele, n) int array
+        External degeneracies on each axis for each elementary block.
+    """
+    nr = len(reps)
+    strides = np.array([r.shape[1] for r in reps])
+    n_ele_blocks = strides.prod()
+    mul_indices = np.unravel_index(np.arange(n_ele_blocks), strides)
+    external_degen = np.empty((nr, n_ele_blocks), dtype=int)
+    for i in range(nr):
+        external_degen[i] = reps[i][0, mul_indices[i]]
+    return external_degen
+
+
 class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
     """
     Efficient storage and manipulation for a tensor with non-abelian symmetry defined
@@ -262,10 +287,9 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
         # need to add idirb and idicb axes in permutation
         perm = np.empty((self._ndim + 2,), dtype=int)
-        perm[self._ndim + 1] = self._ndim + 1
+        perm[: self._ndim] = (axes >= self._nrr) + axes
         perm[self._ndim] = self._nrr
-        perm[: self._ndim] = axes
-        perm[: self._ndim][axes >= self._nrr] += 1
+        perm[self._ndim + 1] = self._ndim + 1
 
         for i_ele in range(n_ele):
             ir_in, ic_in, ir_out, ic_out = ele_indices[i_ele]
@@ -350,20 +374,10 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         out_row_reps = [in_reps[ax] for ax in axes[:nrr_out]]
         out_col_reps = [in_reps[ax] for ax in axes[nrr_out:]]
 
-        def compute_external_degen(reps):
-            nr = len(reps)
-            strides = np.array([r.shape[1] for r in reps])
-            n_ele_blocks = strides.prod()
-            mul_indices = np.unravel_index(np.arange(n_ele_blocks), strides)
-            external_degen = np.empty((nr, n_ele_blocks), dtype=int)
-            for i in range(nr):
-                external_degen[i] = reps[i][0, mul_indices[i]]
-            return external_degen
-
-        external_degen_ir = compute_external_degen(self._row_reps)
-        external_degen_ic = compute_external_degen(self._col_reps)
-        external_degen_or = compute_external_degen(out_row_reps)
-        external_degen_oc = compute_external_degen(out_col_reps)
+        external_degen_ir = _compute_external_degen(self._row_reps)
+        external_degen_ic = _compute_external_degen(self._col_reps)
+        external_degen_or = _compute_external_degen(out_row_reps)
+        external_degen_oc = _compute_external_degen(out_col_reps)
 
         edir = external_degen_ir.prod(axis=0)
         edic = external_degen_ic.prod(axis=0)
@@ -545,23 +559,12 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         block_shapes : list of 2-tuple
             Shape of each block
         """
+        # do not use sorting: bruteforce numpy > clever python
         row_tot = cls.combine_representations(row_reps, signature[: len(row_reps)])
         col_tot = cls.combine_representations(col_reps, signature[len(row_reps) :])
-        i1 = 0
-        i2 = 0
-        block_irreps = []
-        block_shapes = []
-        while i1 < row_tot.shape[1] and i2 < col_tot.shape[1]:
-            if row_tot[1, i1] == col_tot[1, i2]:  # if irreps are the same
-                sh = (row_tot[0, i1], col_tot[0, i2])  # degeneracies
-                block_irreps.append(row_tot[1, i1])
-                block_shapes.append(sh)
-                i1 += 1
-                i2 += 1
-            elif row_tot[1, i1] < col_tot[1, i2]:
-                i1 += 1
-            else:
-                i2 += 1
+        ir, ic = (row_tot[1, :, None] == col_tot[1]).nonzero()
+        block_irreps = row_tot[1, ir]
+        block_shapes = np.array([row_tot[0, ir], col_tot[0, ic]], order="F").T
         return np.array(block_irreps), block_shapes
 
     @classmethod

@@ -89,11 +89,6 @@ assert lg.norm(stu1.toarray() - sds_22t) < 1e-14
 sto2 = st.toO2()
 assert lg.norm(sto2.toarray() - sds_22t) < 1e-14
 
-# check merge_legs
-_ = st.merge_legs(0, 1)
-_ = st.merge_legs(2, 3)
-
-
 # check missing blocks
 r3 = np.array([[1], [3]])
 blocks = (-np.eye(1), 2 * np.eye(1))
@@ -104,6 +99,10 @@ t = t @ t.H  # there is only one block among the many allowed
 tp = t.permutate((3, 2, 1), (0, 5, 4))
 tp2 = tp.permutate((3, 2, 1), (0, 5, 4))
 assert (tp2 - t).norm() < 1e-14
+
+# check merge_legs
+_ = st.merge_legs(0, 1)
+_ = st.merge_legs(2, 3)
 
 
 # try I/O for isometries
