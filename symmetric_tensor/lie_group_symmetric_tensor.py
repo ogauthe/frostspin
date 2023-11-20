@@ -525,10 +525,13 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         # do not use sorting: bruteforce numpy > clever python
         row_tot = cls.combine_representations(row_reps, signature[: len(row_reps)])
         col_tot = cls.combine_representations(col_reps, signature[len(row_reps) :])
-        ir, ic = (row_tot[1, :, None] == col_tot[1]).nonzero()
-        block_irreps = row_tot[1, ir]
-        block_shapes = np.array([row_tot[0, ir], col_tot[0, ic]], order="F").T
-        return np.array(block_irreps), block_shapes
+        rinds, cinds = (row_tot[1, :, None] == col_tot[1]).nonzero()
+        block_irreps = np.empty((rinds.size,), dtype=int)
+        block_shapes = []
+        for i in range(rinds.size):
+            block_irreps[i] = row_tot[1, rinds[i]]
+            block_shapes.append((row_tot[0, rinds[i]], col_tot[0, cinds[i]]))
+        return block_irreps, block_shapes
 
     @classmethod
     def from_array(cls, arr, row_reps, col_reps, signature=None):
