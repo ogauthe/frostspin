@@ -1,11 +1,13 @@
 import numpy as np
 import scipy.linalg as lg
 import scipy.sparse as ssp
+import numba
 
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 
 
-def _compute_external_degen(reps):
+@numba.njit
+def _numba_compute_external_degen(reps):
     """
     Compute external degeneracies on each axis for all combination of elementary blocks
 
@@ -21,12 +23,16 @@ def _compute_external_degen(reps):
         External degeneracies on each axis for each elementary block.
     """
     nr = len(reps)
-    strides = np.array([r.shape[1] for r in reps])
-    n_ele_blocks = strides.prod()
-    mul_indices = np.unravel_index(np.arange(n_ele_blocks), strides)
-    external_degen = np.empty((nr, n_ele_blocks), dtype=int)
-    for i in range(nr):
-        external_degen[i] = reps[i][0, mul_indices[i]]
+    shapes = np.array([r.shape[1] for r in reps])
+    strides = np.empty((nr,), dtype=np.int64)
+    strides[-1] = 1
+    strides[:-1] = shapes[:0:-1].cumprod()[::-1]
+    n_ele_blocks = strides[0] * shapes[0]
+    external_degen = np.empty((n_ele_blocks, nr), dtype=np.int64)
+    for i in np.arange(n_ele_blocks):
+        for j in range(nr):
+            k = i // strides[j] % shapes[j]
+            external_degen[i, j] = reps[j][0, k]
     return external_degen
 
 
@@ -376,15 +382,15 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             isometry_in_blocks,
         ) = structural_data
 
-        external_degen_ir = _compute_external_degen(self._row_reps)
-        external_degen_ic = _compute_external_degen(self._col_reps)
-        external_degen_or = _compute_external_degen(out_row_reps)
-        external_degen_oc = _compute_external_degen(out_col_reps)
+        external_degen_ir = _numba_compute_external_degen(self._row_reps)
+        external_degen_ic = _numba_compute_external_degen(self._col_reps)
+        external_degen_or = _numba_compute_external_degen(out_row_reps)
+        external_degen_oc = _numba_compute_external_degen(out_col_reps)
 
-        edir = external_degen_ir.prod(axis=0)
-        edic = external_degen_ic.prod(axis=0)
-        edor = external_degen_or.prod(axis=0)
-        edoc = external_degen_oc.prod(axis=0)
+        edir = external_degen_ir.prod(axis=1)
+        edic = external_degen_ic.prod(axis=1)
+        edor = external_degen_or.prod(axis=1)
+        edoc = external_degen_oc.prod(axis=1)
 
         assert self._nblocks <= idirb.shape[1]
         if self._nblocks < idirb.shape[1]:  # if a block is missing
@@ -419,7 +425,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             i_ir, i_ic, i_or, i_oc = indices
             edir_ele = edir[i_ir]
             edic_ele = edic[i_ic]
-            ele_sh = [0, *external_degen_ir[:, i_ir], 0, *external_degen_ic[:, i_ic]]
+            ele_sh = [0, *external_degen_ir[i_ir], 0, *external_degen_ic[i_ic]]
             edor_ele = edor[i_or]
             edoc_ele = edoc[i_oc]
             ed = edor_ele * edoc_ele
