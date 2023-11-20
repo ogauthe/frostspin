@@ -63,15 +63,10 @@ def _get_projector(rep1, rep2, s1, s2, max_irrep=2**30):
     for d1, irr1 in rep1.T:
         # Sz-reversal signs for irrep1
         diag1 = (np.arange(irr1 % 2, irr1 + irr1 % 2) % 2 * 2 - 1)[:, None, None]
-        slices1 = slice(shift1, shift1 + d1 * irr1, 1)
-        inds1 = np.arange(d1)[:, None]
         shift2 = 0
         for d2, irr2 in rep2.T:
             # Sz-reversal signs for irrep2
             diag2 = (np.arange(irr2 % 2, irr2 + irr2 % 2) % 2 * 2 - 1)[None, :, None]
-            inds2 = np.arange(d2)
-            inds3 = d2 * inds1 + inds2
-            slices2 = slice(shift2, shift2 + d2 * irr2, 1)
             for irr3 in range(abs(irr1 - irr2) + 1, min(irr1 + irr2, max_irrep + 1), 2):
                 # here we are implicitly assuming there are no inner degeneracies
                 p123 = SU2_Representation.elementary_projectors[irr1, irr2, irr3]
@@ -82,12 +77,15 @@ def _get_projector(rep1, rep2, s1, s2, max_irrep=2**30):
                 if s2:
                     p123 = p123[:, ::-1] * diag2
 
-                d3 = d1 * d2
-                slices3 = slice(shifts3[irr3], shifts3[irr3] + d3 * irr3)
-                sh = (d1, irr1, d2, irr2, d3, irr3)
-                arr_ele = projector[slices1, slices2, slices3].reshape(sh)
-                arr_ele[inds1, :, inds2, :, inds3] = p123
-                shifts3[irr3] += d3 * irr3
+                for i3 in range(d1 * d2):
+                    i1, i2 = divmod(i3, d2)
+                    sl1 = slice(shift1 + i1 * irr1, shift1 + (i1 + 1) * irr1)
+                    sl2 = slice(shift2 + i2 * irr2, shift2 + (i2 + 1) * irr2)
+                    sl3 = slice(
+                        shifts3[irr3] + i3 * irr3, shifts3[irr3] + (i3 + 1) * irr3
+                    )
+                    projector[sl1, sl2, sl3] = p123
+                shifts3[irr3] += d1 * d2 * irr3
             shift2 += d2 * irr2
         shift1 += d1 * irr1
 
