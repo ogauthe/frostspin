@@ -481,10 +481,9 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
                     # different IN block irreps may contribute: need +=
                     sor2 = slices_or[i_or, ibo]
-                    sor1 = sor2 - edor[i_or] * idorb[i_or, ibo]
+                    sor1 = sor2 - edor_ele * idorb_ele
                     soc2 = slices_oc[i_oc, ibo]
-                    soc1 = soc2 - edoc[i_oc] * idocb[i_oc, ibo]
-                    assert sh2 == (sor2 - sor1, soc2 - soc1)
+                    soc1 = soc2 - edoc_ele * idocb_ele
                     blocks_out[ibo][sor1:sor2, soc1:soc2] = out_block
                     oshift += idob
 
