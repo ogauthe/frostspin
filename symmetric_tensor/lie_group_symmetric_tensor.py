@@ -386,17 +386,17 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         edor = external_degen_or.prod(axis=0)
         edoc = external_degen_oc.prod(axis=0)
 
-        if self._nblocks != idirb.shape[1]:  # if a block is missing
+        assert self._nblocks <= idirb.shape[1]
+        if self._nblocks < idirb.shape[1]:  # if a block is missing
+            # filter out missing blocks
             block_irreps_in, _ = self.get_block_sizes(
                 self._row_reps, self._col_reps, self._signature
             )
-            _, present = (self._block_irreps[:, None] == block_irreps_in).nonzero()
-            # filter out missing blocks
-            # this creates a view on previous array, no modification on structural_data
-            idirb = idirb[:, present]
-            idicb = idicb[:, present]
-            isometry_in_blocks = isometry_in_blocks[:, present]
-            # also filter ele_indices with (idirb.T @ idicb).nonzero()[0]?
+            _, block_inds = (self._block_irreps[:, None] == block_irreps_in).nonzero()
+            # possible also filter ele_indices with (idirb.T @ idicb).nonzero()[0]
+            # probably not worth it
+        else:
+            block_inds = range(self._nblocks)
 
         slices_ir = (edir[:, None] * idirb).cumsum(axis=0)
         slices_ic = (edic[:, None] * idicb).cumsum(axis=0)
@@ -427,7 +427,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
             out_data = np.zeros((idorb[i_or] @ idocb[i_oc], ed))
 
-            for ibi in range(self._nblocks):  # missing blocks already filtered
+            for ib_self, ibi in enumerate(block_inds):  # missing blocks are filtered
                 idib = idirb[i_ir, ibi] * idicb[i_ic, ibi]
                 # need to check if this block_irrep_in appears in elementary_block
                 if idib > 0:
@@ -441,7 +441,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     # swapping axes in external degeneracy part. Transpose tensor BEFORE
                     # applying unitary to do only one transpose
 
-                    in_data = self._blocks[ibi][sir1:sir2, sic1:sic2]
+                    in_data = self._blocks[ib_self][sir1:sir2, sic1:sic2]
 
                     # initial tensor shape = (
                     # internal degeneracy in row block,
