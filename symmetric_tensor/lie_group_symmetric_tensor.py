@@ -553,9 +553,6 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             if signature.shape != (arr.ndim,):
                 raise ValueError("Signature does not match array shape")
 
-        # define a generic function that precompute elementary blocks
-        # as well as their block_irreps, extern and inner row and col degen?
-
         block_irreps, block_shapes_in = cls.get_block_sizes(
             row_reps, col_reps, signature
         )
@@ -676,136 +673,119 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         return st
 
     def toarray(self, as_matrix=False):
-        out_reps = self._row_reps + self._col_reps
-
-        shifts = []
-        elementary_block_per_axis = np.empty((self._ndim,), dtype=int)
-        for ax, rep in enumerate(out_reps):
+        # define shifts to localize elementary block position in dense format
+        rshifts = []
+        elementary_block_rows = np.empty((self._nrr,), dtype=int)
+        for i, rep in enumerate(self._row_reps):
             s = [0]
-            elementary_block_per_axis[ax] = rep.shape[1]
-            for i in range(rep.shape[1]):
-                s.append(self.representation_dimension(rep[:, : i + 1]))
-            shifts.append(s)
+            elementary_block_rows[i] = rep.shape[1]
+            for j in range(rep.shape[1]):
+                s.append(self.representation_dimension(rep[:, : j + 1]))
+            rshifts.append(s)
 
-        # determine elementary block number
-        n_ele_row = elementary_block_per_axis[: self._nrr].prod()
-        n_ele_col = elementary_block_per_axis[self._nrr :].prod()
-        n_ele = n_ele_row * n_ele_col
+        cshifts = []
+        elementary_block_cols = np.empty((self._ndim - self._nrr,), dtype=int)
+        for i, rep in enumerate(self._col_reps):
+            s = [0]
+            elementary_block_cols[i] = rep.shape[1]
+            for j in range(rep.shape[1]):
+                s.append(self.representation_dimension(rep[:, : j + 1]))
+            cshifts.append(s)
 
-        # decompose ele counter as a multi index to recover index of irrep in each axis
-        ele_reps_indices = np.array(
-            np.unravel_index(np.arange(n_ele), elementary_block_per_axis)
-        ).T.reshape(n_ele_row, n_ele_col, self._ndim)
-
-        ele_degen_dimensions = np.empty((self._ndim, 2), dtype=int)
-        block_shifts_row = np.zeros((self._nblocks,), dtype=int)
+        # define permutation to bring together external degen and irrep dimension
         degen_irrep_perm = tuple(range(1, 2 * self._ndim, 2)) + tuple(
             range(0, 2 * self._ndim, 2)
         )
         reverse_perm = np.argsort(degen_irrep_perm)
 
-        ele_sign = self._signature[self._nrr - 1 :].copy()
-        ele_sign[0] = False
+        # precompute CG trees for row and columns. Filter for missing blocks.
+        idorb, orb_trees = self.sliced_elementary_trees(
+            self._row_reps,
+            self._signature[: self._nrr],
+            target_irreps=self._block_irreps,
+        )
+        idocb, ocb_trees = self.sliced_elementary_trees(
+            self._col_reps,
+            ~self._signature[self._nrr :],
+            target_irreps=self._block_irreps,
+        )
 
+        # precompute external degeneracies and irrep block shifts
+        external_degen_or = _numba_compute_external_degen(self._row_reps)
+        external_degen_oc = _numba_compute_external_degen(self._col_reps)
+        edor = external_degen_or.prod(axis=1)
+        edoc = external_degen_oc.prod(axis=1)
+        block_shifts_row = (edor[:, None] * idorb).cumsum(axis=0)
+        block_shifts_col = (edoc[:, None] * idocb).cumsum(axis=0)
+
+        # initialize dense array
         arr = np.zeros(self._shape, dtype=self.dtype)
 
         # loop over row elementary blocks
-        for ir_ele in range(n_ele_row):
-            ele_r_out = []
-            mul_ind = ele_reps_indices[ir_ele, 0]
-
+        ele_degen_dimensions = np.empty((2, self._ndim), dtype=int)
+        for i_or in range(idorb.shape[0]):
+            ele_degen_dimensions[0, : self._nrr] = external_degen_or[i_or]
+            irmul = np.unravel_index(i_or, elementary_block_rows)
+            rslices = []
             for i in range(self._nrr):
-                rep = out_reps[i][:, mul_ind[i]]
-                ele_degen_dimensions[i, 0] = rep[0]
-                ele_degen_dimensions[i, 1] = self.irrep_dimension(rep[1])
-                ele_r_out.append(np.array([[1], [rep[1]]]))
-
-            edor = ele_degen_dimensions[: self._nrr, 0].prod()
-            rep_row_out = self.combine_representations(
-                ele_r_out, self._signature[: self._nrr]
-            )
-
-            # reset columns shifts
-            block_shifts_col = np.zeros((self._nblocks,), dtype=int)
+                ele_degen_dimensions[1, i] = self.irrep_dimension(
+                    self._row_reps[i][1, irmul[i]]
+                )
+                rslices.append(slice(rshifts[i][irmul[i]], rshifts[i][irmul[i] + 1]))
+            rdim = ele_degen_dimensions[1, : self._nrr].prod()
 
             # loop over column elementary blocks
-            for ic_ele in range(n_ele_col):
-                mul_ind = ele_reps_indices[ir_ele, ic_ele]
+            for i_oc in range(idocb.shape[0]):
+                ido = idorb[i_or].T @ idocb[i_oc]
+                if ido > 0:
+                    ele_degen_dimensions[0, self._nrr :] = external_degen_oc[i_oc]
+                    icmul = np.unravel_index(i_oc, elementary_block_cols)
+                    cslices = []
+                    for i in range(self._ndim - self._nrr):
+                        ele_degen_dimensions[1, self._nrr + i] = self.irrep_dimension(
+                            self._col_reps[i][1, icmul[i]]
+                        )
+                        cslices.append(
+                            slice(cshifts[i][icmul[i]], cshifts[i][icmul[i] + 1])
+                        )
+                    edo = edor[i_or] * edoc[i_oc]
+                    cdim = ele_degen_dimensions[1, self._nrr :].prod()
+                    ele_dense = np.zeros((rdim * cdim, edo), dtype=self.dtype)
+                    for bi in (idorb[i_or] * idocb[i_oc]).nonzero()[0]:
+                        idob = idorb[i_or, bi].T * idocb[i_oc, bi]
 
-                # find irreps appearing in this elementary block
-                ele_c_out = []
-                for i in range(self._nrr, self._ndim):
-                    rep = out_reps[i][:, mul_ind[i]]
-                    ele_degen_dimensions[i, 0] = rep[0]
-                    ele_degen_dimensions[i, 1] = self.irrep_dimension(rep[1])
-                    ele_c_out.append(np.array([[1], [rep[1]]]))
+                        rs = slice(
+                            block_shifts_row[i_or, bi] - edor[i_or] * idorb[i_or, bi],
+                            block_shifts_row[i_or, bi],
+                            1,
+                        )
+                        cs = slice(
+                            block_shifts_col[i_oc, bi] - edoc[i_oc] * idocb[i_oc, bi],
+                            block_shifts_col[i_oc, bi],
+                            1,
+                        )
+                        sh = (idorb[i_or, bi], edor[i_or], idocb[i_oc, bi], edoc[i_oc])
+                        data_block = self._blocks[bi][rs, cs].reshape(sh)
+                        data_block = data_block.swapaxes(1, 2).reshape(idob, edo)
 
-                block_irreps_ele, block_shapes_out_ele = self.get_block_sizes(
-                    [rep_row_out], ele_c_out, ele_sign
-                )
+                        # construct CG projector on block irrep elementary sector
+                        rtree = orb_trees[i_or, bi]
+                        rtree = rtree.reshape(-1, rtree.shape[-1])
+                        ctree = ocb_trees[i_oc, bi].reshape(-1, rtree.shape[1])
+                        block_ele_proj = rtree @ ctree.T
+                        sh = (rdim, idorb[i_or, bi], cdim, idocb[i_oc, bi])
+                        block_ele_proj = block_ele_proj.reshape(sh).swapaxes(1, 2)
+                        block_ele_proj = block_ele_proj.reshape(rdim * cdim, idob)
 
-                if block_irreps_ele.size:  # if there is a singlet
-                    # construct CG projector on elementary sector
-                    p_out = self.construct_matrix_projector(
-                        ele_r_out, ele_c_out, self._signature
-                    )
-
-                    edoc = ele_degen_dimensions[self._nrr :, 0].prod()
-                    edo = edor * edoc
-                    ele_dense = np.zeros((p_out.shape[0], edo), dtype=self.dtype)
-
-                    # need to loop over all authorized blocks to get correct oshift
-                    oshift = 0
-                    for bi, irr in enumerate(block_irreps_ele):
-                        idorb, idocb = block_shapes_out_ele[bi]
-                        idob = idorb * idocb
-                        bi_self = self._block_irreps.searchsorted(irr)
-                        if (
-                            bi_self < self._nblocks
-                            and self._block_irreps[bi_self] == irr
-                        ):
-                            # split degen and structural
-                            rs = slice(
-                                block_shifts_row[bi_self],
-                                block_shifts_row[bi_self] + edor * idorb,
-                                1,
-                            )
-                            cs = slice(
-                                block_shifts_col[bi_self],
-                                block_shifts_col[bi_self] + edoc * idocb,
-                                1,
-                            )
-                            block_ele_proj = p_out[:, oshift : oshift + idob]
-                            norm = np.sqrt(self.irrep_dimension(irr))
-                            block_ele_proj = norm * block_ele_proj
-
-                            data_block = self._blocks[bi_self][rs, cs]
-                            data_block = data_block.reshape(idorb, edor, idocb, edoc)
-                            data_block = data_block.swapaxes(1, 2).reshape(idob, edo)
-                            ele_dense += block_ele_proj @ data_block
-                            block_shifts_col[bi_self] += edoc * idocb
-
-                        oshift += idob
-                    assert oshift == p_out.shape[1]
+                        # apply CG projector on data
+                        ele_dense += block_ele_proj @ data_block
 
                     # construct elementary block sector in dense tensor
-                    sh_ele = ele_degen_dimensions.T[::-1].ravel()
-                    ele_dense = ele_dense.reshape(sh_ele).transpose(reverse_perm)
-                    slices = tuple(
-                        slice(shifts[i][mul_ind[i]], shifts[i][mul_ind[i] + 1], 1)
-                        for i in range(self._ndim)
-                    )
-                    arr[slices] = ele_dense.reshape(ele_degen_dimensions.prod(axis=1))
+                    sh_ele = ele_degen_dimensions[::-1].ravel()
 
-            # set shifts for rows
-            for idorb, irr in rep_row_out.T:
-                bi_self = self._block_irreps.searchsorted(irr)
-                if bi_self < self._nblocks and self._block_irreps[bi_self] == irr:
-                    assert block_shifts_col[bi_self] in [
-                        0,
-                        self._blocks[bi_self].shape[1],
-                    ]
-                    block_shifts_row[bi_self] += edor * idorb
+                    ele_dense = ele_dense.reshape(sh_ele).transpose(reverse_perm)
+                    slices = tuple(rslices + cslices)
+                    arr[slices] = ele_dense.reshape(ele_degen_dimensions.prod(axis=0))
 
         assert abs(self.norm() - lg.norm(arr)) <= 1e-13 * self.norm()
         if as_matrix:

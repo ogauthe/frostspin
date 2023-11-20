@@ -99,6 +99,9 @@ t = t @ t.H  # there is only one block among the many allowed
 tp = t.permutate((3, 2, 1), (0, 5, 4))
 tp2 = tp.permutate((3, 2, 1), (0, 5, 4))
 assert (tp2 - t).norm() < 1e-14
+td = t.toarray()
+t2 = SU2_SymmetricTensor.from_array(td, t.row_reps, t.col_reps, t.signature)
+assert (t - t2).norm() < 1e-14
 
 # check merge_legs
 _ = st.merge_legs(0, 1)
