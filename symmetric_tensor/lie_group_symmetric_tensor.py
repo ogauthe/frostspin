@@ -13,13 +13,13 @@ def _numba_compute_external_degen(reps):
 
     Parameters
     ----------
-    reps : enumerable of n 2D int array
+    reps : tuple of nr C-contiguous 2D int array
         Representations to fuse. Only the first row, corresponding to degeneracies, is
         read.
 
     Returns
     -------
-    external_degen : (n_ele, n) int array
+    external_degen : (n_ele, nr) int array
         External degeneracies on each axis for each elementary block.
     """
     nr = len(reps)
