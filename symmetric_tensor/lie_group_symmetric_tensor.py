@@ -37,10 +37,22 @@ def _numba_compute_external_degen(reps):
 
 
 class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
-    """
+    r"""
     Efficient storage and manipulation for a tensor with non-abelian symmetry defined
     by a Lie group. Axis permutation is done using isometries defined by fusion trees of
     representations.
+
+    Impose a tree structure splitted between rows and columns. Each tree is maximally
+    unbalanced, with only one leg with depth.
+
+                    singlet space
+                    /          \
+                   /            \
+                rprod          cprod
+                 /               /
+                /\              /\
+               /\ \            /\ \
+             row_reps        col_reps
     """
 
     ####################################################################################
@@ -52,37 +64,6 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
     # Non-abelian specific symmetry implementation
     ####################################################################################
     _structural_data_dic = NotImplemented
-
-    @classmethod
-    def construct_matrix_projector(cls, row_reps, col_reps, signature):
-        # TODO: rewrite it as
-        # construct_singlet_space_projector(cls, irreps, signature, nrr)
-        r"""
-                    singlet space
-                    /          \
-                   /            \
-                prod_l        prod_r
-                 /               /
-                /\              /\
-               /\ \            /\ \
-             row_reps        col_reps
-
-        Parameters
-        ----------
-        row_reps : tuple of ndarray
-            Row axis representations.
-        col_reps : tuple of ndarray
-            Column axis representations.
-        signature : 1D bool array or None
-            Leg signatures.
-
-        Returns
-        -------
-        proj : (M, N) sparse matrix
-            Projector on singlet, with M the dimension of the full parameter space and
-            N the singlet space dimension.
-        """
-        raise NotImplementedError("Must be defined in derived class")
 
     @classmethod
     def load_isometries(cls, savefile):
@@ -123,41 +104,53 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
     ####################################################################################
     # Lie group shared symmetry implementation
     ####################################################################################
+    @classmethod
+    def compute_clebsch_gordan_tree(cls, rep_in, signature, max_irrep=2**30):
+        r"""
+        Construct chained Clebsch-Gordan fusion tensor for representations *rep_in with
+        signatures signatures. Truncate final representation at max_irrep.
 
-    def _compute_elementary_transpose(
-        self, ele_r_in, ele_c_in, ele_r_out, ele_c_out, perm, out_signature
-    ):
-        p_in = self.construct_matrix_projector(ele_r_in, ele_c_in, self._signature)
-        p_out = self.construct_matrix_projector(ele_r_out, ele_c_out, out_signature)
-        assert p_in.shape == p_out.shape
+        Tree structure: only first leg has depth
+                    product
+                      /
+                    ...
+                    /
+                   /\
+                  /  \
+                 /\   \
+                /  \   \
+               1    2   3 ...
 
-        in_sh_ele = tuple(self.irrep_dimension(r[1, 0]) for r in ele_r_in + ele_c_in)
-        p_in = p_in.reshape(in_sh_ele + (p_in.shape[1],))
-        p_in = p_in.transpose(perm)
-        p_in = p_in.reshape(p_out.shape)
-        unitary_ele = p_out.T @ p_in
-        return unitary_ele
+        Parameters
+        ----------
+        rep_in : enum of n 2D int array
+            SU(2) representations to fuse.
+        signature : (n,) bool array
+            Representation signatures.
+        max_irrep : int
+            Dimension of maximal irrep to consider in the total product. Irreps larger
+            than max_irrep will be truncated. Default is 2**30, i.e. no truncation.
 
-    def _compute_elementary_conjugate(self, ele_r_in, ele_c_in, signature_update):
-        p_in = self.construct_matrix_projector(ele_r_in, ele_c_in, self._signature)
-        mid = ssp.eye(np.eye(1), format="coo")
-        for i, r in enumerate(ele_r_in + ele_c_in):
-            dim = self.representation_dimension(r)
-            if signature_update[i] == -1:
-                z = self.construct_matrix_projector([r], [r], self._signature[[i, i]])
-                z = np.sqrt(dim) * z.reshape(dim, dim)
-                zrep = z @ z
-            else:
-                zrep = ssp.eye(dim, format="coo")
-            mid = ssp.kron(mid, zrep, format="coo")
-
-        unitary_ele = p_in.T @ mid @ p_in
-        return unitary_ele
+        Returns
+        -------
+        ret : 2D float array
+            CG projector fusing rep_in on sum of irreps, truncated up to max_irrep.
+            Reshaped as a 2D matrix.
+        """
+        raise NotImplementedError("Must be defined in derived class")
 
     @classmethod
     def sliced_elementary_trees(cls, reps, signature, target_irreps=None):
-        """
-        Construct Clebsch-Gordon tree for all elementary blocks
+        r"""
+        Construct Clebsch-Gordon trees for all elementary blocks of a list of reducible
+        representations, for all irreps in target.
+
+           irrep0         irrep1         irrep2
+            /              /              /
+           /\             /\             /\
+          /\ \           /\ \           /\ \
+         /\ \ \         /\ \ \         /\ \ \
+          reps           reps           reps
 
         Parameters
         ----------

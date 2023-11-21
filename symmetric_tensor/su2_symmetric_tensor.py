@@ -160,37 +160,6 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
 
     @classmethod
     def compute_clebsch_gordan_tree(cls, rep_in, signature, max_irrep=2**30):
-        r"""
-        Construct chained Clebsch-Gordan fusion tensor for representations *rep_in with
-        signatures signatures. Truncate final representation at max_irrep.
-
-        Tree structure: only first leg has depth
-                    product
-                      /
-                    ...
-                    /
-                   /\
-                  /  \
-                 /\   \
-                /  \   \
-               1    2   3 ...
-
-        Parameters
-        ----------
-        rep_in : enum of n 2D int array
-            SU(2) representations to fuse.
-        signature : (n,) bool array
-            Representation signatures.
-        max_irrep : int
-            Dimension of maximal irrep to consider in the total product. Irreps larger
-            than max_irrep will be truncated. Default is 2**30, i.e. no truncation.
-
-        Returns
-        -------
-        ret : 2D float array
-            CG projector fusing rep_in on sum of irreps, truncated up to max_irrep.
-            Reshaped as a 2D matrix.
-        """
         assert len(signature) == len(rep_in)
 
         n = len(rep_in)
@@ -215,48 +184,6 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
             proj = proj.reshape(-1, p.shape[0]) @ p.reshape(p.shape[0], -1)
         proj = proj.reshape(-1, p.shape[2])
         return nr, proj
-
-    @classmethod
-    def construct_matrix_projector(cls, row_reps, col_reps, signature):
-        nrr = len(row_reps)
-        assert signature.shape == (nrr + len(col_reps),)
-        rrep = cls.combine_representations(row_reps, signature[:nrr])
-        crep = cls.combine_representations(col_reps, signature[nrr:])
-        shared, rinds, cinds = np.intersect1d(
-            rrep[1], crep[1], assume_unique=True, return_indices=True
-        )
-        _, projL = cls.compute_clebsch_gordan_tree(
-            row_reps, signature[:nrr], max_irrep=shared[-1]
-        )
-        _, projR = cls.compute_clebsch_gordan_tree(
-            col_reps, ~signature[nrr:], max_irrep=shared[-1]
-        )
-
-        dsing = rrep[0, rinds] @ crep[0, cinds]
-        rshifts = (rrep[0] * rrep[1]).cumsum()
-        cshifts = (crep[0] * crep[1]).cumsum()
-        shift_out = 0
-        dfull = projL.shape[0] * projR.shape[0]
-        full_proj = np.empty((dfull, dsing))
-        for i, irr in enumerate(shared):
-            degen_r = rrep[0, rinds[i]]
-            degen_c = crep[0, cinds[i]]
-            rs = rshifts[rinds[i]]
-            cs = cshifts[cinds[i]]
-            rmat = projL[:, rs - degen_r * irr : rs].reshape(-1, irr)
-            cmat = projR[:, cs - degen_c * irr : cs].reshape(-1, irr)
-            cmat = cmat.T / np.sqrt(irr)
-            irrep_proj = rmat @ cmat
-
-            sh_in = (projL.shape[0], degen_r, projR.shape[0], degen_c)
-            irrep_proj = irrep_proj.reshape(sh_in).swapaxes(1, 2)
-            dblock = degen_r * degen_c
-            irrep_proj = irrep_proj.reshape(dfull, dblock)
-            full_proj[:, shift_out : shift_out + dblock] = irrep_proj
-            shift_out += dblock
-
-        assert shift_out == full_proj.shape[1]
-        return full_proj
 
     ####################################################################################
     # Symmetry specific methods with fixed signature
