@@ -94,6 +94,28 @@ def _get_projector(rep1, rep2, s1, s2, max_irrep=2**30):
 
 
 @numba.njit
+def _numba_su2_block_sizes(row_reps, col_reps):
+    row_tot = _numba_combine_SU2(*row_reps)
+    col_tot = _numba_combine_SU2(*col_reps)
+    i1 = 0
+    i2 = 0
+    block_irreps = []
+    block_shapes = []
+    while i1 < row_tot.shape[1] and i2 < col_tot.shape[1]:
+        if row_tot[1, i1] == col_tot[1, i2]:  # if irreps are the same
+            sh = (row_tot[0, i1], col_tot[0, i2])  # degeneracies
+            block_irreps.append(row_tot[1, i1])
+            block_shapes.append(sh)
+            i1 += 1
+            i2 += 1
+        elif row_tot[1, i1] < col_tot[1, i2]:
+            i1 += 1
+        else:
+            i2 += 1
+    return np.array(block_irreps), block_shapes
+
+
+@numba.njit
 def _numba_elementary_combine_SU2(degen1, irreps1, degen2, irreps2):
     degen = np.zeros(irreps1[-1] + irreps2[-1] - 1, dtype=np.int64)
     for d1, irr1 in zip(degen1, irreps1):
@@ -184,6 +206,13 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
             proj = proj.reshape(-1, p.shape[0]) @ p.reshape(p.shape[0], -1)
         proj = proj.reshape(-1, p.shape[2])
         return nr, proj
+
+    @classmethod
+    def get_block_sizes(cls, row_reps, col_reps, signature):
+        if len(row_reps) < 2 or len(col_reps) < 2:  # numba issue 7245
+            return super().get_block_sizes(row_reps, col_reps, signature)
+        # speed-up with numba
+        return _numba_su2_block_sizes(row_reps, col_reps)
 
     ####################################################################################
     # Symmetry specific methods with fixed signature
