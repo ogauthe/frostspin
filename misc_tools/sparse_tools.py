@@ -178,3 +178,63 @@ def _numba_find_indices(values, v0, nv):
             j += 1
         i += 1
     return indices
+
+
+@numba.njit(parallel=True)
+def _numba_swap_matrix_axes(m, shape, axes, n_leg_rows, rshift=0, cshift=0):
+    """
+    Decompose a given matrix as a tensor, swap it axes according to perm and return a
+    contiguous 1D array. It is possible to consider only a (non-contiguous) submatrix
+    with rshift and cshift. Even with cshift=0, the submatrix defined by shape may be
+    non-contiguous.
+
+    Parameters
+    ----------
+    m : C-contiguous 2D array
+        Array to swap. It may be larger than prod(shape).
+    shape : (ndim,) int64 ndarray
+        Tensor shape before transpose.
+    axes : tuple of ndim integers
+        Axes permutation.
+    n_leg_rows : int
+        Number of axes to concatenate to obtain m rows.
+    rshift : int
+        Shift over m rows.
+    cshift : int
+        Shift over m columns.
+
+    Returns
+    -------
+    swapped : 1D array
+        Contiguous tensor obtained after swap.
+    """
+    # indexing with unsigned int should be slightly faster
+    # need to wait for numba pull/8333 to be included into release to use unsigned
+
+    ndim = len(axes)
+    nrow = shape[:n_leg_rows].prod()
+    ncol = shape[n_leg_rows:].prod()
+
+    rstrides1 = np.ones((n_leg_rows,), dtype=np.int64)
+    rstrides1[1:] = shape[n_leg_rows - 1 : 0 : -1]
+    rstrides1 = rstrides1.cumprod()[::-1].copy()
+    rmod = shape[:n_leg_rows]
+
+    cstrides1 = np.ones((ndim - n_leg_rows,), dtype=np.int64)
+    cstrides1[1:] = shape[-1:n_leg_rows:-1]
+    cstrides1 = cstrides1.cumprod()[::-1].copy()
+    cmod = shape[n_leg_rows:]
+
+    new_strides = np.ones((ndim,), dtype=np.int64)
+    for i in range(ndim - 1, 0, -1):
+        new_strides[axes[i - 1]] = new_strides[axes[i]] * shape[axes[i]]
+    rstrides2 = new_strides[:n_leg_rows]
+    cstrides2 = new_strides[n_leg_rows:]
+
+    nri = (np.arange(nrow).reshape(-1, 1) // rstrides1 % rmod * rstrides2).sum(axis=1)
+    nci = (np.arange(ncol).reshape(-1, 1) // cstrides1 % cmod * cstrides2).sum(axis=1)
+    swapped_in = np.empty((nrow * ncol,), dtype=m.dtype)
+    for i in numba.prange(nrow):
+        for j in numba.prange(ncol):
+            swapped_in[nri[i] + nci[j]] = m[rshift + i, cshift + j]
+    return swapped_in

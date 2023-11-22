@@ -3,6 +3,7 @@ import scipy.linalg as lg
 import scipy.sparse as ssp
 import numba
 
+from misc_tools.sparse_tools import _numba_swap_matrix_axes
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 
 
@@ -411,6 +412,9 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
         data_perm = (0, self._nrr + 1, *(axes + 1 + (axes >= self._nrr)))
 
+        # avoid numba issues with non-contiguous arrays
+        self._blocks = tuple(np.ascontiguousarray(b) for b in self._blocks)
+
         for i_ele, indices in enumerate(ele_indices):
             # edor = external degeneracy out row
             # idicb = internal degeneracy in column block
@@ -418,7 +422,9 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             i_ir, i_ic, i_or, i_oc = indices
             edir_ele = edir[i_ir]
             edic_ele = edic[i_ic]
-            ele_sh = [0, *external_degen_ir[i_ir], 0, *external_degen_ic[i_ic]]
+            ele_sh = np.array(
+                [0, *external_degen_ir[i_ir], 0, *external_degen_ic[i_ic]]
+            )
             edor_ele = edor[i_or]
             edoc_ele = edoc[i_oc]
             ed = edor_ele * edoc_ele
@@ -439,24 +445,37 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     # there are two operations: changing basis with elementary AND
                     # swapping axes in external degeneracy part. Transpose tensor BEFORE
                     # applying unitary to do only one transpose
-
-                    in_data = self._blocks[ib_self][sir1:sir2, sic1:sic2]
-
+                    #
                     # initial tensor shape = (
-                    # internal degeneracy in row block,
-                    # *external degeneracies per in row axes,
-                    # internal degeneracy in col block,
-                    # *external degeneracies per in col axes)
+                    #     internal degeneracy in row block,
+                    #     *external degeneracies per in row axes,
+                    #     internal degeneracy in col block,
+                    #     *external degeneracies per in col axes
+                    # )
+                    # transpose to shape = (
+                    #     internal degeneracy in row block,
+                    #     internal degeneracy in col, block,
+                    #     *external degeneracies per OUT row axes,
+                    #     *external degeneracies per OUT col axes
+                    # )
                     ele_sh[0] = idirb[i_ir, ibi]
                     ele_sh[self._nrr + 1] = idicb[i_ic, ibi]
-                    in_data = in_data.reshape(ele_sh)
-
-                    # transpose to shape = (
-                    # internal degeneracy in row block,
-                    # internal degeneracy in col, block,
-                    # *external degeneracies per OUT row axes,
-                    # *external degeneracies per OUT col axes)
-                    in_data = in_data.transpose(data_perm).reshape(idib, ed)
+                    in_data = _numba_swap_matrix_axes(
+                        self._blocks[ib_self],
+                        ele_sh,
+                        data_perm,
+                        self._nrr + 1,
+                        sir1,
+                        sic1,
+                    )
+                    assert np.allclose(
+                        in_data,
+                        self._blocks[ib_self][sir1:sir2, sic1:sic2]
+                        .reshape(ele_sh)
+                        .transpose(data_perm)
+                        .ravel(),
+                    )
+                    in_data = in_data.reshape(idib, ed)  # costless
 
                     # convention: iso_iblock is sliced irrep-wise on its columns = "IN"
                     # but not for its rows = "OUT"
