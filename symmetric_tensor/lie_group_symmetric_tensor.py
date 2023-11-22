@@ -406,7 +406,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         block_irreps_out, block_shapes_out = self.get_block_sizes(
             out_row_reps, out_col_reps, self._signature[axes]
         )
-        blocks_out = tuple(np.zeros(sh) for sh in block_shapes_out)
+        blocks_out = tuple(np.zeros(sh, dtype=self.dtype) for sh in block_shapes_out)
         nblocks_out = len(blocks_out)
 
         data_perm = (0, self._nrr + 1, *(axes + 1 + (axes >= self._nrr)))
@@ -424,7 +424,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             ed = edor_ele * edoc_ele
             assert ed == edir_ele * edic_ele
 
-            out_data = np.zeros((idorb[i_or] @ idocb[i_oc], ed))
+            out_data = np.zeros((idorb[i_or] @ idocb[i_oc], ed), dtype=self.dtype)
 
             for ib_self, ibi in enumerate(block_inds):  # missing blocks are filtered
                 idib = idirb[i_ir, ibi] * idicb[i_ic, ibi]
