@@ -81,7 +81,7 @@ def construct_projectors(
         if ind < last_irreps.size and shared[bi] == last_irreps[ind]:
             block_chi[bi] = last_renormalized.blocks[ind].shape[1]
     block_chi = np.maximum(block_chi + 10, (block_chi_ratio * block_chi).astype(int))
-    block_chi = np.minimum(chi, block_chi)
+    block_chi = np.minimum(chi + 10, block_chi)
 
     dims = []
     for bi in range(n_blocks):  # compute SVD on the fly
@@ -106,7 +106,7 @@ def construct_projectors(
             # a good precision is required for singular values, especially with pseudo
             # inverse. If precision is not good enough, reduced density matrix are less
             # hermitian. This requires a large number of computed vectors (ncv).
-            ncv = int(ncv_ratio * block_chi[bi])
+            ncv = int(ncv_ratio * block_chi[bi]) + 10
             u, s, v = sparse_svd(m, k=block_chi[bi], ncv=ncv, maxiter=1000)
 
         u_blocks[bi] = u

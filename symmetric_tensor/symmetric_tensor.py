@@ -4,7 +4,6 @@ import scipy.linalg as lg
 from misc_tools.svd_tools import sparse_svd, find_chi_largest
 from symmetric_tensor.diagonal_tensor import DiagonalTensor
 
-
 # choices are made to make code light and fast:
 # irreps are labelled by integers (non-simple groups need another class using lexsort)
 # axes are grouped into either row or colum axes to define block-diagonal matrices
@@ -159,7 +158,6 @@ class SymmetricTensor:
         self._signature = np.ascontiguousarray(signature, dtype=bool)
         self._blocks = tuple(blocks)
         self._block_irreps = np.asarray(block_irreps)
-        self._ncoeff = sum(b.size for b in blocks)
         assert self._nblocks > 0
         assert 0 < self._nrr < self._ndim
         assert self._signature.shape == (self.ndim,)
@@ -200,7 +198,11 @@ class SymmetricTensor:
 
     @property
     def ncoeff(self):
-        return self._ncoeff
+        """
+        Return number of stored coefficients. May be less than number of
+        allowed coefficients if some allowed blocks are missing.
+        """
+        return sum(b.size for b in self._blocks)
 
     @property
     def blocks(self):
@@ -272,7 +274,7 @@ class SymmetricTensor:
                 self._block_irreps,
                 self._signature,
             )
-        if type(other) == DiagonalTensor:  # add diagonal weights on last col leg
+        if isinstance(other, DiagonalTensor):  # add diagonal weights on last col leg
             # check DiagonalTensor matches self
             assert self.symmetry == other.symmetry
             assert (self._col_reps[-1] == other.representation).all()
@@ -293,7 +295,7 @@ class SymmetricTensor:
                 self._block_irreps,
                 self._signature,
             )
-        if type(other) == DiagonalTensor:  # add diagonal weights on 1st row leg
+        if isinstance(other, DiagonalTensor):  # add diagonal weights on 1st row leg
             assert self.symmetry == other.symmetry
             assert (self._row_reps[0] == other.representation).all()
             assert (
@@ -399,7 +401,7 @@ class SymmetricTensor:
         Note that some allowed block may be missing in the output tensor, if the
         associated irrep does not appear in the contracted bond.
         """
-        assert type(self) == type(other)
+        assert type(self) is type(other)
         assert self._shape[self._nrr :] == other._shape[: other._nrr]
         assert (self._signature[self._nrr :] ^ other._signature[: other._nrr]).all()
         assert all((r == r2).all() for (r, r2) in zip(self._col_reps, other._row_reps))
@@ -435,7 +437,7 @@ class SymmetricTensor:
         signature on every legs as self. block_irreps and blocks are not used.
         Return bool, do not raise.
         """
-        if type(self) != type(other):
+        if type(self) is not type(other):
             return False
         if self._shape != other._shape:
             return False
@@ -512,29 +514,8 @@ class SymmetricTensor:
         s = ~np.hstack((self.signature[self._nrr :], self._signature[: self._nrr]))
         return type(self)(self._col_reps, self._row_reps, blocks, self._block_irreps, s)
 
-    # TODO raise NotImplementedError and let subclasses deal with it
     def merge_legs(self, i1, i2):
-        assert self._signature[i1] == self._signature[i2]
-        s = np.array([False, False])
-        if i2 < self._nrr:
-            assert 0 < i1 + 1 == i2
-            r = self.combine_representations(
-                (self._row_reps[i1], self._row_reps[i2]), s
-            )
-            row_reps = self._row_reps[:i1] + (r,) + self._row_reps[i2 + 1 :]
-            col_reps = self._col_reps
-        else:
-            assert self._nrr < i1 + 1 == i2 < self._ndim
-            j = i1 - self._nrr
-            r = self.combine_representations(
-                (self._col_reps[j], self._col_reps[j + 1]), s
-            )
-            col_reps = self._col_reps[:j] + (r,) + self._col_reps[j + 2 :]
-            row_reps = self._row_reps
-        signature = np.hstack((self._signature[:i1], self._signature[i2:]))
-        return type(self)(
-            row_reps, col_reps, self._blocks, self._block_irreps, signature
-        )
+        raise NotImplementedError("Must be defined in derived class")
 
     ####################################################################################
     # Linear algebra

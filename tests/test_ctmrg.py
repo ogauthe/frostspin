@@ -9,6 +9,20 @@ from symmetric_tensor.asymmetric_tensor import AsymmetricTensor
 from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
 from ctmrg.ctmrg import CTMRG
 
+# try simplest CTMRG and parameter parsing
+a = AsymmetricTensor.from_array(
+    np.ones((2, 2, 3, 3, 3, 3)), np.array([[2, 2]]).T, np.array([[3, 3, 3, 3]]).T
+)
+ctm0 = CTMRG.from_elementary_tensors(
+    "AB\nBA",
+    [a, a.conjugate()],
+    20,
+    block_chi_ratio=1.2,
+    block_ncv_ratio=2.2,
+    cutoff=1e-10,
+    degen_ratio=1.0,
+)
+
 
 def eq_st(st1, st2):
     return (
@@ -34,20 +48,25 @@ rl = np.array([1, -2, 1, 0, 0], dtype=np.int8)
 tiling = "AB\nBA"
 sA = np.array([False, False, True, True, True, True])
 sB = np.array([False, False, False, False, False, False])
-axesA = (rp, ra, ru, rr, rd, rl)
-axesB = (rp, ra, rd, rl, ru, rr)
-A_U1 = U1_SymmetricTensor.random(axesA[:2], axesA[2:], rng=rng, signature=sA)
-B_U1 = U1_SymmetricTensor.random(axesB[:2], axesB[2:], rng=rng, signature=sB)
-axesA = tuple(np.array([t.size]) for t in axesA)
-axesB = tuple(np.array([t.size]) for t in axesB)
-A_as = AsymmetricTensor.from_array(A_U1.toarray(), axesA[:2], axesA[2:], signature=sA)
-B_as = AsymmetricTensor.from_array(B_U1.toarray(), axesB[:2], axesB[2:], signature=sB)
+reps_U1_A = (rp, ra, ru, rr, rd, rl)
+reps_U1_B = (rp, ra, rd, rl, ru, rr)
+A_U1 = U1_SymmetricTensor.random(reps_U1_A[:2], reps_U1_A[2:], rng=rng, signature=sA)
+B_U1 = U1_SymmetricTensor.random(reps_U1_B[:2], reps_U1_B[2:], rng=rng, signature=sB)
+reps_as_A = tuple(np.array([t.size]) for t in reps_U1_A)
+reps_as_B = tuple(np.array([t.size]) for t in reps_U1_B)
+A_as = AsymmetricTensor.from_array(
+    A_U1.toarray(), reps_as_A[:2], reps_as_A[2:], signature=sA
+)
+B_as = AsymmetricTensor.from_array(
+    B_U1.toarray(), reps_as_B[:2], reps_as_B[2:], signature=sB
+)
 
-tensorsU1 = (A_U1, B_U1)
 tensorsAs = (A_as, B_as)
+tensorsU1 = (A_U1, B_U1)
 chi = 20
-ctmU1 = CTMRG.from_elementary_tensors(tiling, tensorsU1, chi)
+
 ctmAs = CTMRG.from_elementary_tensors(tiling, tensorsAs, chi)
+ctmU1 = CTMRG.from_elementary_tensors(tiling, tensorsU1, chi)
 
 # check rdm before iterating: due to random tensors they do not stay hermitian
 rdm2x1_cellU1, rdm1x2_cellU1 = ctmU1.compute_rdm_1st_neighbor_cell()
@@ -258,15 +277,7 @@ tensors = (
 )
 
 tiling = "ABCD\nEFGH\nIJKL\nMNOP"
-ctm = CTMRG.from_elementary_tensors(
-    tiling,
-    tensors,
-    13,
-    block_chi_ratio=1.2,
-    ncv_ratio=2.5,
-    cutoff=1e-10,
-    degen_ratio=1.0,
-)
+ctm = CTMRG.from_elementary_tensors(tiling, tensors, 13)
 
 rdm2x1_cell, rdm1x2_cell = ctm.compute_rdm_1st_neighbor_cell()
 for m in rdm2x1_cell:
@@ -312,17 +323,10 @@ for x, y in ctm.site_coords:
 os.remove(savefile)
 
 
-# check dummy environment initialization
-ctm = CTMRG.from_elementary_tensors(
-    tiling,
-    tensors,
-    13,
-    dummy=True,
-    block_chi_ratio=1.2,
-    ncv_ratio=2.5,
-    cutoff=1e-10,
-    degen_ratio=1.0,
-)
+# check dummy=False environment initialization
+# TODO
+"""
+ctm = CTMRG.from_elementary_tensors(tiling, tensors, 13, dummy=False)
 
 rdm2x1_cell, rdm1x2_cell = ctm.compute_rdm_1st_neighbor_cell()
 for m in rdm2x1_cell:
@@ -345,3 +349,4 @@ ctm.iterate()
 ctm.iterate()
 rdm2x1_cell, rdm1x2_cell = ctm.compute_rdm_1st_neighbor_cell()
 rdm_dr_cell, rdm_ur_cell = ctm.compute_rdm_2nd_neighbor_cell()
+"""

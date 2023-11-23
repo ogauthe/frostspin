@@ -80,8 +80,11 @@ def construct_mps_transfer_matrix(Tup_list, Tdown_list, transpose=False):
         Tup_list = [T.swapaxes(0, -1) for T in Tup_list[::-1]]
         Tdown_list = [T.swapaxes(-2, -1) for T in Tdown_list[::-1]]
 
-    up_matrices = [T.reshape(-1, T.shape[-1]) for T in Tup_list]
-    down_matrices = [T.swapaxes(-2, -1).reshape(-1, T.shape[-2]) for T in Tdown_list]
+    up_matrices = [np.ascontiguousarray(T.reshape(-1, T.shape[-1])) for T in Tup_list]
+    down_matrices = [
+        np.ascontiguousarray(T.swapaxes(-2, -1).reshape(-1, T.shape[-2]))
+        for T in Tdown_list
+    ]
     sh_vec = (Tup_list[0].shape[-1], Tdown_list[0].shape[-1])
 
     def transfer_matvec(x):

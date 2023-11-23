@@ -19,7 +19,6 @@ class DiagonalTensor:
         self._block_degen = np.asarray(block_degen)
         self._symmetry = symmetry
         self._nblocks = len(diag_blocks)
-        self._shape = sum(dim * db.size for (db, dim) in zip(diag_blocks, block_degen))
         assert self._block_degen.shape == (self._nblocks,)
         assert self._block_irreps.shape[0] == self._nblocks
         assert all(db.ndim == 1 for db in self._diagonal_blocks)
@@ -57,7 +56,10 @@ class DiagonalTensor:
 
     @property
     def shape(self):
-        return self._shape
+        return sum(
+            self._diagonal_blocks[i].size * self._block_degen[i]
+            for i in range(self._nblocks)
+        )
 
     @property
     def symmetry(self):
@@ -141,7 +143,7 @@ class DiagonalTensor:
         arr : ndarray
             Weights, grouped by irrep or sorted depending on sort.
         """
-        arr = np.empty(self._shape, dtype=self.dtype)
+        arr = np.empty(self.shape, dtype=self.dtype)
         k = 0
         for i in range(self._nblocks):
             dim = self._diagonal_blocks[i].size

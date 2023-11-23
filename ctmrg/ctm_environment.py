@@ -179,7 +179,7 @@ class CTM_Environment:
             if len(tensors) != self._n_sites:
                 raise ValueError(f"Invalid {name} number")
             for t in tensors:
-                if type(t) != self._ST:
+                if type(t) is not self._ST:
                     raise ValueError(f"Invalid {name} type")
                 if t.ndim != ndim:
                     raise ValueError(f"Invalid {name} ndim")

@@ -35,7 +35,7 @@ def check_tensor_bond_indices(tensor_bond_indices):
 def check_hamiltonians(hamiltonians):
     ST = type(hamiltonians[0])
     for i, h in enumerate(hamiltonians):
-        if type(h) != ST:
+        if type(h) is not ST:
             raise ValueError(f"Invalid type for Hamiltonian {i}")
         if h.ndim != 4 or h.n_row_reps != 2:
             raise ValueError(f"Hamiltonian {i} has invalid shape")
@@ -588,7 +588,7 @@ class SimpleUpdate:
         check_tensor_bond_indices(tensor_bond_indices)
 
         ST = type(raw_hamilts[0])
-        if type(tensor) != ST:
+        if type(tensor) is not ST:
             raise ValueError("Tensor type must match Hamiltonians")
         n_tensors = len(tensor_bond_indices)
         n_bonds = max(max(tbi) for tbi in tensor_bond_indices) + 1
@@ -1407,7 +1407,7 @@ class SimpleUpdate:
 
         tensor_legs = []
         for i, t in enumerate(self._tensors):
-            if type(t) != self._ST:
+            if type(t) is not self._ST:
                 raise ValueError(f"Invalid type for tensor {i}")
             if t.ndim != 2 + len(self._tensor_bond_indices[i]):
                 raise ValueError(f"Tensor {i} does not match tensor_bond_indices")
