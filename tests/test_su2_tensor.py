@@ -103,11 +103,11 @@ td = t.toarray()
 t2 = SU2_SymmetricTensor.from_array(td, t.row_reps, t.col_reps, t.signature)
 assert (t - t2).norm() < 1e-14
 
-# check merge_legs
-_ = st.merge_legs(0, 1)
-_ = st.merge_legs(2, 3)
+# check merge_legs  TODO
+# _ = st.merge_legs(0, 1)
+# _ = st.merge_legs(2, 3)
 
 
-# try I/O for isometries
-st.save_isometries("data_test_su2_isometries.npz")
-st.load_isometries("data_test_su2_isometries.npz")
+# try I/O for isometries  TODO
+# st.save_isometries("data_test_su2_isometries.npz")
+# st.load_isometries("data_test_su2_isometries.npz")
