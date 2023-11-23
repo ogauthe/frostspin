@@ -231,10 +231,10 @@ def _numba_swap_matrix_axes(m, shape, axes, n_leg_rows, rshift=0, cshift=0):
     rstrides2 = new_strides[:n_leg_rows]
     cstrides2 = new_strides[n_leg_rows:]
 
+    nri = (np.arange(nrow).reshape(-1, 1) // rstrides1 % rmod * rstrides2).sum(axis=1)
     nci = (np.arange(ncol).reshape(-1, 1) // cstrides1 % cmod * cstrides2).sum(axis=1)
     swapped_in = np.empty((nrow * ncol,), dtype=m.dtype)
     for i in numba.prange(nrow):
-        nri = (i // rstrides1 % rmod * rstrides2).sum()
-        for j in range(ncol):
-            swapped_in[nri + nci[j]] = m[rshift + i, cshift + j]
+        for j in numba.prange(ncol):
+            swapped_in[nri[i] + nci[j]] = m[rshift + i, cshift + j]
     return swapped_in
