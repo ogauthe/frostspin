@@ -20,9 +20,10 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
         # representations are just 2-row integer array
         # 1st row = degen
         # 2nd row = irrep
-        assert degen.ndim == 1
-        assert irreps.shape == (degen.size,)
-        return np.vstack((degen, irreps))
+        rep = np.empty((2, len(degen)), dtype=int)
+        rep[0] = degen
+        rep[1] = irreps
+        return rep
 
     ####################################################################################
     # Non-abelian specific symmetry implementation
