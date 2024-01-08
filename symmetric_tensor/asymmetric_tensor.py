@@ -47,7 +47,7 @@ class AsymmetricTensor(SymmetricTensor):
 
     @staticmethod
     def representation_dimension(rep):
-        return rep[0]
+        return int(rep)
 
     @staticmethod
     def irrep_dimension(rep):

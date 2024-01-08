@@ -56,9 +56,11 @@ class DiagonalTensor:
 
     @property
     def shape(self):
-        return sum(
-            self._diagonal_blocks[i].size * self._block_degen[i]
-            for i in range(self._nblocks)
+        return (
+            sum(
+                self._diagonal_blocks[i].size * self._block_degen[i]
+                for i in range(self._nblocks)
+            ),
         )
 
     @property

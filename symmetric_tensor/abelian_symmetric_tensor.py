@@ -267,7 +267,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
 
     @staticmethod
     def init_representation(degen, irreps):
-        rep = np.empty((degen.sum(),), dtype=np.int8)
+        rep = np.empty((sum(degen),), dtype=np.int8)
         k = 0
         for d, irr in zip(degen, irreps):
             rep[k : k + d] = irr
