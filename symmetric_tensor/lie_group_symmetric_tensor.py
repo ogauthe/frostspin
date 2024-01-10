@@ -51,7 +51,7 @@ def _numba_transpose_data(
     blocks,
     isometry_in_blocks,
     block_inds,
-    axes,
+    data_perm,
     ele_indices,
     external_degen_ir,
     external_degen_ic,
@@ -68,7 +68,7 @@ def _numba_transpose_data(
     idorb,
     idocb,
 ):
-    nrr = external_degen_ir.shape[1]
+    nrr = external_degen_ir.shape[1] + 1
 
     # need to initalize blocks_out in case of missing blocks_in
     dtype = blocks[0].dtype
@@ -81,52 +81,68 @@ def _numba_transpose_data(
         i_ir, i_ic, i_or, i_oc = ele_indices[i_ele]
         edir_ele = edir[i_ir]
         edic_ele = edic[i_ic]
-        ele_sh = np.hstack((external_degen_ir[i_ir], external_degen_ic[i_ic]))
+        ele_sh = np.array([0, *external_degen_ir[i_ir], 0, *external_degen_ic[i_ic]])
         edor_ele = edor[i_or]
         edoc_ele = edoc[i_oc]
+        ed = edor_ele * edoc_ele
 
         for ib_self, ibi in enumerate(block_inds):  # missing blocks are filtered
-            if idirb[i_ir, ibi] * idicb[i_ic, ibi] > 0:
-                sir0 = slices_ir[i_ir, ibi] - edir_ele * idirb[i_ir, ibi]
-                sic0 = slices_ic[i_ic, ibi] - edic_ele * idicb[i_ic, ibi]
+            idib = idirb[i_ir, ibi] * idicb[i_ic, ibi]
+            # need to check if this block_irrep_in appears in elementary_block
+            if idib > 0:
                 u = isometry_in_blocks[np.int64(i_ele), ibi]  # actually a slice
-                for idib in range(idirb[i_ir, ibi] * idicb[i_ic, ibi]):
-                    sir = sir0 + edir_ele * (idib // idicb[i_ic, ibi])
-                    sic = sic0 + edic_ele * (idib % idicb[i_ic, ibi])
+                sir2 = slices_ir[i_ir, ibi]
+                sir1 = sir2 - edir_ele * idirb[i_ir, ibi]
+                sic2 = slices_ic[i_ic, ibi]
+                sic1 = sic2 - edic_ele * idicb[i_ic, ibi]
 
-                    # there are two operations: changing basis with elementary AND
-                    # swapping axes in external degeneracy part. Transpose tensor BEFORE
-                    # applying unitary to do only one transpose
+                # there are two operations: changing basis with elementary AND
+                # swapping axes in external degeneracy part. Transpose tensor BEFORE
+                # applying unitary to do only one transpose
 
-                    # initial tensor shape = (
-                    # internal degeneracy in row block,
-                    # *external degeneracies per in row axes,
-                    # internal degeneracy in col block,
-                    # *external degeneracies per in col axes)
+                # initial tensor shape = (
+                # internal degeneracy in row block,
+                # *external degeneracies per in row axes,
+                # internal degeneracy in col block,
+                # *external degeneracies per in col axes)
+                ele_sh[0] = idirb[i_ir, ibi]
+                ele_sh[nrr] = idicb[i_ic, ibi]
 
-                    in_data = _numba_strided_transpose(
-                        blocks[ib_self], ele_sh, axes, nrr, rshift=sir, cshift=sic
-                    )
-                    in_data = in_data.reshape(edor_ele, edoc_ele)
+                in_data = _numba_strided_transpose(
+                    blocks[ib_self],
+                    ele_sh,
+                    data_perm,
+                    nrr,
+                    rshift=sir1,
+                    cshift=sic1,
+                )
 
-                    # convention: iso_iblock is sliced irrep-wise on its columns = "IN"
-                    # but not for its rows = "OUT"
-                    # meaning it is applied to "IN" irrep block data, but generates data
-                    # for all OUT irrep blocks
+                # transpose to shape = (
+                # internal degeneracy in row block,
+                # internal degeneracy in col, block,
+                # *external degeneracies per OUT row axes,
+                # *external degeneracies per OUT col axes)
+                in_data = in_data.reshape(idib, ed)
 
-                    ido = 0
-                    for ibo in range(nblocks_out):
-                        idorb_ele = idorb[i_or, ibo]
-                        idocb_ele = idocb[i_oc, ibo]
-                        sor0 = slices_or[i_or, ibo] - edor_ele * idorb_ele
-                        soc0 = slices_oc[i_oc, ibo] - edoc_ele * idocb_ele
-                        for idob in range(idorb_ele * idocb_ele):
-                            sor = sor0 + (idob // idocb[i_oc, ibo]) * edor_ele
-                            soc = soc0 + (idob % idocb[i_oc, ibo]) * edoc_ele
-                            blocks_out[ibo][
-                                sor : sor + edor_ele, soc : soc + edoc_ele
-                            ] += (u[ido, idib] * in_data)
-                            ido += 1
+                # convention: iso_iblock is sliced irrep-wise on its columns = "IN"
+                # but not for its rows = "OUT"
+                # meaning it is applied to "IN" irrep block data, but generates data
+                # for all OUT irrep blocks
+
+                ido = 0
+                for ibo in range(nblocks_out):
+                    idorb_ele = idorb[i_or, ibo]
+                    idocb_ele = idocb[i_oc, ibo]
+                    sor0 = slices_or[i_or, ibo] - edor_ele * idorb_ele
+                    soc0 = slices_oc[i_oc, ibo] - edoc_ele * idocb_ele
+                    for idob in range(idorb_ele * idocb_ele):
+                        sor = sor0 + (idob // idocb[i_oc, ibo]) * edor_ele
+                        soc = soc0 + (idob % idocb[i_oc, ibo]) * edoc_ele
+                        blocks_out[ibo][sor : sor + edor_ele, soc : soc + edoc_ele] += (
+                            u[ido] @ in_data
+                        ).reshape(edor_ele, edoc_ele)
+                        ido += 1
+
     return blocks_out
 
 
@@ -485,7 +501,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         else:
             block_inds = np.arange(self._nblocks)
 
-        axes = np.array(axes)  # avoid tuple for numba
+        data_perm = np.array([0, self._nrr + 1, *(axes + 1 + (axes >= self._nrr))])
         block_irreps_out, block_shapes_out = self.get_block_sizes(
             out_row_reps, out_col_reps, self._signature[axes]
         )
@@ -510,7 +526,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             self._blocks,  # UniTuple[array[2d, dtype], nblocks_in]
             isometry_in_blocks,  # dic
             block_inds,  # 1D int array
-            axes,  # 1D int array
+            data_perm,  # 1D int array
             ele_indices,  # 2d int array
             external_degen_ir,  # 2d int array
             external_degen_ic,  # 2d int array
