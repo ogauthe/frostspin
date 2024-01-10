@@ -72,9 +72,10 @@ def _numba_transpose_data(
 
     # need to initalize blocks_out in case of missing blocks_in
     dtype = blocks[0].dtype
-    nblocks_out = len(block_shapes_out)
+    nblocks_out = block_shapes_out.shape[0]
     blocks_out = [
-        np.zeros(block_shapes_out[i], dtype=dtype) for i in range(nblocks_out)
+        np.zeros((block_shapes_out[i][0], block_shapes_out[i][1]), dtype=dtype)
+        for i in range(nblocks_out)
     ]
     for i_ele in numba.prange(ele_indices.shape[0]):
         i_ir, i_ic, i_or, i_oc = ele_indices[i_ele]
@@ -487,25 +488,24 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         block_irreps_out, block_shapes_out = self.get_block_sizes(
             out_row_reps, out_col_reps, self._signature[axes]
         )
+        block_shapes_out = np.array(block_shapes_out)  # simpler for numba
 
         # avoid numba issue
-        self._blocks = tuple(np.ascontiguousarray(b) for b in self._blocks)
+        if not all(b.flags["C"] for b in self._blocks):
+            self._blocks = tuple(np.ascontiguousarray(b) for b in self._blocks)
 
         # axis kwarg not supported in numba
         edir = external_degen_ir.prod(axis=1)
         edic = external_degen_ic.prod(axis=1)
         edor = external_degen_or.prod(axis=1)
         edoc = external_degen_oc.prod(axis=1)
-
         slices_ir = (edir.reshape(-1, 1) * idirb).cumsum(axis=0)
         slices_ic = (edic.reshape(-1, 1) * idicb).cumsum(axis=0)
         slices_or = (edor.reshape(-1, 1) * idorb).cumsum(axis=0)
         slices_oc = (edoc.reshape(-1, 1) * idocb).cumsum(axis=0)
 
         blocks_out = _numba_transpose_data(
-            tuple(
-                block_shapes_out
-            ),  # cast list into UniTuple[Unituple[int, 2], nblocks_out]
+            block_shapes_out,  # 2d int array
             self._blocks,  # UniTuple[array[2d, dtype], nblocks_in]
             isometry_in_blocks,  # dic
             block_inds,  # 1D int array
@@ -513,14 +513,14 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             ele_indices,  # 2d int array
             external_degen_ir,  # 2d int array
             external_degen_ic,  # 2d int array
-            edir,
-            edic,
-            edor,
-            edoc,
-            slices_ir,
-            slices_ic,
-            slices_or,
-            slices_oc,
+            edir,  # 1d int array
+            edic,  # 1d int array
+            edor,  # 1d int array
+            edoc,  # 1d int array
+            slices_ir,  # 2d int array
+            slices_ic,  # 2d int array
+            slices_or,  # 2d int array
+            slices_oc,  # 2d int array
             idirb,  # 2d int array
             idicb,  # 2d int array
             idorb,  # 2d int array
