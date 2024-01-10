@@ -180,7 +180,7 @@ def _numba_find_indices(values, v0, nv):
     return indices
 
 
-@numba.njit
+@numba.njit(parallel=True)
 def _numba_strided_transpose(m, shape, axes, n_leg_rows, rshift=0, cshift=0):
     """
     Decompose a given matrix as a tensor, swap it axes according to perm and return a
