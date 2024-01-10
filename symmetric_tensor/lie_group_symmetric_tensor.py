@@ -85,12 +85,12 @@ def _numba_transpose_data(
         edor_ele = edor[i_or]
         edoc_ele = edoc[i_oc]
         ed = edor_ele * edoc_ele
+        out_data = np.zeros(((idorb[i_or] * idocb[i_oc]).sum(), ed), dtype=dtype)
 
         for ib_self, ibi in enumerate(block_inds):  # missing blocks are filtered
             idib = idirb[i_ir, ibi] * idicb[i_ic, ibi]
             # need to check if this block_irrep_in appears in elementary_block
             if idib > 0:
-                u = isometry_in_blocks[np.int64(i_ele), ibi]  # actually a slice
                 sir2 = slices_ir[i_ir, ibi]
                 sir1 = sir2 - edir_ele * idirb[i_ir, ibi]
                 sic2 = slices_ic[i_ic, ibi]
@@ -128,20 +128,27 @@ def _numba_transpose_data(
                 # but not for its rows = "OUT"
                 # meaning it is applied to "IN" irrep block data, but generates data
                 # for all OUT irrep blocks
+                out_data += isometry_in_blocks[np.int64(i_ele), ibi] @ in_data
 
-                ido = 0
-                for ibo in range(nblocks_out):
-                    idorb_ele = idorb[i_or, ibo]
-                    idocb_ele = idocb[i_oc, ibo]
-                    sor0 = slices_or[i_or, ibo] - edor_ele * idorb_ele
-                    soc0 = slices_oc[i_oc, ibo] - edoc_ele * idocb_ele
-                    for idob in range(idorb_ele * idocb_ele):
-                        sor = sor0 + (idob // idocb[i_oc, ibo]) * edor_ele
-                        soc = soc0 + (idob % idocb[i_oc, ibo]) * edoc_ele
-                        blocks_out[ibo][sor : sor + edor_ele, soc : soc + edoc_ele] += (
-                            u[ido] @ in_data
-                        ).reshape(edor_ele, edoc_ele)
-                        ido += 1
+        # transpose out_data only after every IN blocks have been processed
+        oshift = 0
+        for ibo in range(nblocks_out):
+            idorb_ele = idorb[i_or, ibo]
+            idocb_ele = idocb[i_oc, ibo]
+            idob = idorb_ele * idocb_ele
+            if idob > 0:
+                out_block = out_data[oshift : oshift + idob]
+                sh = (idorb_ele, idocb_ele, edor_ele, edoc_ele)
+                out_block = out_block.reshape(sh).transpose(0, 2, 1, 3)
+                sh2 = (edor_ele * idorb_ele, edoc_ele * idocb_ele)
+                out_block = np.ascontiguousarray(out_block).reshape(sh2)
+
+                sor2 = slices_or[i_or, ibo]
+                sor1 = sor2 - edor_ele * idorb_ele
+                soc2 = slices_oc[i_oc, ibo]
+                soc1 = soc2 - edoc_ele * idocb_ele
+                blocks_out[ibo][sor1:sor2, soc1:soc2] = out_block
+                oshift += idob
 
     return blocks_out
 
