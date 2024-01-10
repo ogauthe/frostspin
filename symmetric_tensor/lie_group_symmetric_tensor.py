@@ -4,7 +4,7 @@ import scipy.sparse as ssp
 import numba
 
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
-from misc_tools.sparse_tools import _numba_strided_transpose
+from misc_tools.sparse_tools import _numba_monothread_strided_transpose
 
 
 @numba.njit
@@ -108,7 +108,7 @@ def _numba_transpose_data(
                 ele_sh[0] = idirb[i_ir, ibi]
                 ele_sh[nrr] = idicb[i_ic, ibi]
 
-                in_data = _numba_strided_transpose(
+                in_data = _numba_monothread_strided_transpose(
                     blocks[ib_self],
                     ele_sh,
                     data_perm,

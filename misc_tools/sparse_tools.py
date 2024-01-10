@@ -180,8 +180,31 @@ def _numba_find_indices(values, v0, nv):
     return indices
 
 
+@numba.njit
+def _numba_get_strides(shape, axes, n_leg_rows):
+    ndim = len(axes)
+    rstrides1 = np.ones((n_leg_rows,), dtype=np.int64)
+    rstrides1[1:] = shape[n_leg_rows - 1 : 0 : -1]
+    rstrides1 = rstrides1.cumprod()[::-1].copy()
+    rmod = shape[:n_leg_rows]
+
+    cstrides1 = np.ones((ndim - n_leg_rows,), dtype=np.int64)
+    cstrides1[1:] = shape[-1:n_leg_rows:-1]
+    cstrides1 = cstrides1.cumprod()[::-1].copy()
+    cmod = shape[n_leg_rows:]
+
+    new_strides = np.ones((ndim,), dtype=np.int64)
+    for i in range(ndim - 1, 0, -1):
+        new_strides[axes[i - 1]] = new_strides[axes[i]] * shape[axes[i]]
+    rstrides2 = new_strides[:n_leg_rows]
+    cstrides2 = new_strides[n_leg_rows:]
+    ncol = shape[n_leg_rows:].prod()
+    nci = (np.arange(ncol).reshape(-1, 1) // cstrides1 % cmod * cstrides2).sum(axis=1)
+    return rstrides1, rstrides2, rmod, nci
+
+
 @numba.njit(parallel=True)
-def _numba_strided_transpose(m, shape, axes, n_leg_rows, rshift=0, cshift=0):
+def _numba_parallel_strided_transpose(m, shape, axes, n_leg_rows, rshift=0, cshift=0):
     """
     Decompose a given matrix as a tensor, swap it axes according to perm and return a
     contiguous 1D array. It is possible to consider only a (non-contiguous) submatrix
@@ -211,29 +234,27 @@ def _numba_strided_transpose(m, shape, axes, n_leg_rows, rshift=0, cshift=0):
     # indexing with unsigned int should be slightly faster
     # need to wait for numba pull/8333 to be included into release to use unsigned
 
-    ndim = len(axes)
+    rstrides1, rstrides2, rmod, nci = _numba_get_strides(shape, axes, n_leg_rows)
     nrow = shape[:n_leg_rows].prod()
     ncol = shape[n_leg_rows:].prod()
-
-    rstrides1 = np.ones((n_leg_rows,), dtype=np.int64)
-    rstrides1[1:] = shape[n_leg_rows - 1 : 0 : -1]
-    rstrides1 = rstrides1.cumprod()[::-1].copy()
-    rmod = shape[:n_leg_rows]
-
-    cstrides1 = np.ones((ndim - n_leg_rows,), dtype=np.int64)
-    cstrides1[1:] = shape[-1:n_leg_rows:-1]
-    cstrides1 = cstrides1.cumprod()[::-1].copy()
-    cmod = shape[n_leg_rows:]
-
-    new_strides = np.ones((ndim,), dtype=np.int64)
-    for i in range(ndim - 1, 0, -1):
-        new_strides[axes[i - 1]] = new_strides[axes[i]] * shape[axes[i]]
-    rstrides2 = new_strides[:n_leg_rows]
-    cstrides2 = new_strides[n_leg_rows:]
-
-    nci = (np.arange(ncol).reshape(-1, 1) // cstrides1 % cmod * cstrides2).sum(axis=1)
     swapped_in = np.empty((nrow * ncol,), dtype=m.dtype)
     for i in numba.prange(nrow):
+        nri = (i // rstrides1 % rmod * rstrides2).sum()
+        for j in range(ncol):
+            swapped_in[nri + nci[j]] = m[rshift + i, cshift + j]
+    return swapped_in
+
+
+@numba.njit
+def _numba_monothread_strided_transpose(m, shape, axes, n_leg_rows, rshift=0, cshift=0):
+    """
+    Single thread version of _numba_parallel_strided_transpose
+    """
+    rstrides1, rstrides2, rmod, nci = _numba_get_strides(shape, axes, n_leg_rows)
+    nrow = shape[:n_leg_rows].prod()
+    ncol = shape[n_leg_rows:].prod()
+    swapped_in = np.empty((nrow * ncol,), dtype=m.dtype)
+    for i in range(nrow):
         nri = (i // rstrides1 % rmod * rstrides2).sum()
         for j in range(ncol):
             swapped_in[nri + nci[j]] = m[rshift + i, cshift + j]
