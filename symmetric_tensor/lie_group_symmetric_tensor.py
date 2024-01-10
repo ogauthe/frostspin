@@ -485,6 +485,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         else:
             block_inds = np.arange(self._nblocks)
 
+        axes = np.array(axes)  # avoid tuple for numba
         block_irreps_out, block_shapes_out = self.get_block_sizes(
             out_row_reps, out_col_reps, self._signature[axes]
         )
@@ -509,7 +510,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             self._blocks,  # UniTuple[array[2d, dtype], nblocks_in]
             isometry_in_blocks,  # dic
             block_inds,  # 1D int array
-            axes,  # UniTuple[int, ndim]
+            axes,  # 1D int array
             ele_indices,  # 2d int array
             external_degen_ir,  # 2d int array
             external_degen_ic,  # 2d int array

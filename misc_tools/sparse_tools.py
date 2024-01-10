@@ -194,7 +194,7 @@ def _numba_strided_transpose(m, shape, axes, n_leg_rows, rshift=0, cshift=0):
         Array to swap. It may be larger than prod(shape).
     shape : (ndim,) int64 ndarray
         Tensor shape before transpose.
-    axes : tuple of ndim integers
+    axes : tuple or 1D array of ndim integers
         Axes permutation.
     n_leg_rows : int
         Number of axes to concatenate to obtain m rows.
