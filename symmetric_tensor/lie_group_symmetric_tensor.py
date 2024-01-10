@@ -51,7 +51,7 @@ def _numba_transpose_data(
     blocks,
     isometry_in_blocks,
     block_inds,
-    data_perm,
+    axes,
     ele_indices,
     external_degen_ir,
     external_degen_ic,
@@ -68,7 +68,7 @@ def _numba_transpose_data(
     idorb,
     idocb,
 ):
-    nrr = external_degen_ir.shape[1] + 1
+    nrr = external_degen_ir.shape[1]
 
     # need to initalize blocks_out in case of missing blocks_in
     dtype = blocks[0].dtype
@@ -77,85 +77,55 @@ def _numba_transpose_data(
         np.zeros(block_shapes_out[i], dtype=dtype) for i in range(nblocks_out)
     ]
     for i_ele in numba.prange(ele_indices.shape[0]):
-        indices = ele_indices[i_ele]
-        # edor = external degeneracy out row
-        # idicb = internal degeneracy in column block
-
-        i_ir, i_ic, i_or, i_oc = indices
+        i_ir, i_ic, i_or, i_oc = ele_indices[i_ele]
         edir_ele = edir[i_ir]
         edic_ele = edic[i_ic]
-        ele_sh = np.array([0, *external_degen_ir[i_ir], 0, *external_degen_ic[i_ic]])
+        ele_sh = np.hstack((external_degen_ir[i_ir], external_degen_ic[i_ic]))
         edor_ele = edor[i_or]
         edoc_ele = edoc[i_oc]
-        ed = edor_ele * edoc_ele
-
-        out_data = np.zeros(((idorb[i_or] * idocb[i_oc]).sum(), ed), dtype=dtype)
 
         for ib_self, ibi in enumerate(block_inds):  # missing blocks are filtered
-            idib = idirb[i_ir, ibi] * idicb[i_ic, ibi]
-            # need to check if this block_irrep_in appears in elementary_block
-            if idib > 0:
-                sir2 = slices_ir[i_ir, ibi]
-                sir1 = sir2 - edir_ele * idirb[i_ir, ibi]
-                sic2 = slices_ic[i_ic, ibi]
-                sic1 = sic2 - edic_ele * idicb[i_ic, ibi]
+            if idirb[i_ir, ibi] * idicb[i_ic, ibi] > 0:
+                sir0 = slices_ir[i_ir, ibi] - edir_ele * idirb[i_ir, ibi]
+                sic0 = slices_ic[i_ic, ibi] - edic_ele * idicb[i_ic, ibi]
+                u = isometry_in_blocks[np.int64(i_ele), ibi]  # actually a slice
+                for idib in range(idirb[i_ir, ibi] * idicb[i_ic, ibi]):
+                    sir = sir0 + edir_ele * (idib // idicb[i_ic, ibi])
+                    sic = sic0 + edic_ele * (idib % idicb[i_ic, ibi])
 
-                # there are two operations: changing basis with elementary AND
-                # swapping axes in external degeneracy part. Transpose tensor BEFORE
-                # applying unitary to do only one transpose
+                    # there are two operations: changing basis with elementary AND
+                    # swapping axes in external degeneracy part. Transpose tensor BEFORE
+                    # applying unitary to do only one transpose
 
-                # initial tensor shape = (
-                # internal degeneracy in row block,
-                # *external degeneracies per in row axes,
-                # internal degeneracy in col block,
-                # *external degeneracies per in col axes)
-                ele_sh[0] = idirb[i_ir, ibi]
-                ele_sh[nrr] = idicb[i_ic, ibi]
+                    # initial tensor shape = (
+                    # internal degeneracy in row block,
+                    # *external degeneracies per in row axes,
+                    # internal degeneracy in col block,
+                    # *external degeneracies per in col axes)
 
-                in_data = _numba_strided_transpose(
-                    blocks[ib_self],
-                    ele_sh,
-                    data_perm,
-                    nrr,
-                    rshift=sir1,
-                    cshift=sic1,
-                )
+                    in_data = _numba_strided_transpose(
+                        blocks[ib_self], ele_sh, axes, nrr, rshift=sir, cshift=sic
+                    )
+                    in_data = in_data.reshape(edor_ele, edoc_ele)
 
-                # transpose to shape = (
-                # internal degeneracy in row block,
-                # internal degeneracy in col, block,
-                # *external degeneracies per OUT row axes,
-                # *external degeneracies per OUT col axes)
-                in_data = in_data.reshape(idib, ed)
+                    # convention: iso_iblock is sliced irrep-wise on its columns = "IN"
+                    # but not for its rows = "OUT"
+                    # meaning it is applied to "IN" irrep block data, but generates data
+                    # for all OUT irrep blocks
 
-                # convention: iso_iblock is sliced irrep-wise on its columns = "IN"
-                # but not for its rows = "OUT"
-                # meaning it is applied to "IN" irrep block data, but generates data
-                # for all OUT irrep blocks
-                out_data += isometry_in_blocks[np.int64(i_ele), ibi] @ in_data
-
-        # transpose out_data only after every IN blocks have been processed
-        oshift = 0
-        for ibo in range(nblocks_out):
-            idorb_ele = idorb[i_or, ibo]
-            idocb_ele = idocb[i_oc, ibo]
-            idob = idorb_ele * idocb_ele
-
-            if idob > 0:
-                out_block = out_data[oshift : oshift + idob]
-                sh = (idorb_ele, idocb_ele, edor_ele, edoc_ele)
-                out_block = out_block.reshape(sh).transpose(0, 2, 1, 3)
-                sh2 = (edor_ele * idorb_ele, edoc_ele * idocb_ele)
-                out_block = np.ascontiguousarray(out_block).reshape(sh2)
-
-                # different IN block irreps may contribute: need +=
-                sor2 = slices_or[i_or, ibo]
-                sor1 = sor2 - edor_ele * idorb_ele
-                soc2 = slices_oc[i_oc, ibo]
-                soc1 = soc2 - edoc_ele * idocb_ele
-                blocks_out[ibo][sor1:sor2, soc1:soc2] = out_block
-                oshift += idob
-
+                    ido = 0
+                    for ibo in range(nblocks_out):
+                        idorb_ele = idorb[i_or, ibo]
+                        idocb_ele = idocb[i_oc, ibo]
+                        sor0 = slices_or[i_or, ibo] - edor_ele * idorb_ele
+                        soc0 = slices_oc[i_oc, ibo] - edoc_ele * idocb_ele
+                        for idob in range(idorb_ele * idocb_ele):
+                            sor = sor0 + (idob // idocb[i_oc, ibo]) * edor_ele
+                            soc = soc0 + (idob % idocb[i_oc, ibo]) * edoc_ele
+                            blocks_out[ibo][
+                                sor : sor + edor_ele, soc : soc + edoc_ele
+                            ] += (u[ido, idib] * in_data)
+                            ido += 1
     return blocks_out
 
 
@@ -532,7 +502,6 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         slices_or = (edor.reshape(-1, 1) * idorb).cumsum(axis=0)
         slices_oc = (edoc.reshape(-1, 1) * idocb).cumsum(axis=0)
 
-        data_perm = (0, self._nrr + 1, *(axes + 1 + (axes >= self._nrr)))
         blocks_out = _numba_transpose_data(
             tuple(
                 block_shapes_out
@@ -540,7 +509,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             self._blocks,  # UniTuple[array[2d, dtype], nblocks_in]
             isometry_in_blocks,  # dic
             block_inds,  # 1D int array
-            data_perm,  # UniTuple[int, ndim]
+            axes,  # UniTuple[int, ndim]
             ele_indices,  # 2d int array
             external_degen_ir,  # 2d int array
             external_degen_ic,  # 2d int array
