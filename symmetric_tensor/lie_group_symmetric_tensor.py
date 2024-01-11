@@ -45,6 +45,19 @@ def _numba_init_dic():
     return d
 
 
+@numba.njit
+def _numba_compute_slices(external_degen, internal_degen):
+    # prod and cumsum axis kwarg not supported in numba
+    n = external_degen.shape[0]
+    ed_ele = np.empty((n,), dtype=np.int64)
+    slices = np.empty((n + 1, internal_degen.shape[1]), dtype=np.int64)
+    slices[0] = 0
+    for i in range(n):
+        ed_ele[i] = external_degen[i].prod()
+        slices[i + 1] = slices[i] + internal_degen[i] * ed_ele[i]
+    return ed_ele, slices
+
+
 @numba.njit(parallel=True)
 def _numba_transpose_data(
     block_shapes_out,
@@ -55,19 +68,17 @@ def _numba_transpose_data(
     ele_indices,
     external_degen_ir,
     external_degen_ic,
-    edir,
-    edic,
-    edor,
-    edoc,
-    slices_ir,
-    slices_ic,
-    slices_or,
-    slices_oc,
+    external_degen_or,
+    external_degen_oc,
     idirb,
     idicb,
     idorb,
     idocb,
 ):
+    _, slices_ir = _numba_compute_slices(external_degen_ir, idirb)
+    _, slices_ic = _numba_compute_slices(external_degen_ic, idicb)
+    edor, slices_or = _numba_compute_slices(external_degen_or, idorb)
+    edoc, slices_oc = _numba_compute_slices(external_degen_oc, idocb)
     nrr = external_degen_ir.shape[1] + 1
 
     # need to initalize blocks_out in case of missing blocks_in
@@ -79,8 +90,6 @@ def _numba_transpose_data(
     ]
     for i_ele in numba.prange(ele_indices.shape[0]):
         i_ir, i_ic, i_or, i_oc = ele_indices[i_ele]
-        edir_ele = edir[i_ir]
-        edic_ele = edic[i_ic]
         ele_sh = np.array([0, *external_degen_ir[i_ir], 0, *external_degen_ic[i_ic]])
         edor_ele = edor[i_or]
         edoc_ele = edoc[i_oc]
@@ -91,11 +100,6 @@ def _numba_transpose_data(
             idib = idirb[i_ir, ibi] * idicb[i_ic, ibi]
             # need to check if this block_irrep_in appears in elementary_block
             if idib > 0:
-                sir2 = slices_ir[i_ir, ibi]
-                sir1 = sir2 - edir_ele * idirb[i_ir, ibi]
-                sic2 = slices_ic[i_ic, ibi]
-                sic1 = sic2 - edic_ele * idicb[i_ic, ibi]
-
                 # there are two operations: changing basis with elementary AND
                 # swapping axes in external degeneracy part. Transpose tensor BEFORE
                 # applying unitary to do only one transpose
@@ -113,8 +117,8 @@ def _numba_transpose_data(
                     ele_sh,
                     data_perm,
                     nrr,
-                    rshift=sir1,
-                    cshift=sic1,
+                    rshift=slices_ir[i_ir, ibi],
+                    cshift=slices_ic[i_ic, ibi],
                 )
 
                 # transpose to shape = (
@@ -143,10 +147,10 @@ def _numba_transpose_data(
                 sh2 = (edor_ele * idorb_ele, edoc_ele * idocb_ele)
                 out_block = np.ascontiguousarray(out_block).reshape(sh2)
 
-                sor2 = slices_or[i_or, ibo]
-                sor1 = sor2 - edor_ele * idorb_ele
-                soc2 = slices_oc[i_oc, ibo]
-                soc1 = soc2 - edoc_ele * idocb_ele
+                sor1 = slices_or[i_or, ibo]
+                sor2 = slices_or[i_or + 1, ibo]
+                soc1 = slices_oc[i_oc, ibo]
+                soc2 = slices_oc[i_oc + 1, ibo]
                 blocks_out[ibo][sor1:sor2, soc1:soc2] = out_block
                 oshift += idob
 
@@ -518,16 +522,6 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         if not all(b.flags["C"] for b in self._blocks):
             self._blocks = tuple(np.ascontiguousarray(b) for b in self._blocks)
 
-        # axis kwarg not supported in numba
-        edir = external_degen_ir.prod(axis=1)
-        edic = external_degen_ic.prod(axis=1)
-        edor = external_degen_or.prod(axis=1)
-        edoc = external_degen_oc.prod(axis=1)
-        slices_ir = (edir.reshape(-1, 1) * idirb).cumsum(axis=0)
-        slices_ic = (edic.reshape(-1, 1) * idicb).cumsum(axis=0)
-        slices_or = (edor.reshape(-1, 1) * idorb).cumsum(axis=0)
-        slices_oc = (edoc.reshape(-1, 1) * idocb).cumsum(axis=0)
-
         blocks_out = _numba_transpose_data(
             block_shapes_out,  # 2d int array
             self._blocks,  # UniTuple[array[2d, dtype], nblocks_in]
@@ -537,14 +531,8 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             ele_indices,  # 2d int array
             external_degen_ir,  # 2d int array
             external_degen_ic,  # 2d int array
-            edir,  # 1d int array
-            edic,  # 1d int array
-            edor,  # 1d int array
-            edoc,  # 1d int array
-            slices_ir,  # 2d int array
-            slices_ic,  # 2d int array
-            slices_or,  # 2d int array
-            slices_oc,  # 2d int array
+            external_degen_or,  # 2d int array
+            external_degen_oc,  # 2d int array
             idirb,  # 2d int array
             idicb,  # 2d int array
             idorb,  # 2d int array
