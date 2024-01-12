@@ -198,7 +198,7 @@ def _numba_get_strides(shape, axes, n_leg_rows):
         new_strides[axes[i - 1]] = new_strides[axes[i]] * shape[axes[i]]
     rstrides2 = new_strides[:n_leg_rows]
     cstrides2 = new_strides[n_leg_rows:]
-    ncol = shape[n_leg_rows:].prod()
+    ncol = cmod.prod()
     nci = (np.arange(ncol).reshape(-1, 1) // cstrides1 % cmod * cstrides2).sum(axis=1)
     return rstrides1, rstrides2, rmod, nci
 
