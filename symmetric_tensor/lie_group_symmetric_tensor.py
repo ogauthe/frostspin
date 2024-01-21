@@ -520,10 +520,10 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         col_tot = cls.combine_representations(col_reps, signature[len(row_reps) :])
         rinds, cinds = (row_tot[1, :, None] == col_tot[1]).nonzero()
         block_irreps = np.empty((rinds.size,), dtype=int)
-        block_shapes = []
+        block_shapes = np.empty((rinds.size, 2), dtype=np.int64)
         for i in range(rinds.size):
             block_irreps[i] = row_tot[1, rinds[i]]
-            block_shapes.append((row_tot[0, rinds[i]], col_tot[0, cinds[i]]))
+            block_shapes[i] = row_tot[0, rinds[i]], col_tot[0, cinds[i]]
         return block_irreps, block_shapes
 
     @classmethod
