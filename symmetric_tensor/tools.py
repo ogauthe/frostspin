@@ -140,9 +140,15 @@ def symmetric_sparse_eigs(
         op = slg.LinearOperator(sh, matvec=matvec)
         v0 = rng.random((sh[0],)) - 0.5
         k = nvals // dims[bi] + 1
-        ev = slg.eigs(
-            op, k=k, v0=v0, maxiter=maxiter, tol=tol, return_eigenvectors=False
-        )
+        try:
+            ev = slg.eigs(
+                op, k=k, v0=v0, maxiter=maxiter, tol=tol, return_eigenvectors=False
+            )
+        except slg.ArpackNoConvergence as err:
+            print("ARPACK did not converge", err)
+            ev = err.eigenvalues
+            print(f"Keep {ev.size} converged eigenvalues")
+
         abs_ev = np.abs(ev)
         so = abs_ev.argsort()[::-1]
         ev_blocks[bi] = ev[so]
