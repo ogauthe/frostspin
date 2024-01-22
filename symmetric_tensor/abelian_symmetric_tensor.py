@@ -468,7 +468,9 @@ class AbelianSymmetricTensor(SymmetricTensor):
             )
             col_reps = self._col_reps[:j] + (r,) + self._col_reps[j + 2 :]
             row_reps = self._row_reps
-        signature = np.hstack((self._signature[:i1], self._signature[i2:]))
+        signature = np.empty((self._ndim - 1,), dtype=bool)
+        signature[:i1] = self._signature[:i1]
+        signature[i1:] = self._signature[i2:]
         return type(self)(
             row_reps, col_reps, self._blocks, self._block_irreps, signature
         )
