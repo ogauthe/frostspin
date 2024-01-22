@@ -459,8 +459,8 @@ class AbelianSymmetricTensor(SymmetricTensor):
 
     def totrivial(self):
         ar = self.toarray()
-        rr = self.shape[: self._nrr]
-        cr = self.shape[self._nrr :]
+        rr = tuple(np.array([d]) for d in self._shape[: self._nrr])
+        cr = tuple(np.array([d]) for d in self._shape[self._nrr :])
         return AsymmetricTensor.from_array(ar, rr, cr, signature=self.signature)
 
     def update_signature(self, sign_update):
