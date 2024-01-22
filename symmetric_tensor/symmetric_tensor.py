@@ -69,6 +69,31 @@ class SymmetricTensor:
     # Symmetry specific methods with fixed signature
     # These methods must be defined in subclasses to set SymmetricTensor behavior
     ####################################################################################
+
+    @classmethod
+    def get_block_sizes(cls, row_reps, col_reps, signature):
+        """
+        Compute shapes of blocks authorized with row_reps and col_reps and their
+        associated irreps
+
+        Parameters
+        ----------
+        row_reps : tuple of representations
+            Row representations
+        col_reps : tuple of representations
+            Column representations
+        signature : 1D bool array
+            Signature on each leg.
+
+        Returns
+        -------
+        block_irreps : 1D integer array
+            Irreducible representations for each block
+        block_shapes : 2D int array
+            Shape of each block
+        """
+        raise NotImplementedError("Must be defined in derived class")
+
     @classmethod
     def from_array(cls, arr, row_reps, col_reps, signature=None):
         """
@@ -457,12 +482,19 @@ class SymmetricTensor:
 
     @classmethod
     def random(cls, row_reps, col_reps, signature=None, rng=None):
-        # aimed for test, dumb implementation with from_array(zero)
+        if signature is None:
+            signature = np.zeros((len(row_reps) + len(col_reps),), dtype=bool)
+            signature[len(row_reps) :] = True
         if rng is None:
             rng = np.random.default_rng()
-        z = np.zeros([cls.representation_dimension(rep) for rep in row_reps + col_reps])
-        st = cls.from_array(z, row_reps, col_reps, signature=signature)
-        st._blocks = tuple(rng.random(b.shape) for b in st._blocks)
+
+        block_irreps, block_shapes = cls.get_block_sizes(row_reps, col_reps, signature)
+        blocks = []
+        for sh in block_shapes:
+            b = rng.random(sh) - 0.5
+            blocks.append(b)
+
+        st = cls(row_reps, col_reps, blocks, block_irreps, signature)
         return st
 
     def copy(self):

@@ -33,6 +33,40 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
     ####################################################################################
     # Symmetry specific methods with fixed signature
     ####################################################################################
+
+    @classmethod
+    def get_block_sizes(cls, row_reps, col_reps, signature):
+        """
+        Compute shapes of blocks authorized with row_reps and col_reps and their
+        associated irreps
+
+        Parameters
+        ----------
+        row_reps : enumerable of int64[2, :]
+            Row representations
+        col_reps : enumerable of int64[2, :]
+            Column representations
+        signature : bool[:]
+            Signature on each leg.
+
+        Returns
+        -------
+        block_irreps : int64[:]
+            Irreducible representations for each block
+        block_shapes : int64[:, 2]
+            Shape of each block
+        """
+        # do not use sorting: bruteforce numpy > clever python
+        row_tot = cls.combine_representations(row_reps, signature[: len(row_reps)])
+        col_tot = cls.combine_representations(col_reps, signature[len(row_reps) :])
+        rinds, cinds = (row_tot[1, :, None] == col_tot[1]).nonzero()
+        block_irreps = np.empty((rinds.size,), dtype=int)
+        block_shapes = np.empty((rinds.size, 2), dtype=np.int64)
+        for i in range(rinds.size):
+            block_irreps[i] = row_tot[1, rinds[i]]
+            block_shapes[i] = row_tot[0, rinds[i]], col_tot[0, cinds[i]]
+        return block_irreps, block_shapes
+
     def check_blocks_fit_representations(self):
         assert self._block_irreps.size == self._nblocks
         assert len(self._blocks) == self._nblocks

@@ -285,6 +285,40 @@ class AbelianSymmetricTensor(SymmetricTensor):
     ####################################################################################
     # Symmetry specific methods with fixed signature
     ####################################################################################
+
+    @classmethod
+    def get_block_sizes(cls, row_reps, col_reps, signature):
+        """
+        Compute shapes of blocks authorized with row_reps and col_reps and their
+        associated irreps
+
+        Parameters
+        ----------
+        row_reps : enum of int8[:]
+            Row representations
+        col_reps : enum of int8[:]
+            Column representations
+        signature : bool[:]
+            Signature on each leg.
+
+        Returns
+        -------
+        block_irreps : int8[:]
+            Irreducible representations for each block
+        block_shapes : int64[:, 2]
+            Shape of each block
+        """
+        row_tot = cls.combine_representations(row_reps, signature[: len(row_reps)])
+        col_tot = cls.combine_representations(col_reps, ~signature[len(row_reps) :])
+
+        row_irreps, row_sizes = np.unique(row_tot, return_counts=True)
+        col_irreps, col_sizes = np.unique(col_tot, return_counts=True)
+
+        rinds, cinds = (row_irreps[:, None] == col_irreps).nonzero()
+        block_irreps = np.ascontiguousarray(row_irreps[rinds])
+        block_shapes = np.array([row_sizes[rinds], col_sizes[cinds]]).T.copy()
+        return block_irreps, block_shapes
+
     @classmethod
     def from_array(cls, arr, row_reps, col_reps, signature=None):
         """
