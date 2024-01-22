@@ -130,8 +130,10 @@ def construct_projectors(
     block_irreps = corner2.block_irreps[ind2[non_empty]]
     mid_rep = corner2.init_representation(block_cuts[non_empty], block_irreps)
     s2 = corner2.signature[corner2.n_row_reps :]
-    sp = np.hstack((np.array([False]), s2))
-    spt = np.hstack((~s2, np.array([True])))
+    sp = np.zeros((corner2.n_row_reps + 1), dtype=bool)
+    sp[1:] = corner2.signature[corner2.n_row_reps :]
+    spt = np.ones((corner2.n_row_reps + 1), dtype=bool)
+    spt[:-1] = ~s2
     P = type(corner2)((mid_rep,), corner2.col_reps, p_blocks, block_irreps, sp).T
     Pt = type(corner2)(corner2.col_reps, (mid_rep,), pt_blocks, block_irreps, spt)
     return P, Pt

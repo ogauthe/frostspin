@@ -421,9 +421,9 @@ class SymmetricTensor:
             else:
                 i2 += 1
 
-        signature = np.hstack(
-            (self._signature[: self._nrr], other._signature[other._nrr :])
-        )
+        signature = np.empty((self._nrr + other._ndim - other._nrr,), dtype=bool)
+        signature[: self._nrr] = self._signature[: self._nrr]
+        signature[self._nrr :] = other._signature[other._nrr :]
         return type(self)(
             self._row_reps, other._col_reps, blocks, block_irreps, signature
         )
@@ -511,7 +511,9 @@ class SymmetricTensor:
         # block_irreps are conjugate both in T and conj: no change
         # conj = self.group_conjugated()
         blocks = tuple(b.T.conj() for b in self._blocks)
-        s = ~np.hstack((self.signature[self._nrr :], self._signature[: self._nrr]))
+        s = np.empty((self._ndim,), dtype=bool)
+        s[: self._ndim - self._nrr] = ~self.signature[self._nrr :]
+        s[self._ndim - self._nrr :] = ~self.signature[: self._nrr]
         return type(self)(self._col_reps, self._row_reps, blocks, self._block_irreps, s)
 
     def merge_legs(self, i1, i2):
@@ -538,11 +540,13 @@ class SymmetricTensor:
 
         degen = np.array([s.size for s in s_blocks])
         mid_rep = self.init_representation(degen, self._block_irreps)
-        usign = np.hstack((self._signature[: self._nrr], np.array([True])))
+        usign = np.ones((self._nrr + 1), dtype=bool)
+        usign[: self._nrr] = self._signature[: self._nrr]
         U = type(self)(self._row_reps, (mid_rep,), u_blocks, self._block_irreps, usign)
         degens = [self.irrep_dimension(irr) for irr in self._block_irreps]
         s = DiagonalTensor(s_blocks, mid_rep, self._block_irreps, degens, self.symmetry)
-        vsign = np.hstack((np.array([False]), self._signature[self._nrr :]))
+        vsign = np.zeros((self._ndim - self._nrr + 1), dtype=bool)
+        vsign[1:] = self._signature[self._nrr :]
         V = type(self)((mid_rep,), self._col_reps, v_blocks, self._block_irreps, vsign)
         return U, s, V
 
@@ -601,11 +605,13 @@ class SymmetricTensor:
             print(f"*** WARNING *** kept all computed singular values in {warn} blocks")
         block_irreps = self._block_irreps[non_empty]
         mid_rep = self.init_representation(block_cuts[non_empty], block_irreps)
-        usign = np.hstack((self._signature[: self._nrr], np.array([True])))
+        usign = np.ones((self._nrr + 1), dtype=bool)
+        usign[: self._nrr] = self._signature[: self._nrr]
         U = type(self)(self._row_reps, (mid_rep,), u_blocks, block_irreps, usign)
         degens = [self.irrep_dimension(irr) for irr in block_irreps]
         s = DiagonalTensor(s_blocks, mid_rep, block_irreps, degens, self.symmetry)
-        vsign = np.hstack((np.array([False]), self._signature[self._nrr :]))
+        vsign = np.zeros((self._ndim - self._nrr + 1), dtype=bool)
+        vsign[1:] = self._signature[self._nrr :]
         V = type(self)((mid_rep,), self._col_reps, v_blocks, block_irreps, vsign)
         return U, s, V
 
