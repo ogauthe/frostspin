@@ -78,3 +78,5 @@ s12 = s**0.5
 us2 = u * s12
 s2v = s12 * v
 assert (tu1 - us2 @ s2v).norm() < 1e-12
+
+_ = U1_SymmetricTensor.random(row_reps, col_reps, signature=signature, rng=rng)

@@ -56,6 +56,13 @@ class AsymmetricTensor(SymmetricTensor):
     ####################################################################################
     # Symmetry specific methods with fixed signature
     ####################################################################################
+
+    @classmethod
+    def get_block_sizes(cls, row_reps, col_reps, signature):
+        nr = np.prod(row_reps)
+        nc = np.prod(col_reps)
+        return cls._irrep, np.array([[nr, nc]])
+
     @classmethod
     def from_array(cls, arr, row_reps, col_reps, signature=None):
         if signature is None:
