@@ -48,9 +48,9 @@ def compute_mps_transfer_spectrum(
 
     Tup_list = [T.permutate((3, 1, 2), (0,)) for T in Tup_list]
     Tdown_list = [T.permutate((3,), (2, 0, 1)) for T in Tdown_list]
-    reps = (Tup_list[0].col_reps[0], Tdown_list[0].row_reps[0])
+    reps = (Tup_list[0].col_reps[0], Tdown_list[0].col_reps[0])
     sig0 = np.empty((2,), dtype=bool)
-    sig0[0] = ~Tup_list[0].signature[-1]
+    sig0[0] = ~Tup_list[0].signature[3]
     sig0[1] = ~Tdown_list[0].signature[1]
 
     def matmat(st):
