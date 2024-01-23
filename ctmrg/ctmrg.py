@@ -508,54 +508,46 @@ class CTMRG:
             rdm_ur_cell.append(self.compute_rdm_diag_ur(x, y, free_memory=free_memory))
         return rdm_dr_cell, rdm_ur_cell
 
-    def compute_transfer_spectrum_h(
-        self, nval, y=0, v0=None, ncv=None, maxiter=1000, tol=0
-    ):
+    def compute_transfer_spectrum_h(self, nval, y=0, maxiter=1000, tol=0):
         """
         Compute horizontal transfer matrix spectrum for row y.
         """
         T1s = []
         T3s = []
         for x in range(self.Lx):
-            T1s.append(self._env.get_T1(x, y).toarray())
-            T3s.append(self._env.get_T3(x, y + 1).toarray())
+            T1s.append(self._env.get_T1(x, y))
+            T3s.append(self._env.get_T3(x, y + 1))
         return observables.compute_mps_transfer_spectrum(
-            T1s, T3s, nval, v0=v0, ncv=ncv, maxiter=maxiter, tol=tol
+            T1s, T3s, nval, maxiter=maxiter, tol=tol
         )
 
-    def compute_transfer_spectrum_v(
-        self, nval, x=0, v0=None, ncv=None, maxiter=1000, tol=0
-    ):
+    def compute_transfer_spectrum_v(self, nval, x=0, maxiter=1000, tol=0):
         """
         Compute vertical transfer matrix spectrum for column x.
         """
         T2s = []
         T4s = []
         for y in range(self.Ly):
-            T2s.append(self._env.get_T2(x + 1, y).toarray().transpose(1, 2, 3, 0))
-            T4s.append(self._env.get_T4(x, y).toarray().transpose(1, 2, 3, 0))
+            T2s.append(self._env.get_T2(x + 1, y).permutate((1,), (2, 3, 0)))
+            T4s.append(self._env.get_T4(x, y).permutate((1, 2), (3, 0)))
         return observables.compute_mps_transfer_spectrum(
-            T2s, T4s, nval, v0=v0, ncv=ncv, maxiter=maxiter, tol=tol
+            T2s, T4s, nval, maxiter=maxiter, tol=tol
         )
 
-    def compute_corr_length_h(self, y=0, v0=None, ncv=None, maxiter=1000, tol=0):
+    def compute_corr_length_h(self, y=0, maxiter=1000, tol=0):
         """
         Compute maximal horizontal correlation length in row between y and y+1.
         """
-        v1, v2 = self.compute_transfer_spectrum_h(
-            2, y, v0=v0, ncv=ncv, maxiter=maxiter, tol=tol
-        )
+        v1, v2 = self.compute_transfer_spectrum_h(2, y=y, maxiter=maxiter, tol=tol)
         assert abs(v1 - 1.0) < 1e-11
         xi = -self.Lx / np.log(np.abs(v2))
         return xi
 
-    def compute_corr_length_v(self, x=0, v0=None, ncv=None, maxiter=1000, tol=0):
+    def compute_corr_length_v(self, x=0, maxiter=1000, tol=0):
         """
         Compute maximal vertical correlation length in column between x and x+1.
         """
-        v1, v2 = self.compute_transfer_spectrum_v(
-            2, x, v0=v0, ncv=ncv, maxiter=maxiter, tol=tol
-        )
+        v1, v2 = self.compute_transfer_spectrum_v(2, x=x, maxiter=maxiter, tol=tol)
         assert abs(v1 - 1.0) < 1e-11
         xi = -self.Ly / np.log(np.abs(v2))
         return xi
