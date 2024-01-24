@@ -508,7 +508,9 @@ class CTMRG:
             rdm_ur_cell.append(self.compute_rdm_diag_ur(x, y, free_memory=free_memory))
         return rdm_dr_cell, rdm_ur_cell
 
-    def compute_transfer_spectrum_h(self, nval, y=0, maxiter=1000, tol=0):
+    def compute_transfer_spectrum_h(
+        self, nval, y=0, dmax_full=200, maxiter=1000, tol=0
+    ):
         """
         Compute horizontal transfer matrix spectrum for row y.
         """
@@ -518,10 +520,12 @@ class CTMRG:
             T1s.append(self._env.get_T1(x, y))
             T3s.append(self._env.get_T3(x, y + 1))
         return observables.compute_mps_transfer_spectrum(
-            T1s, T3s, nval, maxiter=maxiter, tol=tol
+            T1s, T3s, nval, dmax_full=dmax_full, maxiter=maxiter, tol=tol
         )
 
-    def compute_transfer_spectrum_v(self, nval, x=0, maxiter=1000, tol=0):
+    def compute_transfer_spectrum_v(
+        self, nval, x=0, dmax_full=200, maxiter=1000, tol=0
+    ):
         """
         Compute vertical transfer matrix spectrum for column x.
         """
@@ -531,7 +535,7 @@ class CTMRG:
             T2s.append(self._env.get_T2(x + 1, y).permutate((1,), (2, 3, 0)))
             T4s.append(self._env.get_T4(x, y).permutate((1, 2), (3, 0)))
         return observables.compute_mps_transfer_spectrum(
-            T2s, T4s, nval, maxiter=maxiter, tol=tol
+            T2s, T4s, nval, dmax_full=dmax_full, maxiter=maxiter, tol=tol
         )
 
     def compute_corr_length_h(self, y=0, maxiter=1000, tol=0):
