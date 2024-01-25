@@ -141,16 +141,33 @@ for i in range(ctm_iter):
 print("done.", "#" * 79, sep="\n")
 print("Asymmetric CTMRG:")
 print(ctmAs)
+reps = ctmAs.get_corner_representations()
+print("corner representations:", *reps, sep="\n")
+
 print("\nU(1) CTMRG:")
 print(ctmU1)
+reps = ctmU1.get_corner_representations()
+print("corner representations:", *reps, sep="\n")
+
 print("\nO(2) CTMRG:")
 print(ctmO2)
+reps = ctmO2.get_corner_representations()
+print("representations", *reps, sep="\n")
+
 print("\nSU(2) SU + U(1) CTMRG:")
 print(ctmU1_fromSU2)
+reps = ctmU1_fromSU2.get_corner_representations()
+print("corner representations:", *reps, sep="\n")
+
 print("\nSU(2) SU + O(2) CTMRG:")
 print(ctmO2_fromSU2)
+reps = ctmO2_fromSU2.get_corner_representations()
+print("corner representations:", *reps, sep="\n")
+
 print("\nSU(2) CTMRG:")
 print(ctmSU2)
+reps = ctmSU2.get_corner_representations()
+print("corner representations:", *reps, sep="\n")
 
 print("", "#" * 79, sep="\n")
 print("Compute rdm2x1 and check spectra")
