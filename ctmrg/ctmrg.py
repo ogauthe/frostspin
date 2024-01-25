@@ -260,6 +260,9 @@ class CTMRG:
     def chi_values(self):
         return self._env.chi_values
 
+    def get_corner_representations(self):
+        return self._env.get_corner_representations()
+
     @property
     def elementary_tensors(self):
         return self._env.elementary_tensors

@@ -241,10 +241,31 @@ class CTM_Environment:
     @property
     def chi_values(self):
         s = set()
-        for C in self._neq_C1s + self._neq_C2s + self._neq_C3s + self._neq_C4s:
+        for C in self._neq_C1s + self._neq_C3s:
             s.add(C.shape[0])
             s.add(C.shape[1])
         return sorted(s)
+
+    def get_corner_representations(self):
+        unique = []
+        s = set()
+        for C in self._neq_C1s + self._neq_C3s:
+            r = C.row_reps[0]
+            rt = tuple(r.ravel())
+            if rt not in s:
+                s.add(rt)
+                unique.append(r)
+            r = C.col_reps[0]
+            rt = tuple(r.ravel())
+            if rt not in s:
+                s.add(rt)
+                unique.append(r)
+
+        def sortkey(r):
+            return (C.representation_dimension(r), tuple(r.ravel()))
+
+        unique = sorted(unique, key=sortkey)
+        return unique
 
     @property
     def elementary_tensors(self):
