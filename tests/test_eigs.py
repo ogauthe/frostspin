@@ -20,23 +20,31 @@ default = lg.eigvals(dense)
 default = default[np.abs(default).argsort()[::-1]]
 
 
+dtype = np.float64
 nvals = 20
 dmax_full = 10
 
 
-def get_vals(mat, dmax_full):
+def get_vals(mat, nvals, dmax_full):
     ST = type(mat)
     sig0 = mat.signature[: mat.n_row_reps]
     vals = symmetric_tensor.tools.symmetric_sparse_eigs(
-        ST, mat.row_reps, sig0, nvals, lambda st: mat @ st, rng=rng, dmax_full=dmax_full
+        ST,
+        mat.row_reps,
+        sig0,
+        nvals,
+        lambda st: mat @ st,
+        dtype=dtype,
+        rng=rng,
+        dmax_full=dmax_full,
     )
     return vals
 
 
-vsu2 = get_vals(mat_su2, dmax_full)
-vo2 = get_vals(mat_o2, dmax_full)
-vu1 = get_vals(mat_u1, dmax_full)
-vas = get_vals(mat_as, dmax_full)
+vsu2 = get_vals(mat_su2, nvals, dmax_full)
+vo2 = get_vals(mat_o2, nvals, dmax_full)
+vu1 = get_vals(mat_u1, nvals, dmax_full)
+vas = get_vals(mat_as, nvals, dmax_full)
 
 
 # due to degen, actual sizes may be larger than nvals
@@ -54,7 +62,17 @@ vals, irreps = symmetric_tensor.tools.symmetric_sparse_eigs(
     mat_su2.signature[:2],
     nvals,
     lambda st: mat_su2 @ st,
+    dtype=dtype,
     rng=rng,
     dmax_full=dmax_full,
     return_dense=False,
 )
+
+
+# pathological case: missing blocks
+inds = np.array([1, 2, 4])
+blocks = [mat_su2.blocks[i] for i in inds]
+block_irreps = mat_su2.block_irreps[inds]
+mat = ST_SU2(reps, reps, blocks, block_irreps, mat_su2.signature)
+v1 = get_vals(mat, 40, 200)
+v2 = get_vals(mat, 4, 2)
