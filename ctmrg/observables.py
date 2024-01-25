@@ -72,6 +72,7 @@ def compute_mps_transfer_spectrum(
             sig0,
             nvals,
             matmat,
+            dtype=Tup_list[0].dtype,
             dmax_full=dmax_full,
             rng=rng,
             maxiter=maxiter,
