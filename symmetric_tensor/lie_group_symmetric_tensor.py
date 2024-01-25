@@ -792,7 +792,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         ret = type(self)(
             reps[:nrr_out], reps[nrr_out:], blocks, block_irreps, signature
         )
-        assert abs(ret.norm() - self.norm()) < 1e-13 * self.norm()
+        assert abs(ret.norm() - self.norm()) <= 1e-13 * self.norm()
         return ret
 
     def update_signature(self, sign_update):
