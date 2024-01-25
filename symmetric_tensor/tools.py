@@ -39,6 +39,7 @@ def symmetric_sparse_eigs(
     sig0,
     nvals,
     matmat,
+    dtype=np.float64,
     dmax_full=100,
     rng=None,
     maxiter=4000,
@@ -57,9 +58,11 @@ def symmetric_sparse_eigs(
     sig0 : bool 1D array
         Signature for M rows
     nvals : int
-        Number of eigenvalues to compute
+        Number of eigenvalues to compute.
     matmat : callable
         Apply matrix A to a symmetric tensor
+    dtype : type
+        Scalar type. Default is np.float64.
     dmax_full : int
         Maximum block size to use dense eigvals.
     rng : numpy random generator
@@ -78,13 +81,14 @@ def symmetric_sparse_eigs(
         vals : 1D complex array
             Computed eigenvalues, as a dense array with multiplicites, sorted by
             decreasing absolute value. The last multiplet is cut to return exactly
-            nvals values.
+            nvals (dense) values.
     else:
         vals : tuple of 1D complex array
             Eigenvalues for each non empty block, sorted by decreasing absolute value.
         block_irreps : int ndarray
             Irrep for each kept block
     """
+    # 1) set parameters
     if rng is None:
         rng = np.random.default_rng(42)
 
@@ -93,9 +97,14 @@ def symmetric_sparse_eigs(
     sigm[:n] = sig0
     sigm[n:] = ~sig0
     block_irreps, block_shapes = ST.get_block_sizes(reps, reps, sigm)
-    assert all(block_shapes[:, 0] == block_shapes[:, 1])
-
     nblocks = block_shapes.shape[0]
+    assert all(block_shapes[:, 0] == block_shapes[:, 1])
+    sigv = np.ones((n + 1,), dtype=bool)
+    sigv[:-1] = sig0
+    ev_blocks = [None] * nblocks
+    abs_ev_blocks = [None] * nblocks
+
+    # 2) split matrix blocks between full and sparse
     sparse = []
     full = []
     blocks = []
@@ -107,52 +116,68 @@ def symmetric_sparse_eigs(
             sparse.append(bi)
         else:
             full.append(bi)
-            blocks.append(np.eye(block_shapes[bi, 0]))
+            blocks.append(np.eye(block_shapes[bi, 0], dtype=dtype))
 
-    sigv = np.ones((n + 1,), dtype=bool)
-    sigv[:-1] = sig0
-    ev_blocks = [None] * nblocks
-    abs_ev_blocks = [None] * nblocks
-
+    # 3) construct full matrix blocks and call dense eig on them
+    # use just one call of matmat on identity blocks to produce all blocks
     if full:
         irr_full = np.ascontiguousarray(block_irreps[full])
         rfull = ST.init_representation(block_shapes[full, 0], irr_full)
-        full_blocks = ST(reps, (rfull,), blocks, irr_full, sigv)
-        full_blocks = matmat(full_blocks)
-        for i, bi in enumerate(full):
-            ev = lg.eigvals(full_blocks.blocks[i])
+        st0 = ST(reps, (rfull,), blocks, irr_full, sigv)
+        st1 = matmat(st0)
+        for bi in full:
+            irr = block_irreps[bi]
+            bj = st1.block_irreps.searchsorted(irr)
+            if bj < st1.nblocks and st1.block_irreps[bj] == irr:
+                ev = lg.eigvals(st1.blocks[bj])
+                abs_ev = np.abs(ev)
+                so = abs_ev.argsort()[::-1]
+                ev_blocks[bi] = ev[so]
+                abs_ev_blocks[bi] = abs_ev[so]
+            else:  # missing block means eigval = 0
+                ev_blocks[bi] = np.zeros((block_shapes[full, 0],), dtype=np.complex128)
+                abs_ev_blocks[bi] = np.zeros((block_shapes[full, 0],))
+
+    # 4) for each sparse block, apply matmat to a SymmetricTensor with 1 block
+    for bi in sparse:
+        irr = block_irreps[bi]
+        block_irreps_bi = block_irreps[bi : bi + 1]
+        brep = ST.init_representation(np.ones((1,), dtype=int), block_irreps_bi)
+        sh = block_shapes[bi]
+
+        v0 = rng.normal(size=(sh[0],)).astype(dtype, copy=False)
+        st0 = ST(reps, (brep,), (v0[:, None],), block_irreps_bi, sigv)
+        st1 = matmat(st0)
+        bj = st1.block_irreps.searchsorted(irr)
+
+        # check that irr block actually appears in output
+        if bj < nblocks and st1.block_irreps[bj] == irr:
+
+            def matvec(x):
+                st0.blocks[0][:, 0] = x
+                st1 = matmat(st0)
+                y = st1.blocks[bj].ravel()  # implicitely assume bj does not depend on x
+                return y
+
+            op = slg.LinearOperator(sh, matvec=matvec, dtype=dtype)
+            k = nvals // dims[bi] + 1
+            try:
+                ev = slg.eigs(
+                    op, k=k, v0=v0, maxiter=maxiter, tol=tol, return_eigenvectors=False
+                )
+            except slg.ArpackNoConvergence as err:
+                print("ARPACK did not converge", err)
+                ev = err.eigenvalues
+                print(f"Keep {ev.size} converged eigenvalues")
+
             abs_ev = np.abs(ev)
             so = abs_ev.argsort()[::-1]
             ev_blocks[bi] = ev[so]
             abs_ev_blocks[bi] = abs_ev[so]
 
-    for bi in sparse:
-        irr = block_irreps[bi : bi + 1]
-        brep = ST.init_representation(np.ones((1,), dtype=int), irr)
-        sh = block_shapes[bi]
-
-        def matvec(x):
-            st = ST(reps, (brep,), (x[:, None],), irr, sigv)
-            st = matmat(st)
-            i = st.block_irreps.searchsorted(irr)[0]
-            return st.blocks[i].ravel()
-
-        op = slg.LinearOperator(sh, matvec=matvec)
-        v0 = rng.random((sh[0],)) - 0.5
-        k = nvals // dims[bi] + 1
-        try:
-            ev = slg.eigs(
-                op, k=k, v0=v0, maxiter=maxiter, tol=tol, return_eigenvectors=False
-            )
-        except slg.ArpackNoConvergence as err:
-            print("ARPACK did not converge", err)
-            ev = err.eigenvalues
-            print(f"Keep {ev.size} converged eigenvalues")
-
-        abs_ev = np.abs(ev)
-        so = abs_ev.argsort()[::-1]
-        ev_blocks[bi] = ev[so]
-        abs_ev_blocks[bi] = abs_ev[so]
+        else:  # missing block
+            ev_blocks[bi] = np.zeros((nvals,), dtype=np.complex128)
+            abs_ev_blocks[bi] = np.zeros((nvals,))
 
     cuts = find_chi_largest(abs_ev_blocks, nvals, dims=dims)
 
