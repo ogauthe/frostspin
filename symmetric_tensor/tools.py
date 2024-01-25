@@ -39,7 +39,7 @@ def symmetric_sparse_eigs(
     sig0,
     nvals,
     matmat,
-    dtype=np.float64,
+    dtype=None,
     dmax_full=100,
     rng=None,
     maxiter=4000,
@@ -62,7 +62,7 @@ def symmetric_sparse_eigs(
     matmat : callable
         Apply matrix A to a symmetric tensor
     dtype : type
-        Scalar type. Default is np.float64.
+        Scalar type. Default is np.complex128.
     dmax_full : int
         Maximum block size to use dense eigvals.
     rng : numpy random generator
@@ -89,6 +89,8 @@ def symmetric_sparse_eigs(
             Irrep for each kept block
     """
     # 1) set parameters
+    if dtype is None:
+        dtype = np.complex128
     if rng is None:
         rng = np.random.default_rng(42)
 
@@ -135,8 +137,8 @@ def symmetric_sparse_eigs(
                 ev_blocks[bi] = ev[so]
                 abs_ev_blocks[bi] = abs_ev[so]
             else:  # missing block means eigval = 0
-                ev_blocks[bi] = np.zeros((block_shapes[full, 0],), dtype=np.complex128)
-                abs_ev_blocks[bi] = np.zeros((block_shapes[full, 0],))
+                ev_blocks[bi] = np.zeros((block_shapes[bi, 0],), dtype=np.complex128)
+                abs_ev_blocks[bi] = np.zeros((block_shapes[bi, 0],))
 
     # 4) for each sparse block, apply matmat to a SymmetricTensor with 1 block
     for bi in sparse:
@@ -151,7 +153,7 @@ def symmetric_sparse_eigs(
         bj = st1.block_irreps.searchsorted(irr)
 
         # check that irr block actually appears in output
-        if bj < nblocks and st1.block_irreps[bj] == irr:
+        if bj < st1.nblocks and st1.block_irreps[bj] == irr:
 
             def matvec(x):
                 st0.blocks[0][:, 0] = x

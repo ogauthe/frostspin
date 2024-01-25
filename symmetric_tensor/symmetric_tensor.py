@@ -185,7 +185,6 @@ class SymmetricTensor:
         self._signature = np.ascontiguousarray(signature, dtype=bool)
         self._blocks = tuple(blocks)
         self._block_irreps = np.asarray(block_irreps)
-        assert self._nblocks > 0
         assert 0 < self._nrr < self._ndim
         assert self._signature.shape == (self.ndim,)
         assert self._block_irreps.size == self._nblocks
