@@ -157,6 +157,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
     # Non-abelian specific symmetry implementation
     ####################################################################################
     _structural_data_dic = {}
+    _unitary_dic = {}
 
     @classmethod
     def compute_clebsch_gordan_tree(cls, rep_in, signature, max_irrep=2**30):
