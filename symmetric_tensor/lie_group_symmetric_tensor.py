@@ -641,8 +641,8 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     idib = idirb[i_ir] * idicb[i_ic]
                     for bi in idib.nonzero()[0]:
                         # construct CG projector on block irrep elementary sector
+                        # see toarray fro a discussion of the contraction scheme
 
-                        # TODO do not contract block_ele_proj
                         rtree = irb_trees[i_ir, bi]
                         rtree = rtree.reshape(-1, rtree.shape[-1])
                         ctree = icb_trees[i_ic, bi].reshape(-1, rtree.shape[1])
@@ -724,7 +724,8 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         block_shifts_col = (edoc[:, None] * idocb).cumsum(axis=0)
 
         # initialize dense array
-        arr = np.zeros(self._shape, dtype=self.dtype)
+        dtype = self.dtype
+        arr = np.zeros(self._shape, dtype=dtype)
 
         # loop over row elementary blocks
         for i_or in range(idorb.shape[0]):
@@ -742,7 +743,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             # loop over column elementary blocks
             for i_oc in range(idocb.shape[0]):
                 ido = idorb[i_or].T @ idocb[i_oc]
-                if ido > 0:
+                if ido > 0:  # if this elementary block is allowed
                     ele_degen_dimensions[0, self._nrr :] = external_degen_oc[i_oc]
                     icmul = np.unravel_index(i_oc, elementary_block_cols)
                     cslices = []
@@ -755,7 +756,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                         )
                     edo = edor[i_or] * edoc[i_oc]
                     cdim = ele_degen_dimensions[1, self._nrr :].prod()
-                    ele_dense = np.zeros((rdim * cdim, edo), dtype=self.dtype)
+                    ele_dense = np.zeros((rdim * cdim, edo), dtype=dtype)
                     idob = idorb[i_or] * idocb[i_oc]
                     for bi in idob.nonzero()[0]:
                         rs = slice(
@@ -773,8 +774,39 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                         data_block = data_block.swapaxes(1, 2).reshape(idob[bi], edo)
 
                         # construct CG projector on block irrep elementary sector
-                        # TODO do not contract block_ele_proj
+                        # we start from 2 CG trees, one for the rows, one for the
+                        # columns + data_block. dimb is block irrep dimenion.
+                        #
+                        #               edor             edoc
+                        #                 \              /
+                        #                  data_ele_block
+                        #                 /              \
+                        #               idorb           idocb
+                        #
+                        #
+                        #     dimb  idorb              dimb   idocb
+                        #        \  /                     \  /
+                        #         \/                       \/
+                        #         /                        /
+                        #       ...                      ...
+                        #       /                        /
+                        #      /\                       /
+                        #     /  \                     /
+                        #    /\   \                   /\
+                        #   /  \   \                 /  \
+                        #  1    2   3 ...           1    2  ...
+                        #
+                        #
+                        # 2 ways of contracting this:
+                        # data_block * (rtree * ctree), with complexity
+                        #    prod_{r,c}(dim irr) * dim * ido
+                        #  + edo * ido * prod_{r,c}(dim irr)
+                        # or (data_block * rtree) * ctree with complexity
+                        #    prod_{r}(dim irr) * dim * edo * ido
+                        #  + edo * idocb * diim * prod_{r,c}(dim irr)
 
+                        # decision: optimize for larger edo, go for contracting
+                        # block_proj = rtree * ctree
                         rtree = orb_trees[i_or, bi]
                         rtree = rtree.reshape(-1, rtree.shape[-1])
                         ctree = ocb_trees[i_oc, bi].reshape(-1, rtree.shape[1])
