@@ -160,7 +160,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
     _unitary_dic = {}
 
     @classmethod
-    def compute_clebsch_gordan_tree(cls, rep_in, signature, max_irrep=2**30):
+    def compute_clebsch_gordan_tree(cls, rep_in, signature, target_irreps=None):
         assert len(signature) == len(rep_in)
 
         n = len(rep_in)
@@ -168,20 +168,31 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
             # add a dummy singlet and let get_projector deal with signature
             rep_in = [rep_in[0], np.ones((2, 1), dtype=int)]
             signature = [signature[0], False]
+            n = 2
 
         # remove irreps that wont fuse to max_irrep
-        trunc = max_irrep + sum(r[1, -1] for r in rep_in[2:])
+        # too complicate to prune all non-contributing irreps at every stage
+        # just prune spins larger than max_spin(product spins left)
+        # should give the same pruning in most cases
+        if target_irreps is None:
+            max_irrep = 2**30
+        else:
+            max_irrep = target_irreps[-1] + sum(r[1, -1] for r in rep_in[2:]) - n + 2
 
         nr, p = _get_projector(
-            rep_in[0], rep_in[1], signature[0], signature[1], max_irrep=trunc
+            rep_in[0], rep_in[1], signature[0], signature[1], max_irrep=max_irrep
         )
         if nr.size == 0:  # pathological case where no irrep is kept
-            return nr, np.zeros((np.prod([r[0] @ r[1] for r in rep_in]), 0))
+            return nr, np.zeros((p.shape[0] * p.shape[1], 0))
 
         proj = p
         for i in range(2, n):
-            trunc += rep_in[i][1, -1]
-            nr, p = _get_projector(nr, rep_in[i], False, signature[i], max_irrep=trunc)
+            max_irrep -= rep_in[i][1, -1] - 1
+            nr, p = _get_projector(
+                nr, rep_in[i], False, signature[i], max_irrep=max_irrep
+            )
+            if nr.size == 0:  # pathological case where no irrep is kept
+                return nr, np.zeros((p.shape[0] * p.shape[1], 0))
             proj = proj.reshape(-1, p.shape[0]) @ p.reshape(p.shape[0], -1)
         proj = proj.reshape(-1, p.shape[2])
         return nr, proj
