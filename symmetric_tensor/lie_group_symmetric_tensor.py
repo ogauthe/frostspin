@@ -106,7 +106,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
     # Lie group shared symmetry implementation
     ####################################################################################
     @classmethod
-    def compute_clebsch_gordan_tree(cls, rep_in, signature, max_irrep=2**30):
+    def compute_clebsch_gordan_tree(cls, rep_in, signature, target_irreps=None):
         r"""
         Construct chained Clebsch-Gordan fusion tensor for representations *rep_in with
         signatures signatures. Truncate final representation at max_irrep.
@@ -128,15 +128,14 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             SU(2) representations to fuse.
         signature : (n,) bool array
             Representation signatures.
-        max_irrep : int
-            Dimension of maximal irrep to consider in the total product. Irreps larger
-            than max_irrep will be truncated. Default is 2**30, i.e. no truncation.
+        target_irreps : int array
+            Limit number of computed CG trees by targetting some irreps only.
 
         Returns
         -------
         ret : 2D float array
             CG projector fusing rep_in on sum of irreps, truncated up to max_irrep.
-            Reshaped as a 2D matrix.
+            Reshaped as a 2D matrix (input_dimension, output_dimension).
         """
         raise NotImplementedError("Must be defined in derived class")
 
@@ -165,7 +164,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         """
         # assume irrep is just one integer
         # do not assume irrep = dimension(irrep)
-        if target_irreps is None:
+        if target_irreps is None:  # keep all irreps
             total_rep = cls.combine_representations(reps, signature)
             target_irreps = total_rep[1]
 
@@ -174,7 +173,6 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         n_irreps = len(target_irreps)
         internal_degeneracies = np.zeros((n_ele_blocks, n_irreps), dtype=int)
         ele_trees = np.empty((n_ele_blocks, n_irreps), dtype=object)
-        max_irrep = target_irreps[-1]
 
         for i_ele in range(n_ele_blocks):
             # construct CG tree for this elementary block
@@ -186,7 +184,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             # we cannot know it here as we are still symmetry-agnostic
             # cls.compute_clebsch_gordan_tree must detect it and return rep = [[], []]
             rep, tree = cls.compute_clebsch_gordan_tree(
-                ele_reps, signature, max_irrep=max_irrep
+                ele_reps, signature, target_irreps=target_irreps
             )
 
             # slice according to irrep sectors
