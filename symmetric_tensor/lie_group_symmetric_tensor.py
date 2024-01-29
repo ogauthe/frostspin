@@ -402,6 +402,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             idicb,
             idorb,
             idocb,
+            block_irreps_out,
             isometry_in_blocks,
         )
         return structual_data
@@ -500,6 +501,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             idicb,
             idorb,
             idocb,
+            block_irreps_out,
             isometry_in_blocks,
         ) = structural_data
 
@@ -512,6 +514,14 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         edic = external_degen_ic.prod(axis=1)
         edor = external_degen_or.prod(axis=1)
         edoc = external_degen_oc.prod(axis=1)
+
+        nblocks_out = len(block_irreps_out)
+        assert idorb.shape[1] == nblocks_out
+        assert idocb.shape[1] == nblocks_out
+        assert external_degen_or.shape[0] == idorb.shape[0]
+        assert external_degen_oc.shape[0] == idocb.shape[0]
+        assert external_degen_ir.shape[0] == idirb.shape[0]
+        assert external_degen_ic.shape[0] == idicb.shape[0]
 
         assert self._nblocks <= idirb.shape[1]
         if self._nblocks < idirb.shape[1]:  # if a block is missing
@@ -531,11 +541,10 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         slices_oc = (edoc[:, None] * idocb).cumsum(axis=0)
 
         # need to initalize blocks_out in case of missing blocks_in
-        block_irreps_out, block_shapes_out = self.get_block_sizes(
-            out_row_reps, out_col_reps, self._signature[axes]
-        )
-        blocks_out = tuple(np.zeros(sh, dtype=self.dtype) for sh in block_shapes_out)
-        nblocks_out = len(blocks_out)
+        rshb = slices_or[-1]
+        cshb = slices_oc[-1]
+        dtype = self.dtype
+        blocks_out = tuple(np.zeros(sh, dtype=dtype) for sh in zip(rshb, cshb))
 
         data_perm = (0, self._nrr + 1, *(axes + 1 + (axes >= self._nrr)))
 
@@ -552,7 +561,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             ed = edor_ele * edoc_ele
             assert ed == edir_ele * edic_ele
 
-            out_data = np.zeros((idorb[i_or] @ idocb[i_oc], ed), dtype=self.dtype)
+            out_data = np.zeros((idorb[i_or] @ idocb[i_oc], ed), dtype=dtype)
 
             for ib_self, ibi in enumerate(block_inds):  # missing blocks are filtered
                 idib = idirb[i_ir, ibi] * idicb[i_ic, ibi]
