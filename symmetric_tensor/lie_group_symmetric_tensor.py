@@ -222,14 +222,15 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         structural data
         """
         # Purely structural. Can be precomputed.
+        # could also be a classmethod with key as input
 
+        in_reps = self._row_reps + self._col_reps
         block_irreps_in, _ = self.get_block_sizes(
             self._row_reps, self._col_reps, self._signature
         )
         nblocks_in = len(block_irreps_in)
 
         out_signature = self._signature[axes]
-        in_reps = self._row_reps + self._col_reps
         out_row_reps = tuple(in_reps[i] for i in axes[:nrr_out])
         out_col_reps = tuple(in_reps[i] for i in axes[nrr_out:])
         block_irreps_out, _ = self.get_block_sizes(
@@ -237,51 +238,31 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         )
         nblocks_out = len(block_irreps_out)
 
-        # precompute CG trees
-        # a few ones may never be used (think elementary row block with only
-        # half-integer spin row when all elementary column blocks are integer spins)
-        # do not bother pruning them, max_irrep already limits tree cost
-        idirb, irb_trees = self.sliced_elementary_trees(
-            self._row_reps, self._signature[: self._nrr], target_irreps=block_irreps_in
-        )
-        idicb, icb_trees = self.sliced_elementary_trees(
-            self._col_reps, ~self._signature[self._nrr :], target_irreps=block_irreps_in
-        )
-        idorb, orb_trees = self.sliced_elementary_trees(
-            out_row_reps, out_signature[:nrr_out], target_irreps=block_irreps_out
-        )
-        idocb, ocb_trees = self.sliced_elementary_trees(
-            out_col_reps, ~out_signature[nrr_out:], target_irreps=block_irreps_out
-        )
-        assert (idirb @ idicb.T).sum() == (idorb @ idocb.T).sum()  # coefficient number
-
-        # indices of elementary blocks authorized by symmetry
-        contribute_ele = (idirb @ idicb.T).ravel().nonzero()[0]
-        n_ele = contribute_ele.size
-
-        # we need to find the row and col indices of these elementary blocks in OUT
         elementary_block_per_axis = np.array([r.shape[1] for r in in_reps])
-        ncol_blocks_in = elementary_block_per_axis[self._nrr :].prod()
-        ele_indices = np.empty((4, n_ele), dtype=int)
-        ele_indices[:2] = np.divmod(contribute_ele, ncol_blocks_in)
-        mul = np.array(np.unravel_index(contribute_ele, elementary_block_per_axis))
-        strides = np.zeros((2, self._ndim), dtype=int)
-        s = 1
-        for i in reversed(range(nrr_out)):
-            strides[0, axes[i]] = s
-            s *= elementary_block_per_axis[axes[i]]
-        s = 1
-        for i in reversed(range(nrr_out, self._ndim)):
-            strides[1, axes[i]] = s
-            s *= elementary_block_per_axis[axes[i]]
-        ele_indices[2:] = strides @ mul
-        ele_indices = ele_indices.T.copy()
+        n_ele_ri = elementary_block_per_axis[: self._nrr].prod()
+        n_ele_ci = elementary_block_per_axis[self._nrr :].prod()
+        n_ele_ro = elementary_block_per_axis[axes[:nrr_out]].prod()
+        n_ele_co = elementary_block_per_axis[axes[nrr_out:]].prod()
 
-        # normalizing factor
-        dims_out = [self.irrep_dimension(irr) for irr in block_irreps_out]
+        idirb = np.zeros((n_ele_ri, nblocks_in), dtype=int)
+        idicb = np.zeros((n_ele_ci, nblocks_in), dtype=int)
+        idorb = np.zeros((n_ele_ro, nblocks_out), dtype=int)
+        idocb = np.zeros((n_ele_co, nblocks_out), dtype=int)
+        cg_trees_ri = [None] * n_ele_ri
+        cg_trees_ci = [None] * n_ele_ci
+        cg_trees_ro = [None] * n_ele_ro
+        cg_trees_co = [None] * n_ele_co
+        ele_indices = []
+
+        key0 = np.empty((2 * self._ndim + 3,), dtype=np.int64)
+        key0[0] = self._nrr
+        key0[1] = nrr_out
+        key0[2] = int(2 ** np.arange(self._ndim) @ self._signature)
+        key0[3 : self._ndim + 3] = axes
+        key_shift = self._ndim + 3
 
         # convention: return elementary unitary blocked sliced for IN irrep blocks
-        isometry_in_blocks = np.empty((n_ele, nblocks_in), dtype=object)
+        isometry_blocks = []
 
         # need to add idirb and idicb axes in permutation
         perm = np.empty((self._ndim + 2,), dtype=int)
@@ -289,103 +270,131 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         perm[self._ndim] = self._nrr
         perm[self._ndim + 1] = self._ndim + 1
 
-        key0 = np.empty((2 * self._ndim + 3,), dtype=np.int64)
-        key0[0] = int(2 ** np.arange(self._ndim) @ self._signature)
-        key0[1] = self._nrr
-        key0[2] = nrr_out
-        key0[3 : self._ndim + 3] = axes
-        key_rshift = self._ndim + 3
-        key_cshift = self._ndim + self._nrr + 3
+        # strides to recover ir/ic_in/out from i_ele
+        strides = np.zeros((4, self._ndim), dtype=int)
+        strides[0, self._nrr - 1] = 1
+        for i in reversed(range(1, self._nrr)):
+            strides[0, i - 1] = elementary_block_per_axis[i] * strides[0, i]
+        strides[1, self._ndim - 1] = 1
+        for i in reversed(range(self._nrr + 1, self._ndim)):
+            strides[1, i - 1] = elementary_block_per_axis[i] * strides[1, i]
+        strides[2, axes[nrr_out - 1]] = 1
+        for i in reversed(range(1, nrr_out)):
+            strides[2, axes[i - 1]] = (
+                elementary_block_per_axis[axes[i]] * strides[2, axes[i]]
+            )
+        strides[3, axes[self._ndim - 1]] = 1
+        for i in reversed(range(nrr_out + 1, self._ndim)):
+            strides[3, axes[i - 1]] = (
+                elementary_block_per_axis[axes[i]] * strides[3, axes[i]]
+            )
 
-        for i_ele in range(n_ele):
-            ir_in, ic_in, ir_out, ic_out = ele_indices[i_ele]
+        sig_ri = self._signature[: self._nrr]
+        sig_ci = ~self._signature[self._nrr :]
+        sig_ro = self._signature[axes[:nrr_out]]
+        sig_co = ~self._signature[axes[nrr_out:]]
 
-            # TODO remove singlets, adjust perm and signature
-            i_mul = np.unravel_index(ir_in, elementary_block_per_axis[: self._nrr])
-            for i in range(self._nrr):
-                key0[key_rshift + i] = self._row_reps[i][1, i_mul[i]]
-            i_mul = np.unravel_index(ic_in, elementary_block_per_axis[self._nrr :])
-            for i in range(self._ndim - self._nrr):
-                key0[key_cshift + i] = self._col_reps[i][1, i_mul[i]]
-            key = tuple(key0)
+        for i_ele in range(n_ele_ri * n_ele_ci):
+            i_mul = np.array(np.unravel_index(i_ele, elementary_block_per_axis))
+            reps_ei = tuple(
+                np.array([[1], [r[1, i_mul[i]]]]) for i, r in enumerate(in_reps)
+            )
+            ri_rep = self.combine_representations(reps_ei[: self._nrr], sig_ri)
+            ci_rep = self.combine_representations(reps_ei[self._nrr :], sig_ci)
+            shared_ri = (ri_rep[1, :, None] == ci_rep[1]).nonzero()[0]
 
-            ele_in_binds = (idirb[ir_in] * idicb[ic_in]).nonzero()[0]
-            n_ele_in_blocks = ele_in_binds.size
-            try:
-                ele_unitary_blocks = self._unitary_dic[key]
-            except KeyError:  # compute unitary matrix for this elementary block
-                ele_unitary_blocks = [None] * n_ele_in_blocks
+            if shared_ri.size:  # if the block contributes
+                ele_inds = strides @ i_mul
+                ir_in, ic_in, ir_out, ic_out = ele_inds
+                ele_indices.append(ele_inds)
+                irreps_in_ele = ri_rep[1, shared_ri]
+                ele_in_binds = (irreps_in_ele[:, None] == block_irreps_in).nonzero()[1]
+                reps_ero = tuple(reps_ei[i] for i in axes[:nrr_out])
+                reps_eco = tuple(reps_ei[i] for i in axes[nrr_out:])
 
-                # precompute OUT singlet projector for all OUT block irreps that appear
-                # here we use nblocks_out (=for full tensor) for simplicity,
-                # although the number of out blocks for this i_ele could be smaller
-                out_block_indices = (idorb[ir_out] * idocb[ic_out]).nonzero()[0]
-                out_proj_block = [None] * nblocks_out
-                for bi in out_block_indices:
-                    rtree = orb_trees[ir_out, bi]  # shape (*dim_ele_r, idorb, irr)
-                    ctree = ocb_trees[ic_out, bi]  # shape (*dim_ele_c, idocb, irr)
-                    dim = rtree.shape[-1]  # dim(irrep)
-                    rt = rtree.reshape(-1, dim)  # shape (dim_ele_r * idorb, irrep_dim)
-                    ct = ctree.reshape(-1, dim)  # shape (irrep_dim, dim_ele_c * idocb)
-                    block_proj = (
-                        rt @ ct.T
-                    )  # shape (dim_ele_r * idorb, dim_ele_c * idocb)
-                    sh = (
-                        rt.shape[0] // rtree.shape[-2],
-                        rtree.shape[-2],
-                        ct.shape[0] // ctree.shape[-2],
-                        ctree.shape[-2],
+                if not idirb[ir_in].any():
+                    inds_e, inds_f = (ri_rep[1, :, None] == block_irreps_in).nonzero()
+                    idirb[ir_in, inds_f] = ri_rep[0, inds_e]
+                if not idicb[ic_in].any():
+                    inds_e, inds_f = (ci_rep[1, :, None] == block_irreps_in).nonzero()
+                    idicb[ic_in, inds_f] = ci_rep[0, inds_e]
+                if not idorb[ir_out].any():
+                    ro_rep = self.combine_representations(reps_ero, sig_ro)
+                    inds_e, inds_f = (ro_rep[1, :, None] == block_irreps_out).nonzero()
+                    idorb[ir_out, inds_f] = ro_rep[0, inds_e]
+                if not idocb[ic_out].any():
+                    co_rep = self.combine_representations(reps_eco, sig_co)
+                    inds_e, inds_f = (co_rep[1, :, None] == block_irreps_out).nonzero()
+                    idocb[ic_out, inds_f] = co_rep[0, inds_e]
+
+                # TODO remove singlets, adjust perm and signature
+                for i in range(self._ndim):
+                    key0[key_shift + i] = reps_ei[i][1, 0]
+                key = tuple(key0)
+
+                try:  # maybe we already computed the unitary
+                    ele_unitary = self._unitary_dic[key]
+                except KeyError:
+                    # we need to use block_irreps_in as target irreps, not ele_irreps_in
+                    # as some block may be absent in ic_in, but not for ic_in + 1
+                    if cg_trees_ri[ir_in] is None:
+                        idirb_e, trees = self.sliced_elementary_trees(
+                            reps_ei[: self._nrr],
+                            sig_ri,
+                            target_irreps=block_irreps_in,
+                        )
+                        cg_trees_ri[ir_in] = trees[0]  # only 1 ele block
+                        assert (idirb_e == idirb[ir_in]).all()
+                    if cg_trees_ci[ic_in] is None:
+                        idicb_e, trees = self.sliced_elementary_trees(
+                            reps_ei[self._nrr :],
+                            sig_ci,
+                            target_irreps=block_irreps_in,
+                        )
+                        cg_trees_ci[ic_in] = trees[0]
+                        assert (idicb_e == idicb[ic_in]).all()
+                    if cg_trees_ro[ir_out] is None:
+                        idorb_e, trees = self.sliced_elementary_trees(
+                            reps_ero,
+                            sig_ro,
+                            target_irreps=block_irreps_out,
+                        )
+                        cg_trees_ro[ir_out] = trees[0]
+                        assert (idorb_e == idorb[ir_out]).all()
+                    if cg_trees_co[ic_out] is None:
+                        idocb_e, trees = self.sliced_elementary_trees(
+                            reps_eco,
+                            sig_co,
+                            target_irreps=block_irreps_out,
+                        )
+                        assert (idocb_e == idocb[ic_out]).all()
+                        cg_trees_co[ic_out] = trees[0]
+
+                    ele_unitary = self.overlap_cg_trees(
+                        cg_trees_ri[ir_in],
+                        cg_trees_ci[ic_in],
+                        cg_trees_ro[ir_out],
+                        cg_trees_co[ic_out],
+                        perm,
                     )
-                    block_proj = block_proj.reshape(sh).swapaxes(1, 2)
-                    nsh = (
-                        sh[0] * sh[2],
-                        sh[1] * sh[3],
-                    )  # shape (dim_ele, idorb * idocb)
-                    out_proj_block[bi] = block_proj.reshape(nsh).T
+                    # save elementary block unitary for later
+                    self._unitary_dic[key] = ele_unitary
 
-                for i in range(n_ele_in_blocks):
+                assert idirb[ir_in] @ idicb[ic_in] == idorb[ir_out] @ idocb[ic_out]
+                # map ele in_blocks_index to full tensor in_blocks_index
+                unitary_blocks = [None] * nblocks_in
+                for i, eub in enumerate(ele_unitary):
                     bi_in = ele_in_binds[i]
-                    rtree = irb_trees[ir_in, bi_in]
-                    ctree = icb_trees[ic_in, bi_in]
-                    irrep_dim = rtree.shape[-1]
-                    rt = rtree.reshape(-1, irrep_dim)
-                    ct = ctree.reshape(-1, irrep_dim)
-                    block_proj = (
-                        rt @ ct.T
-                    )  # shape (dim_ele_r * idirb, dim_ele_c * idicb)
-                    sh = rtree.shape[:-1] + ctree.shape[:-1]
-                    swapped = block_proj.reshape(sh).transpose(perm)
-                    swapped = swapped.reshape(-1, rtree.shape[-2] * ctree.shape[-2])
+                    unitary_blocks[bi_in] = eub
+                isometry_blocks.append(unitary_blocks)
 
-                    sh = (
-                        idorb[ir_out] @ idocb[ic_out],
-                        idirb[ir_in, bi_in] * idicb[ic_in, bi_in],
-                    )
-                    isometry_bi = np.empty(sh)
-
-                    k = 0
-                    for bi_out in out_block_indices:
-                        d = idorb[ir_out, bi_out] * idocb[ic_out, bi_out]
-                        isometry = out_proj_block[bi_out] @ swapped
-                        # not a unitary: not square + sqrt(irrep_dim) not included
-                        # with sqrt(irrep) and packed with matrices from other irrep
-                        # blocks it becomes unitary => coefficients are of order 1,
-                        # it is safe to delete numerical zeros according to absolute
-                        # tolerance
-                        isometry[np.abs(isometry) < 1e-14] = 0
-                        isometry_bi[k : k + d] = isometry / dims_out[bi_out]
-                        k += d
-
-                    assert k == isometry_bi.shape[0]
-                    ele_unitary_blocks[i] = isometry_bi
-
-                # save elementary block unitary for later
-                self._unitary_dic[key] = ele_unitary_blocks
-
-            # map ele in_blocks_index to full tensor in_blocks_index
-            for i in range(n_ele_in_blocks):
-                bi_in = ele_in_binds[i]
-                isometry_in_blocks[i_ele, bi_in] = ele_unitary_blocks[i]
+        ele_indices = np.array(ele_indices)
+        isometry_in_blocks = np.empty((ele_indices.shape[0], nblocks_in), dtype=object)
+        isometry_in_blocks[:] = isometry_blocks
+        assert (
+            (idirb[ele_indices[:, 0]] * idicb[ele_indices[:, 1]]).sum(axis=1)
+            == (idorb[ele_indices[:, 2]] * idocb[ele_indices[:, 3]]).sum(axis=1)
+        ).all(), "number of coefficient not conserved"
 
         structual_data = (
             ele_indices,
@@ -396,6 +405,83 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             isometry_in_blocks,
         )
         return structual_data
+
+    @classmethod
+    def overlap_cg_trees(
+        cls,
+        cg_ri,
+        cg_ci,
+        cg_ro,
+        cg_co,
+        perm,
+    ):
+        # cg_ri and cg_ci are list of trees sliced by irrep. The length for out may be
+        # larger than the number of allowed block irreps.
+        # if a given irrep appears only in at least one of the two trees ouptut, the
+        # tree will be replaced by None.
+        # ri trees have shape (*dim_ele_r, idirb, irr)
+        assert len(cg_ri) == len(cg_ci)
+        n_blocks_in = len(cg_ri)
+        ele_unitary_blocks = []
+
+        # precompute out block_proj
+        assert len(cg_ro) == len(cg_co)
+        out_proj_block = []
+        dims_out = []
+        di = 0
+        for rtree, ctree in zip(cg_ro, cg_co):
+            if rtree is not None and ctree is not None:
+                assert rtree.shape[-1] == ctree.shape[-1]
+                dim = rtree.shape[-1]  # dim(irrep)
+                dims_out.append(dim)
+                rt = rtree.reshape(-1, dim)  # shape (dim_ele_r * idorb, irrep_dim)
+                ct = ctree.reshape(-1, dim)  # shape (irrep_dim, dim_ele_c * idocb)
+                proj_ob = rt @ ct.T  # shape (dim_ele_r * idorb, dim_ele_c * idocb)
+                sh = (
+                    rt.shape[0] // rtree.shape[-2],
+                    rtree.shape[-2],
+                    ct.shape[0] // ctree.shape[-2],
+                    ctree.shape[-2],
+                )
+                proj_ob = proj_ob.reshape(sh).swapaxes(1, 2)
+                nsh = (sh[0] * sh[2], sh[1] * sh[3])  # shape (dim_ele, idorb * idocb)
+                out_proj_block.append(proj_ob.reshape(nsh).T)
+                di += nsh[1]
+
+        n_blocks_out = len(dims_out)
+        for bi_in in range(n_blocks_in):
+            rtree = cg_ri[bi_in]  # shape (*dim_ele_r, idirb, irr)
+            ctree = cg_ci[bi_in]  # shape (*dim_ele_c, idicb, irr)
+            if rtree is not None and ctree is not None:
+                assert rtree.shape[-1] == ctree.shape[-1]
+                irrep_dim = rtree.shape[-1]
+                rt = rtree.reshape(-1, irrep_dim)
+                ct = ctree.reshape(-1, irrep_dim)
+                proj_ib = rt @ ct.T  # shape (dim_ele_r * idirb, dim_ele_c * idicb)
+                sh = rtree.shape[:-1] + ctree.shape[:-1]
+                proj_ib = proj_ib.reshape(sh).transpose(perm)
+                proj_ib = proj_ib.reshape(-1, rtree.shape[-2] * ctree.shape[-2])
+
+                sh = (di, proj_ib.shape[1])
+                isometry_bi = np.empty(sh)
+
+                k = 0
+                for bi_out in range(n_blocks_out):
+                    isometry = out_proj_block[bi_out] @ proj_ib
+                    # not a unitary: not square + sqrt(irrep_dim) not included
+                    # with sqrt(irrep) and packed with matrices from other irrep
+                    # blocks it becomes unitary => coefficients are of order 1,
+                    # it is safe to delete numerical zeros according to absolute
+                    # tolerance
+                    isometry[np.abs(isometry) < 1e-14] = 0
+                    dbo = isometry.shape[0]
+                    isometry_bi[k : k + isometry.shape[0]] = isometry / dims_out[bi_out]
+                    k += dbo
+
+                assert k == isometry_bi.shape[0]
+                ele_unitary_blocks.append(isometry_bi)
+
+        return ele_unitary_blocks
 
     def _transpose_data(self, axes, nrr_out, structural_data):
         """
@@ -847,7 +933,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             return self
 
         si = int(2 ** np.arange(self._ndim) @ self._signature)
-        key = [self._ndim, self._nrr, si, nrr_out, *axes]
+        key = [self._ndim, self._nrr, nrr_out, si, *axes]
         for r in self._row_reps + self._col_reps:
             key.append(r.shape[1])
             key.extend(r[1:].ravel())
