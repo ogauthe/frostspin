@@ -58,7 +58,7 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
         """
         # do not use sorting: bruteforce numpy > clever python
         row_tot = cls.combine_representations(row_reps, signature[: len(row_reps)])
-        col_tot = cls.combine_representations(col_reps, signature[len(row_reps) :])
+        col_tot = cls.combine_representations(col_reps, ~signature[len(row_reps) :])
         rinds, cinds = (row_tot[1, :, None] == col_tot[1]).nonzero()
         block_irreps = np.empty((rinds.size,), dtype=int)
         block_shapes = np.empty((rinds.size, 2), dtype=np.int64)
