@@ -904,16 +904,16 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                         #     /  \                     /
                         #    /\   \                   /\
                         #   /  \   \                 /  \
-                        #  1    2   3 ...           1    2  ...
+                        #  i1   i2  i3 ...          i4   i5  ...
                         #
                         #
                         # 2 ways of contracting this:
                         # data_block * (rtree * ctree), with complexity
-                        #    prod_{r,c}(dim irr) * dim * ido
+                        #    prod_{r,c}(dim i_k) * dimb * ido
                         #  + edo * ido * prod_{r,c}(dim irr)
                         # or (data_block * rtree) * ctree with complexity
-                        #    prod_{r}(dim irr) * dim * edo * ido
-                        #  + edo * idocb * diim * prod_{r,c}(dim irr)
+                        #    prod_{r}(dim i_k) * dimb * edo * ido
+                        #  + edo * idocb * dimb * prod_{r,c}(dim irr)
 
                         # decision: optimize for larger edo, go for contracting
                         # block_proj = rtree * ctree
