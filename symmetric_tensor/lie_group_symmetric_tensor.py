@@ -255,11 +255,11 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         ele_indices = []
 
         key0 = np.empty((2 * self._ndim + 3,), dtype=np.int64)
-        key0[0] = self._nrr
-        key0[1] = nrr_out
-        key0[2] = int(2 ** np.arange(self._ndim) @ self._signature)
-        key0[3 : self._ndim + 3] = axes
-        key_shift = self._ndim + 3
+        key0[self._ndim] = self._nrr
+        key0[self._ndim + 1] = nrr_out
+        key0[self._ndim + 2] = (1 << np.arange(self._ndim)) @ self._signature
+        key0[self._ndim + 3 :] = axes
+        singlet = self.singlet[1, 0]
 
         # convention: return elementary unitary blocked sliced for IN irrep blocks
         isometry_blocks = []
@@ -296,9 +296,11 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
         for i_ele in range(n_ele_ri * n_ele_ci):
             i_mul = np.array(np.unravel_index(i_ele, elementary_block_per_axis))
-            reps_ei = tuple(
-                np.array([[1], [r[1, i_mul[i]]]]) for i, r in enumerate(in_reps)
-            )
+            reps_ei = [None] * self._ndim
+            for i in range(self._ndim):
+                irr = in_reps[i][1, i_mul[i]]
+                reps_ei[i] = np.array([[1], [irr]])
+                key0[i] = irr
             ri_rep = self.combine_representations(reps_ei[: self._nrr], sig_ri)
             ci_rep = self.combine_representations(reps_ei[self._nrr :], sig_ci)
             shared_ri = (ri_rep[1, :, None] == ci_rep[1]).nonzero()[0]
@@ -327,10 +329,25 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     inds_e, inds_f = (co_rep[1, :, None] == block_irreps_out).nonzero()
                     idocb[ic_out, inds_f] = co_rep[0, inds_e]
 
-                # TODO remove singlets, adjust perm and signature
-                for i in range(self._ndim):
-                    key0[key_shift + i] = reps_ei[i][1, 0]
-                key = tuple(key0)
+                # prune singlets
+                kept = (key0[: self._ndim] != singlet).nonzero()[0]
+                if kept.size == self._ndim:
+                    key = tuple(key0)
+                else:
+                    nrr_kept = (kept < self._nrr).sum()
+                    sig_kept = (1 << np.arange(kept.size)) @ self._signature[kept]
+                    kept_axes = axes.argsort()[kept]
+                    nrr_out_kept = (kept_axes < nrr_out).sum()
+                    kept_perm = kept_axes.argsort()
+
+                    # get a new key corresponding to same reps and perm without singlet
+                    key = (
+                        *key0[kept],
+                        nrr_kept,
+                        nrr_out_kept,
+                        sig_kept,
+                        *kept_perm,
+                    )
 
                 try:  # maybe we already computed the unitary
                     ele_unitary = self._unitary_dic[key]
@@ -941,7 +958,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         if nrr_out == self._nrr and (axes == trivial).all():
             return self
 
-        si = int(2 ** np.arange(self._ndim) @ self._signature)
+        si = (1 << np.arange(self._ndim)) @ self._signature
         key = [self._ndim, self._nrr, nrr_out, si, *axes]
         for r in self._row_reps + self._col_reps:
             key.append(r.shape[1])
