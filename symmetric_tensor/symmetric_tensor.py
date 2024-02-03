@@ -4,6 +4,12 @@ import scipy.linalg as lg
 from misc_tools.svd_tools import sparse_svd, find_chi_largest
 from symmetric_tensor.diagonal_tensor import DiagonalTensor
 
+if __debug__:
+    print("\nWarning: assert statement are activated")
+    print("They may significantly impact performances")
+    print("Consider running the code in optimized mode with python -O")
+    print()
+
 print("\n *** DEV MODE ***\n")
 
 # choices are made to make code light and fast:
