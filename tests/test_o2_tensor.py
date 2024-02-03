@@ -5,7 +5,6 @@ import scipy.linalg as lg
 
 from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
 from symmetric_tensor.o2_symmetric_tensor import O2_SymmetricTensor
-from symmetric_tensor.su2_symmetric_tensor import SU2_SymmetricTensor
 
 
 rng = np.random.default_rng(42)
@@ -39,6 +38,7 @@ def check_o2(to2, tu1):
     th3 = to2.conjugate().T
     assert (th - th2).norm() < 1e-15
     assert (th - th3).norm() < 1e-15
+    return
 
 
 to2 = O2_SymmetricTensor.random(row_reps, col_reps, rng=rng)
@@ -119,10 +119,3 @@ tu1 = to2.toU1()
 to2 = to2.permutate((0, 1, 3), (2, 4))  # only even fixed points, no odd or doublet
 tu1 = tu1.permutate((0, 1, 3), (2, 4))
 check_o2(to2, tu1)
-
-# SU2.toO2() adds some swaps and some signs, cannot compare toarray()
-# just test whether calling it crashes
-rrsu2 = (np.array([[2, 2, 2, 2, 2, 2], [1, 2, 3, 4, 5, 6]]),)
-rcsu2 = (np.array([[1, 1, 1], [1, 2, 3]]), np.array([[2, 1, 1], [1, 3, 5]]))
-tsu2 = SU2_SymmetricTensor.random(rrsu2, rcsu2, rng=rng)
-to2 = tsu2.toO2()

@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+"""
+Run simple update for the Heisenberg model on the square lattice
+"""
+
 import numpy as np
 import scipy.linalg as lg
 
@@ -10,9 +14,9 @@ from symmetric_tensor.asymmetric_tensor import AsymmetricTensor
 from simple_update.simple_update import SimpleUpdate
 from ctmrg.ctmrg import CTMRG
 
-d = 2
-tau = 0.01
-beta = 1.0
+d = 2  # d=2 for spin 1/2, change to d=3 for spin 1
+tau = 0.01  # imaginary time step
+beta = 1.0  # inverse temperature
 params = {"degen_ratio": 0.99, "cutoff": 1e-10}
 
 
