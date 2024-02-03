@@ -4,6 +4,12 @@ import scipy.linalg as lg
 from misc_tools.svd_tools import sparse_svd, find_chi_largest
 from symmetric_tensor.diagonal_tensor import DiagonalTensor
 
+if __debug__:
+    print("\nWarning: assert statement are activated")
+    print("They may significantly impact performances")
+    print("Consider running the code in optimized mode with python -O")
+    print()
+
 # choices are made to make code light and fast:
 # irreps are labelled by integers (non-simple groups need another class using lexsort)
 # axes are grouped into either row or colum axes to define block-diagonal matrices
