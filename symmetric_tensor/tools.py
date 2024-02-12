@@ -137,7 +137,7 @@ def symmetric_sparse_eigs(
                 ev_blocks[bi] = ev[so]
                 abs_ev_blocks[bi] = abs_ev[so]
             else:  # missing block means eigval = 0
-                ev_blocks[bi] = np.zeros((block_shapes[bi, 0],), dtype=np.complex128)
+                ev_blocks[bi] = np.zeros((block_shapes[bi, 0],), dtype=dtype)
                 abs_ev_blocks[bi] = np.zeros((block_shapes[bi, 0],))
 
     # 4) for each sparse block, apply matmat to a SymmetricTensor with 1 block
@@ -178,13 +178,13 @@ def symmetric_sparse_eigs(
             abs_ev_blocks[bi] = abs_ev[so]
 
         else:  # missing block
-            ev_blocks[bi] = np.zeros((nvals,), dtype=np.complex128)
+            ev_blocks[bi] = np.zeros((nvals,), dtype=dtype)
             abs_ev_blocks[bi] = np.zeros((nvals,))
 
     cuts = find_chi_largest(abs_ev_blocks, nvals, dims=dims)
 
     if return_dense:
-        vals = np.empty((cuts @ dims,), dtype=np.complex128)
+        vals = np.empty((cuts @ dims,), dtype=dtype)
         k = 0
         for bi in range(nblocks):
             bv = ev_blocks[bi][: cuts[bi]]
