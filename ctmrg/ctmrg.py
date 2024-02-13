@@ -269,7 +269,7 @@ class CTMRG:
 
     @property
     def n_sites(self):
-        return self._env.Nneq
+        return self._env.n_sites
 
     @property
     def symmetry(self):
