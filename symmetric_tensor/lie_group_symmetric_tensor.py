@@ -1,6 +1,5 @@
 import numpy as np
 import scipy.linalg as lg
-import scipy.sparse as ssp
 import numba
 
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
@@ -69,6 +68,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
     @classmethod
     def load_isometries(cls, savefile):
         raise NotImplementedError("TODO!")
+        """
         with np.load(savefile) as fin:
             if fin["_ST_symmetry"] != cls.symmetry:
                 raise ValueError("Savefile symmetry does not match SymmetricTensor")
@@ -84,10 +84,12 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     b = ssp.csc_array((data, indices, indptr), shape=shape)
                     blocks.append(b)
                 cls._isometry_dic[key] = (np.array(block_irreps), blocks)
+        """
 
     @classmethod
     def save_isometries(cls, savefile):
         raise NotImplementedError("TODO!")
+        """
         data = {"_ST_symmetry": cls.symmetry, "_ST_n_iso": len(cls._isometry_dic)}
         # keys may be very long, may get into trouble as valid archive name beyond 250
         # char. Just count values and save keys as arrays.
@@ -101,6 +103,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                 data[f"_ST_iso_{i}_{j}_indptr"] = b.indptr
                 data[f"_ST_iso_{i}_{j}_shape"] = b.shape
         np.savez_compressed(savefile, **data)
+        """
 
     ####################################################################################
     # Lie group shared symmetry implementation
