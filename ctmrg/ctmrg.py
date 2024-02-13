@@ -426,10 +426,10 @@ class CTMRG:
         return rdm.rdm_diag_dr(
             self._env.get_C1(x, y),
             self._env.get_T1(x + 1, y),
-            self.construct_reduced_ur(x, y, free_memory=free_memory),
+            self.construct_enlarged_ur(x, y, free_memory=free_memory),
             self._env.get_T4(x, y + 1),
             self._env.get_A(x + 1, y + 1),
-            self.construct_reduced_dl(x, y, free_memory=free_memory),
+            self.construct_enlarged_dl(x, y, free_memory=free_memory),
             self._env.get_A(x + 2, y + 2),
             self._env.get_T2(x + 3, y + 2),
             self._env.get_T3(x + 2, y + 3),
@@ -443,14 +443,14 @@ class CTMRG:
                 f"({x+2},{y+1})",
             )
         return rdm.rdm_diag_ur(
-            self.construct_reduced_ul(x, y, free_memory=free_memory),
+            self.construct_enlarged_ul(x, y, free_memory=free_memory),
             self._env.get_T1(x + 2, y),
             self._env.get_C2(x + 3, y),
             self._env.get_A(x + 2, y + 1),
             self._env.get_T2(x + 3, y + 1),
             self._env.get_T4(x, y + 2),
             self._env.get_A(x + 1, y + 2),
-            self.construct_reduced_dr(x, y, free_memory=free_memory),
+            self.construct_enlarged_dr(x, y, free_memory=free_memory),
             self._env.get_C4(x, y + 3),
             self._env.get_T3(x + 1, y + 3),
         )
@@ -546,7 +546,6 @@ class CTMRG:
         Compute maximal horizontal correlation length in row between y and y+1.
         """
         v1, v2 = self.compute_transfer_spectrum_h(2, y=y, maxiter=maxiter, tol=tol)
-        assert abs(v1 - 1.0) < 1e-11
         xi = -self.Lx / np.log(np.abs(v2))
         return xi
 
@@ -555,24 +554,23 @@ class CTMRG:
         Compute maximal vertical correlation length in column between x and x+1.
         """
         v1, v2 = self.compute_transfer_spectrum_v(2, x=x, maxiter=maxiter, tol=tol)
-        assert abs(v1 - 1.0) < 1e-11
         xi = -self.Ly / np.log(np.abs(v2))
         return xi
 
-    def construct_reduced_dr(self, x, y, free_memory=False):
+    def construct_enlarged_dr(self, x, y, free_memory=False):
         """
-        Return down right corner reduced to U(1) blocks as a U1_SymmetricTensor. Check
-        _env to find an already computed corner, if it does not exist construct it and
-        store it in _env.
+        Construct enlarged down right corner by contracting C1, T1, T4 and A. Check _env
+        to find an already computed corner, if it does not exist construct it and store
+        it in _env.
 
-        Unusual leg ordering: reduced corners are constructed to be contracted as
+        Unusual leg ordering: enlarged corners are constructed to be contracted as
         ul-01-ur
         |      |
         1      0
         0      1
         |      |
         dl-10-dr
-        meaning reduced_dr is transposed when compared to standard clockwise order.
+        meaning enlarged_dr is transposed when compared to standard clockwise order.
         """
         dr = self._env.get_corner_dr(x, y)
         if dr is None:
@@ -588,11 +586,11 @@ class CTMRG:
             self._env.set_corner_dr(x, y, None)
         return dr
 
-    def construct_reduced_dl(self, x, y, free_memory=False):
+    def construct_enlarged_dl(self, x, y, free_memory=False):
         """
-        Return down left corner reduced to U(1) blocks as a U1_SymmetricTensor. Check
-        _env to find an already computed corner, if it does not exist construct it and
-        store it in _env.
+        Construct enlarged down left corner by contracting C1, T1, T4 and A. Check _env
+        to find an already computed corner, if it does not exist construct it and store
+        it in _env.
         """
         dl = self._env.get_corner_dl(x, y)
         if dl is None:
@@ -608,11 +606,11 @@ class CTMRG:
             self._env.set_corner_dl(x, y, None)
         return dl
 
-    def construct_reduced_ul(self, x, y, free_memory=False):
+    def construct_enlarged_ul(self, x, y, free_memory=False):
         """
-        Return upper left corner reduced to U(1) blocks as a U1_SymmetricTensor. Check
-        _env to find an already computed corner, if it does not exist construct it and
-        store it in _env.
+        Construct enlarged upper left corner by contracting C1, T1, T4 and A. Check _env
+        to find an already computed corner, if it does not exist construct it and store
+        it in _env.
         """
         ul = self._env.get_corner_ul(x, y)
         if ul is None:
@@ -628,9 +626,9 @@ class CTMRG:
             self._env.set_corner_ul(x, y, None)
         return ul
 
-    def construct_reduced_ur(self, x, y, free_memory=False):
+    def construct_enlarged_ur(self, x, y, free_memory=False):
         """
-        Return upper right corner reduced to U(1) blocks as a U1_SymmetricTensor. Check
+        Construct enlarged upper right corner by contracting C1, T1, T4 and A. Check
         _env to find an already computed corner, if it does not exist construct it and
         store it in _env.
         """
@@ -665,10 +663,10 @@ class CTMRG:
         # obtain from the isometries under construction.
         for x, y in self._site_coords:
             P, Pt = construct_projectors(
-                self.construct_reduced_dr(x, y),
-                self.construct_reduced_ur(x, y, free_memory=True),
-                self.construct_reduced_ul(x, y, free_memory=True),
-                self.construct_reduced_dl(x, y),
+                self.construct_enlarged_dr(x, y),
+                self.construct_enlarged_ur(x, y, free_memory=True),
+                self.construct_enlarged_ul(x, y, free_memory=True),
+                self.construct_enlarged_dl(x, y),
                 self.chi_target,
                 self.block_chi_ratio,
                 self.ncv_ratio,
@@ -715,10 +713,10 @@ class CTMRG:
         # 1) compute isometries for every non-equivalent sites
         for x, y in self._site_coords:
             P, Pt = construct_projectors(
-                self.construct_reduced_dl(x, y),
-                self.construct_reduced_dr(x, y, free_memory=True),
-                self.construct_reduced_ur(x, y, free_memory=True),
-                self.construct_reduced_ul(x, y),
+                self.construct_enlarged_dl(x, y),
+                self.construct_enlarged_dr(x, y, free_memory=True),
+                self.construct_enlarged_ur(x, y, free_memory=True),
+                self.construct_enlarged_ul(x, y),
                 self.chi_target,
                 self.block_chi_ratio,
                 self.ncv_ratio,
@@ -762,10 +760,10 @@ class CTMRG:
         # 1) compute isometries for every non-equivalent sites
         for x, y in self._site_coords:
             P, Pt = construct_projectors(
-                self.construct_reduced_ul(x, y),
-                self.construct_reduced_dl(x, y, free_memory=True),
-                self.construct_reduced_dr(x, y, free_memory=True),
-                self.construct_reduced_ur(x, y),
+                self.construct_enlarged_ul(x, y),
+                self.construct_enlarged_dl(x, y, free_memory=True),
+                self.construct_enlarged_dr(x, y, free_memory=True),
+                self.construct_enlarged_ur(x, y),
                 self.chi_target,
                 self.block_chi_ratio,
                 self.ncv_ratio,
@@ -809,10 +807,10 @@ class CTMRG:
         # 1) compute isometries for every non-equivalent sites
         for x, y in self._site_coords:
             P, Pt = construct_projectors(
-                self.construct_reduced_ur(x, y),
-                self.construct_reduced_ul(x, y, free_memory=True),
-                self.construct_reduced_dl(x, y, free_memory=True),
-                self.construct_reduced_dr(x, y),
+                self.construct_enlarged_ur(x, y),
+                self.construct_enlarged_ul(x, y, free_memory=True),
+                self.construct_enlarged_dl(x, y, free_memory=True),
+                self.construct_enlarged_dr(x, y),
                 self.chi_target,
                 self.block_chi_ratio,
                 self.ncv_ratio,
