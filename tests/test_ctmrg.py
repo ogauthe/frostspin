@@ -23,6 +23,8 @@ ctm0 = CTMRG.from_elementary_tensors(
     degen_ratio=1.0,
 )
 
+assert ctm0.n_sites == 2
+
 
 def eq_st(st1, st2):
     return (
