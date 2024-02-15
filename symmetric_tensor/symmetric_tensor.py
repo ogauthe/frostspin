@@ -561,6 +561,42 @@ class SymmetricTensor:
     ####################################################################################
     # Linear algebra
     ####################################################################################
+    def qr(self):
+        q_blocks = [None] * self._nblocks
+        r_blocks = [None] * self._nblocks
+        for bi, b in enumerate(self._blocks):
+            q, r = lg.qr(b, mode="economic", check_finite=False)
+            q_blocks[bi] = q
+            r_blocks[bi] = r
+
+        degen = np.array([r.shape[0] for r in r_blocks])
+        mid_rep = self.init_representation(degen, self._block_irreps)
+        qsign = np.ones((self._nrr + 1,), dtype=bool)
+        qsign[: self._nrr] = self._signature[: self._nrr]
+        Q = type(self)(self._row_reps, (mid_rep,), q_blocks, self._block_irreps, qsign)
+        rsign = np.zeros((self._ndim - self._nrr + 1,), dtype=bool)
+        rsign[1:] = self._signature[self._nrr :]
+        R = type(self)((mid_rep,), self._col_reps, r_blocks, self._block_irreps, rsign)
+        return Q, R
+
+    def rq(self):
+        r_blocks = [None] * self._nblocks
+        q_blocks = [None] * self._nblocks
+        for bi, b in enumerate(self._blocks):
+            r, q = lg.rq(b, mode="economic", check_finite=False)
+            r_blocks[bi] = r
+            q_blocks[bi] = q
+
+        degen = np.array([r.shape[1] for r in r_blocks])
+        mid_rep = self.init_representation(degen, self._block_irreps)
+        rsign = np.ones((self._nrr + 1,), dtype=bool)
+        rsign[: self._nrr] = self._signature[: self._nrr]
+        R = type(self)(self._row_reps, (mid_rep,), r_blocks, self._block_irreps, rsign)
+        qsign = np.zeros((self._ndim - self._nrr + 1,), dtype=bool)
+        qsign[1:] = self._signature[self._nrr :]
+        Q = type(self)((mid_rep,), self._col_reps, q_blocks, self._block_irreps, qsign)
+        return R, Q
+
     def svd(self):
         u_blocks = [None] * self._nblocks
         s_blocks = [None] * self._nblocks
@@ -579,12 +615,12 @@ class SymmetricTensor:
 
         degen = np.array([s.size for s in s_blocks])
         mid_rep = self.init_representation(degen, self._block_irreps)
-        usign = np.ones((self._nrr + 1), dtype=bool)
+        usign = np.ones((self._nrr + 1,), dtype=bool)
         usign[: self._nrr] = self._signature[: self._nrr]
         U = type(self)(self._row_reps, (mid_rep,), u_blocks, self._block_irreps, usign)
         degens = [self.irrep_dimension(irr) for irr in self._block_irreps]
         s = DiagonalTensor(s_blocks, mid_rep, self._block_irreps, degens, self.symmetry)
-        vsign = np.zeros((self._ndim - self._nrr + 1), dtype=bool)
+        vsign = np.zeros((self._ndim - self._nrr + 1,), dtype=bool)
         vsign[1:] = self._signature[self._nrr :]
         V = type(self)((mid_rep,), self._col_reps, v_blocks, self._block_irreps, vsign)
         return U, s, V
@@ -644,12 +680,12 @@ class SymmetricTensor:
             print(f"*** WARNING *** kept all computed singular values in {warn} blocks")
         block_irreps = self._block_irreps[non_empty]
         mid_rep = self.init_representation(block_cuts[non_empty], block_irreps)
-        usign = np.ones((self._nrr + 1), dtype=bool)
+        usign = np.ones((self._nrr + 1,), dtype=bool)
         usign[: self._nrr] = self._signature[: self._nrr]
         U = type(self)(self._row_reps, (mid_rep,), u_blocks, block_irreps, usign)
         degens = [self.irrep_dimension(irr) for irr in block_irreps]
         s = DiagonalTensor(s_blocks, mid_rep, block_irreps, degens, self.symmetry)
-        vsign = np.zeros((self._ndim - self._nrr + 1), dtype=bool)
+        vsign = np.zeros((self._ndim - self._nrr + 1,), dtype=bool)
         vsign[1:] = self._signature[self._nrr :]
         V = type(self)((mid_rep,), self._col_reps, v_blocks, block_irreps, vsign)
         return U, s, V
