@@ -822,7 +822,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         assert abs(tu1.norm() - self.norm()) <= _tol * self.norm()
         return tu1
 
-    def permutate(self, row_axes, col_axes):
+    def permute(self, row_axes, col_axes):
         assert sorted(row_axes + col_axes) == list(range(self._ndim))
 
         # return early for identity or matrix transpose

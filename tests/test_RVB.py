@@ -84,9 +84,9 @@ assert lg.norm(a_SU2.toarray() - a0) < tol
 assert (a_SU2.toU1() - a_U1).norm() < tol
 
 a1 = a0.transpose(0, 4, 1, 5, 2, 6, 3, 7)
-a1_U1 = a_U1.permutate((0, 4, 1, 5), (2, 6, 3, 7))
-a1_O2 = a_O2.permutate((0, 4, 1, 5), (2, 6, 3, 7))
-a1_SU2 = a_SU2.permutate((0, 4, 1, 5), (2, 6, 3, 7))
+a1_U1 = a_U1.permute((0, 4, 1, 5), (2, 6, 3, 7))
+a1_O2 = a_O2.permute((0, 4, 1, 5), (2, 6, 3, 7))
+a1_SU2 = a_SU2.permute((0, 4, 1, 5), (2, 6, 3, 7))
 assert lg.norm(a1_U1.toarray() - a1) < tol
 assert lg.norm(a1_O2.toarray() - a1) < tol
 assert (a1_O2.toU1() - a1_U1).norm() < tol

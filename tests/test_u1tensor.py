@@ -60,19 +60,19 @@ tu1 = U1_SymmetricTensor.from_array(t0, row_reps, col_reps, signature=signature)
 assert (tu1.toarray() == t0).all()
 assert abs(1.0 - tu1.norm() / lg.norm(t0)) < 1e-14
 assert (tu1.transpose().toarray() == t0.transpose(2, 3, 4, 0, 1)).all()
-assert tu1.permutate((0, 1), (2, 3, 4)) is tu1
+assert tu1.permute((0, 1), (2, 3, 4)) is tu1
 
-temp = tu1.permutate((2, 3, 4), (0, 1))
+temp = tu1.permute((2, 3, 4), (0, 1))
 assert temp.nblocks == tu1.nblocks
 assert all((b1 == b2).all() for b1, b2 in zip(temp.blocks, tu1.transpose().blocks))
-temp = tu1.permutate((3, 0, 2), (1, 4))
+temp = tu1.permute((3, 0, 2), (1, 4))
 assert (temp.toarray() == t0.transpose(3, 0, 2, 1, 4)).all()
-temp = tu1.permutate((3,), (1, 0, 4, 2))
+temp = tu1.permute((3,), (1, 0, 4, 2))
 assert (temp.toarray() == t0.transpose(3, 1, 0, 4, 2)).all()
 
 temp = tu1.dual()
 assert (temp.toarray() == t0).all()
-temp = temp.permutate((3, 0, 2), (1, 4))
+temp = temp.permute((3, 0, 2), (1, 4))
 assert (temp.toarray() == t0.transpose(3, 0, 2, 1, 4)).all()
 
 u, s, v = tu1.svd()

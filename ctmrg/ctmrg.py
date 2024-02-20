@@ -529,8 +529,8 @@ class CTMRG:
         T2s = []
         T4s = []
         for y in range(self.Ly):
-            T2s.append(self._env.get_T2(x + 1, y).permutate((1,), (2, 3, 0)))
-            T4s.append(self._env.get_T4(x, y).permutate((1, 2), (3, 0)))
+            T2s.append(self._env.get_T2(x + 1, y).permute((1,), (2, 3, 0)))
+            T4s.append(self._env.get_T4(x, y).permute((1, 2), (3, 0)))
         return observables.compute_mps_transfer_spectrum(
             T2s, T4s, nval, dmax_full=dmax_full, maxiter=maxiter, tol=tol
         )
@@ -862,8 +862,8 @@ class CTMRG:
             P_trans = self._env.get_P(x + 1, y).transpose()
             Pt = self._env.get_Pt(x, y)
             nC1 = P_trans @ self._env.get_C1(x, y)
-            nT1 = (P_trans @ self._env.get_T1(x, y)).permutate((0, 1, 2), (3,)) @ Pt
-            nT1 = nT1.permutate((0,), (1, 2, 3))
+            nT1 = (P_trans @ self._env.get_T1(x, y)).permute((0, 1, 2), (3,)) @ Pt
+            nT1 = nT1.permute((0,), (1, 2, 3))
             nC2 = self._env.get_C2(x, y) @ Pt
             self._env.store_renormalized_tensors(x, y, nC1, nT1, nC2)
         self._env.set_renormalized_tensors_up()
@@ -890,8 +890,8 @@ class CTMRG:
             P = self._env.get_P(x, y + 1)
             Pt_trans = self._env.get_Pt(x, y).transpose()
             nC2 = P.transpose() @ self._env.get_C2(x, y)
-            nT2 = (Pt_trans @ self._env.get_T2(x, y)).permutate((0, 2, 3), (1,)) @ P
-            nT2 = nT2.permutate((0,), (3, 1, 2))
+            nT2 = (Pt_trans @ self._env.get_T2(x, y)).permute((0, 2, 3), (1,)) @ P
+            nT2 = nT2.permute((0,), (3, 1, 2))
             nC3 = Pt_trans @ self._env.get_C3(x, y)
             self._env.store_renormalized_tensors(x, y, nC2, nT2, nC3)
         self._env.set_renormalized_tensors_right()
@@ -918,8 +918,8 @@ class CTMRG:
             P = self._env.get_P(x - 1, y)
             Pt = self._env.get_Pt(x, y)
             nC3 = self._env.get_C3(x, y) @ P
-            nT3 = (self._env.get_T3(x, y) @ P).permutate((0, 1, 3), (2,)) @ Pt
-            nT3 = nT3.permutate((0, 1, 3), (2,))
+            nT3 = (self._env.get_T3(x, y) @ P).permute((0, 1, 3), (2,)) @ Pt
+            nT3 = nT3.permute((0, 1, 3), (2,))
             nC4 = self._env.get_C4(x, y) @ Pt
             self._env.store_renormalized_tensors(x, y, nC3, nT3, nC4)
         self._env.set_renormalized_tensors_down()
@@ -946,8 +946,8 @@ class CTMRG:
             P_trans = self._env.get_P(x, y - 1).transpose()
             Pt = self._env.get_Pt(x, y)
             nC4 = P_trans @ self._env.get_C4(x, y)
-            nT4 = (P_trans @ self._env.get_T4(x, y)).permutate((0, 1, 2), (3,)) @ Pt
-            nT4 = nT4.permutate((0,), (1, 2, 3))
+            nT4 = (P_trans @ self._env.get_T4(x, y)).permute((0, 1, 2), (3,)) @ Pt
+            nT4 = nT4.permute((0,), (1, 2, 3))
             nC1 = self._env.get_C1(x, y) @ Pt
             self._env.store_renormalized_tensors(x, y, nC4, nT4, nC1)
         self._env.set_renormalized_tensors_left()

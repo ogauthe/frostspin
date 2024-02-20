@@ -1,14 +1,14 @@
 def contract_open_corner(C1, T1, T4, A):
-    ul = T1.permutate((1, 2, 0), (3,))
+    ul = T1.permute((1, 2, 0), (3,))
     ul = ul @ C1
-    ul = ul @ T4.permutate((0,), (1, 2, 3))
+    ul = ul @ T4.permute((0,), (1, 2, 3))
 
     # |----2        |-----4
     # |  ||         |   ||
     # |  01    -->  |   02
     # |=3,4         |=1,3
     # 5             5
-    ul = ul.permutate((0, 3), (1, 4, 2, 5))
+    ul = ul.permute((0, 3), (1, 4, 2, 5))
 
     #  C1----T1-4       C1----T1-6
     #  |     ||         |     ||
@@ -18,8 +18,8 @@ def contract_open_corner(C1, T1, T4, A):
     #  T4-15-A-2        T4----A-2
     #  | \3  |\         | \5  |\
     #  5     3 0        7     3 0
-    ul = A.permutate((1, 0, 3, 4), (2, 5)) @ ul
-    ul = ul.permutate((0, 4, 5), (1, 2, 3, 6, 7))  # memory a*d*chi**2*D**4
+    ul = A.permute((1, 0, 3, 4), (2, 5)) @ ul
+    ul = ul.permute((0, 4, 5), (1, 2, 3, 6, 7))  # memory a*d*chi**2*D**4
 
     #  C1----T1-6
     #  |     ||
@@ -29,8 +29,8 @@ def contract_open_corner(C1, T1, T4, A):
     #  T4----A-4      5-A*-1
     #  | \2  |\         |\
     #  7     5 0        2 3
-    ul = A.permutate((1, 2, 5), (0, 3, 4)).dagger() @ ul
-    ul = ul.permutate((3, 0, 4, 1, 6), (5, 2, 7))
+    ul = A.permute((1, 2, 5), (0, 3, 4)).dagger() @ ul
+    ul = ul.permute((3, 0, 4, 1, 6), (5, 2, 7))
     # -----6          -----4
     # |  || 3         |  || 0
     # |  ||/          |  ||/
@@ -43,12 +43,12 @@ def contract_open_corner(C1, T1, T4, A):
 def contract_open_corner_mirror(T1, C2, A, T2):
     # rdm_1x2 and rdm_diag_dr require different output convention here
     # cannot provide clean leg ordering output
-    ur = C2 @ T1.permutate((0,), (1, 2, 3))
-    ur = ur.transpose() @ T2.permutate((0,), (2, 3, 1))
-    ur = ur.permutate((0, 3), (1, 4, 2, 5))
-    ur = A.permutate((1, 0, 4, 5), (2, 3)) @ ur
-    ur = ur.permutate((0, 4, 5), (1, 2, 3, 6, 7))
-    ur = A.permutate((1, 2, 3), (0, 4, 5)).dagger() @ ur
+    ur = C2 @ T1.permute((0,), (1, 2, 3))
+    ur = ur.transpose() @ T2.permute((0,), (2, 3, 1))
+    ur = ur.permute((0, 3), (1, 4, 2, 5))
+    ur = A.permute((1, 0, 4, 5), (2, 3)) @ ur
+    ur = ur.permute((0, 4, 5), (1, 2, 3, 6, 7))
+    ur = A.permute((1, 2, 3), (0, 4, 5)).dagger() @ ur
     #   6------
     #    2 || |
     #     \|| |
@@ -79,13 +79,13 @@ def rdm_1x2(C1, T1l, T1r, C2, T4, Al, Ar, T2, C4, T3l, T3r, C3):
     #   |          ||               ||            |
     #   C4-1     3-T3-2           3-T3-2       1-C3
 
-    # no need to specify SymmetricTensor n_leg_rows, just call permutate which may
+    # no need to specify SymmetricTensor n_leg_rows, just call permute which may
     # have no effect.
-    left = T4.permutate((0, 1, 2), (3,))
+    left = T4.permute((0, 1, 2), (3,))
     left = left @ C4
     left = contract_open_corner(C1, T1l, left, Al)
-    left = left @ T3l.permutate((0, 1, 3), (2,))
-    left = left.permutate((0, 1), (2, 3, 4, 5))
+    left = left @ T3l.permute((0, 1, 3), (2,))
+    left = left.permute((0, 1), (2, 3, 4, 5))
     # -----4
     # | 0
     # |  \
@@ -94,15 +94,15 @@ def rdm_1x2(C1, T1l, T1r, C2, T4, Al, Ar, T2, C4, T3l, T3r, C3):
     # | 1
     # -----5
 
-    right = T2.permutate((0, 2, 3), (1,))
+    right = T2.permute((0, 2, 3), (1,))
     right = right @ C3
-    right = right.permutate((0, 3), (1, 2))
+    right = right.permute((0, 3), (1, 2))
     right = contract_open_corner_mirror(T1r, C2, Ar, right)
-    right = right.permutate((3, 0, 5, 2, 6), (4, 1, 7))
-    right = right @ T3r.permutate((0, 1, 2), (3,))
-    right = right.permutate((2, 3, 4, 5), (0, 1))
+    right = right.permute((3, 0, 5, 2, 6), (4, 1, 7))
+    right = right @ T3r.permute((0, 1, 2), (3,))
+    right = right.permute((2, 3, 4, 5), (0, 1))
     rdm = left @ right
-    rdm = rdm.permutate((0, 2), (1, 3)).toarray(as_matrix=True)
+    rdm = rdm.permute((0, 2), (1, 3)).toarray(as_matrix=True)
     rdm /= rdm.trace()
     return rdm
 
@@ -114,16 +114,16 @@ def rdm_2x1(C1, T1, C2, T4u, Au, T2u, T4d, Ad, T2d, C4, T3, C3):
     # contract using 1x2 with swapped tensors and legs
     return rdm_1x2(
         C2,
-        T2u.permutate((1, 2, 3), (0,)),
-        T2d.permutate((1,), (2, 3, 0)),
+        T2u.permute((1, 2, 3), (0,)),
+        T2d.permute((1,), (2, 3, 0)),
         C3.transpose(),
         T1,
-        Au.permutate((0, 1), (3, 4, 5, 2)),
-        Ad.permutate((0, 1), (3, 4, 5, 2)),
-        T3.permutate((2, 3, 0), (1,)),
+        Au.permute((0, 1), (3, 4, 5, 2)),
+        Ad.permute((0, 1), (3, 4, 5, 2)),
+        T3.permute((2, 3, 0), (1,)),
         C1,
-        T4u.permutate((1, 2, 3), (0,)),
-        T4d.permutate((1, 2, 3), (0,)),
+        T4u.permute((1, 2, 3), (0,)),
+        T4d.permute((1, 2, 3), (0,)),
         C4.transpose(),
     )
 
@@ -154,19 +154,19 @@ def rdm_diag_dr(C1, T1l, ur, T4u, Aul, dl, Adr, T2d, T3r, C3):
     #  |  || 1
     #  |  ||=5,6
     #  ------7
-    rdm = rdm.permutate((2, 3, 4), (0, 1, 5, 6, 7))
+    rdm = rdm.permute((2, 3, 4), (0, 1, 5, 6, 7))
     rdm = ur @ rdm  # mem (2*d**2+1)*chi**2*D**4
-    rdm = rdm.permutate((3, 4), (0, 1, 2, 5, 6, 7))
+    rdm = rdm.permute((3, 4), (0, 1, 2, 5, 6, 7))
     #   -----           -----
     #   |11 |   --->    |00 |
     #   |   0           |   1
     #   |--2            |--2
 
     dr = contract_open_corner_mirror(
-        T2d.permutate((1, 2, 3), (0,)),
+        T2d.permute((1, 2, 3), (0,)),
         C3.transpose(),
-        Adr.permutate((0, 1, 3, 4), (5, 2)),
-        T3r.permutate((2, 3), (0, 1)),
+        Adr.permute((0, 1, 3, 4), (5, 2)),
+        T3r.permute((2, 3), (0, 1)),
     )
     #     23   4
     #     || 0 |
@@ -175,9 +175,9 @@ def rdm_diag_dr(C1, T1l, ur, T4u, Aul, dl, Adr, T2d, T3r, C3):
     #     ||\  |             00|
     #     || 1 |          1'----
     #   7-------
-    dr = dr.permutate((5, 2, 6, 4, 1, 7), (3, 0))  # memory peak: 3*d**2*chi**2*D**4
+    dr = dr.permute((5, 2, 6, 4, 1, 7), (3, 0))  # memory peak: 3*d**2*chi**2*D**4
     rdm = rdm @ dr
-    rdm = rdm.permutate((0, 2), (1, 3)).toarray(as_matrix=True)
+    rdm = rdm.permute((0, 2), (1, 3)).toarray(as_matrix=True)
     rdm /= rdm.trace()
     return rdm
 
@@ -197,12 +197,12 @@ def rdm_diag_ur(ul, T1r, C2, Aur, T2u, T4d, Adl, dr_T, C4, T3l):
         C4,
         T4d,
         ul,
-        T3l.permutate((3,), (0, 1, 2)),
-        Adl.permutate((0, 1), (5, 2, 3, 4)),
+        T3l.permute((3,), (0, 1, 2)),
+        Adl.permute((0, 1), (5, 2, 3, 4)),
         dr_T,  # transposed dr in input avoids to transpose it here
-        Aur.permutate((0, 1), (5, 2, 3, 4)),
-        T1r.permutate((3,), (0, 1, 2)),
-        T2u.permutate((2, 3, 0), (1,)),
+        Aur.permute((0, 1), (5, 2, 3, 4)),
+        T1r.permute((3,), (0, 1, 2)),
+        T2u.permute((2, 3, 0), (1,)),
         C2.transpose(),
     )
     rdm = (

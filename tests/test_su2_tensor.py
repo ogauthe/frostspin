@@ -31,17 +31,17 @@ assert abs(st.blocks[1] - 0.25) < 1e-14
 assert abs(lg.norm(sds_22) - st.norm()) < 1e-14
 assert lg.norm(st.toarray() - sds_22t) < 1e-14
 
-stp = st.permutate((0, 1, 2), (3,))
+stp = st.permute((0, 1, 2), (3,))
 stp2 = SU2_SymmetricTensor.from_array(sds_22t, (r, r, r), (r,), signature=[0, 0, 1, 1])
 assert (stp - stp2).norm() < 1e-14
-st2 = stp.permutate((0, 1), (2, 3))
+st2 = stp.permute((0, 1), (2, 3))
 assert (st - st2).norm() < 1e-14
 
-stp = st.permutate((3, 0, 2), (1,))
+stp = st.permute((3, 0, 2), (1,))
 arrp = sds_22t.transpose((3, 0, 2, 1))
 stp2 = SU2_SymmetricTensor.from_array(arrp, (r, r, r), (r,), signature=[1, 0, 1, 0])
 assert (stp - stp2).norm() < 1e-14
-st2 = stp.permutate((1, 3), (2, 0))
+st2 = stp.permute((1, 3), (2, 0))
 assert (st - st2).norm() < 1e-14
 
 sds_22b = np.array(
@@ -63,17 +63,17 @@ assert abs(stb.blocks[1] - 0.25) < 1e-14
 assert abs(lg.norm(sds_22) - stb.norm()) < 1e-14
 assert lg.norm(stb.toarray() - arrb) < 1e-14
 
-stbp = stb.permutate((0, 1, 2), (3,))
+stbp = stb.permute((0, 1, 2), (3,))
 stbp2 = SU2_SymmetricTensor.from_array(arrb, (r, r, r), (r,), signature=[0, 1, 1, 0])
 assert (stbp - stbp2).norm() < 1e-14
-stb2 = stbp.permutate((0, 1), (2, 3))
+stb2 = stbp.permute((0, 1), (2, 3))
 assert (stb - stb2).norm() < 1e-14
 
-stbp = stb.permutate((3, 0, 2), (1,))
+stbp = stb.permute((3, 0, 2), (1,))
 arrbp = arrb.transpose((3, 0, 2, 1))
 stbp2 = SU2_SymmetricTensor.from_array(arrbp, (r, r, r), (r,), signature=[0, 0, 1, 1])
 assert (stbp - stbp2).norm() < 1e-14
-stb2 = stbp.permutate((1, 3), (2, 0))
+stb2 = stbp.permute((1, 3), (2, 0))
 assert (stb - stb2).norm() < 1e-14
 
 
@@ -83,7 +83,7 @@ r12 = np.array([[1, 2, 1], [1, 3, 5]])
 arr = np.eye(12).reshape(1, 12, 12, 1)
 st3 = SU2_SymmetricTensor.from_array(arr, (r1,), (r12, r12, r1), signature=[0, 0, 1, 1])
 assert lg.norm(st3.toarray() - arr) < 1e-14
-st3p = st3.permutate((0, 1), (2, 3))
+st3p = st3.permute((0, 1), (2, 3))
 assert lg.norm(st3.toarray() - arr) < 1e-14
 
 
@@ -100,8 +100,8 @@ block_irreps = np.array([1, 5])
 sign = np.array([False, False, True, True])
 t = SU2_SymmetricTensor.random((r3, r3, r3), (r3,))
 t = t @ t.dagger()  # there is only one block among the many allowed
-tp = t.permutate((3, 2, 1), (0, 5, 4))
-tp2 = tp.permutate((3, 2, 1), (0, 5, 4))
+tp = t.permute((3, 2, 1), (0, 5, 4))
+tp2 = tp.permute((3, 2, 1), (0, 5, 4))
 assert (tp2 - t).norm() < 1e-14
 td = t.toarray()
 t2 = SU2_SymmetricTensor.from_array(td, t.row_reps, t.col_reps, t.signature)

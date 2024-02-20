@@ -120,7 +120,7 @@ class SymmetricTensor:
     def toarray(self, as_matrix=False):
         raise NotImplementedError("Must be defined in derived class")
 
-    def permutate(self, row_axes, col_axes):  # signature != ndarray.transpose
+    def permute(self, row_axes, col_axes):  # signature != ndarray.transpose
         """
         Permutate axes, changing tensor structure.
 
@@ -512,7 +512,7 @@ class SymmetricTensor:
         )
 
     ####################################################################################
-    # transpose and permutate
+    # transpose and permute
     ####################################################################################
     def transpose(self):
         """
