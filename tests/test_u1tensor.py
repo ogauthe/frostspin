@@ -85,4 +85,5 @@ us2 = u * s12
 s2v = s12 * v
 assert (tu1 - us2 @ s2v).norm() < 1e-12
 
-_ = U1_SymmetricTensor.random(row_reps, col_reps, signature=signature, rng=rng)
+tu1 = U1_SymmetricTensor.random(row_reps, col_reps, signature=signature, rng=rng)
+assert abs(tu1.norm() ** 2 - tu1.full_contract(tu1.dagger())) < 1e-12 * tu1.norm() ** 2

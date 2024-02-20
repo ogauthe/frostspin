@@ -562,6 +562,19 @@ class SymmetricTensor:
             n2 += self.irrep_dimension(irr) * lg.norm(b) ** 2
         return np.sqrt(n2)
 
+    def full_contract(self, other):
+        """
+        Contract all legs, equialent to Tr(A @ B) as matrices or tensordot(A, B, ndim)
+        as tenosrs. Tensors have to match each other representations and signatures.
+        """
+        assert self.match_representations(other.dagger())
+        x = 0.0
+        shared = (self._block_irreps[:, None] == other.block_irreps).nonzero()
+        for i1, i2 in zip(*shared):
+            bx = np.einsum("ij,ji->", self._blocks[i1], other.blocks[i2])
+            x += self.irrep_dimension(self._block_irreps[i1]) * bx
+        return x
+
     def qr(self):
         q_blocks = [None] * self._nblocks
         r_blocks = [None] * self._nblocks
