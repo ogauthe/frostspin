@@ -1,5 +1,4 @@
 import numpy as np
-import scipy.linalg as lg
 
 from .symmetric_tensor import SymmetricTensor
 from .asymmetric_tensor import AsymmetricTensor
@@ -83,12 +82,6 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
             assert nc > 0
             assert self._blocks[bi].shape == (nr, nc)
         return True
-
-    def norm(self):
-        n2 = 0.0
-        for irr, b in zip(self._block_irreps, self._blocks):
-            n2 += self.irrep_dimension(irr) * lg.norm(b) ** 2
-        return np.sqrt(n2)
 
     def totrivial(self):
         ar = self.toarray()

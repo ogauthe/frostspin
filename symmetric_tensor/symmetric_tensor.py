@@ -138,12 +138,6 @@ class SymmetricTensor:
     def check_blocks_fit_representations(self):
         raise NotImplementedError("Must be defined in derived class")
 
-    def norm(self):
-        """
-        Tensor Frobenius norm.
-        """
-        raise NotImplementedError("Must be defined in derived class")
-
     def toabelian(self):
         """
         Return a SymmetricTensor with largest possible abelian symmetry.
@@ -559,6 +553,15 @@ class SymmetricTensor:
     ####################################################################################
     # Linear algebra
     ####################################################################################
+    def norm(self):
+        """
+        Tensor Frobenius norm.
+        """
+        n2 = 0.0
+        for irr, b in zip(self._block_irreps, self._blocks):
+            n2 += self.irrep_dimension(irr) * lg.norm(b) ** 2
+        return np.sqrt(n2)
+
     def qr(self):
         q_blocks = [None] * self._nblocks
         r_blocks = [None] * self._nblocks

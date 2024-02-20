@@ -1,5 +1,4 @@
 import numpy as np
-import scipy.linalg as lg
 
 from .symmetric_tensor import SymmetricTensor
 
@@ -110,9 +109,6 @@ class AsymmetricTensor(SymmetricTensor):
         assert self._blocks[0].shape == self.matrix_shape
         assert self._shape == self._row_reps + self._col_reps
         return True
-
-    def norm(self):
-        return lg.norm(self._blocks[0])
 
     def totrivial(self):
         return self
