@@ -34,17 +34,17 @@ def _initialize_env(A):
 
     def init_C(At, su):
         C = At.dagger() @ At
-        C = C.permutate((2, 0), (3, 1))
+        C = C.permute((2, 0), (3, 1))
         C.update_signature(su)
         C = C.merge_legs(2, 3).merge_legs(0, 1)
         return C
 
     # Due to C3 annoying conventions, some -1 need to appear here. These signature
     # update are independent of A signature or of the unit cell tiling pattern.
-    C1 = init_C(A.permutate((0, 1, 2, 5), (3, 4)), [0, 1, 0, 1])
-    C2 = init_C(A.permutate((0, 1, 2, 3), (4, 5)), [0, -1, 0, 1])
-    C3 = init_C(A.permutate((0, 1, 3, 4), (2, 5)), [0, 1, 0, 1])
-    C4 = init_C(A.permutate((0, 1, 4, 5), (2, 3)), [0, 1, 0, -1])
+    C1 = init_C(A.permute((0, 1, 2, 5), (3, 4)), [0, 1, 0, 1])
+    C2 = init_C(A.permute((0, 1, 2, 3), (4, 5)), [0, -1, 0, 1])
+    C3 = init_C(A.permute((0, 1, 3, 4), (2, 5)), [0, 1, 0, 1])
+    C4 = init_C(A.permute((0, 1, 4, 5), (2, 3)), [0, 1, 0, -1])
 
     # merging is trivial for abelian symmetries, however for non-abelian symmetries
     # one must be careful not to change tree structure. With current tree structure
@@ -63,32 +63,32 @@ def _initialize_env(A):
     # always 0 and 1 in row or columns. Additional cost is very low, just add one
     # permutation on T with total size D^6.
 
-    temp = A.permutate((0, 1, 2), (3, 4, 5))
+    temp = A.permute((0, 1, 2), (3, 4, 5))
     T1 = temp.dagger() @ temp
-    T1 = T1.permutate((3, 0), (5, 2, 4, 1))
+    T1 = T1.permute((3, 0), (5, 2, 4, 1))
     T1.update_signature([0, 1, 0, 1, 0, 0])
     T1 = T1.merge_legs(2, 3).merge_legs(0, 1)
-    T1 = T1.permutate((0,), (2, 3, 1))
+    T1 = T1.permute((0,), (2, 3, 1))
 
-    temp = A.permutate((0, 1, 3), (2, 4, 5))
+    temp = A.permute((0, 1, 3), (2, 4, 5))
     T2 = temp.dagger() @ temp
-    T2 = T2.permutate((3, 0), (4, 1, 5, 2))
+    T2 = T2.permute((3, 0), (4, 1, 5, 2))
     T2.update_signature([0, 1, 0, 1, 0, 0])
     T2 = T2.merge_legs(2, 3).merge_legs(0, 1)
 
-    temp = A.permutate((0, 1, 4), (2, 3, 5))
+    temp = A.permute((0, 1, 4), (2, 3, 5))
     T3 = temp.dagger() @ temp
-    T3 = T3.permutate((4, 1), (5, 2, 3, 0))
+    T3 = T3.permute((4, 1), (5, 2, 3, 0))
     T3.update_signature([0, 1, 0, 1, 0, 0])
     T3 = T3.merge_legs(2, 3).merge_legs(0, 1)
-    T3 = T3.permutate((2, 3, 0), (1,))
+    T3 = T3.permute((2, 3, 0), (1,))
 
-    temp = A.permutate((0, 1, 5), (2, 3, 4))
+    temp = A.permute((0, 1, 5), (2, 3, 4))
     T4 = temp.dagger() @ temp
-    T4 = T4.permutate((3, 0), (5, 2, 4, 1))
+    T4 = T4.permute((3, 0), (5, 2, 4, 1))
     T4.update_signature([0, 1, 0, 1, 0, 0])
     T4 = T4.merge_legs(2, 3).merge_legs(0, 1)
-    T4 = T4.permutate((0,), (2, 3, 1))
+    T4 = T4.permute((0,), (2, 3, 1))
 
     return C1, T1, C2, T2, C3, T3, C4, T4
 

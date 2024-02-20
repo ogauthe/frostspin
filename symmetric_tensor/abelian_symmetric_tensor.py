@@ -373,7 +373,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
         s = self._signature[np.arange(-self._ndim + self._nrr, self._nrr) % self._ndim]
         return type(self)(self._col_reps, self._row_reps, blocks, block_irreps, s)
 
-    def permutate(self, row_axes, col_axes):
+    def permute(self, row_axes, col_axes):
         assert sorted(row_axes + col_axes) == list(range(self._ndim))
 
         # return early for identity or matrix transpose
@@ -391,7 +391,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
             if all(b.flags["F"] for b in self._blocks):  # .T returns C-contiguous
                 row_axes_T = tuple((ax - self._nrr) % self._ndim for ax in row_axes)
                 col_axes_T = tuple((ax - self._nrr) % self._ndim for ax in col_axes)
-                return self.transpose().permutate(row_axes_T, col_axes_T)
+                return self.transpose().permute(row_axes_T, col_axes_T)
             self._blocks = tuple(np.ascontiguousarray(b) for b in self._blocks)
 
         # construct new row and column representations

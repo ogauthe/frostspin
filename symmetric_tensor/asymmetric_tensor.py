@@ -77,7 +77,7 @@ class AsymmetricTensor(SymmetricTensor):
         s = self._signature[np.arange(-self._ndim + self._nrr, self._nrr) % self._ndim]
         return type(self)(self._col_reps, self._row_reps, blocks, self._irrep, s)
 
-    def permutate(self, row_axes, col_axes):
+    def permute(self, row_axes, col_axes):
         assert sorted(row_axes + col_axes) == list(range(self._ndim))
 
         # return early for identity or matrix transpose

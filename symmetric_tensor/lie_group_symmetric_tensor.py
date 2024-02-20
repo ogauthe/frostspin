@@ -62,7 +62,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
     ####################################################################################
     # Non-abelian specific symmetry implementation
     ####################################################################################
-    _structural_data_dic = NotImplemented  # permutate information for a given tensor
+    _structural_data_dic = NotImplemented  # permute information for a given tensor
     _unitary_dic = NotImplemented  # unitaries for a given elementary block
 
     @classmethod
@@ -946,9 +946,9 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
     def transpose(self):
         row_axes = tuple(range(self._nrr, self._ndim))
         col_axes = tuple(range(self._nrr))
-        return self.permutate(row_axes, col_axes)
+        return self.permute(row_axes, col_axes)
 
-    def permutate(self, row_axes, col_axes):
+    def permute(self, row_axes, col_axes):
         axes = np.concatenate((row_axes, col_axes))
         nrr_out = len(row_axes)
         trivial = np.arange(self._ndim)

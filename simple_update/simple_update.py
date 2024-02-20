@@ -1003,9 +1003,9 @@ class SimpleUpdate:
             rswap = (0, 1) + tuple(range(3, t0.ndim))
             t = t0
             for j, leg in enumerate(self._tensor_bond_indices[i]):
-                t = t.permutate(rswap, (2,))
+                t = t.permute(rswap, (2,))
                 t = t * sqw[leg]
-            t = t.permutate((0, 1), tuple(range(2, t0.ndim)))
+            t = t.permute((0, 1), tuple(range(2, t0.ndim)))
             tensors.append(t)
         return tensors
 
@@ -1043,17 +1043,17 @@ class SimpleUpdate:
         cstR, effR = right.qr()  # auxR-effR=p,m
 
         # change tensor structure to contract mid
-        effL = effL.permutate((0, 1), (2,))  # auxL,p=effL-m
+        effL = effL.permute((0, 1), (2,))  # auxL,p=effL-m
         effL = effL * weights**-1
-        effR = effR.permutate((2,), (0, 1))  # m-effR=auxR,p
+        effR = effR.permute((2,), (0, 1))  # m-effR=auxR,p
 
         # construct matrix theta and apply gate
         theta = effL @ effR  # auxL,pL=theta=auxR,pR
-        theta = theta.permutate((0, 2), (1, 3))  # auxL, auxR = theta = pL, pR
+        theta = theta.permute((0, 2), (1, 3))  # auxL, auxR = theta = pL, pR
         theta = theta @ gate
 
         # transpose back LxR, compute SVD and truncate
-        theta = theta.permutate((0, 2), (1, 3))  # auxL, pL = theta = auxR, pR
+        theta = theta.permute((0, 2), (1, 3))  # auxL, pL = theta = auxR, pR
         # define new_weights *on effL right*
         effL, new_weights, effR = theta.truncated_svd(
             self.D, rcutoff=self.rcutoff, degen_ratio=self.degen_ratio
@@ -1065,8 +1065,8 @@ class SimpleUpdate:
         effR = new_weights * effR
 
         # reshape to initial tree structure
-        effL = effL.permutate((0,), (1, 2))  # auxL - effL = pL,m
-        effR = effR.permutate((1,), (2, 0))  # auxR - effR = pR,m
+        effL = effL.permute((0,), (1, 2))  # auxL - effL = pL,m
+        effR = effR.permute((1,), (2, 0))  # auxR - effR = pR,m
 
         # reconnect with const parts
         newL = cstL @ effL
@@ -1114,14 +1114,14 @@ class SimpleUpdate:
 
         # 1) SVD cut between constant tensors and effective tensors to update
         cstL, effL = left.qr()  # auxL - effL = pL, mL
-        effL = effL.permutate((0, 1), (2,))  # auxL,pL = effL - mL
+        effL = effL.permute((0, 1), (2,))  # auxL,pL = effL - mL
         effL = effL * weightsL**-1
 
         cstm, effm = mid.qr()  # auxm - effm = mL, mR
-        effm = effm.permutate((1,), (2, 0))  # mL - effm = mR, auxm
+        effm = effm.permute((1,), (2, 0))  # mL - effm = mR, auxm
 
         cstR, effR = right.qr()  # auxR - effR = pR, mR
-        effR = effR.permutate((0, 1), (2,))  # auR, pR = effR - mR
+        effR = effR.permute((0, 1), (2,))  # auR, pR = effR - mR
         effR = effR * weightsR**-1
 
         # contract tensor network
@@ -1130,13 +1130,13 @@ class SimpleUpdate:
         #         \                             /
         #          \----------- gate ----------/
         theta = effL @ effm  # auxL, pL = theta = mR, auxm
-        theta = theta.permutate((0, 1, 3), (2,))  # auxL, pL, auxm = theta - mR
+        theta = theta.permute((0, 1, 3), (2,))  # auxL, pL, auxm = theta - mR
         theta = theta @ effR.transpose()  # auxL, pL, auxm = theta = auxR, pR
-        theta = theta.permutate((0, 2, 3), (1, 4))  # auxL, auxm, auxR = theta = pL, pR
+        theta = theta.permute((0, 2, 3), (1, 4))  # auxL, auxm, auxR = theta = pL, pR
         theta = theta @ gate
 
         # 1st SVD
-        theta = theta.permutate((4, 2), (0, 3, 1))  # pR, auxR = theta = auxL, pL, auxm
+        theta = theta.permute((4, 2), (0, 3, 1))  # pR, auxR = theta = auxL, pL, auxm
         effR, new_weightsR, theta = theta.truncated_svd(
             self.D, rcutoff=self.rcutoff, degen_ratio=self.degen_ratio
         )
@@ -1145,7 +1145,7 @@ class SimpleUpdate:
 
         # 2nd SVD
         theta = new_weightsR * theta  # mR-theta = auL,pL,auxm
-        theta = theta.permutate((1, 2), (3, 0))  # auxL, pL = theta = auxm, mR
+        theta = theta.permute((1, 2), (3, 0))  # auxL, pL = theta = auxm, mR
         effL, new_weightsL, effm = theta.truncated_svd(
             self.D, rcutoff=self.rcutoff, degen_ratio=self.degen_ratio
         )
@@ -1154,9 +1154,9 @@ class SimpleUpdate:
         effL = effL * new_weightsL  # auxL, pL = effL - mL
 
         # reshape to initial tree structure
-        effL = effL.permutate((0,), (1, 2))  # auxL - effL = pL, mL
-        effm = effm.permutate((1,), (0, 2))  # auxm - effm = mL, mR
-        effR = effR.permutate((1,), (0, 2))  # auxR - effR = pR, mR
+        effL = effL.permute((0,), (1, 2))  # auxL - effL = pL, mL
+        effm = effm.permute((1,), (0, 2))  # auxm - effm = mL, mR
+        effR = effR.permute((1,), (0, 2))  # auxR - effR = pR, mR
 
         # reconnect with const parts
         newL = cstL @ effL
@@ -1197,8 +1197,8 @@ class SimpleUpdate:
         # This function is made to be fast: assume current state is fine and use
         # precomputed indices to select bonds, kind of update, tensors as well as
         # precomputed leg permutation.
-        left = self._tensors[self._left_indices[i]].permutate(*self._lperm[i])
-        right = self._tensors[self._right_indices[i]].permutate(*self._rperm[i])
+        left = self._tensors[self._left_indices[i]].permute(*self._lperm[i])
+        right = self._tensors[self._right_indices[i]].permute(*self._rperm[i])
         b1 = self._1st_updated_bond[i]
         b2 = self._2nd_updated_bond[i]
         if b1 == b2:  # 1st neighbor update
@@ -1207,7 +1207,7 @@ class SimpleUpdate:
             )
 
         else:  # update through middle site im
-            mid = self._tensors[self._middle_indices[i]].permutate(*self._mperm[i])
+            mid = self._tensors[self._middle_indices[i]].permute(*self._mperm[i])
             left, mid, right, nw1, nw2 = self.update_through_proxy(
                 left,
                 mid,
@@ -1232,7 +1232,7 @@ class SimpleUpdate:
         # in a given final state structure, one needs to start from this state to be
         # able to loop over it.
         for i in range(self._n_tensors):
-            self._tensors[i] = self._tensors[i].permutate(*self._initial_swap[i])
+            self._tensors[i] = self._tensors[i].permute(*self._initial_swap[i])
 
         # run last elementary update with time step tau instead of 2*tau
         self._elementary_update(self._n_updates)
@@ -1248,7 +1248,7 @@ class SimpleUpdate:
 
         # come back to default form, as defined in tensor_bond_indices
         for i in range(self._n_tensors):
-            self._tensors[i] = self._tensors[i].permutate(*self._final_swap[i])
+            self._tensors[i] = self._tensors[i].permute(*self._final_swap[i])
 
     def check_consistency(self):
         """

@@ -46,8 +46,8 @@ def compute_mps_transfer_spectrum(
     layer edge environment tensor).
     """
 
-    Tup_list = [T.permutate((3, 1, 2), (0,)) for T in Tup_list]
-    Tdown_list = [T.permutate((3,), (2, 0, 1)) for T in Tdown_list]
+    Tup_list = [T.permute((3, 1, 2), (0,)) for T in Tup_list]
+    Tdown_list = [T.permute((3,), (2, 0, 1)) for T in Tdown_list]
     reps = (Tup_list[0].col_reps[0], Tdown_list[0].col_reps[0])
     sig0 = np.empty((2,), dtype=bool)
     sig0[0] = ~Tup_list[0].signature[3]
@@ -56,13 +56,13 @@ def compute_mps_transfer_spectrum(
     def matmat(st):
         # bilayer matrix-vector product, MPS tensors going from right to left
         # (input is on the right).
-        st = st.permutate((0,), (1, 2))
+        st = st.permute((0,), (1, 2))
         for mu, md in zip(Tup_list, Tdown_list):
             st = mu @ st
-            st = st.permutate((3, 1, 2), (0, 4))
+            st = st.permute((3, 1, 2), (0, 4))
             st = md @ st
-            st = st.permutate((1,), (0, 2))
-        st = st.permutate((0, 1), (2,))
+            st = st.permute((1,), (0, 2))
+        st = st.permute((0, 1), (2,))
         return st
 
     try:

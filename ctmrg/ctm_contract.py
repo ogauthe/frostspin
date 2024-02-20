@@ -7,7 +7,7 @@
 def contract_enlarged_corner(C1, T1, T4, A):
     r"""
     Contract a corner C-T//T-A. Take upper left corner as template.
-    To avoid calling permutate twice, assume convenient leg ordering
+    To avoid calling permute twice, assume convenient leg ordering
 
      0          3-T1-2      0 4
      |            ||         \|
@@ -38,7 +38,7 @@ def contract_enlarged_corner(C1, T1, T4, A):
     #  T4-15-A-2
     #  | \3  |\
     #  5     3 1
-    ul = ul.permutate((0, 3), (1, 4, 2, 5))
+    ul = ul.permute((0, 3), (1, 4, 2, 5))
     ul = A @ ul
 
     #  C1----T1-6
@@ -49,8 +49,8 @@ def contract_enlarged_corner(C1, T1, T4, A):
     #  T4----A-4      5-A*-0
     #  | \3  |\         |\
     #  7     5 1        1 3
-    ul = ul.permutate((0, 1, 4, 5), (2, 3, 6, 7))  # memory peak 2*a*d*chi**2*D**4
-    ul = A.permutate((0, 1, 4, 5), (2, 3)).dagger() @ ul
+    ul = ul.permute((0, 1, 4, 5), (2, 3, 6, 7))  # memory peak 2*a*d*chi**2*D**4
+    ul = A.permute((0, 1, 4, 5), (2, 3)).dagger() @ ul
 
     #  C1-T1-4 ---->2
     #  |  ||
@@ -58,24 +58,24 @@ def contract_enlarged_corner(C1, T1, T4, A):
     #  |  ||
     #  5  31
     #  5  34
-    return ul.permutate((2, 0, 4), (3, 1, 5))
+    return ul.permute((2, 0, 4), (3, 1, 5))
 
 
 def contract_ul(C1, T1, T4, A):
     return contract_enlarged_corner(
         C1,
-        T1.permutate((1, 2, 0), (3,)),
-        T4.permutate((0,), (1, 2, 3)),
-        A.permutate((0, 1, 3, 4), (2, 5)),
+        T1.permute((1, 2, 0), (3,)),
+        T4.permute((0,), (1, 2, 3)),
+        A.permute((0, 1, 3, 4), (2, 5)),
     )
 
 
 def contract_ur(T1, C2, A, T2):
     return contract_enlarged_corner(
         C2,
-        T2.permutate((2, 3, 1), (0,)),
-        T1.permutate((0,), (1, 2, 3)),
-        A.permutate((0, 1, 4, 5), (3, 2)),
+        T2.permute((2, 3, 1), (0,)),
+        T1.permute((0,), (1, 2, 3)),
+        A.permute((0, 1, 4, 5), (3, 2)),
     )
 
 
@@ -85,16 +85,16 @@ def contract_dr(A, T2, T3, C3):
     """
     return contract_enlarged_corner(
         C3.transpose(),
-        T3.permutate((0, 1, 3), (2,)),
-        T2.permutate((1,), (2, 3, 0)),
-        A.permutate((0, 1, 5, 2), (4, 3)),
+        T3.permute((0, 1, 3), (2,)),
+        T2.permute((1,), (2, 3, 0)),
+        A.permute((0, 1, 5, 2), (4, 3)),
     )
 
 
 def contract_dl(T4, A, C4, T3):
     return contract_enlarged_corner(
         C4,
-        T4.permutate((1, 2, 0), (3,)),
-        T3.permutate((3,), (0, 1, 2)),
-        A.permutate((0, 1, 2, 3), (5, 4)),
+        T4.permute((1, 2, 0), (3,)),
+        T3.permute((3,), (0, 1, 2)),
+        A.permute((0, 1, 2, 3), (5, 4)),
     )

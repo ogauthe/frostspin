@@ -159,12 +159,12 @@ def renormalize_T(Pt, T, A, P):
     #       \     01    /
     #        \    ||   /
     #         0'3-T3-20'
-    nT = T @ P.permutate((2,), (0, 1, 3))
-    nT = nT.permutate((0, 3), (1, 4, 2, 5))
+    nT = T @ P.permute((2,), (0, 1, 3))
+    nT = nT.permute((0, 3), (1, 4, 2, 5))
     nT = A @ nT
-    nT = nT.permutate((0, 1, 4, 5), (2, 3, 6, 7))
-    nT = A.permutate((0, 1, 4, 5), (2, 3)).dagger() @ nT
-    nT = nT.permutate((3, 1, 4), (2, 0, 5))
+    nT = nT.permute((0, 1, 4, 5), (2, 3, 6, 7))
+    nT = A.permute((0, 1, 4, 5), (2, 3)).dagger() @ nT
+    nT = nT.permute((3, 1, 4), (2, 0, 5))
     nT = Pt.transpose() @ nT
     nT /= nT.norm()
     return nT
@@ -189,7 +189,7 @@ def renormalize_corner_P(C, T, P):
     # 1-P=01--2-|
     #       \   |
     #        \3-|
-    nC = nC.permutate((0,), (1, 2, 3))
+    nC = nC.permute((0,), (1, 2, 3))
     nC = nC @ P
     nC /= nC.norm()
     return nC
@@ -214,7 +214,7 @@ def renormalize_corner_Pt(C, T, Pt):
     #  |-2--10=P-1
     #  |   /
     #  |-3/
-    nC = nC.permutate((0,), (1, 2, 3))
+    nC = nC.permute((0,), (1, 2, 3))
     nC = nC @ Pt
     nC /= nC.norm()
     return nC
@@ -226,7 +226,7 @@ def renormalize_C1_up(C1, T4, P):
     CPU: 2*chi**3*D**2
     """
     return renormalize_corner_P(
-        C1.transpose(), T4.permutate((3, 1, 2), (0,)), P
+        C1.transpose(), T4.permute((3, 1, 2), (0,)), P
     ).transpose()
 
 
@@ -236,9 +236,9 @@ def renormalize_T1(Pt, T1, A, P):
     CPU: 2*chi**2*D**4*(d*a*D**2 + chi)
     """
     nT1 = renormalize_T(
-        Pt, T1.permutate((1, 2, 3), (0,)), A.permutate((0, 1, 4, 5), (2, 3)), P
+        Pt, T1.permute((1, 2, 3), (0,)), A.permute((0, 1, 4, 5), (2, 3)), P
     )
-    return nT1.permutate((3,), (1, 2, 0))
+    return nT1.permute((3,), (1, 2, 0))
 
 
 def renormalize_C2_up(C2, T2, Pt):
@@ -246,7 +246,7 @@ def renormalize_C2_up(C2, T2, Pt):
     Renormalize corner C2 from an up move using projector Pt
     CPU: 2*chi**3*D**2
     """
-    return renormalize_corner_Pt(C2, T2.permutate((1, 2, 3), (0,)), Pt)
+    return renormalize_corner_Pt(C2, T2.permute((1, 2, 3), (0,)), Pt)
 
 
 def renormalize_C2_right(C2, T1, P):
@@ -255,7 +255,7 @@ def renormalize_C2_right(C2, T1, P):
     CPU: 2*chi**3*D**2
     """
     return renormalize_corner_P(
-        C2.transpose(), T1.permutate((3, 1, 2), (0,)), P
+        C2.transpose(), T1.permute((3, 1, 2), (0,)), P
     ).transpose()
 
 
@@ -265,9 +265,9 @@ def renormalize_T2(Pt, T2, A, P):
     CPU: 2*chi**2*D**4*(d*a*D**2 + chi)
     """
     nT2 = renormalize_T(
-        Pt, T2.permutate((2, 3, 0), (1,)), A.permutate((0, 1, 5, 2), (3, 4)), P
+        Pt, T2.permute((2, 3, 0), (1,)), A.permute((0, 1, 5, 2), (3, 4)), P
     )
-    return nT2.permutate((0,), (3, 1, 2))
+    return nT2.permute((0,), (3, 1, 2))
 
 
 def renormalize_C3_right(C3, T3, Pt):
@@ -276,7 +276,7 @@ def renormalize_C3_right(C3, T3, Pt):
     CPU: 2*chi**3*D**2
     """
     return renormalize_corner_Pt(
-        C3.transpose(), T3.permutate((3, 0, 1), (2,)), Pt
+        C3.transpose(), T3.permute((3, 0, 1), (2,)), Pt
     ).transpose()
 
 
@@ -285,7 +285,7 @@ def renormalize_C3_down(C3, T2, P):
     Renormalize corner C3 from down move using projector P
     CPU: 2*chi**3*D**2
     """
-    return renormalize_corner_P(C3, T2.permutate((0, 2, 3), (1,)), P)
+    return renormalize_corner_P(C3, T2.permute((0, 2, 3), (1,)), P)
 
 
 def renormalize_T3(Pt, T3, A, P):
@@ -294,9 +294,9 @@ def renormalize_T3(Pt, T3, A, P):
     CPU: 2*chi**2*D**4*(d*a*D**2 + chi)
     """
     nT3 = renormalize_T(
-        Pt, T3.permutate((0, 1, 2), (3,)), A.permutate((0, 1, 2, 3), (4, 5)), P
+        Pt, T3.permute((0, 1, 2), (3,)), A.permute((0, 1, 2, 3), (4, 5)), P
     )
-    return nT3.permutate((1, 2, 0), (3,))
+    return nT3.permute((1, 2, 0), (3,))
 
 
 def renormalize_C4_down(C4, T4, Pt):
@@ -304,7 +304,7 @@ def renormalize_C4_down(C4, T4, Pt):
     Renormalize corner C4 from a down move using projector Pt
     CPU: 2*chi**3*D**2
     """
-    return renormalize_corner_Pt(C4, T4.permutate((0, 1, 2), (3,)), Pt)
+    return renormalize_corner_Pt(C4, T4.permute((0, 1, 2), (3,)), Pt)
 
 
 def renormalize_C4_left(C4, T3, P):
@@ -313,7 +313,7 @@ def renormalize_C4_left(C4, T3, P):
     CPU: 2*chi**3*D**2
     """
     return renormalize_corner_P(
-        C4.transpose(), T3.permutate((2, 0, 1), (3,)), P
+        C4.transpose(), T3.permute((2, 0, 1), (3,)), P
     ).transpose()
 
 
@@ -323,9 +323,9 @@ def renormalize_T4(Pt, T4, A, P):
     CPU: 2*chi**2*D**4*(a*d*D**2 + chi)
     """
     nT4 = renormalize_T(
-        Pt, T4.permutate((1, 2, 3), (0,)), A.permutate((0, 1, 3, 4), (5, 2)), P
+        Pt, T4.permute((1, 2, 3), (0,)), A.permute((0, 1, 3, 4), (5, 2)), P
     )
-    return nT4.permutate((3,), (1, 2, 0))
+    return nT4.permute((3,), (1, 2, 0))
 
 
 def renormalize_C1_left(C1, T1, Pt):
@@ -333,4 +333,4 @@ def renormalize_C1_left(C1, T1, Pt):
     Renormalize corner C1 from a left move using projector Pt
     CPU: 2*chi**3*D**2
     """
-    return renormalize_corner_Pt(C1, T1.permutate((0, 1, 2), (3,)), Pt)
+    return renormalize_corner_Pt(C1, T1.permute((0, 1, 2), (3,)), Pt)
