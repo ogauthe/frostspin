@@ -449,9 +449,6 @@ class AbelianSymmetricTensor(SymmetricTensor):
             assert b.shape == (nr, nc)
         return True
 
-    def norm(self):
-        return np.sqrt(sum(lg.norm(b) ** 2 for b in self._blocks))
-
     def toabelian(self):
         return self
 
