@@ -29,7 +29,7 @@ def contract_open_corner(C1, T1, T4, A):
     #  T4----A-4      5-A*-1
     #  | \2  |\         |\
     #  7     5 0        2 3
-    ul = A.permutate((1, 2, 5), (0, 3, 4)).H @ ul
+    ul = A.permutate((1, 2, 5), (0, 3, 4)).dagger() @ ul
     ul = ul.permutate((3, 0, 4, 1, 6), (5, 2, 7))
     # -----6          -----4
     # |  || 3         |  || 0
@@ -44,11 +44,11 @@ def contract_open_corner_mirror(T1, C2, A, T2):
     # rdm_1x2 and rdm_diag_dr require different output convention here
     # cannot provide clean leg ordering output
     ur = C2 @ T1.permutate((0,), (1, 2, 3))
-    ur = ur.T @ T2.permutate((0,), (2, 3, 1))
+    ur = ur.transpose() @ T2.permutate((0,), (2, 3, 1))
     ur = ur.permutate((0, 3), (1, 4, 2, 5))
     ur = A.permutate((1, 0, 4, 5), (2, 3)) @ ur
     ur = ur.permutate((0, 4, 5), (1, 2, 3, 6, 7))
-    ur = A.permutate((1, 2, 3), (0, 4, 5)).H @ ur
+    ur = A.permutate((1, 2, 3), (0, 4, 5)).dagger() @ ur
     #   6------
     #    2 || |
     #     \|| |
@@ -116,7 +116,7 @@ def rdm_2x1(C1, T1, C2, T4u, Au, T2u, T4d, Ad, T2d, C4, T3, C3):
         C2,
         T2u.permutate((1, 2, 3), (0,)),
         T2d.permutate((1,), (2, 3, 0)),
-        C3.T,
+        C3.transpose(),
         T1,
         Au.permutate((0, 1), (3, 4, 5, 2)),
         Ad.permutate((0, 1), (3, 4, 5, 2)),
@@ -124,7 +124,7 @@ def rdm_2x1(C1, T1, C2, T4u, Au, T2u, T4d, Ad, T2d, C4, T3, C3):
         C1,
         T4u.permutate((1, 2, 3), (0,)),
         T4d.permutate((1, 2, 3), (0,)),
-        C4.T,
+        C4.transpose(),
     )
 
 
@@ -164,7 +164,7 @@ def rdm_diag_dr(C1, T1l, ur, T4u, Aul, dl, Adr, T2d, T3r, C3):
 
     dr = contract_open_corner_mirror(
         T2d.permutate((1, 2, 3), (0,)),
-        C3.T,
+        C3.transpose(),
         Adr.permutate((0, 1, 3, 4), (5, 2)),
         T3r.permutate((2, 3), (0, 1)),
     )
@@ -203,7 +203,7 @@ def rdm_diag_ur(ul, T1r, C2, Aur, T2u, T4d, Adl, dr_T, C4, T3l):
         Aur.permutate((0, 1), (5, 2, 3, 4)),
         T1r.permutate((3,), (0, 1, 2)),
         T2u.permutate((2, 3, 0), (1,)),
-        C2.T,
+        C2.transpose(),
     )
     rdm = (
         rdm.reshape(Adl.shape[0], Aur.shape[0], Adl.shape[0], Aur.shape[0])

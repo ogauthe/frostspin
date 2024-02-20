@@ -50,7 +50,7 @@ def contract_corner_monolayer(C1, T1, T4, A):
     #  | \3  |\         |\
     #  7     5 1        1 3
     ul = ul.permutate((0, 1, 4, 5), (2, 3, 6, 7))  # memory peak 2*a*d*chi**2*D**4
-    ul = A.permutate((0, 1, 4, 5), (2, 3)).H @ ul
+    ul = A.permutate((0, 1, 4, 5), (2, 3)).dagger() @ ul
 
     #  C1-T1-4 ---->2
     #  |  ||
@@ -84,7 +84,7 @@ def contract_dr_corner_monolayer(A, T2, T3, C3):
     unusual leg convention: dr is transposed compared to clockwise order
     """
     return contract_corner_monolayer(
-        C3.T,
+        C3.transpose(),
         T3.permutate((0, 1, 3), (2,)),
         T2.permutate((1,), (2, 3, 0)),
         A.permutate((0, 1, 5, 2), (4, 3)),
@@ -150,14 +150,14 @@ def contract_dr_corner_bilayer(a_dr, T2, T3, C3):
     up = T2.permutate((2, 3, 0), (1,))
     left = C3 @ T3.permutate((2,), (0, 1, 3))
     dr = add_a_bilayer(up, left, a_dr)
-    return dr.T
+    return dr.transpose()
 
 
 def contract_dl_corner_bilayer(T4, a_dl, C4, T3):
     """
     Contract down left corner using contracted A-A*
     """
-    dl = T3.permutate((0, 1, 2), (3,)) @ C4.T
+    dl = T3.permutate((0, 1, 2), (3,)) @ C4.transpose()
     # a_dl = a_ur.T has swapped up and right legs:
     #  1
     # 3 0
@@ -168,7 +168,7 @@ def contract_dl_corner_bilayer(T4, a_dl, C4, T3):
 
     left = T4.permutate((3,), (1, 2, 0))
     dl = add_a_bilayer(dl, left, a_dl)
-    return dl.T
+    return dl.transpose()
 
 
 def add_a_bilayer(up, left, a_ul):

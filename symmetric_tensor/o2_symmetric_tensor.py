@@ -833,7 +833,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         if row_axes == tuple(range(self._nrr, self._ndim)) and col_axes == tuple(
             range(self._nrr)
         ):
-            return self.T
+            return self.transpose()
 
         # avoid numba problems with F-arrays
         self._blocks = tuple(np.ascontiguousarray(b) for b in self._blocks)
@@ -925,15 +925,14 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         assert abs(tp.norm() - self.norm()) <= _tol * self.norm(), "norm is different"
         return tp
 
-    @property
-    def T(self):
+    def transpose(self):
         b_neg = tuple(b.T for b in reversed(self._generate_neg_sz_blocks()))
         b0 = tuple(b.T for b in self._blocks[: self._block_irreps.searchsorted(1)])
         blocks = b0 + b_neg
         s = self._signature[np.arange(-self._ndim + self._nrr, self._nrr) % self._ndim]
         return type(self)(self._col_reps, self._row_reps, blocks, self._block_irreps, s)
 
-    def group_conjugated(self):
+    def dual(self):
         signature = ~self._signature
         blocks = tuple(self._generate_neg_sz_blocks()[::-1])
         blocks = self._blocks[: self._block_irreps.searchsorted(1)] + blocks

@@ -74,9 +74,9 @@ assert (tB_SU2.toU1() - tB_U1).norm() < tol
 
 # check bilayer contraction
 a0 = np.tensordot(tRVB, tRVB, ((0, 1), (0, 1)))
-a_U1 = tA_U1.H @ tA_U1
-a_O2 = tA_O2.H @ tA_O2
-a_SU2 = tA_SU2.H @ tA_SU2
+a_U1 = tA_U1.dagger() @ tA_U1
+a_O2 = tA_O2.dagger() @ tA_O2
+a_SU2 = tA_SU2.dagger() @ tA_SU2
 assert lg.norm(a_U1.toarray() - a0) < tol
 assert lg.norm(a_O2.toarray() - a0) < tol
 assert (a_O2.toU1() - a_U1).norm() < tol

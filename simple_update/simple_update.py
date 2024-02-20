@@ -1131,7 +1131,7 @@ class SimpleUpdate:
         #          \----------- gate ----------/
         theta = effL @ effm  # auxL, pL = theta = mR, auxm
         theta = theta.permutate((0, 1, 3), (2,))  # auxL, pL, auxm = theta - mR
-        theta = theta @ effR.T  # auxL, pL, auxm = theta = auxR, pR
+        theta = theta @ effR.transpose()  # auxL, pL, auxm = theta = auxR, pR
         theta = theta.permutate((0, 2, 3), (1, 4))  # auxL, auxm, auxR = theta = pL, pR
         theta = theta @ gate
 

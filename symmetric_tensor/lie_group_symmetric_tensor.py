@@ -943,8 +943,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             return arr.reshape(self.matrix_shape)
         return arr
 
-    @property
-    def T(self):
+    def transpose(self):
         row_axes = tuple(range(self._nrr, self._ndim))
         col_axes = tuple(range(self._nrr))
         return self.permutate(row_axes, col_axes)

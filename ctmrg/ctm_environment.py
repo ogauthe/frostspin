@@ -33,7 +33,7 @@ def _initialize_env(A):
     # no assumption is made on it.
 
     def init_C(At, su):
-        C = At.H @ At
+        C = At.dagger() @ At
         C = C.permutate((2, 0), (3, 1))
         C.update_signature(su)
         C = C.merge_legs(2, 3).merge_legs(0, 1)
@@ -64,27 +64,27 @@ def _initialize_env(A):
     # permutation on T with total size D^6.
 
     temp = A.permutate((0, 1, 2), (3, 4, 5))
-    T1 = temp.H @ temp
+    T1 = temp.dagger() @ temp
     T1 = T1.permutate((3, 0), (5, 2, 4, 1))
     T1.update_signature([0, 1, 0, 1, 0, 0])
     T1 = T1.merge_legs(2, 3).merge_legs(0, 1)
     T1 = T1.permutate((0,), (2, 3, 1))
 
     temp = A.permutate((0, 1, 3), (2, 4, 5))
-    T2 = temp.H @ temp
+    T2 = temp.dagger() @ temp
     T2 = T2.permutate((3, 0), (4, 1, 5, 2))
     T2.update_signature([0, 1, 0, 1, 0, 0])
     T2 = T2.merge_legs(2, 3).merge_legs(0, 1)
 
     temp = A.permutate((0, 1, 4), (2, 3, 5))
-    T3 = temp.H @ temp
+    T3 = temp.dagger() @ temp
     T3 = T3.permutate((4, 1), (5, 2, 3, 0))
     T3.update_signature([0, 1, 0, 1, 0, 0])
     T3 = T3.merge_legs(2, 3).merge_legs(0, 1)
     T3 = T3.permutate((2, 3, 0), (1,))
 
     temp = A.permutate((0, 1, 5), (2, 3, 4))
-    T4 = temp.H @ temp
+    T4 = temp.dagger() @ temp
     T4 = T4.permutate((3, 0), (5, 2, 4, 1))
     T4.update_signature([0, 1, 0, 1, 0, 0])
     T4 = T4.merge_legs(2, 3).merge_legs(0, 1)

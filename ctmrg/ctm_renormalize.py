@@ -51,8 +51,8 @@ def construct_projectors(
     # Rt = corner3 @ corner4
     # M = R @ Rt
     # U, s, V = truncated_svd(M)
-    # P = R.T @ U.conj() / s
-    # Pt = Rt @ V.T.conj() / s
+    # P = R.transpose() @ U.conj() / s
+    # Pt = Rt @ V.transpose().conj() / s
 
     shared = sorted(
         set(corner1.block_irreps)
@@ -120,7 +120,7 @@ def construct_projectors(
     p_blocks = []
     pt_blocks = []
     non_empty = block_cuts.nonzero()[0]
-    # construct P.T blocks to avoid conjugating any representation
+    # construct P.transpose() blocks to avoid conjugating any representation
     for bi in non_empty:
         cut = block_cuts[bi]
         s12 = 1.0 / np.sqrt(s_blocks[bi][:cut])
@@ -134,7 +134,9 @@ def construct_projectors(
     sp[1:] = corner2.signature[corner2.n_row_reps :]
     spt = np.ones((corner2.n_row_reps + 1), dtype=bool)
     spt[:-1] = ~s2
-    P = type(corner2)((mid_rep,), corner2.col_reps, p_blocks, block_irreps, sp).T
+    P = type(corner2)(
+        (mid_rep,), corner2.col_reps, p_blocks, block_irreps, sp
+    ).transpose()
     Pt = type(corner2)(corner2.col_reps, (mid_rep,), pt_blocks, block_irreps, spt)
     return P, Pt
 
@@ -162,9 +164,9 @@ def renormalize_T(Pt, T, A, P):
     nT = nT.permutate((0, 3), (1, 4, 2, 5))
     nT = A @ nT
     nT = nT.permutate((0, 1, 4, 5), (2, 3, 6, 7))
-    nT = A.permutate((0, 1, 4, 5), (2, 3)).H @ nT
+    nT = A.permutate((0, 1, 4, 5), (2, 3)).dagger() @ nT
     nT = nT.permutate((3, 1, 4), (2, 0, 5))
-    nT = Pt.T @ nT
+    nT = Pt.transpose() @ nT
     nT /= nT.norm()
     return nT
 
@@ -224,7 +226,9 @@ def renormalize_C1_up(C1, T4, P):
     Renormalize corner C1 from an up move using projector P
     CPU: 2*chi**3*D**2
     """
-    return renormalize_corner_P(C1.T, T4.permutate((3, 1, 2), (0,)), P).T
+    return renormalize_corner_P(
+        C1.transpose(), T4.permutate((3, 1, 2), (0,)), P
+    ).transpose()
 
 
 def renormalize_T1_monolayer(Pt, T1, A, P):
@@ -251,7 +255,9 @@ def renormalize_C2_right(C2, T1, P):
     Renormalize corner C2 from right move using projector P
     CPU: 2*chi**3*D**2
     """
-    return renormalize_corner_P(C2.T, T1.permutate((3, 1, 2), (0,)), P).T
+    return renormalize_corner_P(
+        C2.transpose(), T1.permutate((3, 1, 2), (0,)), P
+    ).transpose()
 
 
 def renormalize_T2_monolayer(Pt, T2, A, P):
@@ -270,7 +276,9 @@ def renormalize_C3_right(C3, T3, Pt):
     Renormalize corner C3 from right move using projector Pt
     CPU: 2*chi**3*D**2
     """
-    return renormalize_corner_Pt(C3.T, T3.permutate((3, 0, 1), (2,)), Pt).T
+    return renormalize_corner_Pt(
+        C3.transpose(), T3.permutate((3, 0, 1), (2,)), Pt
+    ).transpose()
 
 
 def renormalize_C3_down(C3, T2, P):
@@ -305,7 +313,9 @@ def renormalize_C4_left(C4, T3, P):
     Renormalize corner C4 from a left move using projector P
     CPU: 2*chi**3*D**2
     """
-    return renormalize_corner_P(C4.T, T3.permutate((2, 0, 1), (3,)), P).T
+    return renormalize_corner_P(
+        C4.transpose(), T3.permutate((2, 0, 1), (3,)), P
+    ).transpose()
 
 
 def renormalize_T4_monolayer(Pt, T4, A, P):
@@ -347,7 +357,7 @@ def renormalize_T1_bilayer(Pt, T1, a_ul, P):
     #       1'-Pt==AA=0
     #            \ ||
     #               1'
-    nT1 = P.T @ nT1
+    nT1 = P.transpose() @ nT1
     nT1 /= nT1.norm()
     return nT1
 
@@ -369,7 +379,7 @@ def renormalize_T2_bilayer(Pt, T2, a_ur, P):
     #           2==AA=T2
     #              \\  |
     #               0  1
-    nT2 = P.T @ nT2
+    nT2 = P.transpose() @ nT2
     nT2 /= nT2.norm()
     nT2 = nT2.permutate((3,), (0, 1, 2))
     return nT2
@@ -399,7 +409,7 @@ def renormalize_T3_bilayer(Pt, T3, a_dl, P):
     #            //AA=0
     #         3-P  ||
     #            \-T3-1
-    nT3 = Pt.T @ nT3
+    nT3 = Pt.transpose() @ nT3
     nT3 /= nT3.norm()
     nT3 = nT3.permutate((1, 2, 0), (3,))
     return nT3

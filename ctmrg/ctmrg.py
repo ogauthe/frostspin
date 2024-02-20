@@ -721,7 +721,7 @@ class CTMRG:
                 self.ncv_ratio,
                 self.cutoff,
                 self.degen_ratio,
-                self._env.get_C3(x + 2, y + 2).T,
+                self._env.get_C3(x + 2, y + 2).transpose(),
             )
             self._env.store_projectors(x + 3, y + 2, P, Pt)
 
@@ -850,7 +850,7 @@ class CTMRG:
             self._env.set_corner_ul(x, y, None)
             C2 = self._env.get_C2(x + 1, y)
             P, Pt = construct_projectors(
-                self._env.get_C3(x + 1, y + 1).T,
+                self._env.get_C3(x + 1, y + 1).transpose(),
                 C2,
                 self._env.get_C1(x, y),
                 self._env.get_C4(x, y + 1),
@@ -864,10 +864,10 @@ class CTMRG:
             self._env.store_projectors(x + 1, y, P, Pt)
         for x, y in self._site_coords:
             # in place change: read and write C1(x,y), T1(x,y), C2(x,y)
-            P = self._env.get_P(x + 1, y)
+            P_trans = self._env.get_P(x + 1, y).transpose()
             Pt = self._env.get_Pt(x, y)
-            nC1 = P.T @ self._env.get_C1(x, y)
-            nT1 = (P.T @ self._env.get_T1(x, y)).permutate((0, 1, 2), (3,)) @ Pt
+            nC1 = P_trans @ self._env.get_C1(x, y)
+            nT1 = (P_trans @ self._env.get_T1(x, y)).permutate((0, 1, 2), (3,)) @ Pt
             nT1 = nT1.permutate((0,), (1, 2, 3))
             nC2 = self._env.get_C2(x, y) @ Pt
             self._env.store_renormalized_tensors(x, y, nC1, nT1, nC2)
@@ -877,7 +877,7 @@ class CTMRG:
         for x, y in self._site_coords:
             self._env.set_corner_ur(x, y, None)
             self._env.set_corner_dr(x, y, None)
-            C3 = self._env.get_C3(x + 1, y + 1).T
+            C3 = self._env.get_C3(x + 1, y + 1).transpose()
             P, Pt = construct_projectors(
                 self._env.get_C4(x, y + 1),
                 C3,
@@ -893,11 +893,11 @@ class CTMRG:
             self._env.store_projectors(x + 1, y + 1, P, Pt)
         for x, y in self._site_coords:
             P = self._env.get_P(x, y + 1)
-            Pt = self._env.get_Pt(x, y)
-            nC2 = P.T @ self._env.get_C2(x, y)
-            nT2 = (Pt.T @ self._env.get_T2(x, y)).permutate((0, 2, 3), (1,)) @ P
+            Pt_trans = self._env.get_Pt(x, y).transpose()
+            nC2 = P.transpose() @ self._env.get_C2(x, y)
+            nT2 = (Pt_trans @ self._env.get_T2(x, y)).permutate((0, 2, 3), (1,)) @ P
             nT2 = nT2.permutate((0,), (3, 1, 2))
-            nC3 = Pt.T @ self._env.get_C3(x, y)
+            nC3 = Pt_trans @ self._env.get_C3(x, y)
             self._env.store_renormalized_tensors(x, y, nC2, nT2, nC3)
         self._env.set_renormalized_tensors_right()
 
@@ -909,7 +909,7 @@ class CTMRG:
             P, Pt = construct_projectors(
                 self._env.get_C1(x, y),
                 C4,
-                self._env.get_C3(x + 1, y + 1).T,
+                self._env.get_C3(x + 1, y + 1).transpose(),
                 self._env.get_C2(x + 1, y),
                 self.chi_target,
                 self.block_chi_ratio,
@@ -938,7 +938,7 @@ class CTMRG:
                 self._env.get_C2(x + 1, y),
                 C1,
                 self._env.get_C4(x, y + 1),
-                self._env.get_C3(x + 1, y + 1).T,
+                self._env.get_C3(x + 1, y + 1).transpose(),
                 self.chi_target,
                 self.block_chi_ratio,
                 self.ncv_ratio,
@@ -948,10 +948,10 @@ class CTMRG:
             )
             self._env.store_projectors(x, y, P, Pt)
         for x, y in self._site_coords:
-            P = self._env.get_P(x, y - 1)
+            P_trans = self._env.get_P(x, y - 1).transpose()
             Pt = self._env.get_Pt(x, y)
-            nC4 = P.T @ self._env.get_C4(x, y)
-            nT4 = (P.T @ self._env.get_T4(x, y)).permutate((0, 1, 2), (3,)) @ Pt
+            nC4 = P_trans @ self._env.get_C4(x, y)
+            nT4 = (P_trans @ self._env.get_T4(x, y)).permutate((0, 1, 2), (3,)) @ Pt
             nT4 = nT4.permutate((0,), (1, 2, 3))
             nC1 = self._env.get_C1(x, y) @ Pt
             self._env.store_renormalized_tensors(x, y, nC4, nT4, nC1)

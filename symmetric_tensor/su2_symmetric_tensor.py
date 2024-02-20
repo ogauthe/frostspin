@@ -196,10 +196,9 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
     ####################################################################################
     # Symmetry specific methods with fixed signature
     ####################################################################################
-    def group_conjugated(self):
-        # .T makes use of precomputed isometries and .H is costless
-        ret = self.T.H
-        ret._blocks = tuple(b.conj() for b in ret._blocks)
+    def dual(self):
+        ret = self.transpose().dagger()
+        ret._blocks = tuple(b for b in ret._blocks)
         return ret
 
     def toSU2(self):
