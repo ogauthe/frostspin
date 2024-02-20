@@ -41,6 +41,10 @@ def check_o2(to2, tu1):
     return
 
 
+assert O2_SymmetricTensor.symmetry() == "O2"
+assert O2_SymmetricTensor.singlet().shape == (2, 1)
+assert (O2_SymmetricTensor.singlet() == np.array([[1], [0]])).all()
+
 to2 = O2_SymmetricTensor.random(row_reps, col_reps, rng=rng)
 to2 /= to2.norm()
 tu1 = to2.toU1()

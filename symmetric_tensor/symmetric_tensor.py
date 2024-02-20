@@ -33,14 +33,16 @@ class SymmetricTensor:
     # Symmetry implementation
     # each of those methods must be defined according to group rules to define symmetry.
     ####################################################################################
-    @classmethod
-    @property
-    def symmetry(cls):
-        raise NotImplementedError("Must be defined in derived class")
+    # currently _symmetry is a string. Could be a separate class and all the static
+    # methods would become class method returning cls._symmetry.singlet()
+    _symmetry = NotImplemented
 
     @classmethod
-    @property
-    def singlet(cls):
+    def symmetry(cls):
+        return cls._symmetry
+
+    @staticmethod
+    def singlet():
         raise NotImplementedError("Must be defined in derived class")
 
     @staticmethod
@@ -306,7 +308,7 @@ class SymmetricTensor:
             )
         if isinstance(other, DiagonalTensor):  # add diagonal weights on last col leg
             # check DiagonalTensor matches self
-            assert self.symmetry == other.symmetry
+            assert self._symmetry == other.symmetry()
             assert (self._col_reps[-1] == other.representation).all()
             assert (
                 other.block_degen
@@ -326,7 +328,7 @@ class SymmetricTensor:
                 self._signature,
             )
         if isinstance(other, DiagonalTensor):  # add diagonal weights on 1st row leg
-            assert self.symmetry == other.symmetry
+            assert self._symmetry == other.symmetry()
             assert (self._row_reps[0] == other.representation).all()
             assert (
                 other.block_degen
@@ -617,7 +619,9 @@ class SymmetricTensor:
         usign[: self._nrr] = self._signature[: self._nrr]
         U = type(self)(self._row_reps, (mid_rep,), u_blocks, self._block_irreps, usign)
         degens = [self.irrep_dimension(irr) for irr in self._block_irreps]
-        s = DiagonalTensor(s_blocks, mid_rep, self._block_irreps, degens, self.symmetry)
+        s = DiagonalTensor(
+            s_blocks, mid_rep, self._block_irreps, degens, self._symmetry
+        )
         vsign = np.zeros((self._ndim - self._nrr + 1,), dtype=bool)
         vsign[1:] = self._signature[self._nrr :]
         V = type(self)((mid_rep,), self._col_reps, v_blocks, self._block_irreps, vsign)
@@ -682,7 +686,7 @@ class SymmetricTensor:
         usign[: self._nrr] = self._signature[: self._nrr]
         U = type(self)(self._row_reps, (mid_rep,), u_blocks, block_irreps, usign)
         degens = [self.irrep_dimension(irr) for irr in block_irreps]
-        s = DiagonalTensor(s_blocks, mid_rep, block_irreps, degens, self.symmetry)
+        s = DiagonalTensor(s_blocks, mid_rep, block_irreps, degens, self._symmetry)
         vsign = np.zeros((self._ndim - self._nrr + 1,), dtype=bool)
         vsign[1:] = self._signature[self._nrr :]
         V = type(self)((mid_rep,), self._col_reps, v_blocks, block_irreps, vsign)
@@ -712,7 +716,7 @@ class SymmetricTensor:
         # allows to save several SymmetricTensors in one file by using different
         # prefixes.
         data = {
-            prefix + "_symmetry": self.symmetry,
+            prefix + "_symmetry": self._symmetry,
             prefix + "_n_row_reps": self._nrr,
             prefix + "_n_col_reps": self._ndim - self._nrr,
             prefix + "_block_irreps": self._block_irreps,
@@ -728,7 +732,7 @@ class SymmetricTensor:
 
     @classmethod
     def load_from_dic(cls, data, prefix=""):
-        if cls.symmetry != data[prefix + "_symmetry"][()]:
+        if cls._symmetry != data[prefix + "_symmetry"][()]:
             raise ValueError(f"Saved SymmetricTensor does not match type {cls}")
         row_reps = []
         for ri in range(data[prefix + "_n_row_reps"][()]):

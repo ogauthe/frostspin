@@ -17,16 +17,11 @@ class AsymmetricTensor(SymmetricTensor):
     ####################################################################################
     # Symmetry implementation
     ####################################################################################
-    @classmethod
-    @property
-    def symmetry(cls):
-        return "trivial"
-
+    _symmetry = "trivial"
     _irrep = np.zeros([1], dtype=np.int8)
 
-    @classmethod
-    @property
-    def singlet(cls):
+    @staticmethod
+    def singlet():
         return np.ones((1,), dtype=int)
 
     @staticmethod

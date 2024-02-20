@@ -620,14 +620,10 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
     ####################################################################################
     # Symmetry implementation
     ####################################################################################
-    @classmethod
-    @property
-    def symmetry(cls):
-        return "O2"
+    _symmetry = "O2"
 
-    @classmethod
-    @property
-    def singlet(cls):
+    @staticmethod
+    def singlet():
         return np.array([[1], [0]])
 
     @staticmethod

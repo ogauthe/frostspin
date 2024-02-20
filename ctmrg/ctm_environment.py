@@ -96,29 +96,29 @@ def _initialize_env(A):
 def _initialize_dummy(A):
     ST = type(A)
 
-    rr = (ST.singlet,)
+    rr = (ST.singlet(),)
     C1 = ST.from_array(np.eye(1), rr, rr, signature=[A.signature[3], A.signature[4]])
     C2 = ST.from_array(np.eye(1), rr, rr, signature=[A.signature[4], A.signature[5]])
     C3 = ST.from_array(np.eye(1), rr, rr, signature=[A.signature[2], A.signature[5]])
     C4 = ST.from_array(np.eye(1), rr, rr, signature=[A.signature[2], A.signature[3]])
 
-    rr = (ST.singlet,)
-    rc = (A.col_reps[2], A.col_reps[2], ST.singlet)
+    rr = (ST.singlet(),)
+    rc = (A.col_reps[2], A.col_reps[2], ST.singlet())
     sig = np.array([A.signature[3], A.signature[4], ~A.signature[4], A.signature[5]])
     T1 = ST.from_array(np.eye(A.shape[4])[None, :, :, None], rr, rc, signature=sig)
 
-    rr = (ST.singlet,)
-    rc = (ST.singlet, A.col_reps[3], A.col_reps[3])
+    rr = (ST.singlet(),)
+    rc = (ST.singlet(), A.col_reps[3], A.col_reps[3])
     sig = np.array([A.signature[2], A.signature[4], A.signature[5], ~A.signature[5]])
     T2 = ST.from_array(np.eye(A.shape[5])[None, None, :, :], rr, rc, signature=sig)
 
-    rr = (A.col_reps[0], A.col_reps[0], ST.singlet)
-    rc = (ST.singlet,)
+    rr = (A.col_reps[0], A.col_reps[0], ST.singlet())
+    rc = (ST.singlet(),)
     sig = np.array([A.signature[2], ~A.signature[2], A.signature[3], A.signature[5]])
     T3 = ST.from_array(np.eye(A.shape[2])[:, :, None, None], rr, rc, signature=sig)
 
-    rr = (ST.singlet,)
-    rc = (A.col_reps[1], A.col_reps[1], ST.singlet)
+    rr = (ST.singlet(),)
+    rc = (A.col_reps[1], A.col_reps[1], ST.singlet())
     sig = np.array([A.signature[2], A.signature[3], ~A.signature[3], A.signature[4]])
     T4 = ST.from_array(np.eye(A.shape[3])[None, :, :, None], rr, rc, signature=sig)
     return C1, T1, C2, T2, C3, T3, C4, T4
@@ -173,13 +173,14 @@ class CTM_Environment:
         self._Dmax = max(max(A.shape[2:]) for A in self._neq_As)
 
         # 3) check tensor types and numbers
-        self._ST = type(As[0])
+        ST = type(As[0])
+        self._symmetry = ST.symmetry()
 
         def check(tensors, ndim, name):
             if len(tensors) != self._n_sites:
                 raise ValueError(f"Invalid {name} number")
             for t in tensors:
-                if type(t) is not self._ST:
+                if type(t) is not ST:
                     raise ValueError(f"Invalid {name} type")
                 if t.ndim != ndim:
                     raise ValueError(f"Invalid {name} ndim")
@@ -279,10 +280,6 @@ class CTM_Environment:
     def site_coords(self):
         return self._site_coords
 
-    @property
-    def symmetry(self):
-        return self._ST.symmetry
-
     @classmethod
     def from_elementary_tensors(cls, tiling, tensors, dummy):
         """
@@ -341,11 +338,15 @@ class CTM_Environment:
                 T4s.append(ST.load_from_dic(data, prefix=f"_CTM_T4_{i}"))
         return cls(cell, As, C1s, C2s, C3s, C4s, T1s, T2s, T3s, T4s)
 
+    # avoid property to mimic ST behavior
+    def symmetry(self):
+        return self._symmetry
+
     def get_data_dic(self):
         """
         Return environment data as a dict to save in external file.
         """
-        data = {"_CTM_cell": self._cell, "_CTM_symmetry": self.symmetry}
+        data = {"_CTM_cell": self._cell, "_CTM_symmetry": self._symmetry}
 
         # use SymmetricTensor nice I/O, pure npz file without pickle
         for i in range(self._n_sites):
@@ -381,10 +382,9 @@ class CTM_Environment:
         self.reset_constructed_corners()
 
     def set_symmetry(self, symmetry):
-        ST = get_symmetric_tensor_type(symmetry)
-        if ST != self._ST:
+        if symmetry != self._symmetry:
             self.reset_constructed_corners()
-            self._ST = ST
+            self._symmetry = symmetry
 
             self._neq_As = tuple(A.cast(symmetry) for A in self._neq_As)
             self._neq_C1s = [C1.cast(symmetry) for C1 in self._neq_C1s]
