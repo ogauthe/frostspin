@@ -262,7 +262,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         key0[self._ndim + 1] = nrr_out
         key0[self._ndim + 2] = (1 << np.arange(self._ndim)) @ self._signature
         key0[self._ndim + 3 :] = axes
-        singlet = self.singlet[1, 0]
+        singlet = self.singlet()[1, 0]
 
         # convention: return elementary unitary blocked sliced for IN irrep blocks
         isometry_blocks = []

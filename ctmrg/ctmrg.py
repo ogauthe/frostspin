@@ -260,9 +260,6 @@ class CTMRG:
     def chi_values(self):
         return self._env.chi_values
 
-    def get_corner_representations(self):
-        return self._env.get_corner_representations()
-
     @property
     def elementary_tensors(self):
         return self._env.elementary_tensors
@@ -270,10 +267,6 @@ class CTMRG:
     @property
     def n_sites(self):
         return self._env.n_sites
-
-    @property
-    def symmetry(self):
-        return self._env.symmetry
 
     @property
     def site_coords(self):
@@ -284,7 +277,7 @@ class CTMRG:
         return "\n".join("".join(s) for s in self.cell)
 
     def __repr__(self):
-        s = f"{self.symmetry} symmetric CTMRG with Dmax = {self.Dmax}"
+        s = f"{self.symmetry()} symmetric CTMRG with Dmax = {self.Dmax}"
         s = s + f" and chi_target = {self.chi_target}"
         return s
 
@@ -300,6 +293,12 @@ class CTMRG:
                 f"unit cell =\n{self._env.cell}",
             )
         )
+
+    def symmetry(self):
+        return self._env.symmetry()
+
+    def get_corner_representations(self):
+        return self._env.get_corner_representations()
 
     def restart_environment(self, dummy=True):
         """
@@ -323,7 +322,7 @@ class CTMRG:
         symmetry: str
             Symmetry group
         """
-        if self.symmetry != symmetry:
+        if self.symmetry() != symmetry:
             if self.verbosity > 0:
                 print("set symmetry to", symmetry)
             self._env.set_symmetry(symmetry)

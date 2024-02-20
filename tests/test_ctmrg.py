@@ -13,9 +13,10 @@ from ctmrg.ctmrg import CTMRG
 a = AsymmetricTensor.from_array(
     np.ones((2, 2, 3, 3, 3, 3)), np.array([[2, 2]]).T, np.array([[3, 3, 3, 3]]).T
 )
+b = a.conjugate()  # should be dual
 ctm0 = CTMRG.from_elementary_tensors(
     "AB\nBA",
-    [a, a.conjugate()],
+    [a, b],
     20,
     block_chi_ratio=1.2,
     block_ncv_ratio=2.2,
@@ -23,7 +24,25 @@ ctm0 = CTMRG.from_elementary_tensors(
     degen_ratio=1.0,
 )
 
+assert ctm0.Dmax == 3
+assert ctm0.Dmin == 3
+assert ctm0.Lx == 2
+assert ctm0.Ly == 2
+assert ctm0.cell.shape == (2, 2)
+assert (ctm0.cell == np.array([["A", "B"], ["B", "A"]])).all()
+assert ctm0.chi_target == 20
+assert ctm0.chi_values == [1]
+assert len(ctm0.elementary_tensors) == 2
+assert ctm0.elementary_tensors[0] is a
+assert ctm0.elementary_tensors[1] is b
 assert ctm0.n_sites == 2
+assert ctm0.site_coords.shape == (2, 2)
+assert (ctm0.site_coords == np.array([[0, 0], [1, 0]])).all()
+assert ctm0.tiling == "AB\nBA"
+assert ctm0.symmetry() == "trivial"
+assert len(ctm0.get_corner_representations()) == 1
+assert len(ctm0.get_corner_representations()) == 1
+assert (ctm0.get_corner_representations()[0] == a.singlet()).all()
 
 
 def eq_st(st1, st2):

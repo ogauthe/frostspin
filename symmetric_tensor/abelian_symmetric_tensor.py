@@ -260,9 +260,8 @@ class AbelianSymmetricTensor(SymmetricTensor):
     ####################################################################################
     # Symmetry implementation
     ####################################################################################
-    @classmethod
-    @property
-    def singlet(cls):
+    @staticmethod
+    def singlet():
         return np.zeros((1,), dtype=np.int8)
 
     @staticmethod

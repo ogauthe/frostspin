@@ -64,10 +64,6 @@ class DiagonalTensor:
         )
 
     @property
-    def symmetry(self):
-        return self._symmetry
-
-    @property
     def dtype(self):
         return self._diagonal_blocks[0].dtype
 
@@ -120,6 +116,9 @@ class DiagonalTensor:
     ####################################################################################
     # misc
     ####################################################################################
+    def symmetry(self):
+        return self._symmetry
+
     def sum(self):
         s = 0.0
         for i in range(self._nblocks):
@@ -179,7 +178,7 @@ class DiagonalTensor:
             prefix + "_block_irreps": self._block_irreps,
             prefix + "_block_degen": self._block_degen,
             prefix + "_representation": self._representation,
-            prefix + "_symmetry": self.symmetry,
+            prefix + "_symmetry": self._symmetry,
         }
         for bi, db in enumerate(self._diagonal_blocks):
             data[f"{prefix}_diagonal_block_{bi}"] = db
@@ -187,7 +186,7 @@ class DiagonalTensor:
 
     @classmethod
     def load_from_dic(cls, data, prefix=""):
-        symmetry = data[prefix + "_symmetry"]
+        symmetry = str(data[prefix + "_symmetry"])
         block_irreps = data[prefix + "_block_irreps"]
         block_degen = data[prefix + "_block_degen"]
         representation = data[prefix + "_representation"]

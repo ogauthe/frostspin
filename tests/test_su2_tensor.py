@@ -14,6 +14,10 @@ sds_22 = np.array(
     ]
 )
 
+assert SU2_SymmetricTensor.symmetry() == "SU2"
+assert SU2_SymmetricTensor.singlet().shape == (2, 1)
+assert (SU2_SymmetricTensor.singlet() == np.array([[1], [1]])).all()
+
 sds_22t = sds_22.reshape(2, 2, 2, 2)
 r = np.array([[1], [2]])
 

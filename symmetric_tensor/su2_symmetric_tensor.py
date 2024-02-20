@@ -121,14 +121,10 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
     ####################################################################################
     # Symmetry implementation
     ####################################################################################
-    @classmethod
-    @property
-    def symmetry(cls):
-        return "SU2"
+    _symmetry = "SU2"
 
-    @classmethod
-    @property
-    def singlet(cls):
+    @staticmethod
+    def singlet():
         return np.ones((2, 1), dtype=int)
 
     @staticmethod
@@ -149,8 +145,8 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
     def representation_dimension(rep):
         return rep[0] @ rep[1]
 
-    @classmethod
-    def irrep_dimension(cls, irr):
+    @staticmethod
+    def irrep_dimension(irr):
         return int(irr)
 
     ####################################################################################

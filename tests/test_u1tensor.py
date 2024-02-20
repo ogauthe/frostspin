@@ -48,6 +48,12 @@ c5 = np.array([-3, -1, 0, 2], dtype=np.int8)  # breaks conjugation symmetry
 row_reps = (c1, c2)
 col_reps = (c3, c4, c5)
 signature = np.array([1, 0, 0, 1, 1], dtype=bool)
+
+assert U1_SymmetricTensor.symmetry() == "U1"
+assert U1_SymmetricTensor.singlet().shape == (1,)
+assert (U1_SymmetricTensor.singlet() == np.zeros((1,), dtype=np.int8)).all()
+
+
 t0 = random_U1_tensor(row_reps, col_reps, signature=signature, rng=rng)
 tu1 = U1_SymmetricTensor.from_array(t0, row_reps, col_reps, signature=signature)
 

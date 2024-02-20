@@ -345,7 +345,7 @@ class SimpleUpdate:
         self._n_bonds = len(weights)
         self._n_updates = len(self._1st_updated_bond) - 1
         self._n_tensors = len(tensors)
-        self._ST = type(raw_hamilts[0])
+        self._symmetry = raw_hamilts[0].symmetry()
         self._tensor_bond_indices = tensor_bond_indices
         self._tensors = tensors
         self._weights = list(weights)
@@ -361,14 +361,14 @@ class SimpleUpdate:
         self.check_consistency()
 
         if self.verbosity > 0:
-            print(f"Construct SimpleUpdate with {self.symmetry} symmetry")
+            print(f"Construct SimpleUpdate with {self._symmetry} symmetry")
             print(f"beta = {beta:.6g}")
 
         if self.verbosity > 1:
             print(self)
 
     def __repr__(self):
-        s = f"SimpleUpdate with {self.symmetry} symmetry and D = {self.D}"
+        s = f"SimpleUpdate with {self._symmetry} symmetry and D = {self.D}"
         s = s + f" at beta = {self._beta:.10g}"
         return s
 
@@ -510,7 +510,7 @@ class SimpleUpdate:
 
         # initialize tensors to infinite temperature product state
         # if tensor is purely virtual and no Hamiltonian acts on it, add dummy leg
-        phys_reps = [ST.singlet for i in range(n_tensors)]
+        phys_reps = [ST.singlet() for i in range(n_tensors)]
         signatures = [[None] * (2 + len(tbi)) for tbi in tensor_bond_indices]
         for j, (b1, b2) in enumerate(zip(bond1, bond2)):
             h = hamiltonians[gate_indices[j]]
@@ -543,7 +543,7 @@ class SimpleUpdate:
             sh = (d, d) + (1,) * len(tensor_bond_indices[i])
             mat = np.eye(d).reshape(sh)
             row_reps = (phys_reps[i], phys_reps[i])
-            col_reps = (ST.singlet,) * len(tensor_bond_indices[i])
+            col_reps = (ST.singlet(),) * len(tensor_bond_indices[i])
             t = ST.from_array(mat, row_reps, col_reps, signature=signatures[i])
             tensors.append(t)
 
@@ -551,7 +551,8 @@ class SimpleUpdate:
         irr = t.block_irreps
         w = [np.ones((1,))]
         weights = [
-            DiagonalTensor(w, ST.singlet, irr, [1], ST.symmetry) for i in range(n_bonds)
+            DiagonalTensor(w, ST.singlet(), irr, [1], ST.symmetry())
+            for i in range(n_bonds)
         ]
 
         return SimpleUpdate(
@@ -763,7 +764,7 @@ class SimpleUpdate:
         ) = data
 
         # find signatures
-        phys_reps = [ST.singlet for i in range(n_tensors)]
+        phys_reps = [ST.singlet() for i in range(n_tensors)]
         signatures = [[None] * (2 + len(tbi)) for tbi in tensor_bond_indices]
         for j, (b1, b2) in enumerate(zip(bond1, bond2)):
             h = hamiltonians[gate_indices[j]]
@@ -795,7 +796,7 @@ class SimpleUpdate:
         # leg
         tensors = []
         for i in range(n_tensors):
-            row_reps = (phys_reps[i], ST.singlet)
+            row_reps = (phys_reps[i], ST.singlet())
             col_reps = tuple(bond_representations[j] for j in tensor_bond_indices[i])
             t = ST.random(row_reps, col_reps, signature=signatures[i], rng=rng)
             tensors.append(t)
@@ -899,7 +900,7 @@ class SimpleUpdate:
             Additional data to save together.
         """
         data = {
-            "_SimpleUpdate_symmetry": self.symmetry,
+            "_SimpleUpdate_symmetry": self._symmetry,
             "_SimpleUpdate_classname": self._classname,
             "_SimpleUpdate_D": self.D,
             "_SimpleUpdate_beta": self._beta,
@@ -943,10 +944,6 @@ class SimpleUpdate:
         return self._n_tensors
 
     @property
-    def symmetry(self):
-        return self._ST.symmetry
-
-    @property
     def tau(self):
         return self._tau
 
@@ -958,6 +955,10 @@ class SimpleUpdate:
         self._gates = tuple((-tau * h).expm() for h in self._hamiltonians)
         # 2nd order Trotter Suzuki + rho is quadratic in psi
         self._dbeta = 2 * (1 + self._is_second_order) * tau
+
+    # do not define it as property to mimic ST.symmetry() behavior
+    def symmetry(self):
+        return self._symmetry
 
     def get_bond_representation(self, i):
         for j in range(self._n_tensors):
@@ -1270,7 +1271,7 @@ class SimpleUpdate:
         for b in range(self._n_bonds):
             if not (b in self._1st_updated_bond or b in self._2nd_updated_bond):
                 raise ValueError(f"Bond {b} is never updated")
-            if self._weights[b].symmetry != self._ST.symmetry:
+            if self._weights[b].symmetry() != self._symmetry:
                 raise ValueError(f"Bond {b} has invalid symmetry")
 
         # check gates are 2-site operators
@@ -1401,8 +1402,9 @@ class SimpleUpdate:
                     )
 
         tensor_legs = []
+        ST = type(self._tensors[0])
         for i, t in enumerate(self._tensors):
-            if type(t) is not self._ST:
+            if type(t) is not ST:
                 raise ValueError(f"Invalid type for tensor {i}")
             if t.ndim != 2 + len(self._tensor_bond_indices[i]):
                 raise ValueError(f"Tensor {i} does not match tensor_bond_indices")
