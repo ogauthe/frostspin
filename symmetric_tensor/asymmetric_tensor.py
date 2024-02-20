@@ -72,8 +72,7 @@ class AsymmetricTensor(SymmetricTensor):
             return self._blocks[0]
         return self._blocks[0].reshape(self._shape)
 
-    @property
-    def T(self):
+    def transpose(self):
         blocks = (self._blocks[0].T,)
         s = self._signature[np.arange(-self._ndim + self._nrr, self._nrr) % self._ndim]
         return type(self)(self._col_reps, self._row_reps, blocks, self._irrep, s)
@@ -89,7 +88,7 @@ class AsymmetricTensor(SymmetricTensor):
         if row_axes == tuple(range(self._nrr, self._ndim)) and col_axes == tuple(
             range(self._nrr)
         ):
-            return self.T
+            return self.transpose()
 
         # generic case: goes back to tensor shape and transpose
         perm = np.array(row_axes + col_axes)
@@ -99,7 +98,7 @@ class AsymmetricTensor(SymmetricTensor):
         signature = self._signature[perm]
         return type(self).from_array(arr, row_reps, col_reps, signature)
 
-    def group_conjugated(self):
+    def dual(self):
         return type(self)(
             self._row_reps, self._col_reps, self._blocks, self._irrep, ~self._signature
         )

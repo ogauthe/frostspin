@@ -133,15 +133,6 @@ class SymmetricTensor:
         """
         raise NotImplementedError("Must be defined in derived class")
 
-    def group_conjugated(self):
-        """
-        Return a new tensor with all representations (row, columns and blocks irreps)
-        conjugated according to group rules. Since the dense tensor is a group singlet,
-        it is unaffected in its dense form, however symmetric blocks may change,
-        especially in the non-abelian case.
-        """
-        raise NotImplementedError("Must be defined in derived class")
-
     def check_blocks_fit_representations(self):
         raise NotImplementedError("Must be defined in derived class")
 
@@ -523,8 +514,7 @@ class SymmetricTensor:
     ####################################################################################
     # transpose and permutate
     ####################################################################################
-    @property
-    def T(self):
+    def transpose(self):
         """
         Matrix transpose operation, swapping rows and columns. Internal structure and
         and leg merging are not affected: each block is just transposed. Block irreps
@@ -532,23 +522,29 @@ class SymmetricTensor:
         """
         raise NotImplementedError("Must be defined in derived class")
 
+    def dual(self):
+        """
+        Return a new tensor with all representations (row, columns and blocks irreps)
+        conjugated according to group rules. Since the dense tensor is a group singlet,
+        it is unaffected in its dense form, however symmetric blocks may change,
+        especially in the non-abelian case.
+        """
+        raise NotImplementedError("Must be defined in derived class")
+
     def conjugate(self):
         """
         Complex conjugate operation. Block values are conjugate and all representations
-        are group conjugated.
+        are mapped to their dual.
         """
-        conj = self.group_conjugated()
+        conj = self.dual()
         conj._blocks = tuple(b.conj() for b in conj._blocks)
         return conj
 
-    @property
-    def H(self):
+    def dagger(self):
         """
         Hermitian conjugate operation, swapping rows and columns and conjugating blocks.
         block_irreps and block order are not affected.
         """
-        # block_irreps are conjugate both in T and conj: no change
-        # conj = self.group_conjugated()
         blocks = tuple(b.T.conj() for b in self._blocks)
         s = np.empty((self._ndim,), dtype=bool)
         s[: self._ndim - self._nrr] = ~self.signature[self._nrr :]

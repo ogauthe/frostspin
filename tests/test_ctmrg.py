@@ -13,7 +13,7 @@ from ctmrg.ctmrg import CTMRG
 a = AsymmetricTensor.from_array(
     np.ones((2, 2, 3, 3, 3, 3)), np.array([[2, 2]]).T, np.array([[3, 3, 3, 3]]).T
 )
-b = a.conjugate()  # should be dual
+b = a.dual()
 ctm0 = CTMRG.from_elementary_tensors(
     "AB\nBA",
     [a, b],

@@ -99,7 +99,7 @@ blocks = (-np.eye(1), 2 * np.eye(1))
 block_irreps = np.array([1, 5])
 sign = np.array([False, False, True, True])
 t = SU2_SymmetricTensor.random((r3, r3, r3), (r3,))
-t = t @ t.H  # there is only one block among the many allowed
+t = t @ t.dagger()  # there is only one block among the many allowed
 tp = t.permutate((3, 2, 1), (0, 5, 4))
 tp2 = tp.permutate((3, 2, 1), (0, 5, 4))
 assert (tp2 - t).norm() < 1e-14

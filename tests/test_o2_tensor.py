@@ -28,14 +28,14 @@ def check_o2(to2, tu1):
     assert (tpo2.toU1() - tpu1).norm() < 1e-15
     assert lg.norm(tpo2.toarray() - tpu1.toarray()) < 1e-15
 
-    tpo2 = to2.T
-    tpu1 = tu1.T
+    tpo2 = to2.transpose()
+    tpu1 = tu1.transpose()
     assert (tpo2.toU1() - tpu1).norm() < 1e-15
     assert lg.norm(tpo2.toarray() - tpu1.toarray()) < 1e-15
 
-    th = to2.H
+    th = to2.dagger()
     th2 = tpo2.conjugate()
-    th3 = to2.conjugate().T
+    th3 = to2.conjugate().transpose()
     assert (th - th2).norm() < 1e-15
     assert (th - th3).norm() < 1e-15
     return
