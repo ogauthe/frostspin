@@ -2,7 +2,16 @@ import numpy as np
 
 from ctmrg import rdm, observables
 from ctmrg.ctm_environment import CTM_Environment
-from ctmrg.ctm_contract import contract_ul, contract_ur, contract_dl, contract_dr
+from ctmrg.ctm_contract import (
+    contract_ul,
+    contract_ur,
+    contract_dl,
+    contract_dr,
+    contract_C1234,
+    contract_T1T3,
+    contract_T2T4,
+    contract_norm,
+)
 from ctmrg.ctm_renormalize import (
     construct_projectors,
     renormalize_C1_up,
@@ -375,6 +384,64 @@ class CTMRG:
         if self.verbosity > 1:
             print("Finished CTM iteration")
 
+    def compute_PEPS_norm_log(self):
+        """
+        Compute logarithm of PEPS norm per site.
+        """
+        # TODO how to deal with complex?
+        logZ = 0.0
+        for x, y in self._site_coords:
+            nc = contract_C1234(
+                self._env.get_C1(x, y),
+                self._env.get_C2(x + 1, y),
+                self._env.get_C4(x, y + 1),
+                self._env.get_C3(x + 1, y + 1),
+            )
+            nt13 = contract_T1T3(
+                self._env.get_C1(x, y),
+                self._env.get_T1(x + 1, y),
+                self._env.get_C2(x + 2, y),
+                self._env.get_C4(x, y + 1),
+                self._env.get_T3(x + 1, y + 1),
+                self._env.get_C3(x + 2, y + 1),
+            )
+            nt24 = contract_T2T4(
+                self._env.get_C1(x, y),
+                self._env.get_C2(x + 1, y),
+                self._env.get_T4(x, y + 1),
+                self._env.get_T2(x + 1, y + 1),
+                self._env.get_C4(x, y + 2),
+                self._env.get_C3(x + 1, y + 2),
+            )
+            n1234 = contract_norm(
+                self._env.get_C1(x, y),
+                self._env.get_T1(x + 1, y),
+                self._env.get_C2(x + 2, y),
+                self._env.get_T4(x, y + 1),
+                self._env.get_A(x + 1, y + 1),
+                self._env.get_T2(x + 2, y + 1),
+                self._env.get_C4(x, y + 2),
+                self._env.get_T3(x + 1, y + 2),
+                self._env.get_C3(x + 2, y + 2),
+            )
+            logZ += np.log(n1234) + np.log(nc) - np.log(nt13) - np.log(nt24)
+        logZ /= self.n_sites
+        return logZ
+
+    def compute_rdm1x1(self, x, y):
+        rdm1x1 = rdm.rdm_1x1(
+            self._env.get_C1(x, y),
+            self._env.get_T1(x + 1, y),
+            self._env.get_C2(x + 2, y),
+            self._env.get_T4(x, y + 1),
+            self._env.get_A(x + 1, y + 1),
+            self._env.get_T2(x + 2, y + 1),
+            self._env.get_C4(x, y + 2),
+            self._env.get_T3(x + 1, y + 2),
+            self._env.get_C3(x + 2, y + 2),
+        )
+        return rdm1x1
+
     def compute_rdm1x2(self, x, y):
         if self.verbosity > 1:
             print(f"Compute rdm 1x2 with C1 coord = ({x},{y})")
@@ -470,6 +537,15 @@ class CTMRG:
             self._env.get_T3(x + 2, y + 3),
             self._env.get_C3(x + 3, y + 3),
         )
+
+    def compute_rdm1x1_cell(self):
+        """
+        Compute reduced density matrix for every single site in the unit cell
+        """
+        rdm1x1_cell = []
+        for x, y in self._site_coords:
+            rdm1x1_cell.append(self.compute_rdm1x1(x, y))
+        return rdm1x1_cell
 
     def compute_rdm_1st_neighbor_cell(self):
         """

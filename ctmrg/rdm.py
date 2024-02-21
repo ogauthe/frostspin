@@ -1,3 +1,33 @@
+def rdm_1x1(C1, T1, C2, T4, A, T2, C4, T3, C3):
+    C3p = C3.transpose()
+    T2p = T2.permute((1,), (0, 2, 3))
+    right = C3p @ T2p
+    right = right.permute((0, 2, 3), (1,))
+    right = right @ C2
+    T3p = T3.permute((3,), (0, 1, 2))
+    down = C4 @ T3p
+    T1p = T1.permute((0, 1, 2), (3,))
+    rdm = T1p @ C1
+    T4p = T4.permute((0,), (1, 2, 3))
+    rdm = rdm @ T4p
+    rdm = rdm.permute((0, 2, 4, 5), (1, 3))
+    Ap = A.permute((2, 5), (0, 1, 3, 4))
+    rdm = rdm @ Ap
+    down = down.permute((0, 1, 2), (3,))
+    right = right.permute((0,), (1, 2, 3))
+    down = down @ right
+    down = down.permute((2, 4), (5, 3, 0, 1))
+    rdm = rdm.permute((0, 6, 3, 7), (1, 2, 4, 5))
+    down = down @ rdm
+    down = down.permute((4,), (2, 3, 1, 0, 5))
+    Aconj = A.permute((0,), (2, 5, 3, 4, 1)).dagger()
+    rdm = down @ Aconj
+
+    rdm = rdm.toarray()
+    rdm /= rdm.trace()
+    return rdm
+
+
 def contract_open_corner(C1, T1, T4, A):
     ul = T1.permute((1, 2, 0), (3,))
     ul = ul @ C1

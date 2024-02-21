@@ -301,15 +301,21 @@ tiling = "ABCD\nEFGH\nIJKL\nMNOP"
 ctm = CTMRG.from_elementary_tensors(tiling, tensors, 13)
 
 rdm2x1_cell, rdm1x2_cell = ctm.compute_rdm_1st_neighbor_cell()
+assert len(rdm2x1_cell) == 16
+assert len(rdm1x2_cell) == 16
 for m in rdm2x1_cell:
+    assert m.shape == (4, 4)
     assert lg.norm(m - m.T) < 1e-8
 for m in rdm1x2_cell:
+    assert m.shape == (4, 4)
     assert lg.norm(m - m.T) < 1e-8
 
 rdm_dr_cell, rdm_ur_cell = ctm.compute_rdm_2nd_neighbor_cell()
 for m in rdm_dr_cell:
+    assert m.shape == (4, 4)
     assert lg.norm(m - m.T) < 1e-8
 for m in rdm_ur_cell:
+    assert m.shape == (4, 4)
     assert lg.norm(m - m.T) < 1e-8
 
 ctm.iterate()
@@ -326,6 +332,13 @@ ctm.iterate()
 # do not bother check for it, just check computations succeeds
 rdm2x1_cell, rdm1x2_cell = ctm.compute_rdm_1st_neighbor_cell()
 rdm_dr_cell, rdm_ur_cell = ctm.compute_rdm_2nd_neighbor_cell()
+rdm1x1_cell = ctm.compute_rdm1x1_cell()
+assert len(rdm1x1_cell) == 16
+for m in rdm1x1_cell:
+    assert m.shape == (2, 2)
+
+# test free energy computation
+logZ = ctm.compute_PEPS_norm_log()
 
 # check save and load once tensors != init
 ctm.save_to_file(savefile)
