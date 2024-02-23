@@ -244,6 +244,8 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             in_reps[:nrr_in], in_reps[nrr_in:], signature_in
         )
         nblocks_in = len(block_irreps_in)
+        if nblocks_in == 0:
+            raise ValueError("Representations do not allow any block")
 
         signature_out = signature_in[axes]
         out_row_reps = tuple(in_reps[i] for i in axes[:nrr_out])
