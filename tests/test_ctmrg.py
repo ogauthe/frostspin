@@ -119,6 +119,27 @@ for i in range(2):  # precision is pretty low
     assert lg.norm(rdm_dr_cellU1[i] - rdm_dr_cellAs[i]) < 2e-4
     assert lg.norm(rdm_ur_cellU1[i] - rdm_ur_cellAs[i]) < 2e-4
 
+# check xi computation succeeds
+xih1_U1 = ctmU1.compute_corr_length_h(y=0)
+xih2_U1 = ctmU1.compute_corr_length_h(y=1)
+xiv1_U1 = ctmU1.compute_corr_length_v(x=0)
+xiv2_U1 = ctmU1.compute_corr_length_v(x=1)
+xih1_As = ctmAs.compute_corr_length_h(y=0)
+xih2_As = ctmAs.compute_corr_length_h(y=1)
+xiv1_As = ctmAs.compute_corr_length_v(x=0)
+xiv2_As = ctmAs.compute_corr_length_v(x=1)
+
+# with AB//BA pattern, xih1 and xih2 should be nearly the same
+# eigs precision is limited, set high tol for comparison U(1) / trivial
+assert xih1_U1 > 0
+assert abs(xih2_U1 - xih1_U1) < 1e-10 * xih1_U1
+assert abs(xih1_As - xih1_U1) < 0.02 * xih1_U1
+assert abs(xih2_As - xih1_U1) < 0.02 * xih1_U1
+assert xiv1_U1 > 0
+assert abs(xiv2_U1 - xiv1_U1) < 1e-10 * xiv1_U1
+assert abs(xiv1_As - xiv1_U1) < 0.02 * xih1_U1
+assert abs(xiv2_As - xiv1_U1) < 0.02 * xih1_U1
+
 # check save and load once tensors != init
 ctmU1.save_to_file(savefile)
 ctm2 = CTMRG.load_from_file(savefile)

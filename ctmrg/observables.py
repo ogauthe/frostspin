@@ -1,7 +1,5 @@
 import numpy as np
 
-import symmetric_tensor.tools
-
 # TODO: write class MPS, with unit cell and elementary tensors
 
 
@@ -66,12 +64,11 @@ def compute_mps_transfer_spectrum(
         return st
 
     try:
-        vals = symmetric_tensor.tools.symmetric_sparse_eigs(
-            type(Tup_list[0]),
+        vals = Tup_list[0].eigs(
+            matmat,
             reps,
             sig0,
             nvals,
-            matmat,
             dtype=Tup_list[0].dtype,
             dmax_full=dmax_full,
             rng=rng,

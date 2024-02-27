@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.linalg as lg
+import scipy.sparse.linalg as slg
 
 from misc_tools.svd_tools import sparse_svd, find_chi_largest
 from symmetric_tensor.diagonal_tensor import DiagonalTensor
@@ -626,6 +627,15 @@ class SymmetricTensor:
         V = type(self)((mid_rep,), self._col_reps, v_blocks, self._block_irreps, vsign)
         return U, s, V
 
+    def expm(self):
+        blocks = tuple(lg.expm(b) for b in self._blocks)
+        return type(self)(
+            self._row_reps, self._col_reps, blocks, self._block_irreps, self._signature
+        )
+
+    ####################################################################################
+    # Sparse linear algebra
+    ####################################################################################
     def truncated_svd(
         self, cut, max_dense_dim=None, window=0, rcutoff=0.0, degen_ratio=1.0
     ):
@@ -691,11 +701,190 @@ class SymmetricTensor:
         V = type(self)((mid_rep,), self._col_reps, v_blocks, block_irreps, vsign)
         return U, s, V
 
-    def expm(self):
-        blocks = tuple(lg.expm(b) for b in self._blocks)
-        return type(self)(
-            self._row_reps, self._col_reps, blocks, self._block_irreps, self._signature
-        )
+    @classmethod
+    def eigs(
+        cls,
+        matmat,
+        reps,
+        signature,
+        nvals,
+        dtype=None,
+        dmax_full=100,
+        rng=None,
+        maxiter=4000,
+        tol=0,
+        return_dense=True,
+    ):
+        """
+        Find nvals eigenvalues for a square matrix M. M is only implicitly defined by
+        its action on a vector with fixed signature and representations.
+
+        Parameters
+        ----------
+        matmat : callable
+            Apply matrix M to a SymmetricTensor with cls subtype.
+        reps : enumerable of representations
+            Row representations for M. They have to match M column so that M is a square
+            matrix with same domain and codomain spaces.
+        signature : bool 1D array
+            Signature for M rows. Signature for M column has to match ~signature.
+        nvals : int
+            Number of eigenvalues to compute.
+        dtype : type
+            Scalar data type. Default is np.complex128.
+        dmax_full : int
+            Maximum block size to use dense eigvals.
+        rng : numpy random generator
+            Random number generator. Used to initialize starting vectors for each block.
+            If None, a new random generator is created with default_rng().
+        maxiter : int
+            Maximum number of Arnoldi update iterations allowed in Arpack.
+        tol : float
+            Arpack tol.
+        return_dense : bool
+            Whether to return a dense numpy array or a list of sector wise values.
+            Default is True.
+
+        Returns
+        -------
+        if return_dense:
+            vals : 1D complex array
+                Computed eigenvalues, as a dense array with multiplicites, sorted by
+                decreasing absolute value. The last multiplet is cut to return exactly
+                nvals (dense) values.
+        else:
+            vals : tuple of 1D complex array
+                Eigenvalues for each non empty block, sorted by decreasing absolute
+                value.
+            block_irreps : int ndarray
+                Irrep for each kept block
+        """
+
+        # 1) set parameters
+        # if dtype is real, most of the computation can be done with reals
+        # however eigvals will always produce complex
+        # so at some point need to forget dtype and use complex128 for return type
+        if dtype is None:
+            dtype = np.complex128
+        if rng is None:
+            rng = np.random.default_rng()
+
+        n = len(reps)
+        sigm = np.empty((2 * n,), dtype=bool)
+        sigm[:n] = signature
+        sigm[n:] = ~signature
+        block_irreps, block_shapes = cls.get_block_sizes(reps, reps, sigm)
+        nblocks = len(block_shapes)
+        assert all(block_shapes[:, 0] == block_shapes[:, 1])
+        sigv = np.ones((n + 1,), dtype=bool)
+        sigv[:-1] = signature
+        ev_blocks = [None] * nblocks
+        abs_ev_blocks = [None] * nblocks
+
+        # 2) split matrix blocks between full and sparse
+        sparse = []
+        full = []
+        blocks = []
+        dims = np.empty((nblocks,), dtype=int)
+        for bi in range(nblocks):
+            irr = block_irreps[bi]
+            dims[bi] = cls.irrep_dimension(irr)
+            if block_shapes[bi, 0] > max(dmax_full, 2 * nvals / dims[bi]):
+                sparse.append(bi)
+            else:
+                full.append(bi)
+                blocks.append(np.eye(block_shapes[bi, 0], dtype=dtype))
+
+        # 3) construct full matrix blocks and call dense eig on them
+        # use just one call of matmat on identity blocks to produce all blocks
+        if full:
+            irr_full = np.ascontiguousarray(block_irreps[full])
+            rfull = cls.init_representation(block_shapes[full, 0], irr_full)
+            st0 = cls(reps, (rfull,), blocks, irr_full, sigv)
+            st1 = matmat(st0)
+            for bi in full:
+                irr = block_irreps[bi]
+                bj = st1.block_irreps.searchsorted(irr)
+                if bj < st1.nblocks and st1.block_irreps[bj] == irr:
+                    ev = lg.eigvals(st1.blocks[bj])
+                    abs_ev = np.abs(ev)
+                    so = abs_ev.argsort()[::-1]
+                    ev_blocks[bi] = ev[so]
+                    abs_ev_blocks[bi] = abs_ev[so]
+                else:  # missing block means eigval = 0
+                    ev_blocks[bi] = np.zeros(
+                        (block_shapes[bi, 0],), dtype=np.complex128
+                    )
+                    abs_ev_blocks[bi] = np.zeros((block_shapes[bi, 0],))
+
+        # 4) for each sparse block, apply matmat to a SymmetricTensor with 1 block
+        for bi in sparse:
+            irr = block_irreps[bi]
+            block_irreps_bi = block_irreps[bi : bi + 1]
+            brep = cls.init_representation(np.ones((1,), dtype=int), block_irreps_bi)
+            sh = block_shapes[bi]
+
+            v0 = rng.normal(size=(sh[0],)).astype(dtype, copy=False)
+            st0 = cls(reps, (brep,), (v0[:, None],), block_irreps_bi, sigv)
+            st1 = matmat(st0)
+            bj = st1.block_irreps.searchsorted(irr)
+
+            # check that irr block actually appears in output
+            if bj < st1.nblocks and st1.block_irreps[bj] == irr:
+
+                def matvec(x):
+                    st0.blocks[0][:, 0] = x
+                    st1 = matmat(st0)
+                    # here we assume bj does not depend on x values
+                    y = st1.blocks[bj].ravel()
+                    return y
+
+                op = slg.LinearOperator(sh, matvec=matvec, dtype=dtype)
+                k = nvals // dims[bi] + 1
+                try:
+                    ev = slg.eigs(
+                        op,
+                        k=k,
+                        v0=v0,
+                        maxiter=maxiter,
+                        tol=tol,
+                        return_eigenvectors=False,
+                    )
+                except slg.ArpackNoConvergence as err:
+                    print("Warning: ARPACK did not converge", err)
+                    ev = err.eigenvalues
+                    print(f"Keep {ev.size} converged eigenvalues")
+
+                abs_ev = np.abs(ev)
+                so = abs_ev.argsort()[::-1]
+                ev_blocks[bi] = ev[so]
+                abs_ev_blocks[bi] = abs_ev[so]
+
+            else:  # missing block
+                ev_blocks[bi] = np.zeros((nvals,), dtype=np.complex128)
+                abs_ev_blocks[bi] = np.zeros((nvals,))
+
+        cuts = find_chi_largest(abs_ev_blocks, nvals, dims=dims)
+
+        if return_dense:
+            vals = np.empty((cuts @ dims,), dtype=np.complex128)
+            k = 0
+            for bi in range(nblocks):
+                bv = ev_blocks[bi][: cuts[bi]]
+                for d in range(dims[bi]):
+                    vals[k : k + cuts[bi]] = bv
+                    k += cuts[bi]
+
+            so = np.argsort(np.abs(vals))[-1 : -nvals - 1 : -1]
+            vals = np.ascontiguousarray(vals[so])
+            return vals
+
+        non_empty = cuts.nonzero()[0]
+        block_irreps = np.ascontiguousarray(block_irreps[non_empty])
+        final_ev = [None] * non_empty.size
+        for i, bi in enumerate(non_empty):
+            final_ev[i] = ev_blocks[bi][: cuts[bi]]
+        return tuple(final_ev), block_irreps
 
     ####################################################################################
     # I/O
