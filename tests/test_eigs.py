@@ -26,14 +26,12 @@ dmax_full = 10
 
 
 def get_vals(mat, nvals, dmax_full):
-    ST = type(mat)
     sig0 = mat.signature[: mat.n_row_reps]
-    vals = symmetric_tensor.tools.symmetric_sparse_eigs(
-        ST,
+    vals = mat.eigs(
+        lambda st: mat @ st,
         mat.row_reps,
         sig0,
         nvals,
-        lambda st: mat @ st,
         dtype=dtype,
         rng=rng,
         dmax_full=dmax_full,
@@ -56,12 +54,11 @@ assert all((np.abs(d1 - vo2) < 1e-12) | (np.abs(d2 - vo2) < 1e-12))
 assert all((np.abs(d1 - vu1) < 1e-12) | (np.abs(d2 - vu1) < 1e-12))
 assert all((np.abs(d1 - vas) < 1e-12) | (np.abs(d2 - vas) < 1e-12))
 
-vals, irreps = symmetric_tensor.tools.symmetric_sparse_eigs(
-    ST_SU2,
+vals, irreps = mat_su2.eigs(
+    lambda st: mat_su2 @ st,
     mat_su2.row_reps,
     mat_su2.signature[:2],
     nvals,
-    lambda st: mat_su2 @ st,
     dtype=dtype,
     rng=rng,
     dmax_full=dmax_full,
