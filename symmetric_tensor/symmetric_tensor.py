@@ -704,16 +704,16 @@ class SymmetricTensor:
     @classmethod
     def eigs(
         cls,
-        matmat,
-        reps,
-        signature,
+        mat,
         nvals,
+        *,
+        reps=None,
+        signature=None,
         dtype=None,
         dmax_full=100,
         rng=None,
         maxiter=4000,
         tol=0,
-        return_dense=True,
     ):
         """
         Find nvals eigenvalues for a square matrix M. M is only implicitly defined by
@@ -721,17 +721,30 @@ class SymmetricTensor:
 
         Parameters
         ----------
-        matmat : callable
-            Apply matrix M to a SymmetricTensor with cls subtype.
-        reps : enumerable of representations
-            Row representations for M. They have to match M column so that M is a square
-            matrix with same domain and codomain spaces.
-        signature : bool 1D array
-            Signature for M rows. Signature for M column has to match ~signature.
+        mat : cls or callable
+            If mat is a SymmetricTensor with cls subclass, it is the matrix whose
+            spectrum will be computed. Input arguments reps, signature and dtype are
+            not read and are replaced by those infered from mat.
+            If mat is a callable, it represents the operation mat @ x and implicitly
+            defines a cls SymmetricTensor. Input arguments reps and signature are used
+            to determine the vector it acts on.
+            Whether explicitly or implicitly defined, mat has to be a square matrix
+            that can act iteratively on a given initial vector.
+            SymmetricTensor st, then lambda x: st @ x is used. Representation and
+            signature have to match those in reps and signature.
         nvals : int
-            Number of eigenvalues to compute.
+            Number of eigenvalues to compute. This number corresponds to dense
+            eigenvalues, including multiplicites imposed by symmetry.
+        reps : enumerable of representations
+            Row representations for mat. Not read if mat is a SymmetricTensor. If mat
+            is a callabel, reps also have to match mat column representations such that
+            mat is a square  with same domain and codomain spaces.
+        signature : bool 1D array
+            Signature for mat rows. Not read if mat is a SymmetricTensor. Signature for
+            mat column has to match ~signature.
         dtype : type
-            Scalar data type. Default is np.complex128.
+            Scalar data type. Not read if mat is a SymmetricTensor. Else default to
+            np.complex128.
         dmax_full : int
             Maximum block size to use dense eigvals.
         rng : numpy random generator
@@ -741,24 +754,48 @@ class SymmetricTensor:
             Maximum number of Arnoldi update iterations allowed in Arpack.
         tol : float
             Arpack tol.
-        return_dense : bool
-            Whether to return a dense numpy array or a list of sector wise values.
-            Default is True.
 
         Returns
         -------
-        if return_dense:
-            vals : 1D complex array
-                Computed eigenvalues, as a dense array with multiplicites, sorted by
-                decreasing absolute value. The last multiplet is cut to return exactly
-                nvals (dense) values.
-        else:
-            vals : tuple of 1D complex array
-                Eigenvalues for each non empty block, sorted by decreasing absolute
-                value.
-            block_irreps : int ndarray
-                Irrep for each kept block
+        s : DiagonalTensor
+            eigenvalues as a DiagonalTensor. Final number of eigenvalues is the smallest
+            number above nvals that fits multiplets.
         """
+
+        # 0) input validation
+        if type(mat) is cls:
+            n = mat.n_row_reps
+            if mat.shape[:n] != mat.shape[n:]:
+                raise ValueError("mat shape incompatible with a square matrix")
+            if any(
+                r1.shape != r2.shape or (r1 != r2).any()
+                for (r1, r2) in zip(mat.row_reps, mat.col_reps)
+            ):
+                raise ValueError(
+                    "mat representations incompatible with a square matrix"
+                )
+            if (mat.signature[:n] != ~mat.signature[n:]).any():
+                raise ValueError("mat signature incompatible with square matrix")
+
+            reps = mat.row_reps
+            signature = mat.signature[:n]
+            dtype = mat.dtype
+            # could be slightly more efficient by using already constructed matrix
+            # blocks. Only small gain expected, not worth code dupplication.
+
+            def matmat(x):
+                return mat @ x
+
+        elif callable(mat):
+            matmat = mat
+            if reps is None or signature is None:
+                raise ValueError(
+                    "reps and signature must be specified for callable mat"
+                )
+            n = len(reps)
+
+        else:
+            raise ValueError("Invalid input mat")
 
         # 1) set parameters
         # if dtype is real, most of the computation can be done with reals
@@ -769,7 +806,6 @@ class SymmetricTensor:
         if rng is None:
             rng = np.random.default_rng()
 
-        n = len(reps)
         sigm = np.empty((2 * n,), dtype=bool)
         sigm[:n] = signature
         sigm[n:] = ~signature
@@ -864,27 +900,18 @@ class SymmetricTensor:
                 ev_blocks[bi] = np.zeros((nvals,), dtype=np.complex128)
                 abs_ev_blocks[bi] = np.zeros((nvals,))
 
-        cuts = find_chi_largest(abs_ev_blocks, nvals, dims=dims)
+        block_cuts = find_chi_largest(abs_ev_blocks, nvals, dims=dims)
+        non_empty = block_cuts.nonzero()[0]
+        s_blocks = []
+        for bi in non_empty:
+            bcut = block_cuts[bi]
+            s_blocks.append(ev_blocks[bi][:bcut])
 
-        if return_dense:
-            vals = np.empty((cuts @ dims,), dtype=np.complex128)
-            k = 0
-            for bi in range(nblocks):
-                bv = ev_blocks[bi][: cuts[bi]]
-                for d in range(dims[bi]):
-                    vals[k : k + cuts[bi]] = bv
-                    k += cuts[bi]
-
-            so = np.argsort(np.abs(vals))[-1 : -nvals - 1 : -1]
-            vals = np.ascontiguousarray(vals[so])
-            return vals
-
-        non_empty = cuts.nonzero()[0]
-        block_irreps = np.ascontiguousarray(block_irreps[non_empty])
-        final_ev = [None] * non_empty.size
-        for i, bi in enumerate(non_empty):
-            final_ev[i] = ev_blocks[bi][: cuts[bi]]
-        return tuple(final_ev), block_irreps
+        block_irreps = block_irreps[non_empty]
+        s_rep = cls.init_representation(block_cuts[non_empty], block_irreps)
+        degens = [cls.irrep_dimension(irr) for irr in block_irreps]
+        s = DiagonalTensor(s_blocks, s_rep, block_irreps, degens, cls._symmetry)
+        return s
 
     ####################################################################################
     # I/O

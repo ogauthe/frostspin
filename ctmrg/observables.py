@@ -66,16 +66,16 @@ def compute_mps_transfer_spectrum(
     try:
         vals = Tup_list[0].eigs(
             matmat,
-            reps,
-            sig0,
             nvals,
+            reps=reps,
+            signature=sig0,
             dtype=Tup_list[0].dtype,
             dmax_full=dmax_full,
             rng=rng,
             maxiter=maxiter,
             tol=tol,
-            return_dense=True,
         )
+        vals = vals.toarray()[:nvals]
     except Exception as err:  # not very stable
         print("WARNING: transfer matrix spectrum computation failed")
         print("Error:", err)

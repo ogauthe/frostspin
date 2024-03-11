@@ -20,29 +20,18 @@ default = lg.eigvals(dense)
 default = default[np.abs(default).argsort()[::-1]]
 
 
-dtype = np.float64
 nvals = 20
 dmax_full = 10
 
 
-def get_vals(mat, nvals, dmax_full):
-    sig0 = mat.signature[: mat.n_row_reps]
-    vals = mat.eigs(
-        lambda st: mat @ st,
-        mat.row_reps,
-        sig0,
-        nvals,
-        dtype=dtype,
-        rng=rng,
-        dmax_full=dmax_full,
-    )
-    return vals
-
-
-vsu2 = get_vals(mat_su2, nvals, dmax_full)
-vo2 = get_vals(mat_o2, nvals, dmax_full)
-vu1 = get_vals(mat_u1, nvals, dmax_full)
-vas = get_vals(mat_as, nvals, dmax_full)
+vsu2 = mat_su2.eigs(mat_su2, nvals, dmax_full=dmax_full, rng=rng)
+vsu2 = vsu2.toarray(sort=True)[:nvals]
+vo2 = mat_o2.eigs(mat_o2, nvals, dmax_full=dmax_full, rng=rng)
+vo2 = vo2.toarray(sort=True)[:nvals]
+vu1 = mat_u1.eigs(mat_u1, nvals, dmax_full=dmax_full, rng=rng)
+vu1 = vu1.toarray(sort=True)[:nvals]
+vas = mat_as.eigs(mat_as, nvals, dmax_full=dmax_full, rng=rng)
+vas = vas.toarray()[:nvals]
 
 
 # due to degen, actual sizes may be larger than nvals
@@ -54,16 +43,22 @@ assert all((np.abs(d1 - vo2) < 1e-12) | (np.abs(d2 - vo2) < 1e-12))
 assert all((np.abs(d1 - vu1) < 1e-12) | (np.abs(d2 - vu1) < 1e-12))
 assert all((np.abs(d1 - vas) < 1e-12) | (np.abs(d2 - vas) < 1e-12))
 
-vals, irreps = mat_su2.eigs(
-    lambda st: mat_su2 @ st,
-    mat_su2.row_reps,
-    mat_su2.signature[:2],
+
+# test implicit matrix
+def matmat(x):
+    return mat_su2 @ (mat_su2 @ x)
+
+
+vals = mat_su2.eigs(
+    matmat,
     nvals,
-    dtype=dtype,
-    rng=rng,
     dmax_full=dmax_full,
-    return_dense=False,
+    rng=rng,
+    reps=mat_su2.row_reps,
+    signature=mat_su2.signature[: mat_su2.n_row_reps],
 )
+vals = vals.toarray(sort=True)[:nvals]
+assert all((np.abs(d1**2 - vals) < 1e-12) | (np.abs(d2**2 - vals) < 1e-12))
 
 
 # pathological case: missing blocks
@@ -71,5 +66,5 @@ inds = np.array([1, 2, 4])
 blocks = [mat_su2.blocks[i] for i in inds]
 block_irreps = mat_su2.block_irreps[inds]
 mat = ST_SU2(reps, reps, blocks, block_irreps, mat_su2.signature)
-v1 = get_vals(mat, 40, 200)
-v2 = get_vals(mat, 4, 2)
+v1 = mat.eigs(mat, 40, dmax_full=200, rng=rng)
+v2 = mat.eigs(mat, 4, dmax_full=2, rng=rng)
