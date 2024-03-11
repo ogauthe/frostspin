@@ -74,8 +74,8 @@ def compute_mps_transfer_spectrum(
             rng=rng,
             maxiter=maxiter,
             tol=tol,
-            return_dense=True,
         )
+        vals = vals.toarray()[:nvals]
     except Exception as err:  # not very stable
         print("WARNING: transfer matrix spectrum computation failed")
         print("Error:", err)

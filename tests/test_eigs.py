@@ -25,9 +25,13 @@ dmax_full = 10
 
 
 vsu2 = mat_su2.eigs(mat_su2, nvals, dmax_full=dmax_full, rng=rng)
+vsu2 = vsu2.toarray(sort=True)[:nvals]
 vo2 = mat_o2.eigs(mat_o2, nvals, dmax_full=dmax_full, rng=rng)
+vo2 = vo2.toarray(sort=True)[:nvals]
 vu1 = mat_u1.eigs(mat_u1, nvals, dmax_full=dmax_full, rng=rng)
+vu1 = vu1.toarray(sort=True)[:nvals]
 vas = mat_as.eigs(mat_as, nvals, dmax_full=dmax_full, rng=rng)
+vas = vas.toarray()[:nvals]
 
 
 # due to degen, actual sizes may be larger than nvals
@@ -38,15 +42,6 @@ assert all((np.abs(d1 - vsu2) < 1e-12) | (np.abs(d2 - vsu2) < 1e-12))
 assert all((np.abs(d1 - vo2) < 1e-12) | (np.abs(d2 - vo2) < 1e-12))
 assert all((np.abs(d1 - vu1) < 1e-12) | (np.abs(d2 - vu1) < 1e-12))
 assert all((np.abs(d1 - vas) < 1e-12) | (np.abs(d2 - vas) < 1e-12))
-
-# test return_dense
-vals, irreps = mat_su2.eigs(
-    mat_su2,
-    nvals,
-    rng=rng,
-    dmax_full=dmax_full,
-    return_dense=False,
-)
 
 
 # test implicit matrix
@@ -62,6 +57,7 @@ vals = mat_su2.eigs(
     reps=mat_su2.row_reps,
     signature=mat_su2.signature[: mat_su2.n_row_reps],
 )
+vals = vals.toarray(sort=True)[:nvals]
 assert all((np.abs(d1**2 - vals) < 1e-12) | (np.abs(d2**2 - vals) < 1e-12))
 
 

@@ -716,7 +716,6 @@ class SymmetricTensor:
         rng=None,
         maxiter=4000,
         tol=0,
-        return_dense=True,
     ):
         """
         Find nvals eigenvalues for a square matrix M. M is only implicitly defined by
@@ -736,7 +735,8 @@ class SymmetricTensor:
             SymmetricTensor st, then lambda x: st @ x is used. Representation and
             signature have to match those in reps and signature.
         nvals : int
-            Number of eigenvalues to compute.
+            Number of eigenvalues to compute. This number corresponds to dense
+            eigenvalues, including multiplicites imposed by symmetry.
         reps : enumerable of representations
             Row representations for mat. Not read if mat is a SymmetricTensor. If mat
             is a callabel, reps also have to match mat column representations such that
@@ -756,23 +756,12 @@ class SymmetricTensor:
             Maximum number of Arnoldi update iterations allowed in Arpack.
         tol : float
             Arpack tol.
-        return_dense : bool
-            Whether to return a dense numpy array or a list of sector wise values.
-            Default is True.
 
         Returns
         -------
-        if return_dense:
-            vals : 1D complex array
-                Computed eigenvalues, as a dense array with multiplicites, sorted by
-                decreasing absolute value. The last multiplet is cut to return exactly
-                nvals (dense) values.
-        else:
-            vals : tuple of 1D complex array
-                Eigenvalues for each non empty block, sorted by decreasing absolute
-                value.
-            block_irreps : int ndarray
-                Irrep for each kept block
+        s : DiagonalTensor
+            eigenvalues as a DiagonalTensor. Final number of eigenvalues is the smallest
+            number above nvals that fits multiplets.
         """
 
         # 0) input validation
@@ -913,27 +902,18 @@ class SymmetricTensor:
                 ev_blocks[bi] = np.zeros((nvals,), dtype=np.complex128)
                 abs_ev_blocks[bi] = np.zeros((nvals,))
 
-        cuts = find_chi_largest(abs_ev_blocks, nvals, dims=dims)
+        block_cuts = find_chi_largest(abs_ev_blocks, nvals, dims=dims)
+        non_empty = block_cuts.nonzero()[0]
+        s_blocks = []
+        for bi in non_empty:
+            bcut = block_cuts[bi]
+            s_blocks.append(ev_blocks[bi][:bcut])
 
-        if return_dense:
-            vals = np.empty((cuts @ dims,), dtype=np.complex128)
-            k = 0
-            for bi in range(nblocks):
-                bv = ev_blocks[bi][: cuts[bi]]
-                for d in range(dims[bi]):
-                    vals[k : k + cuts[bi]] = bv
-                    k += cuts[bi]
-
-            so = np.argsort(np.abs(vals))[-1 : -nvals - 1 : -1]
-            vals = np.ascontiguousarray(vals[so])
-            return vals
-
-        non_empty = cuts.nonzero()[0]
-        block_irreps = np.ascontiguousarray(block_irreps[non_empty])
-        final_ev = [None] * non_empty.size
-        for i, bi in enumerate(non_empty):
-            final_ev[i] = ev_blocks[bi][: cuts[bi]]
-        return tuple(final_ev), block_irreps
+        block_irreps = block_irreps[non_empty]
+        s_rep = cls.init_representation(block_cuts[non_empty], block_irreps)
+        degens = [cls.irrep_dimension(irr) for irr in block_irreps]
+        s = DiagonalTensor(s_blocks, s_rep, block_irreps, degens, cls._symmetry)
+        return s
 
     ####################################################################################
     # I/O
