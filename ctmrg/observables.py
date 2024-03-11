@@ -66,9 +66,9 @@ def compute_mps_transfer_spectrum(
     try:
         vals = Tup_list[0].eigs(
             matmat,
-            reps,
-            sig0,
             nvals,
+            reps=reps,
+            signature=sig0,
             dtype=Tup_list[0].dtype,
             dmax_full=dmax_full,
             rng=rng,

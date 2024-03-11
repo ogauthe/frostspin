@@ -706,10 +706,11 @@ class SymmetricTensor:
     @classmethod
     def eigs(
         cls,
-        matmat,
-        reps,
-        signature,
+        mat,
         nvals,
+        *,
+        reps=None,
+        signature=None,
         dtype=None,
         dmax_full=100,
         rng=None,
@@ -723,17 +724,29 @@ class SymmetricTensor:
 
         Parameters
         ----------
-        matmat : callable
-            Apply matrix M to a SymmetricTensor with cls subtype.
-        reps : enumerable of representations
-            Row representations for M. They have to match M column so that M is a square
-            matrix with same domain and codomain spaces.
-        signature : bool 1D array
-            Signature for M rows. Signature for M column has to match ~signature.
+        mat : cls or callable
+            If mat is a SymmetricTensor with cls subclass, it is the matrix whose
+            spectrum will be computed. Input arguments reps, signature and dtype are
+            not read and are replaced by those infered from mat.
+            If mat is a callable, it represents the operation mat @ x and implicitly
+            defines a cls SymmetricTensor. Input arguments reps and signature are used
+            to determine the vector it acts on.
+            Whether explicitly or implicitly defined, mat has to be a square matrix
+            that can act iteratively on a given initial vector.
+            SymmetricTensor st, then lambda x: st @ x is used. Representation and
+            signature have to match those in reps and signature.
         nvals : int
             Number of eigenvalues to compute.
+        reps : enumerable of representations
+            Row representations for mat. Not read if mat is a SymmetricTensor. If mat
+            is a callabel, reps also have to match mat column representations such that
+            mat is a square  with same domain and codomain spaces.
+        signature : bool 1D array
+            Signature for mat rows. Not read if mat is a SymmetricTensor. Signature for
+            mat column has to match ~signature.
         dtype : type
-            Scalar data type. Default is np.complex128.
+            Scalar data type. Not read if mat is a SymmetricTensor. Else default to
+            np.complex128.
         dmax_full : int
             Maximum block size to use dense eigvals.
         rng : numpy random generator
@@ -762,6 +775,41 @@ class SymmetricTensor:
                 Irrep for each kept block
         """
 
+        # 0) input validation
+        if type(mat) is cls:
+            n = mat.n_row_reps
+            if mat.shape[:n] != mat.shape[n:]:
+                raise ValueError("mat shape incompatible with a square matrix")
+            if any(
+                r1.shape != r2.shape or (r1 != r2).any()
+                for (r1, r2) in zip(mat.row_reps, mat.col_reps)
+            ):
+                raise ValueError(
+                    "mat representations incompatible with a square matrix"
+                )
+            if (mat.signature[:n] != ~mat.signature[n:]).any():
+                raise ValueError("mat signature incompatible with square matrix")
+
+            reps = mat.row_reps
+            signature = mat.signature[:n]
+            dtype = mat.dtype
+            # could be slightly more efficient by using already constructed matrix
+            # blocks. Only small gain expected, not worth code dupplication.
+
+            def matmat(x):
+                return mat @ x
+
+        elif callable(mat):
+            matmat = mat
+            if reps is None or signature is None:
+                raise ValueError(
+                    "reps and signature must be specified for callable mat"
+                )
+            n = len(reps)
+
+        else:
+            raise ValueError("Invalid input mat")
+
         # 1) set parameters
         # if dtype is real, most of the computation can be done with reals
         # however eigvals will always produce complex
@@ -771,7 +819,6 @@ class SymmetricTensor:
         if rng is None:
             rng = np.random.default_rng()
 
-        n = len(reps)
         sigm = np.empty((2 * n,), dtype=bool)
         sigm[:n] = signature
         sigm[n:] = ~signature
