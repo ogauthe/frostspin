@@ -4,7 +4,7 @@ import scipy.linalg as lg
 
 class DiagonalTensor:
     """
-    Diagonal tensor as produced by SVD
+    Diagonal tensor as produced by SVD or eigenvalue computation.
     """
 
     def __init__(
@@ -56,12 +56,7 @@ class DiagonalTensor:
 
     @property
     def shape(self):
-        return (
-            sum(
-                self._diagonal_blocks[i].size * self._block_degen[i]
-                for i in range(self._nblocks)
-            ),
-        )
+        return (len(self),)
 
     @property
     def dtype(self):
@@ -71,7 +66,15 @@ class DiagonalTensor:
     # Magic methods
     ####################################################################################
     def __repr__(self):
-        return f"DiagonalTensor with {self.nblocks} blocks and {self.symmetry} symmetry"
+        return (
+            f"DiagonalTensor with {self.nblocks} blocks and {self.symmetry()} symmetry"
+        )
+
+    def __len__(self):
+        return sum(
+            self._diagonal_blocks[i].size * self._block_degen[i]
+            for i in range(self._nblocks)
+        )
 
     def __mul__(self, x):
         if np.issubdtype(type(x), np.number):
@@ -137,7 +140,7 @@ class DiagonalTensor:
         ----------
         sort : bool
             Whether to sort weights. Apply SVD weight convention: weights are sorted in
-            non-increasing order.
+            non-increasing magnitude order.
 
         Returns
         -------
@@ -154,7 +157,8 @@ class DiagonalTensor:
                 k += dim
         assert k == arr.size
         if sort:
-            arr = np.sort(arr)[::-1]  # SVD convention: sort from largest to smallest
+            # SVD convention: sort from largest to smallest
+            arr = arr[np.abs(arr).argsort()[::-1]]
         return arr
 
     ####################################################################################
