@@ -1,3 +1,5 @@
+import argparse
+
 import numpy as np
 import scipy.linalg as lg
 import scipy.sparse.linalg as slg
@@ -5,11 +7,22 @@ import scipy.sparse.linalg as slg
 from froSTspin.misc_tools.svd_tools import sparse_svd, find_chi_largest
 from .diagonal_tensor import DiagonalTensor
 
+
+# parse command line options
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--froSTspin-quiet", help="silence froSTspin warning", action="store_true"
+)
+args = parser.parse_args()
+
+# display warning if running in debug mode
 if __debug__:
-    print("\nWarning: assert statement are activated")
-    print("They may significantly impact performances")
-    print("Consider running the code in optimized mode with python -O")
-    print()
+    if not args.froSTspin_quiet:
+        print("\nWarning: assert statement are activated")
+        print("They may significantly impact performances")
+        print("Consider running the code in optimized mode with python -O")
+        print("You may disable this warning with the flag --froSTspin-quiet")
+        print()
 
 # choices are made to make code light and fast:
 # irreps are labelled by integers (non-simple groups need another class using lexsort)
