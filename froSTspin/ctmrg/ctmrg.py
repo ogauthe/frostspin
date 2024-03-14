@@ -1,9 +1,14 @@
 import numpy as np
 
-from ctmrg import rdm, observables
-from ctmrg.ctm_environment import CTM_Environment
-from ctmrg.ctm_contract import contract_ul, contract_ur, contract_dl, contract_dr
-from ctmrg.ctm_renormalize import (
+from . import rdm, observables
+from .ctm_environment import CTM_Environment
+from .ctm_contract import (
+    contract_ul,
+    contract_ur,
+    contract_dl,
+    contract_dr,
+)
+from .ctm_renormalize import (
     construct_projectors,
     renormalize_C1_up,
     renormalize_C2_up,

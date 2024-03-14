@@ -1,7 +1,5 @@
 import numpy as np
 
-# TODO: write class MPS, with unit cell and elementary tensors
-
 
 def compute_mps_transfer_spectrum(
     Tup_list,

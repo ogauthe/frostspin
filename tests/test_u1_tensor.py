@@ -3,7 +3,7 @@
 import numpy as np
 import scipy.linalg as lg
 
-from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
+from froSTspin.symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
 
 
 def random_U1_tensor(row_reps, col_reps, signature, rng=None):

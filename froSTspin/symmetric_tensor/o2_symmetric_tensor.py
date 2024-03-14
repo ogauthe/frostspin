@@ -2,7 +2,7 @@ import numpy as np
 import scipy.linalg as lg
 import numba
 
-from misc_tools.sparse_tools import _numba_find_indices
+from froSTspin.misc_tools.sparse_tools import _numba_find_indices
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 from .u1_symmetric_tensor import U1_SymmetricTensor
 

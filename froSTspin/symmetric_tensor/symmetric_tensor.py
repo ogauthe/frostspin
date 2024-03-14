@@ -2,8 +2,8 @@ import numpy as np
 import scipy.linalg as lg
 import scipy.sparse.linalg as slg
 
-from misc_tools.svd_tools import sparse_svd, find_chi_largest
-from symmetric_tensor.diagonal_tensor import DiagonalTensor
+from froSTspin.misc_tools.svd_tools import sparse_svd, find_chi_largest
+from .diagonal_tensor import DiagonalTensor
 
 if __debug__:
     print("\nWarning: assert statement are activated")

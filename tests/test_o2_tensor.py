@@ -3,8 +3,8 @@
 import numpy as np
 import scipy.linalg as lg
 
-from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
-from symmetric_tensor.o2_symmetric_tensor import O2_SymmetricTensor
+from froSTspin.symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
+from froSTspin.symmetric_tensor.o2_symmetric_tensor import O2_SymmetricTensor
 
 
 rng = np.random.default_rng(42)

@@ -1,10 +1,10 @@
 import numpy as np
 import numba
 
+from froSTspin.groups.su2_representation import SU2_Representation  # TODO remove me
 from .lie_group_symmetric_tensor import LieGroupSymmetricTensor
 from .u1_symmetric_tensor import U1_SymmetricTensor
 from .o2_symmetric_tensor import O2_SymmetricTensor
-from groups.su2_representation import SU2_Representation  # TODO remove me
 
 
 def _get_projector(rep1, rep2, s1, s2, max_irrep=2**30):
