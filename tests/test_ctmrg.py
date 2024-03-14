@@ -5,9 +5,9 @@ import os
 import numpy as np
 import scipy.linalg as lg
 
-from symmetric_tensor.asymmetric_tensor import AsymmetricTensor
-from symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
-from ctmrg.ctmrg import CTMRG
+from froSTspin.symmetric_tensor.asymmetric_tensor import AsymmetricTensor
+from froSTspin.symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
+from froSTspin.ctmrg.ctmrg import CTMRG
 
 # try simplest CTMRG and parameter parsing
 a = AsymmetricTensor.from_array(

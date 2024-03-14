@@ -3,7 +3,7 @@
 import numpy as np
 import scipy.linalg as lg
 
-from symmetric_tensor.su2_symmetric_tensor import SU2_SymmetricTensor
+from froSTspin.symmetric_tensor.su2_symmetric_tensor import SU2_SymmetricTensor
 
 sds_22 = np.array(
     [

@@ -19,6 +19,7 @@ froSTspin includes the following tensor network algorithms:
 - python >= 3.10
 - numpy >= 1.23
 - scipy >= 1.10
+- sympy >= 1.11
 - numba >= 0.57
 
 ## Install

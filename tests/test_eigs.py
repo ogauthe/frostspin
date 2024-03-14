@@ -3,10 +3,10 @@
 import numpy as np
 import scipy.linalg as lg
 
-import symmetric_tensor.tools
+import froSTspin.symmetric_tensor.tools
 
 
-ST_SU2 = symmetric_tensor.tools.get_symmetric_tensor_type("SU2")
+ST_SU2 = froSTspin.symmetric_tensor.tools.get_symmetric_tensor_type("SU2")
 rng = np.random.default_rng(42)
 reps = (np.array([[2, 3, 1], [1, 3, 5]]), np.array([[2, 2, 1], [1, 3, 5]]))
 mat_su2 = ST_SU2.random(reps, reps, rng=rng)
