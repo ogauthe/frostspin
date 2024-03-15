@@ -25,6 +25,8 @@ dmax_full = 10
 
 
 vsu2 = mat_su2.eigs(mat_su2, nvals, dmax_full=dmax_full, rng=rng)
+assert vsu2.dtype == np.complex128
+
 vsu2 = vsu2.toarray(sort=True)[:nvals]
 vo2 = mat_o2.eigs(mat_o2, nvals, dmax_full=dmax_full, rng=rng)
 vo2 = vo2.toarray(sort=True)[:nvals]
@@ -75,4 +77,34 @@ v2 = mat_missing.eigs(mat_missing, 4, dmax_full=2, rng=rng)
 vals, vec = mat_su2.eigs(
     mat_su2, nvals, dmax_full=dmax_full, rng=rng, return_eigenvectors=True
 )
+assert vals.nblocks == vec.nblocks
+assert (vals.block_irreps == vec.block_irreps).all()
+assert all(
+    vec.blocks[i].shape[1] == vals.diagonal_blocks[i].shape[0]
+    for i in range(vals.nblocks)
+)
 assert (vec * vals - mat_su2 @ vec).norm() < 1e-12
+
+
+# test eigsh
+blocks = [b + b.T.conj() for b in mat_su2.blocks]
+block_irreps = mat_su2.block_irreps
+mat_sym = ST_SU2(reps, reps, blocks, block_irreps, mat_su2.signature)
+vals = mat_su2.eigsh(mat_sym, nvals, dmax_full=dmax_full, rng=rng)
+assert vals.dtype == np.float64
+
+# test eigenvectors
+vals, vec = mat_su2.eigsh(
+    mat_sym, nvals, dmax_full=dmax_full, rng=rng, return_eigenvectors=True
+)
+assert vals.nblocks == vec.nblocks
+assert (vals.block_irreps == vec.block_irreps).all()
+assert all(
+    vec.blocks[i].shape[1] == vals.diagonal_blocks[i].shape[0]
+    for i in range(vals.nblocks)
+)
+assert (vec * vals - mat_sym @ vec).norm() < 1e-12
+check = (vec.dagger() @ mat_sym @ vec).blocks
+assert all(
+    lg.norm(check[i] - np.diag(d)) < 1e-12 for i, d in enumerate(vals.diagonal_blocks)
+)
