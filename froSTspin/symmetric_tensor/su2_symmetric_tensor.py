@@ -71,8 +71,18 @@ def _get_projector(rep1, rep2, s1, s2, max_irrep=2**30):
             # Sz-reversal signs for irrep2
             diag2 = (np.arange(irr2 % 2, irr2 + irr2 % 2) % 2 * 2 - 1)[None, :, None]
             for irr3 in range(abs(irr1 - irr2) + 1, min(irr1 + irr2, max_irrep + 1), 2):
-                # here we are implicitly assuming there are no inner degeneracies
-                p123 = _su2_clebsch_gordan_dic[irr1, irr2, irr3]
+                # here we implicitly make use of the fact SU(2) has no outer degeneracy
+                try:
+                    p123 = _su2_clebsch_gordan_dic[irr1, irr2, irr3]
+                except KeyError as err:
+                    print(
+                        "\n*** ERROR *** Clebsch-Gordan tensor for spins with "
+                        f"dimensions {(irr1, irr2, irr3)} not found.\nOn the fly"
+                        "computation of CG tensors is not currently implemented.\nTo "
+                        "compute a larger set of CG tensors, use the script "
+                        "froSTspin/groups/compute_su2_clebsch-gordan.py.\n"
+                    )
+                    raise KeyError(err)
 
                 # apply SU(2) spin-reversal operator according to signatures
                 if s1:
