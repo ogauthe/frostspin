@@ -341,6 +341,66 @@ class SymmetricTensor:
             )
         raise TypeError("unsupported operation")
 
+    def __truediv__(self, x):
+        return self * (1.0 / x)
+
+    def __rtruediv__(self, x):
+        return self * (1.0 / x)
+
+    def __neg__(self):
+        blocks = tuple(-b for b in self._blocks)
+        return type(self)(
+            self._row_reps, self._col_reps, blocks, self._block_irreps, self._signature
+        )
+
+    def __imul__(self, x):
+        for b in self._blocks:
+            b *= x
+        return self
+
+    def __itruediv__(self, x):
+        for b in self._blocks:
+            b /= x
+        return self
+
+    def __matmul__(self, other):
+        """
+        Tensor dot operation between two tensors with compatible internal structure.
+        Left hand term column axes all are contracted with right hand term row axes.
+
+        Note that some allowed block may be missing in the output tensor, if the
+        associated irrep does not appear in the contracted bond.
+        """
+        assert type(self) is type(other)
+        assert self._shape[self._nrr :] == other._shape[: other._nrr]
+        assert (self._signature[self._nrr :] ^ other._signature[: other._nrr]).all()
+        assert all((r == r2).all() for (r, r2) in zip(self._col_reps, other._row_reps))
+
+        i1 = 0
+        i2 = 0
+        blocks = []
+        block_irreps = []
+        while i1 < self._nblocks and i2 < other._nblocks:
+            if self._block_irreps[i1] == other._block_irreps[i2]:
+                blocks.append(self._blocks[i1] @ other._blocks[i2])
+                block_irreps.append(self._block_irreps[i1])
+                i1 += 1
+                i2 += 1
+            elif self._block_irreps[i1] < other._block_irreps[i2]:
+                i1 += 1
+            else:
+                i2 += 1
+
+        signature = np.empty((self._nrr + other._ndim - other._nrr,), dtype=bool)
+        signature[: self._nrr] = self._signature[: self._nrr]
+        signature[self._nrr :] = other._signature[other._nrr :]
+        return type(self)(
+            self._row_reps, other._col_reps, blocks, block_irreps, signature
+        )
+
+    ####################################################################################
+    # misc
+    ####################################################################################
     def diagonal_mul(self, diag_blocks, diag_block_irreps, left=False):
         """
         Matrix product with a diagonal matrix with matching symmetry. If left is True,
@@ -405,66 +465,6 @@ class SymmetricTensor:
             self._row_reps, self._col_reps, blocks, block_irreps, self._signature
         )
 
-    def __truediv__(self, x):
-        return self * (1.0 / x)
-
-    def __rtruediv__(self, x):
-        return self * (1.0 / x)
-
-    def __neg__(self):
-        blocks = tuple(-b for b in self._blocks)
-        return type(self)(
-            self._row_reps, self._col_reps, blocks, self._block_irreps, self._signature
-        )
-
-    def __imul__(self, x):
-        for b in self._blocks:
-            b *= x
-        return self
-
-    def __itruediv__(self, x):
-        for b in self._blocks:
-            b /= x
-        return self
-
-    def __matmul__(self, other):
-        """
-        Tensor dot operation between two tensors with compatible internal structure.
-        Left hand term column axes all are contracted with right hand term row axes.
-
-        Note that some allowed block may be missing in the output tensor, if the
-        associated irrep does not appear in the contracted bond.
-        """
-        assert type(self) is type(other)
-        assert self._shape[self._nrr :] == other._shape[: other._nrr]
-        assert (self._signature[self._nrr :] ^ other._signature[: other._nrr]).all()
-        assert all((r == r2).all() for (r, r2) in zip(self._col_reps, other._row_reps))
-
-        i1 = 0
-        i2 = 0
-        blocks = []
-        block_irreps = []
-        while i1 < self._nblocks and i2 < other._nblocks:
-            if self._block_irreps[i1] == other._block_irreps[i2]:
-                blocks.append(self._blocks[i1] @ other._blocks[i2])
-                block_irreps.append(self._block_irreps[i1])
-                i1 += 1
-                i2 += 1
-            elif self._block_irreps[i1] < other._block_irreps[i2]:
-                i1 += 1
-            else:
-                i2 += 1
-
-        signature = np.empty((self._nrr + other._ndim - other._nrr,), dtype=bool)
-        signature[: self._nrr] = self._signature[: self._nrr]
-        signature[self._nrr :] = other._signature[other._nrr :]
-        return type(self)(
-            self._row_reps, other._col_reps, blocks, block_irreps, signature
-        )
-
-    ####################################################################################
-    # misc
-    ####################################################################################
     def match_representations(self, other):
         """
         Check if other has same type, same shape and same representations with same
