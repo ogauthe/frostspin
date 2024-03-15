@@ -108,3 +108,27 @@ check = (vec.dagger() @ mat_sym @ vec).blocks
 assert all(
     lg.norm(check[i] - np.diag(d)) < 1e-12 for i, d in enumerate(vals.diagonal_blocks)
 )
+
+
+# test dense eig
+vals, vec = mat_su2.eig()
+assert vals.nblocks == vec.nblocks == mat_su2.nblocks
+assert (vals.block_irreps == mat_su2.block_irreps).all()
+assert (vals.block_irreps == mat_su2.block_irreps).all()
+assert all(b1.shape == b2.shape for b1, b2 in zip(vec.blocks, mat_su2.blocks))
+assert all(
+    b2.shape == (b2.shape[0],) for b1, b2 in zip(vec.blocks, vals.diagonal_blocks)
+)
+assert (vec * vals - mat_su2 @ vec).norm() < 1e-12
+
+# test dense eigh
+vals, vec = mat_sym.eigh()
+assert vals.nblocks == vec.nblocks == mat_sym.nblocks
+assert (vals.block_irreps == mat_sym.block_irreps).all()
+assert (vals.block_irreps == mat_sym.block_irreps).all()
+assert all(b1.shape == b2.shape for b1, b2 in zip(vec.blocks, mat_sym.blocks))
+assert all(
+    b2.shape == (b2.shape[0],) for b1, b2 in zip(vec.blocks, vals.diagonal_blocks)
+)
+assert (vec * vals - mat_sym @ vec).norm() < 1e-12
+assert (vec * vals @ vec.dagger() - mat_sym).norm() < 1e-12

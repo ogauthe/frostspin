@@ -641,6 +641,54 @@ class SymmetricTensor:
         V = type(self)((mid_rep,), self._col_reps, v_blocks, self._block_irreps, vsign)
         return U, s, V
 
+    def eigh(self, return_eigenvectors=True):
+        """
+        Compute all eigenvalues and eigen of the SymmetricTensor viewed as a matrix.
+        It has to be a square matrix, with same row_reps and col_reps and opposite
+        signatures for rows and columns.
+        Note that if self.blocks are not real symmetric or hermitian matrices, the
+        results will be wrong.
+
+        Parameters
+        ----------
+        return_eigenvectors : Bool
+            Whether to compute and returns eigenvectors. Defaults to True.
+
+        Returns
+        -------
+        s : DiagonalTensor
+            eigenvalues as a DiagonalTensor. They define a new representation along the
+            diagonal.
+        u : SymmetricTensor
+            Eigenvectors as a SymmetricTensor. Only returned if return_eigenvectors is
+            True.
+        """
+        # just call eigsh with large nvals, it will call eigh on all blocks.
+        return self.eigsh(self, nvals=2**31, return_eigenvectors=return_eigenvectors)
+
+    def eig(self, return_eigenvectors=True):
+        """
+        Compute all eigenvalues and eigen of the SymmetricTensor viewed as a matrix.
+        It has to be a square matrix, with same row_reps and col_reps and opposite
+        signatures for rows and columns.
+
+        Parameters
+        ----------
+        return_eigenvectors : Bool
+            Whether to compute and returns eigenvectors. Defaults to True.
+
+        Returns
+        -------
+        s : DiagonalTensor
+            eigenvalues as a DiagonalTensor. They define a new representation along the
+            diagonal.
+        u : SymmetricTensor
+            Eigenvectors as a SymmetricTensor. Only returned if return_eigenvectors is
+            True.
+        """
+        # just call eigs with large nvals, it will call eig on all blocks.
+        return self.eigs(self, nvals=2**31, return_eigenvectors=return_eigenvectors)
+
     def expm(self):
         blocks = tuple(lg.expm(b) for b in self._blocks)
         return type(self)(
