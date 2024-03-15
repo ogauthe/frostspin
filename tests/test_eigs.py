@@ -49,13 +49,14 @@ def matmat(x):
     return mat_su2 @ (mat_su2 @ x)
 
 
-vals = mat_su2.eigs(
+vals = ST_SU2.eigs(
     matmat,
     nvals,
     dmax_full=dmax_full,
     rng=rng,
     reps=mat_su2.row_reps,
     signature=mat_su2.signature[: mat_su2.n_row_reps],
+    dtype=mat_su2.dtype,
 )
 vals = vals.toarray(sort=True)[:nvals]
 assert all((np.abs(d1**2 - vals) < 1e-12) | (np.abs(d2**2 - vals) < 1e-12))
@@ -65,6 +66,13 @@ assert all((np.abs(d1**2 - vals) < 1e-12) | (np.abs(d2**2 - vals) < 1e-12))
 inds = np.array([1, 2, 4])
 blocks = [mat_su2.blocks[i] for i in inds]
 block_irreps = mat_su2.block_irreps[inds]
-mat = ST_SU2(reps, reps, blocks, block_irreps, mat_su2.signature)
-v1 = mat.eigs(mat, 40, dmax_full=200, rng=rng)
-v2 = mat.eigs(mat, 4, dmax_full=2, rng=rng)
+mat_missing = ST_SU2(reps, reps, blocks, block_irreps, mat_su2.signature)
+v1 = mat_missing.eigs(mat_missing, 40, dmax_full=200, rng=rng)
+v2 = mat_missing.eigs(mat_missing, 4, dmax_full=2, rng=rng)
+
+
+# test return_eigenvectors
+vals, vec = mat_su2.eigs(
+    mat_su2, nvals, dmax_full=dmax_full, rng=rng, return_eigenvectors=True
+)
+assert (vec * vals - mat_su2 @ vec).norm() < 1e-12

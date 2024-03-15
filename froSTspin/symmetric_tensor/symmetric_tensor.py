@@ -725,6 +725,7 @@ class SymmetricTensor:
         signature=None,
         dtype=None,
         dmax_full=100,
+        return_eigenvectors=False,
         rng=None,
         maxiter=4000,
         tol=0,
@@ -736,10 +737,10 @@ class SymmetricTensor:
         Parameters
         ----------
         mat : cls or callable
-            If mat is a SymmetricTensor with cls subclass, it is the matrix whose
-            spectrum will be computed. Input arguments reps, signature and dtype are
-            not read and are replaced by those infered from mat.
-            If mat is a callable, it represents the operation mat @ x and implicitly
+            If mat is a SymmetricTensor with cls subclass then M=mat and its spectrum
+            will be computed. Input arguments reps, signature and dtype are not read and
+            are replaced by those infered from mat.
+            If mat is a callable, it represents the operation M @ x and implicitly
             defines a cls SymmetricTensor. Input arguments reps and signature are used
             to determine the vector it acts on.
             Whether explicitly or implicitly defined, mat has to be a square matrix
@@ -757,15 +758,17 @@ class SymmetricTensor:
             Signature for mat rows. Not read if mat is a SymmetricTensor. Signature for
             mat column has to match ~signature.
         dtype : type
-            Scalar data type. Not read if mat is a SymmetricTensor. Else default to
-            np.complex128.
+            Scalar data type for M. Not read if mat is a SymmetricTensor. Output dtype
+            will always be np.complex128 regardless of this field.
         dmax_full : int
             Maximum block size to use dense eigvals.
+        return_eigenvectors : Bool
+            Whether to compute and returns eigenvectors. Default to False.
         rng : numpy random generator
             Random number generator. Used to initialize starting vectors for each block.
             If None, a new random generator is created with default_rng().
         maxiter : int
-            Maximum number of Arnoldi update iterations allowed in Arpack.
+            Maximum number of Arnoldi iterations allowed in Arpack.
         tol : float
             Arpack tol.
 
@@ -774,12 +777,15 @@ class SymmetricTensor:
         s : DiagonalTensor
             eigenvalues as a DiagonalTensor. Final number of eigenvalues is the smallest
             number above nvals that fits multiplets.
+        u : SymmetricTensor
+            Eigenvectors as a SymmetricTensor. Only returned if return_eigenvectors is
+            True.
         """
 
         # 0) input validation
         if type(mat) is cls:
-            n = mat.n_row_reps
-            if mat.shape[:n] != mat.shape[n:]:
+            nrr = mat.n_row_reps
+            if mat.shape[:nrr] != mat.shape[nrr:]:
                 raise ValueError("mat shape incompatible with a square matrix")
             if any(
                 r1.shape != r2.shape or (r1 != r2).any()
@@ -788,11 +794,11 @@ class SymmetricTensor:
                 raise ValueError(
                     "mat representations incompatible with a square matrix"
                 )
-            if (mat.signature[:n] != ~mat.signature[n:]).any():
+            if (mat.signature[:nrr] != ~mat.signature[nrr:]).any():
                 raise ValueError("mat signature incompatible with square matrix")
 
             reps = mat.row_reps
-            signature = mat.signature[:n]
+            signature = mat.signature[:nrr]
             dtype = mat.dtype
             # could be slightly more efficient by using already constructed matrix
             # blocks. Only small gain expected, not worth code dupplication.
@@ -801,73 +807,132 @@ class SymmetricTensor:
                 return mat @ x
 
         elif callable(mat):
-            matmat = mat
-            if reps is None or signature is None:
+            if reps is None or signature is None or dtype is None:
                 raise ValueError(
-                    "reps and signature must be specified for callable mat"
+                    "reps, signature and dtype must be specified for callable mat"
                 )
-            n = len(reps)
+            matmat = mat
+            nrr = len(reps)
 
         else:
-            raise ValueError("Invalid input mat")
+            raise ValueError("Invalid input type for mat")
 
         # 1) set parameters
-        # if dtype is real, most of the computation can be done with reals
-        # however eigvals will always produce complex
-        # so at some point need to forget dtype and use complex128 for return type
-        if dtype is None:
-            dtype = np.complex128
         if rng is None:
             rng = np.random.default_rng()
 
-        sigm = np.empty((2 * n,), dtype=bool)
-        sigm[:n] = signature
-        sigm[n:] = ~signature
+        sigm = np.empty((2 * nrr,), dtype=bool)
+        sigm[:nrr] = signature
+        sigm[nrr:] = ~signature
         block_irreps, block_shapes = cls.get_block_sizes(reps, reps, sigm)
         nblocks = len(block_shapes)
         assert all(block_shapes[:, 0] == block_shapes[:, 1])
-        sigv = np.ones((n + 1,), dtype=bool)
+        sigv = np.ones((nrr + 1,), dtype=bool)
         sigv[:-1] = signature
-        ev_blocks = [None] * nblocks
-        abs_ev_blocks = [None] * nblocks
+        val_blocks = [None] * nblocks
+        abs_val_blocks = [None] * nblocks
 
         # 2) split matrix blocks between full and sparse
         sparse = []
         full = []
-        blocks = []
+        dense_blocks = []
         dims = np.empty((nblocks,), dtype=int)
         for bi in range(nblocks):
             irr = block_irreps[bi]
             dims[bi] = cls.irrep_dimension(irr)
-            if block_shapes[bi, 0] > max(dmax_full, 2 * nvals / dims[bi]):
-                sparse.append(bi)
-            else:
+            d = block_shapes[bi, 0]  # size of the block in symmetric format
+            k = nvals // dims[bi] + 1  # number of eigenvalues to compute in this block
+            if d < max(dmax_full, 3 * k):  # small blocks: dense
                 full.append(bi)
-                blocks.append(np.eye(block_shapes[bi, 0], dtype=dtype))
+                dense_blocks.append(np.eye(d, dtype=dtype))
+            else:
+                sparse.append(bi)
 
-        # 3) construct full matrix blocks and call dense eig on them
+            # Handle missing blocks by initializing eigenvalues to 0.
+            dmin = min(d, k)
+            val_blocks[bi] = np.zeros((dmin,), dtype=np.complex128)
+            abs_val_blocks[bi] = np.zeros((dmin,))
+
+        # 3) define functions do deal with dense and sparse blocks
+        if return_eigenvectors:
+            vector_blocks = [None] * nblocks
+
+            def eig_full_block(bi, bj, st):
+                vals, vec = lg.eig(st.blocks[bj])
+                abs_val = np.abs(vals)
+                k = nvals // dims[bi] + 1
+                so = abs_val.argsort()[: -k - 1 : -1]
+                val_blocks[bi][:] = vals[so]
+                abs_val_blocks[bi][:] = abs_val[so]
+                vector_blocks[bi] = vec[:, so]
+                return
+
+            def eig_sparse_block(bi, op, v0):
+                k = nvals // dims[bi] + 1
+                try:
+                    vals, vec = slg.eigs(op, k=k, v0=v0, maxiter=maxiter, tol=tol)
+                except slg.ArpackNoConvergence as err:
+                    print("Warning: ARPACK did not converge", err)
+                    m = err.eigenvalues.size
+                    vals[:m] = err.eigenvalues
+                    vec[:, :m] = err.eigenvectors
+                    print(f"Keep {m}/{k} converged values and vectors")
+
+                abs_val = np.abs(vals)
+                so = abs_val.argsort()[: -k - 1 : -1]
+                val_blocks[bi][:] = vals[so]
+                abs_val_blocks[bi][:] = abs_val[so]
+                vector_blocks[bi] = vec[:, so]
+                return
+
+        else:
+
+            def eig_full_block(bi, bj, st):
+                vals = lg.eigvals(st.blocks[bj])
+                abs_val = np.abs(vals)
+                k = nvals // dims[bi] + 1
+                so = abs_val.argsort()[: -k - 1 : -1]
+                val_blocks[bi][:] = vals[so]
+                abs_val_blocks[bi][:] = abs_val[so]
+                return
+
+            def eig_sparse_block(bi, op, v0):
+                k = nvals // dims[bi] + 1
+                try:
+                    vals = slg.eigs(
+                        op,
+                        k=k,
+                        v0=v0,
+                        maxiter=maxiter,
+                        tol=tol,
+                        return_eigenvectors=False,
+                    )
+                except slg.ArpackNoConvergence as err:
+                    print("Warning: ARPACK did not converge", err)
+                    m = err.eigenvalues.size
+                    vals[:m] = err.eigenvalues
+                    print(f"Keep {m}/{k} converged eigvalues")
+
+                abs_val = np.abs(vals)
+                so = abs_val.argsort()[: -k - 1 : -1]
+                val_blocks[bi][:] = vals[so]
+                abs_val_blocks[bi][:] = abs_val[so]
+                return
+
+        # 4) construct full matrix blocks and call dense eig on them
         # use just one call of matmat on identity blocks to produce all blocks
-        if full:
+        if full:  # avoid issues with empty full
             irr_full = np.ascontiguousarray(block_irreps[full])
             rfull = cls.init_representation(block_shapes[full, 0], irr_full)
-            st0 = cls(reps, (rfull,), blocks, irr_full, sigv)
-            st1 = matmat(st0)
+            st = cls(reps, (rfull,), dense_blocks, irr_full, sigv)
+            st = matmat(st)
             for bi in full:
                 irr = block_irreps[bi]
-                bj = st1.block_irreps.searchsorted(irr)
-                if bj < st1.nblocks and st1.block_irreps[bj] == irr:
-                    ev = lg.eigvals(st1.blocks[bj])
-                    abs_ev = np.abs(ev)
-                    so = abs_ev.argsort()[::-1]
-                    ev_blocks[bi] = ev[so]
-                    abs_ev_blocks[bi] = abs_ev[so]
-                else:  # missing block means eigval = 0
-                    ev_blocks[bi] = np.zeros(
-                        (block_shapes[bi, 0],), dtype=np.complex128
-                    )
-                    abs_ev_blocks[bi] = np.zeros((block_shapes[bi, 0],))
+                bj = st.block_irreps.searchsorted(irr)
+                if bj < st.nblocks and st.block_irreps[bj] == irr:
+                    eig_full_block(bi, bj, st)
 
-        # 4) for each sparse block, apply matmat to a SymmetricTensor with 1 block
+        # 5) for each sparse block, apply matmat to a SymmetricTensor with 1 block
         for bi in sparse:
             irr = block_irreps[bi]
             block_irreps_bi = block_irreps[bi : bi + 1]
@@ -890,42 +955,34 @@ class SymmetricTensor:
                     return y
 
                 op = slg.LinearOperator(sh, matvec=matvec, dtype=dtype)
-                k = nvals // dims[bi] + 1
-                try:
-                    ev = slg.eigs(
-                        op,
-                        k=k,
-                        v0=v0,
-                        maxiter=maxiter,
-                        tol=tol,
-                        return_eigenvectors=False,
-                    )
-                except slg.ArpackNoConvergence as err:
-                    print("Warning: ARPACK did not converge", err)
-                    ev = err.eigenvalues
-                    print(f"Keep {ev.size} converged eigenvalues")
+                eig_sparse_block(bi, op, v0)
 
-                abs_ev = np.abs(ev)
-                so = abs_ev.argsort()[::-1]
-                ev_blocks[bi] = ev[so]
-                abs_ev_blocks[bi] = abs_ev[so]
-
-            else:  # missing block
-                ev_blocks[bi] = np.zeros((nvals,), dtype=np.complex128)
-                abs_ev_blocks[bi] = np.zeros((nvals,))
-
-        block_cuts = find_chi_largest(abs_ev_blocks, nvals, dims=dims)
+        # 5) keep only nvals largest magnitude eigenvalues
+        block_cuts = find_chi_largest(abs_val_blocks, nvals, dims=dims)
         non_empty = block_cuts.nonzero()[0]
         s_blocks = []
         for bi in non_empty:
             bcut = block_cuts[bi]
-            s_blocks.append(ev_blocks[bi][:bcut])
+            s_blocks.append(val_blocks[bi][:bcut])
 
         block_irreps = block_irreps[non_empty]
         s_rep = cls.init_representation(block_cuts[non_empty], block_irreps)
         degens = [cls.irrep_dimension(irr) for irr in block_irreps]
         s = DiagonalTensor(s_blocks, s_rep, block_irreps, degens, cls._symmetry)
-        return s
+
+        if not return_eigenvectors:
+            return s
+
+        u_blocks = []
+        for bi in non_empty:
+            bcut = block_cuts[bi]
+            u_blocks.append(vector_blocks[bi][:, :bcut])
+
+        mid_rep = cls.init_representation(block_cuts[non_empty], block_irreps)
+        usign = np.ones((nrr + 1,), dtype=bool)
+        usign[:nrr] = signature
+        u = cls(reps, (mid_rep,), u_blocks, block_irreps, usign)
+        return s, u
 
     ####################################################################################
     # I/O
