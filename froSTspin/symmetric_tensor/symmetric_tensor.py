@@ -224,7 +224,11 @@ class SymmetricTensor:
 
     @property
     def dtype(self):
-        return self._blocks[0].dtype
+        try:
+            dt = self._blocks[0].dtype
+        except IndexError:  # pathological case with nblocks = 0
+            dt = np.array([]).dtype  # keep numpy convention
+        return dt
 
     @property
     def ncoeff(self):
