@@ -54,7 +54,15 @@ def _save_CG_json(savefile, elementary_projectors):
     cg_data = {}
     for k in elementary_projectors:
         nk = f"{k[0]},{k[1]},{k[2]}"
-        cg_data[nk] = elementary_projectors[k].tolist()
+
+        # save as sparse
+        proj = elementary_projectors[k]
+        m1, m2, m3 = proj.nonzero()
+        coeff = proj[m1, m2, m3]
+        json_save = [m1.tolist(), m2.tolist(), m3.tolist(), coeff.tolist()]
+
+        cg_data[nk] = json_save
+
     data["CG_data"] = cg_data
     with open(savefile, "w") as out:
         json.dump(data, out, indent=2, sort_keys=True)
@@ -70,7 +78,10 @@ def _load_CG_json(savefile):
     elementary_projectors = {"maximal_spin_dimension": max_irr}
     for key in cg_data:
         nk = tuple(map(int, key.split(",")))
-        elementary_projectors[nk] = np.array(cg_data[key], dtype=float)
+        m1, m2, m3, coeff = [np.array(arr) for arr in cg_data[key]]
+        proj = np.zeros((nk[0], nk[1], nk[2]), dtype=float)
+        proj[m1, m2, m3] = coeff
+        elementary_projectors[nk] = proj
 
     return elementary_projectors
 
