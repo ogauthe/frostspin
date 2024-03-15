@@ -1,10 +1,13 @@
 import numpy as np
 import numba
 
-from froSTspin.groups.su2_representation import SU2_Representation  # TODO remove me
+from froSTspin.groups.su2_clebsch_gordan import load_su2_cg
 from .lie_group_symmetric_tensor import LieGroupSymmetricTensor
 from .u1_symmetric_tensor import U1_SymmetricTensor
 from .o2_symmetric_tensor import O2_SymmetricTensor
+
+
+_su2_clebsch_gordan_dic = load_su2_cg()
 
 
 def _get_projector(rep1, rep2, s1, s2, max_irrep=2**30):
@@ -69,7 +72,7 @@ def _get_projector(rep1, rep2, s1, s2, max_irrep=2**30):
             diag2 = (np.arange(irr2 % 2, irr2 + irr2 % 2) % 2 * 2 - 1)[None, :, None]
             for irr3 in range(abs(irr1 - irr2) + 1, min(irr1 + irr2, max_irrep + 1), 2):
                 # here we are implicitly assuming there are no inner degeneracies
-                p123 = SU2_Representation.elementary_projectors[irr1, irr2, irr3]
+                p123 = _su2_clebsch_gordan_dic[irr1, irr2, irr3]
 
                 # apply SU(2) spin-reversal operator according to signatures
                 if s1:

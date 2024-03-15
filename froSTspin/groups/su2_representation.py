@@ -1,111 +1,5 @@
-import os
-import json
-
 import numpy as np
 import numba
-
-
-def compute_CG(max_irr):
-    # load sympy only if recomputing Clebsch-Gordon is required.
-    import sympy as sp
-    from sympy.physics.quantum.cg import CG
-
-    elementary_projectors = {}
-    for irr1 in range(1, max_irr):
-        s1 = sp.Rational(irr1 - 1, 2)
-
-        # irr1 x irr2 = sum irr3
-        for irr2 in range(1, max_irr):
-            s2 = sp.Rational(irr2 - 1, 2)
-            for irr3 in range(abs(irr2 - irr1) + 1, irr1 + irr2, 2):
-                s3 = sp.Rational(irr3 - 1, 2)
-                p = np.zeros((irr1, irr2, irr3), dtype=float)
-                for i1 in range(irr1):
-                    m1 = s1 - i1
-                    for i2 in range(irr2):
-                        m2 = s2 - i2
-                        for i3 in range(irr3):
-                            m3 = s3 - i3
-                            p[i1, i2, i3] = CG(s1, m1, s2, m2, s3, m3).doit()  # exact
-                elementary_projectors[irr1, irr2, irr3] = p  # cast to float
-    return elementary_projectors
-
-
-# json format is text format, easier to read and parse
-# it could also be added to git
-# however it generates heavy files (~177 MB vs 3.9 MB for npz for max_irr=22)
-# better to have a lighter npz outside of git but easy to recompute.
-def save_CG_json(savefile, elementary_projectors):
-    max_irr = np.array(list(elementary_projectors.keys()))[:, 0].max()
-    info = "This file contains Clebsch-Gordan coefficients for SU(2)."
-    info = info + "Each irreducible represensation is labelled by its dimension."
-    data = {"!CG_maximal_irrep": int(max_irr), "!info": info}
-    cg_data = {}
-    for k in elementary_projectors:
-        nk = f"{k[0]},{k[1]},{k[2]}"
-        cg_data[nk] = elementary_projectors[k].tolist()
-    data["CG_data"] = cg_data
-    with open(savefile, "w") as out:
-        json.dump(data, out, indent=2, sort_keys=True)
-    print(f"Elementary CG projectors saved in file {savefile}")
-    return
-
-
-def load_CG_json(savefile):
-    with open(savefile) as fin:
-        data = json.load(fin)
-
-    cg_data = data["CG_data"]
-    elementary_projectors = {}
-    for key in cg_data:
-        nk = tuple(map(int, key.split(",")))
-        elementary_projectors[nk] = np.array(cg_data[key], dtype=float)
-    return elementary_projectors
-
-
-def save_CG_npz(savefile, elementary_projectors):
-    max_irr = np.array(list(elementary_projectors.keys()))[:, 0].max()
-    info = "This file contains Clebsch-Gordan coefficients for SU(2)."
-    info = info + "Each irreducible represensation is labelled by its dimension."
-    data = {"CG_maximal_irrep": max_irr, "info": info}
-    for k in elementary_projectors:
-        nk = f"_data_CG_{k[0]}_{k[1]}_{k[2]}"
-        data[nk] = elementary_projectors[k]
-    np.savez_compressed(savefile, **data)
-    print(f"Elementary CG projectors saved in file {savefile}")
-    return
-
-
-def load_CG_npz(savefile):
-    elementary_projectors = {}
-    with np.load(savefile) as data:
-        for key in filter(lambda k: k[:9] == "_data_CG_", data.files):
-            nk = tuple(map(int, key[9:].split("_")))
-            elementary_projectors[nk] = data[key]
-    return elementary_projectors
-
-
-def get_CG(max_irr=22, savefile=None):
-    if savefile is None:
-        savefile = os.path.join(os.path.dirname(__file__), "data_clebsch–gordan.npz")
-    try:
-        extension = savefile.split(".")[-1]
-        if extension == "npz":
-            elementary_projectors = load_CG_npz(savefile)
-        elif extension == "json":
-            elementary_projectors = load_CG_json(savefile)
-        else:
-            raise ValueError(f"Unknown file extension: {extension}")
-    except FileNotFoundError:
-        print(f"*** WARNING *** file {savefile} not found.")
-        print(f"Recompute Clebsch-Gordon with max_irr = {max_irr}.")
-        elementary_projectors = compute_CG(max_irr)
-        print(f"Done. Save them in file {savefile}")
-        if extension == "npz":
-            save_CG_npz(savefile, elementary_projectors)
-        else:
-            save_CG_json(savefile, elementary_projectors)
-    return elementary_projectors
 
 
 def su2_irrep_generators(s):
@@ -143,8 +37,6 @@ class SU2_Representation:
     """
     SU(2) representation. Representations are immutable, hashable objects.
     """
-
-    elementary_projectors = get_CG()
 
     def __init__(self, degen, irreps):
         """
