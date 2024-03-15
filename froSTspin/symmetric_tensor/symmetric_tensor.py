@@ -11,6 +11,7 @@ from .diagonal_tensor import DiagonalTensor
 # parse command line options
 parser = argparse.ArgumentParser()
 parser.add_argument("--froSTspin-quiet", help="silence froSTspin", action="store_true")
+parser.add_argument("--froSTspin-SU2-CG-file", help="savefile for SU(2) CG", type=str)
 args = parser.parse_args()
 
 # display warning if running in debug mode

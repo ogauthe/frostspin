@@ -1,13 +1,13 @@
+import os
 import json
 import argparse
-import pathlib
 
 import numpy as np
 
 
-local_dir = pathlib.Path(__file__).absolute().parent.resolve()
-default_su2_cg_file = local_dir.joinpath(
-    "clebsch-gordan_data/data_su2_clebsch-gordan.json"
+local_dir = os.path.join(os.path.dirname(__file__))
+default_su2_cg_file = os.path.join(
+    local_dir, "clebsch-gordan_data/data_su2_clebsch-gordan.json"
 )
 
 
@@ -50,7 +50,7 @@ def _save_CG_json(savefile, elementary_projectors):
         "Each irreducible represensation is labelled by its dimension.",
         "Do not try to edit it manually",
     ]
-    data = {"!CG_maximal_irrep": int(max_irr), "!info": info}
+    data = {"!!info": info, "!maximal_spin_dimension": int(max_irr)}
     cg_data = {}
     for k in elementary_projectors:
         nk = f"{k[0]},{k[1]},{k[2]}"
@@ -58,7 +58,6 @@ def _save_CG_json(savefile, elementary_projectors):
     data["CG_data"] = cg_data
     with open(savefile, "w") as out:
         json.dump(data, out, indent=2, sort_keys=True)
-    print(f"Elementary CG projectors saved in file {savefile}")
     return
 
 
@@ -67,10 +66,12 @@ def _load_CG_json(savefile):
         data = json.load(fin)
 
     cg_data = data["CG_data"]
-    elementary_projectors = {}
+    max_irr = data["!maximal_spin_dimension"]
+    elementary_projectors = {"maximal_spin_dimension": max_irr}
     for key in cg_data:
         nk = tuple(map(int, key.split(",")))
         elementary_projectors[nk] = np.array(cg_data[key], dtype=float)
+
     return elementary_projectors
 
 
@@ -78,18 +79,20 @@ def _save_CG_npz(savefile, elementary_projectors):
     max_irr = np.array(list(elementary_projectors.keys()))[:, 0].max()
     info = "This file contains Clebsch-Gordan coefficients for SU(2)."
     info = info + "Each irreducible represensation is labelled by its dimension."
-    data = {"CG_maximal_irrep": max_irr, "info": info}
+    data = {"maximal_spin_dimension": max_irr, "info": info}
     for k in elementary_projectors:
         nk = f"_data_CG_{k[0]}_{k[1]}_{k[2]}"
         data[nk] = elementary_projectors[k]
     np.savez_compressed(savefile, **data)
-    print(f"Elementary CG projectors saved in file {savefile}")
     return
 
 
 def _load_CG_npz(savefile):
     elementary_projectors = {}
     with np.load(savefile) as data:
+        elementary_projectors["maximal_spin_dimension"] = int(
+            data["maximal_spin_dimension"]
+        )
         for key in filter(lambda k: k[:9] == "_data_CG_", data.files):
             nk = tuple(map(int, key[9:].split("_")))
             elementary_projectors[nk] = data[key]
@@ -111,19 +114,19 @@ def load_su2_cg():
     args = parser.parse_args()
 
     cg_file = args.froSTspin_SU2_CG_file
-    extension = cg_file.suffix
+    extension = cg_file.split(".")[-1]
 
     if not args.froSTspin_quiet:
         print("Load SU(2) Clebsch-Gordan coefficient from file", cg_file)
 
     try:
-        if extension == ".npz":
+        if extension == "npz":
             elementary_projectors = _load_CG_npz(cg_file)
-        elif extension == ".json":
+        elif extension == "json":
             elementary_projectors = _load_CG_json(cg_file)
         else:
             raise ValueError(
-                f"Invalid file extension: {extension}. Must be .json or .npz"
+                f"Invalid file extension: must be json or npz, got {extension}"
             )
     except FileNotFoundError:
         print("Error: SU(2) Clebsch-Gordan coefficient savefile not found")
@@ -131,6 +134,9 @@ def load_su2_cg():
         # Computing CG coeff is expensive.
         # better to crash now than to silently trigger recomputation.
         raise FileNotFoundError(cg_file)
+
+    max_spin_dim = int(elementary_projectors["maximal_spin_dimension"])
+    print("Maximal spin dimension in CG =", max_spin_dim)
 
     return elementary_projectors
 
@@ -141,7 +147,9 @@ def save_su2_cg(savefile, max_spin_dim):
     cg_file = str(savefile)
     extension = cg_file.split(".")[-1]
     if extension not in ["json", "npz"]:
-        print(f"Error: Invalid savefile extension: .{extension}. Must be .json or .npz")
+        print(
+            f"Error: Invalid savefile extension: must be json or npz, got {extension}"
+        )
         print(f"savefile: {cg_file}")
         raise ValueError(extension)
 
