@@ -666,8 +666,16 @@ class SymmetricTensor:
         u : SymmetricTensor
             Eigenvectors as a SymmetricTensor. Only returned if return_eigenvectors is
             True.
+
+        Notes
+        -----
+        Exact zero eigenvalues may appear, especially when a block is missing. They will
+        be truncated and no value or vector will be returned for the null eigenspace. In
+        such as case, the dimensions of s and u will be smaller than self.
         """
         # just call eigsh with large nvals, it will call eigh on all blocks.
+        # It would be possible to post-process eigenvalues and recover null eigenspace
+        # Too complicate for no real use, just document behavior.
         return self.eigsh(self, nvals=2**31, return_eigenvectors=return_eigenvectors)
 
     def eig(self, return_eigenvectors=True):
@@ -689,8 +697,16 @@ class SymmetricTensor:
         u : SymmetricTensor
             Eigenvectors as a SymmetricTensor. Only returned if return_eigenvectors is
             True.
+
+        Notes
+        -----
+        Exact zero eigenvalues may appear, especially when a block is missing. They will
+        be truncated and no value or vector will be returned for the null eigenspace. In
+        such as case, the dimensions of s and u will be smaller than self.
         """
         # just call eigs with large nvals, it will call eig on all blocks.
+        # It would be possible to post-process eigenvalues and recover null eigenspace
+        # Too complicate for no real use, just document behavior.
         return self.eigs(self, nvals=2**31, return_eigenvectors=return_eigenvectors)
 
     def expm(self):
@@ -783,10 +799,10 @@ class SymmetricTensor:
         tol=0,
     ):
         """
-        Find nvals eigenvalues for a square matrix M. M may be explicitly defined as a
-        SymmetricTensor or only implicitly defined by its action on a vector with given
-        representations, signature and dtype.
-        Whether explicitly or implicitly defined, M has to be a square matrix
+        Find nvals largest eigenvalues in magnitude for a square matrix M. M may be
+        explicitly defined as a SymmetricTensor or only implicitly defined by its action
+        on a vector with given representations, signature and dtype.
+        Whether explicitly or implicitly defined, M has to define a square matrix
         that can act iteratively on a given initial vector. This means that its row
         representations must match its column representations and the signature for the
         columns must be the opposite of thw signature for the rows.
@@ -833,6 +849,11 @@ class SymmetricTensor:
         u : SymmetricTensor
             Eigenvectors as a SymmetricTensor. Only returned if return_eigenvectors is
             True.
+
+        Notes
+        -----
+        Exact zero eigenvalues may appear, especially when a block is missing. They will
+        be truncated and no value or vector will be returned for the null eigenspace.
         """
 
         # 0) input validation
@@ -877,7 +898,7 @@ class SymmetricTensor:
         sigv = np.ones((nrr + 1,), dtype=bool)
         sigv[:-1] = signature
         val_blocks = [None] * nblocks
-        abs_val_blocks = [None] * nblocks
+        abs_val_blocks = [np.zeros((1,))] * nblocks  # avoid issue with missing block
 
         # 2) split matrix blocks between full and sparse
         sparse = []
@@ -897,11 +918,6 @@ class SymmetricTensor:
             else:
                 sparse.append(bi)
 
-            # Handle missing blocks by initializing eigenvalues to 0.
-            dmin = min(d, k)
-            val_blocks[bi] = np.zeros((dmin,), dtype=np.complex128)
-            abs_val_blocks[bi] = np.zeros((dmin,))
-
         # 3) define functions do deal with dense and sparse blocks
         if return_eigenvectors:
             vector_blocks = [None] * nblocks
@@ -911,8 +927,8 @@ class SymmetricTensor:
                 abs_val = np.abs(vals)
                 k = nvals // dims[bi] + 1
                 so = abs_val.argsort()[: -k - 1 : -1]
-                val_blocks[bi][:] = vals[so]
-                abs_val_blocks[bi][:] = abs_val[so]
+                val_blocks[bi] = vals[so]
+                abs_val_blocks[bi] = abs_val[so]
                 vector_blocks[bi] = vec[:, so]
                 return
 
@@ -922,15 +938,14 @@ class SymmetricTensor:
                     vals, vec = slg.eigs(op, k=k, v0=v0, maxiter=maxiter, tol=tol)
                 except slg.ArpackNoConvergence as err:
                     print("Warning: ARPACK did not converge", err)
-                    m = err.eigenvalues.size
-                    vals[:m] = err.eigenvalues
-                    vec[:, :m] = err.eigenvectors
-                    print(f"Keep {m}/{k} converged values and vectors")
+                    vals = err.eigenvalues
+                    vec = err.eigenvectors
+                    print(f"Keep {vals.size}/{k} converged values and vectors")
 
                 abs_val = np.abs(vals)
                 so = abs_val.argsort()[: -k - 1 : -1]
-                val_blocks[bi][:] = vals[so]
-                abs_val_blocks[bi][:] = abs_val[so]
+                val_blocks[bi] = vals[so]
+                abs_val_blocks[bi] = abs_val[so]
                 vector_blocks[bi] = vec[:, so]
                 return
 
@@ -941,8 +956,8 @@ class SymmetricTensor:
                 abs_val = np.abs(vals)
                 k = nvals // dims[bi] + 1
                 so = abs_val.argsort()[: -k - 1 : -1]
-                val_blocks[bi][:] = vals[so]
-                abs_val_blocks[bi][:] = abs_val[so]
+                val_blocks[bi] = vals[so]
+                abs_val_blocks[bi] = abs_val[so]
                 return
 
             def eig_sparse_block(bi, op, v0):
@@ -958,14 +973,13 @@ class SymmetricTensor:
                     )
                 except slg.ArpackNoConvergence as err:
                     print("Warning: ARPACK did not converge", err)
-                    m = err.eigenvalues.size
-                    vals[:m] = err.eigenvalues
-                    print(f"Keep {m}/{k} converged eigvalues")
+                    vals = err.eigenvalues
+                    print(f"Keep {vals.size}/{k} converged eigvalues")
 
                 abs_val = np.abs(vals)
                 so = abs_val.argsort()[: -k - 1 : -1]
-                val_blocks[bi][:] = vals[so]
-                abs_val_blocks[bi][:] = abs_val[so]
+                val_blocks[bi] = vals[so]
+                abs_val_blocks[bi] = abs_val[so]
                 return
 
         # 4) construct full matrix blocks and call dense eig on them
@@ -982,7 +996,7 @@ class SymmetricTensor:
             bj = st.block_irreps.searchsorted(irr)
             if bj < st.nblocks and st.block_irreps[bj] == irr:
                 eig_full_block(bi, st.blocks[bj])
-            # else the block is missing, already handled.
+            # else the block is missing, truncate zero eigenvalue
 
         # 5) for each sparse block, apply matmat to a SymmetricTensor with 1 block
         for bi in sparse:
@@ -1063,15 +1077,16 @@ class SymmetricTensor:
         tol=0,
     ):
         """
-        Find nvals eigenvalues for a real symmetric or hermitian complex matrix M. M may
-        be explicitly defined as a SymmetricTensor or only implicitly defined by its
-        action on a vector with given representations, signature and dtype.
-        Whether explicitly or implicitly defined, M has to be a square matrix
+        Find nvals largest eigenvalues in magnitude for a real symmetric or complex
+        hermitian matrix M. M may be explicitly defined as a SymmetricTensor or only
+        implicitly defined by its action on a vector with given representations,
+        signature and dtype.
+        Whether explicitly or implicitly defined, M has to define a square matrix
         that can act iteratively on a given initial vector. This means that its row
         representations must match its column representations and the signature for the
         columns must be the opposite of thw signature for the rows.
 
-        If M is square not real symmetric or hermitian, no error is returned but the
+        If M is square but not real symmetric or hermitian, no error is returned but the
         results will be wrong.
 
 
@@ -1117,6 +1132,11 @@ class SymmetricTensor:
         u : SymmetricTensor
             Eigenvectors as a SymmetricTensor. Only returned if return_eigenvectors is
             True.
+
+        Notes
+        -----
+        Exact zero eigenvalues may appear, especially when a block is missing. They will
+        be truncated and no value or vector will be returned for the null eigenspace.
         """
 
         # 0) input validation
@@ -1161,7 +1181,7 @@ class SymmetricTensor:
         sigv = np.ones((nrr + 1,), dtype=bool)
         sigv[:-1] = signature
         val_blocks = [None] * nblocks
-        abs_val_blocks = [None] * nblocks
+        abs_val_blocks = [np.zeros((1,))] * nblocks  # avoid issue with missing block
 
         # 2) split matrix blocks between full and sparse
         sparse = []
@@ -1195,8 +1215,8 @@ class SymmetricTensor:
                 abs_val = np.abs(vals)
                 k = nvals // dims[bi] + 1
                 so = abs_val.argsort()[: -k - 1 : -1]
-                val_blocks[bi][:] = vals[so]
-                abs_val_blocks[bi][:] = abs_val[so]
+                val_blocks[bi] = vals[so]
+                abs_val_blocks[bi] = abs_val[so]
                 vector_blocks[bi] = vec[:, so]
                 return
 
@@ -1213,8 +1233,8 @@ class SymmetricTensor:
 
                 abs_val = np.abs(vals)
                 so = abs_val.argsort()[: -k - 1 : -1]
-                val_blocks[bi][:] = vals[so]
-                abs_val_blocks[bi][:] = abs_val[so]
+                val_blocks[bi] = vals[so]
+                abs_val_blocks[bi] = abs_val[so]
                 vector_blocks[bi] = vec[:, so]
                 return
 
@@ -1248,8 +1268,8 @@ class SymmetricTensor:
 
                 abs_val = np.abs(vals)
                 so = abs_val.argsort()[: -k - 1 : -1]
-                val_blocks[bi][:] = vals[so]
-                abs_val_blocks[bi][:] = abs_val[so]
+                val_blocks[bi] = vals[so]
+                abs_val_blocks[bi] = abs_val[so]
                 return
 
         # 4) construct full matrix blocks and call dense eigh on them
@@ -1266,7 +1286,7 @@ class SymmetricTensor:
             bj = st.block_irreps.searchsorted(irr)
             if bj < st.nblocks and st.block_irreps[bj] == irr:
                 eig_full_block(bi, st.blocks[bj])
-            # else the block is missing, already handled.
+            # else the block is missing, truncate zero eigenvalue
 
         # 5) for each sparse block, apply matmat to a SymmetricTensor with 1 block
         for bi in sparse:
@@ -1303,6 +1323,7 @@ class SymmetricTensor:
                     eig_sparse_block(bi, op, v0)
 
         # 6) keep only nvals largest magnitude eigenvalues
+        # find_chi_largest will remove any rigorously zero eigenvalue left
         block_cuts = find_chi_largest(abs_val_blocks, nvals, dims=dims)
         non_empty = block_cuts.nonzero()[0]
         s_blocks = []
