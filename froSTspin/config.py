@@ -32,7 +32,7 @@ if __debug__:
         print("Consider running the code in optimized mode with python -O")
         print("You may disable this warning with the flag --froSTspin-quiet\n")
 
-print("\n *** DEV MODE ***\n")
+print("\n *** FROSTSPIN IS ON BRANCH DEV ***\n")
 
 
 def get_config():
