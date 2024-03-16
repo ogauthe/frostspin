@@ -1,10 +1,14 @@
 import numpy as np
 import numba
 
+import froSTspin.config
 from froSTspin.groups.su2_clebsch_gordan import load_su2_cg
 from .lie_group_symmetric_tensor import LieGroupSymmetricTensor
 from .u1_symmetric_tensor import U1_SymmetricTensor
 from .o2_symmetric_tensor import O2_SymmetricTensor
+
+
+_config = froSTspin.config.get_config()
 
 
 def _get_projector(rep1, rep2, s1, s2, max_irrep=2**30):
@@ -220,7 +224,8 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
 
     def toU1(self):
         # yet to adapt to elementary block structure for SU(2)
-        print("WARNING: toU1() currently casts to intermediate dense form")
+        if not _config["quiet"]:
+            print("WARNING: toU1() currently casts to intermediate dense form")
 
         # efficient cast to U(1): project directly raw data to U(1) blocks
         # 1) construct U(1) representations
@@ -248,7 +253,8 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         are contracted.
         """
         # yet to adapt to elementary block structure for SU(2)
-        print("WARNING: toO2() currently casts to intermediate dense form")
+        if not _config["quiet"]:
+            print("WARNING: toO2() currently casts to intermediate dense form")
 
         # When casting to U(1), O(2) has different irrep ordering conventions:
         # here for SU(2), each spin appears contiguously with all its Sz value
