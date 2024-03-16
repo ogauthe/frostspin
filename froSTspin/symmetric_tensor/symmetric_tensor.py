@@ -14,7 +14,7 @@ from .diagonal_tensor import DiagonalTensor
 # blocks are always sorted according to irreps
 # blocks are tuple of contiguous F or C arrays (numba)
 
-config = froSTspin.config.get_config()
+_config = froSTspin.config.get_config()
 
 
 class SymmetricTensor:
