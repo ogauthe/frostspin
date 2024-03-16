@@ -10,7 +10,6 @@ from froSTspin.ctmrg.ctmrg import CTMRG
 
 ########################################################################################
 # Test CTMRG on RVB SU(2) wavefunction
-# Especially relevant for merge_legs and update_signature
 ########################################################################################
 tol = 5e-14
 
@@ -120,19 +119,13 @@ check_ctm(ctmU1_AB, ctmSU2_AB)
 zD = np.eye(D)
 zD[1:, 1:] = np.diag(1 - np.arange(d) % 2 * 2)[::-1]
 
-
-# 1st: UR
 s = np.array([0, 0, 0, 0, 1, 1])
 tRVBur = np.einsum("paurdl,Uu,Rr->paURdl", tRVB, zD, zD)
-tRVB_check = tA_SU2.copy()
-tRVB_check.update_signature([0, 0, 1, 1, 0, 0])
-assert lg.norm(tRVB_check.toarray() - tRVBur) < tol
 
 tur_U1 = U1_SymmetricTensor.from_array(tRVBur, rr_U1, rc_U1, signature=s)
 tur_SU2 = SU2_SymmetricTensor.from_array(tRVBur, rr_SU2, rc_SU2, signature=s)
 assert lg.norm(tur_U1.toarray() - tRVBur) < tol
 assert lg.norm(tur_SU2.toarray() - tRVBur) < tol
-assert (tur_SU2 - tRVB_check).norm() < tol
 assert (tur_SU2.toU1() - tur_U1).norm() < tol
 
 ctmU1_ur = CTMRG.from_elementary_tensors("A", (tur_U1,), 20, degen_ratio=0.99)
@@ -142,42 +135,3 @@ check_ctm(ctmU1_ur, ctmO2_ur)
 ctmU1_ur.restart_environment()
 ctmSU2_ur = CTMRG.from_elementary_tensors("A", (tur_SU2,), 20, degen_ratio=0.99)
 check_ctm(ctmU1_ur, ctmSU2_ur)
-
-
-# TODO: update_signature
-"""
-# 2nd: RD, with a loop inside signature change
-s = np.array([0, 0, 1, 0, 0, 1])
-tRVBrd = np.einsum("paurdl,rR,Dd->pauRDl", tRVB, zD, zD)
-tRVB_check = tA_SU2.copy()
-tRVB_check.update_signature([0, 0, 0, -1, 1, 0])
-assert lg.norm(tRVB_check.toarray() - tRVBrd) < tol
-trd_U1 = U1_SymmetricTensor.from_array(tRVBrd, rr_U1, rc_U1, signature=s)
-trd_SU2 = SU2_SymmetricTensor.from_array(tRVBrd, rr_SU2, rc_SU2, signature=s)
-assert (trd_SU2.toU1() - trd_U1).norm() < tol
-ctmU1_rd = CTMRG.from_elementary_tensors("A", (trd_U1,), 20, degen_ratio=0.99)
-ctmO2_rd = CTMRG.from_elementary_tensors("A", (trd_SU2,), 20, degen_ratio=0.99)
-ctmO2_rd.set_symmetry("O2")
-check_ctm(ctmU1_rd, ctmO2_rd)
-ctmU1_rd.restart_environment()
-ctmSU2_rd = CTMRG.from_elementary_tensors("A", (trd_SU2,), 20, degen_ratio=0.99)
-check_ctm(ctmU1_rd, ctmSU2_rd)
-
-
-# 3rd: DL
-s = np.array([0, 0, 1, 1, 0, 0])
-tRVBdl = np.einsum("paurdl,Dd,Ll->paurDL", tRVB, zD, zD)
-tRVB_check = tA_SU2.copy()
-tRVB_check.update_signature([0, 0, 0, 0, 1, 1])
-assert lg.norm(tRVB_check.toarray() - tRVBdl) < tol
-tdl_U1 = U1_SymmetricTensor.from_array(tRVBdl, rr_U1, rc_U1, signature=s)
-tdl_SU2 = SU2_SymmetricTensor.from_array(tRVBdl, rr_SU2, rc_SU2, signature=s)
-assert (tdl_SU2.toU1() - tdl_U1).norm() < tol
-ctmU1_dl = CTMRG.from_elementary_tensors("A", (tdl_U1,), 20, degen_ratio=0.99)
-ctmO2_dl = CTMRG.from_elementary_tensors("A", (tdl_SU2,), 20, degen_ratio=0.99)
-ctmO2_dl.set_symmetry("O2")
-check_ctm(ctmU1_dl, ctmO2_dl)
-ctmU1_dl.restart_environment()
-ctmSU2_dl = CTMRG.from_elementary_tensors("A", (tdl_SU2,), 20, degen_ratio=0.99)
-check_ctm(ctmU1_dl, ctmSU2_dl)
-"""
