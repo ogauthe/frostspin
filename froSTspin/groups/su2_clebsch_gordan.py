@@ -1,14 +1,8 @@
-import os
 import json
-import argparse
 
 import numpy as np
 
-
-local_dir = os.path.join(os.path.dirname(__file__))
-default_su2_cg_file = os.path.join(
-    local_dir, "clebsch-gordan_data/data_su2_clebsch-gordan.json"
-)
+import froSTspin.config
 
 
 def compute_CG(max_spin_dim):
@@ -116,26 +110,15 @@ def _load_CG_npz(savefile):
     return elementary_projectors
 
 
-def load_su2_cg():
-    parser = argparse.ArgumentParser()
+def load_su2_cg(cg_file=None):
+    config = froSTspin.config.get_config()
+    if cg_file is None:
+        cg_file = config["SU2_CG_file"]
 
-    parser.add_argument(
-        "--froSTspin-SU2-CG-file",
-        help="savefile for SU(2) CG",
-        type=str,
-        default=default_su2_cg_file,
-    )
-    parser.add_argument(
-        "--froSTspin-quiet", help="silence froSTspin", action="store_true"
-    )
-    args = parser.parse_args()
-
-    cg_file = args.froSTspin_SU2_CG_file
-    extension = cg_file.split(".")[-1]
-
-    if not args.froSTspin_quiet:
+    if not config["quiet"]:
         print("Load SU(2) Clebsch-Gordan coefficient from file", cg_file)
 
+    extension = cg_file.split(".")[-1]
     try:
         if extension == "npz":
             elementary_projectors = _load_CG_npz(cg_file)

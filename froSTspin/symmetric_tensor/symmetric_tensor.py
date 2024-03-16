@@ -1,27 +1,11 @@
-import argparse
-
 import numpy as np
 import scipy.linalg as lg
 import scipy.sparse.linalg as slg
 
+import froSTspin.config
 from froSTspin.misc_tools.svd_tools import sparse_svd, find_chi_largest
 from .diagonal_tensor import DiagonalTensor
 
-
-# parse command line options
-parser = argparse.ArgumentParser()
-parser.add_argument("--froSTspin-quiet", help="silence froSTspin", action="store_true")
-parser.add_argument("--froSTspin-SU2-CG-file", help="savefile for SU(2) CG", type=str)
-args = parser.parse_args()
-
-# display warning if running in debug mode
-if __debug__:
-    if not args.froSTspin_quiet:
-        print("\nWarning: assert statement are activated")
-        print("They may significantly impact performances")
-        print("Consider running the code in optimized mode with python -O")
-        print("You may disable this warning with the flag --froSTspin-quiet")
-        print()
 
 # choices are made to make code light and fast:
 # irreps are labelled by integers (non-simple groups need another class using lexsort)
@@ -29,6 +13,8 @@ if __debug__:
 # coefficients are stored as dense blocks corresponding to irreps
 # blocks are always sorted according to irreps
 # blocks are tuple of contiguous F or C arrays (numba)
+
+config = froSTspin.config.get_config()
 
 
 class SymmetricTensor:
