@@ -7,9 +7,6 @@ from .u1_symmetric_tensor import U1_SymmetricTensor
 from .o2_symmetric_tensor import O2_SymmetricTensor
 
 
-_su2_clebsch_gordan_dic = load_su2_cg()
-
-
 def _get_projector(rep1, rep2, s1, s2, max_irrep=2**30):
     """
     Construct Clebsch-Gordan fusion tensor for representations rep1 and rep2 with
@@ -73,7 +70,7 @@ def _get_projector(rep1, rep2, s1, s2, max_irrep=2**30):
             for irr3 in range(abs(irr1 - irr2) + 1, min(irr1 + irr2, max_irrep + 1), 2):
                 # here we implicitly make use of the fact SU(2) has no outer degeneracy
                 try:
-                    p123 = _su2_clebsch_gordan_dic[irr1, irr2, irr3]
+                    p123 = SU2_SymmetricTensor._clebsch_gordan_dic[irr1, irr2, irr3]
                 except KeyError as err:
                     print(
                         "\n*** ERROR *** Clebsch-Gordan tensor for spins with "
@@ -135,6 +132,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
     # Symmetry implementation
     ####################################################################################
     _symmetry = "SU2"
+    _clebsch_gordan_dic = load_su2_cg()
 
     @staticmethod
     def singlet():
@@ -313,3 +311,20 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         )
         assert abs(out.norm() - self.norm()) <= 1e-13 * self.norm()
         return out
+
+    ####################################################################################
+    # SU(2) specific
+    ####################################################################################
+    @classmethod
+    def reload_clebsch_gordan(cls, savefile):
+        """
+        Reload SU(2) Clebsch-Gordan cofficient dictionary from savefile. Coefficients
+        are loaded at import, this function allows to reload them from another file.
+
+        Arguments
+        ---------
+        savefile : str
+            Savefile for SU(2) Clebsch-Gordan coefficients. Must be a .json or .npz file
+            and abide by the format defined in froSTspin/groups/su2_clebsch_gordan.py.
+        """
+        cls._clebsch_gordan_dic = load_su2_cg(savefile)

@@ -137,7 +137,8 @@ def load_su2_cg(cg_file=None):
 
     max_spin_dim = max(k[0] for k in elementary_projectors.keys())
     elementary_projectors["maximal_spin_dimension"] = max_spin_dim
-    print("Clebsch-Gordan maximal spin dimension =", max_spin_dim)
+    if not config["quiet"]:
+        print("Clebsch-Gordan maximal spin dimension =", max_spin_dim)
 
     return elementary_projectors
 
