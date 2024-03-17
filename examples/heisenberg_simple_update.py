@@ -95,9 +95,6 @@ print("suU1 weights:", *suU1.get_weights(), sep="\n")
 print("suO2 weights:", *suO2.get_weights(), sep="\n")
 print("suSU2 weights:", *suSU2.get_weights(), sep="\n")
 
-suU1.save_to_file("save_su.npz")
-su2 = SimpleUpdate.load_from_file("save_su.npz")
-
 
 til = "AB\nBA"
 chi = 30
