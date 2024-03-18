@@ -567,7 +567,10 @@ class SymmetricTensor:
         """
         Contract all legs, equialent to Tr(A @ B) as matrices or tensordot(A, B, ndim)
         as tenosrs. Tensors have to match each other representations and signatures.
+
+        The name of this method is subject to change in the future.
         """
+        # TBD rename full_dot, bicontract, trace_contract?
         assert self.match_representations(other.dagger())
         x = 0.0
         shared = (self._block_irreps[:, None] == other.block_irreps).nonzero()

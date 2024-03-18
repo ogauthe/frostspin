@@ -856,7 +856,13 @@ class SimpleUpdate:
             D = fin["_SimpleUpdate_D"][()]
             beta = fin["_SimpleUpdate_beta"][()]
             tau = fin["_SimpleUpdate_tau"][()]
-            logZ = fin["_SimpleUpdate_logZ"][()]
+            # pragmatism: use np.nan as default for logZ to preserve retrocompatibility
+            try:
+                logZ = fin["_SimpleUpdate_logZ"][()]
+            except KeyError:
+                print("Warning: logZ missing in simple update savefile", savefile)
+                print("Set it to nan")
+                logZ = np.nan
             rcutoff = fin["_SimpleUpdate_rcutoff"][()]
             degen_ratio = fin["_SimpleUpdate_degen_ratio"][()]
 
@@ -959,7 +965,7 @@ class SimpleUpdate:
 
     @property
     def logZ(self):
-        return self._logZ
+        return self._logZ / self._n_tensors
 
     @tau.setter
     def tau(self, tau):

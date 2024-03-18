@@ -219,3 +219,28 @@ print(f"O(2)........... ({xihO2:.3f}, {xivO2:.3f})")
 print(f"U(1) from SU(2) ({xihU1_2:.3f}, {xivU1_2:.3f})")
 print(f"O(2) from SU(2) ({xihO2_2:.3f}, {xivO2_2:.3f})")
 print(f"SU(2).......... ({xihSU2:.3f}, {xivSU2:.3f})")
+
+
+def get_free_energy(su, ctm, beta):
+    """
+    Compute the per site free energy F = - logZ / beta
+    """
+    peps_norm_log = ctm.compute_PEPS_norm_log()
+    f = -(peps_norm_log + 2 * su.logZ) / beta
+    return f
+
+
+print("\nCompute free energy")
+fAs = get_free_energy(suAs, ctmAs, beta)
+fU1 = get_free_energy(suU1, ctmU1, beta)
+fU1_2 = get_free_energy(suSU2, ctmU1_fromSU2, beta)
+fO2 = get_free_energy(suO2, ctmO2, beta)
+fO2_2 = get_free_energy(suSU2, ctmO2_fromSU2, beta)
+fSU2 = get_free_energy(suSU2, ctmSU2, beta)
+
+print(f"Asym........... {fAs:.3f}")
+print(f"U(1)........... {fU1:.3f}")
+print(f"O(2)........... {fO2:.3f}")
+print(f"U(1) from SU(2) {fU1_2:.3f}")
+print(f"O(2) from SU(2) {fO2_2:.3f}")
+print(f"SU(2).......... {fSU2:.3f}")
