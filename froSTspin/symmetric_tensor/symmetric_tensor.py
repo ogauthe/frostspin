@@ -34,6 +34,7 @@ class SymmetricTensor:
     ####################################################################################
     # currently _symmetry is a string. Could be a separate class and all the static
     # methods would become class method returning cls._symmetry.singlet()
+    # this may change in the future.
     _symmetry = NotImplemented
 
     @classmethod
@@ -398,9 +399,6 @@ class SymmetricTensor:
         Its signature is assumed to be trivial [False, True]. If it does not match self
         then a signature change is done by conjugating diag_block_irreps.
 
-        Consider calling mul or rmul with a DiagonalTensor object for a more robust
-        interface.
-
         Parameters
         ----------
         diag_blocks : enum of 1D array
@@ -475,6 +473,26 @@ class SymmetricTensor:
 
     @classmethod
     def random(cls, row_reps, col_reps, signature=None, rng=None):
+        """
+        Initialize random tensor with given representations and signature.
+
+        Parameters
+        ----------
+        row_reps : tuple of representations
+            Row representations
+        col_reps : tuple of representations
+            Column representations
+        signature : 1D bool array
+            Signature for each representation. If None, assumed to be False for rows and
+            True for columns.
+        rng : numpy random Generator
+            Random number generator. If None a new instance is initialized.
+
+        Returns
+        -------
+        st : SymmetricTensor with cls subclass
+            Random SymmetricTensor.
+        """
         if signature is None:
             signature = np.zeros((len(row_reps) + len(col_reps),), dtype=bool)
             signature[len(row_reps) :] = True
@@ -513,9 +531,8 @@ class SymmetricTensor:
     ####################################################################################
     def transpose(self):
         """
-        Matrix transpose operation, swapping rows and columns. Internal structure and
-        and leg merging are not affected: each block is just transposed. Block irreps
-        are group conjugated, which may change block order.
+        Matrix transpose operation, swapping rows and columns. This is a specific case
+        of permute that can be optimized.
         """
         raise NotImplementedError("Must be defined in derived class")
 
@@ -669,7 +686,7 @@ class SymmetricTensor:
 
         Notes
         -----
-        Exact zero eigenvalues may appear, especially when a block is missing. They will
+        Exact zero eigenvalues may exist, especially when a block is missing. They will
         be truncated and no value or vector will be returned for the null eigenspace. In
         such as case, the dimensions of s and u will be smaller than self.
         """
@@ -700,7 +717,7 @@ class SymmetricTensor:
 
         Notes
         -----
-        Exact zero eigenvalues may appear, especially when a block is missing. They will
+        Exact zero eigenvalues may exist, especially when a block is missing. They will
         be truncated and no value or vector will be returned for the null eigenspace. In
         such as case, the dimensions of s and u will be smaller than self.
         """
@@ -812,7 +829,7 @@ class SymmetricTensor:
         matmat : cls or callable
             If matmat is a SymmetricTensor with cls subclass then M=matmat and its
             spectrum will be direclty computed. Input arguments reps, signature and
-            dtype are not read and are replaced by those infered from matmat.
+            dtype are not read and are replaced by those inferred from matmat.
             If matmat is a callable, it represents the operation M @ x and implicitly
             defines a cls SymmetricTensor. Input arguments reps and signature are used
             to determine the vector it acts on.
@@ -852,7 +869,7 @@ class SymmetricTensor:
 
         Notes
         -----
-        Exact zero eigenvalues may appear, especially when a block is missing. They will
+        Exact zero eigenvalues may exist, especially when a block is missing. They will
         be truncated and no value or vector will be returned for the null eigenspace.
         """
 
@@ -1095,7 +1112,7 @@ class SymmetricTensor:
         matmat : cls or callable
             If matmat is a SymmetricTensor with cls subclass then M=matmat and its
             spectrum will be direclty computed. Input arguments reps, signature and
-            dtype are not read and are replaced by those infered from matmat.
+            dtype are not read and are replaced by those inferred from matmat.
             If matmat is a callable, it represents the operation M @ x and implicitly
             defines a cls SymmetricTensor. Input arguments reps and signature are used
             to determine the vector it acts on.
@@ -1135,7 +1152,7 @@ class SymmetricTensor:
 
         Notes
         -----
-        Exact zero eigenvalues may appear, especially when a block is missing. They will
+        Exact zero eigenvalues may exist, especially when a block is missing. They will
         be truncated and no value or vector will be returned for the null eigenspace.
         """
 
@@ -1358,6 +1375,8 @@ class SymmetricTensor:
     def save_to_file(self, savefile):
         """
         Save SymmetricTensor into savefile with npz format.
+
+        Save format may change to hdf5 in the future.
         """
         data = self.get_data_dic()
         np.savez_compressed(savefile, **data)
