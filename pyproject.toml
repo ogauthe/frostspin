@@ -22,3 +22,47 @@ Homepage = "https://framagit.org/ogauthe/froSTspin"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+
+[tool.ruff]
+# keep Black conventions
+line-length = 88
+indent-width = 4
+
+[tool.ruff.lint]
+select = [
+    "F",
+    "E",
+    "W",
+    "UP",
+    "A",
+    "C",
+    "EXE",
+    "ISC",
+    "ICN",
+    "PIE",
+    "Q",
+    "RSE",
+    "TID",
+    "FLY",
+    "NPY",
+    "N",
+    "RET",
+    "ARG001",
+    "ARG005",
+    "TRY",
+    "SIM",
+    "RUF",
+]
+ignore = [
+    "C901",  # too demanding
+    "N801",  # prefer keeping SU2_SymmetricTensor
+    "N802",  # prefer keeping toU1
+    "N803",  # prefer keeping D
+    "N806",  # prefer keeping D
+    "N816",  # prefer keeping hU1
+    "RET504",  # prefer to assign
+    "TRY003",  # simpler with explicit message
+    "RUF005",  # may enforce it later
+    "RUF012",  # not using type annotation
+]
