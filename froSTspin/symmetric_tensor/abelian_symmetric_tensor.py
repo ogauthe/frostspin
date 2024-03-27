@@ -21,11 +21,11 @@ def _numba_fill_block(m, ri, ci):
 def _numba_reduce_to_blocks(m, row_irreps, col_irreps):
     row_sort = row_irreps.argsort(kind="mergesort")
     sorted_row_irreps = row_irreps[row_sort]
-    row_blocks = (
-        [0]
-        + list((sorted_row_irreps[:-1] != sorted_row_irreps[1:]).nonzero()[0] + 1)
-        + [row_irreps.size]
-    )
+    row_blocks = [
+        0,
+        *((sorted_row_irreps[:-1] != sorted_row_irreps[1:]).nonzero()[0] + 1),
+        row_irreps.size,
+    ]
     blocks = []
     block_irreps = []
     for rbi in range(len(row_blocks) - 1):  # order matters: cannot parallelize
@@ -44,11 +44,11 @@ def _numba_reduce_to_blocks(m, row_irreps, col_irreps):
 def _blocks_from_sparse(sm, row_irreps, col_irreps):
     row_sort = row_irreps.argsort(kind="mergesort")
     sorted_row_irreps = row_irreps[row_sort]
-    row_blocks = (
-        [0]
-        + list((sorted_row_irreps[:-1] != sorted_row_irreps[1:]).nonzero()[0] + 1)
-        + [row_irreps.size]
-    )
+    row_blocks = [
+        0,
+        *((sorted_row_irreps[:-1] != sorted_row_irreps[1:]).nonzero()[0] + 1),
+        row_irreps.size,
+    ]
     blocks = []
     block_irreps = []
     for rbi in range(len(row_blocks) - 1):
@@ -80,11 +80,11 @@ def _numba_blocks_to_array(blocks, block_irreps, row_irreps, col_irreps):
 def _numpy_get_indices(irreps):
     perm = irreps.argsort(kind="mergesort").view(np.uint64)
     sorted_irreps = irreps[perm]
-    block_bounds = (
-        [0]
-        + list((sorted_irreps[:-1] != sorted_irreps[1:]).nonzero()[0] + 1)
-        + [irreps.size]
-    )
+    block_bounds = [
+        0,
+        *((sorted_irreps[:-1] != sorted_irreps[1:]).nonzero()[0] + 1),
+        irreps.size,
+    ]
     n = len(block_bounds) - 1
     unique_irreps = np.empty((n,), dtype=np.int8)
     irrep_count = np.empty((n,), dtype=np.int64)

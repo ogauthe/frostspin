@@ -135,7 +135,7 @@ def get_update_data(tensor_bond_indices, raw_update_data, raw_hamilts, second_or
     initial_swap = [None] * n_tensors
     leg_state = [None] * n_tensors
     for i in range(n_tensors):
-        init = [-1, -2] + list(tensor_bond_indices[i])
+        init = [-1, -2, *tensor_bond_indices[i]]
         end = sorted(set(init) - set(eff_leg_state[i])) + eff_leg_state[i]
         swap = [init.index(i) for i in end]
         initial_swap[i] = (tuple(swap[:-2]), tuple(swap[-2:]))
@@ -148,14 +148,14 @@ def get_update_data(tensor_bond_indices, raw_update_data, raw_hamilts, second_or
     for i in range(n_updates):
         # left tensor
         init = leg_state[left_indices[i]]
-        end = sorted(set(init) - {-1, bond1[i]}) + [-1, bond1[i]]
+        end = [*sorted(set(init) - {-1, bond1[i]}), -1, bond1[i]]
         swap = [init.index(i) for i in end]
         leg_state[left_indices[i]] = end
         lperm[i] = (tuple(swap[:-2]), tuple(swap[-2:]))
 
         # right tensor
         init = leg_state[right_indices[i]]
-        end = sorted(set(init) - {-1, bond2[i]}) + [-1, bond2[i]]
+        end = [*sorted(set(init) - {-1, bond2[i]}), -1, bond2[i]]
         swap = [init.index(i) for i in end]
         leg_state[right_indices[i]] = end
         rperm[i] = (tuple(swap[:-2]), tuple(swap[-2:]))
@@ -200,7 +200,7 @@ def get_update_data(tensor_bond_indices, raw_update_data, raw_hamilts, second_or
     # Construct final swap that sends back to default state
     final_swap = [None] * n_tensors
     for i in range(n_tensors):
-        end = [-1, -2] + list(tensor_bond_indices[i])
+        end = [-1, -2, *tensor_bond_indices[i]]
         init = sorted(set(end) - set(eff_leg_state[i])) + eff_leg_state[i]
         swap = [init.index(i) for i in end]
         final_swap[i] = (tuple(swap[:2]), tuple(swap[2:]))
@@ -639,8 +639,8 @@ class SimpleUpdate:
         tensors = []
         t0 = tensor
         if tensor.ndim == len(tensor_bond_indices[0]) + 1:
-            row_reps = [t0.row_reps[0], ST.singlet]
-            signature = [t0.signature[0], False] + list(t0.signature[1:])
+            row_reps = (t0.row_reps[0], ST.singlet)
+            signature = np.array([t0.signature[0], False, *t0.signature[1:]])
             t0 = ST(row_reps, t0.col_reps, t0.blocks, t0.block_irreps, signature)
         elif tensor.ndim != len(tensor_bond_indices[0]) + 2:
             raise ValueError("Tensor does not fit geometry")
@@ -999,7 +999,7 @@ class SimpleUpdate:
         for i, t0 in enumerate(self._tensors):
             # we already imposed the two first legs to be physical and ancilla in the
             # default configuration. Add weights on the virtual legs.
-            rswap = (0, 1) + tuple(range(3, t0.ndim))
+            rswap = (0, 1, *range(3, t0.ndim))
             t = t0
             for j, leg in enumerate(self._tensor_bond_indices[i]):
                 t = t.permute(rswap, (2,))
@@ -1421,7 +1421,7 @@ class SimpleUpdate:
                     raise ValueError(f"Tensor {i} has invalid representation shape")
                 if (t.col_reps[j] != self._weights[bi].representation).any():
                     raise ValueError(f"Tensor {i} has invalid representation")
-            tl0 = [-1, -2] + list(self._tensor_bond_indices[i])
+            tl0 = [-1, -2, *self._tensor_bond_indices[i]]
             tl = swap_legs(tl0, self._initial_swap[i])
             tensor_legs.append(tl)
 
@@ -1432,7 +1432,7 @@ class SimpleUpdate:
 
         # check state after init same as now
         for i in range(self._n_tensors):
-            tl0 = [-1, -2] + list(self._tensor_bond_indices[i])
+            tl0 = [-1, -2, *self._tensor_bond_indices[i]]
             tl = swap_legs(tl0, self._initial_swap[i])
             if tl != tensor_legs[i]:
                 raise ValueError(f"Tensor {i} does not come back to initial state")
@@ -1467,7 +1467,7 @@ class SimpleUpdate:
             if sorted(sw) != list(range(len(tensor_legs[i]))):
                 raise ValueError("Swap does not match legs")
             tl = [tensor_legs[i][j] for j in sw]
-            tl0 = [-1, -2] + list(self._tensor_bond_indices[i])
+            tl0 = [-1, -2, *self._tensor_bond_indices[i]]
             if tl != tl0:
                 raise ValueError(f"Tensor {i} does not come back to default state")
 

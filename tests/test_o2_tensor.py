@@ -72,7 +72,7 @@ t2o2 = O2_SymmetricTensor(  # remove 0even block
     t2o2.row_reps,
     t2o2.col_reps,
     t2o2.blocks[:1] + t2o2.blocks[2:],
-    (-1,) + tuple(t2o2.block_irreps[2:]),
+    (-1, *t2o2.block_irreps[2:]),
     to2.signature,
 )
 check_o2(t2o2, t2u1)
