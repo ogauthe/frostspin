@@ -135,7 +135,7 @@ def load_su2_cg(cg_file=None):
         # better to crash now than to silently trigger recomputation.
         raise FileNotFoundError(cg_file)
 
-    max_spin_dim = max(k[0] for k in elementary_projectors.keys())
+    max_spin_dim = max(k[0] for k in elementary_projectors)
     elementary_projectors["maximal_spin_dimension"] = max_spin_dim
     if not config["quiet"]:
         print("Clebsch-Gordan maximal spin dimension =", max_spin_dim)

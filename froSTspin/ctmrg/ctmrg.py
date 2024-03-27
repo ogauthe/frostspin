@@ -140,12 +140,11 @@ class CTMRG:
         if not (0.0 < self.degen_ratio <= 1.0):
             raise ValueError("degen_ratio must obey 0.0 <= self.degen_ratio <= 1.0")
 
-        if not _config["quiet"]:
-            if self.Dmin != self.Dmax:
-                print(
-                    f"WARNING: initialize CTMRG with Dmin = {self.Dmin} != Dmax ="
-                    f" {self.Dmax}"
-                )
+        if not _config["quiet"] and self.Dmin != self.Dmax:
+            print(
+                f"WARNING: initialize CTMRG with Dmin = {self.Dmin} != Dmax ="
+                f" {self.Dmax}"
+            )
 
     @classmethod
     def from_elementary_tensors(

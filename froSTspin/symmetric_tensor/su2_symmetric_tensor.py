@@ -81,7 +81,7 @@ def _get_projector(rep1, rep2, s1, s2, max_irrep=2**30):
                         f"dimensions {(irr1, irr2, irr3)} not found.\nOn the fly"
                         "computation of CG tensors is not currently implemented.\nTo "
                         "compute a larger set of CG tensors, use the script "
-                        "froSTspin/groups/compute_su2_clebsch-gordan.py.\n"
+                        "froSTspin/groups/compute_su2_clebsch_gordan.py.\n"
                     )
                     raise KeyError(err)
 

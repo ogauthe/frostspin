@@ -243,5 +243,6 @@ def rdm_diag_ur(ul, T1r, C2, Aur, T2u, T4d, Adl, dr_T, C4, T3l):
     return rdm
 
 
-def rdm_2x2(C1, T1l, T1r, C2, T4u, Aul, Aur, T2u, T4d, Adl, Ard, T2d, C4, T4l, T4r, C3):
+# fmt: off
+def rdm_2x2(C1, T1l, T1r, C2, T4u, Aul, Aur, T2u, T4d, Adl, Ard, T2d, C4, T4l, T4r, C3):  # noqa: ARG001, E501
     raise NotImplementedError("To do!")
