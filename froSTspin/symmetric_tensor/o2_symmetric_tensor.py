@@ -191,10 +191,8 @@ def _numba_b0_arrays(o2_reps, sz_values):
         nfxo = nfxo2
 
     # 2) precompute the number of Sz=0 states from fast O(2) merging
-    if degen.size > 1 and irreps[1] == 0:  # both 0o and 0e exist
-        n_sz0 = degen[0] + degen[1]
-    else:  # only one exist. Function is not called if neither exist.
-        n_sz0 = degen[0]
+    # either both 0o or 0e exist OR only 1. Function is not called if neither exist.
+    n_sz0 = degen[0] + degen[1] if degen.size > 1 and irreps[1] == 0 else degen[0]
 
     # 3) find Sz=0 states knowing n_sz0
     sz0_states = _numba_find_indices(sz_values, 0, n_sz0)

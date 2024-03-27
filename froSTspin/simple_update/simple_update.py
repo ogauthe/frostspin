@@ -148,14 +148,14 @@ def get_update_data(tensor_bond_indices, raw_update_data, raw_hamilts, second_or
     for i in range(n_updates):
         # left tensor
         init = leg_state[left_indices[i]]
-        end = sorted(set(init) - set([-1, bond1[i]])) + [-1, bond1[i]]
+        end = sorted(set(init) - {-1, bond1[i]}) + [-1, bond1[i]]
         swap = [init.index(i) for i in end]
         leg_state[left_indices[i]] = end
         lperm[i] = (tuple(swap[:-2]), tuple(swap[-2:]))
 
         # right tensor
         init = leg_state[right_indices[i]]
-        end = sorted(set(init) - set([-1, bond2[i]])) + [-1, bond2[i]]
+        end = sorted(set(init) - {-1, bond2[i]}) + [-1, bond2[i]]
         swap = [init.index(i) for i in end]
         leg_state[right_indices[i]] = end
         rperm[i] = (tuple(swap[:-2]), tuple(swap[-2:]))
@@ -426,7 +426,7 @@ class SimpleUpdate:
             [5, 7, 4, 6],
         ]
 
-        if model not in j1_j2_models.keys():
+        if model not in j1_j2_models:
             raise KeyError(f"Unknown model: {model}")
         update_data = j1_j2_models[model]
         return cls.from_infinite_temperature(

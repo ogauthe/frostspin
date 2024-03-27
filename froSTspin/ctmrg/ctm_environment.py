@@ -149,11 +149,11 @@ class CTM_Environment:
         # -for all site_coords (x,y), (x,y) == site_coords[indices[x,y]]
         self._site_coords = np.empty((self._n_sites, 2), dtype=np.int8)
         indices = np.empty(cell.shape, dtype=int)
-        for i, l in enumerate(letters):
-            inds_l = cell == l  # a tensor can appear more than once in tiling
-            ind_values = inds_l.nonzero()
+        for i, c in enumerate(letters):
+            inds_c = cell == c  # a tensor can appear more than once in tiling
+            ind_values = inds_c.nonzero()
             self._site_coords[i] = ind_values[1][0], ind_values[0][0]  # transpose
-            indices[inds_l] = i
+            indices[inds_c] = i
 
         self._Ly, self._Lx = cell.shape
         self._cell = cell
@@ -301,7 +301,7 @@ class CTM_Environment:
         cell = np.atleast_2d(np.genfromtxt(txt, dtype="U1"))
         if len(tensors) != len(set(cell.flat)):
             raise ValueError("Incompatible cell and tensor number")
-        C1s, C2s, C3s, C4s, T1s, T2s, T3s, T4s = [[] for i in range(8)]
+        C1s, C2s, C3s, C4s, T1s, T2s, T3s, T4s = ([] for i in range(8))
         for A in tensors:
             if dummy:
                 C1, T1, C2, T2, C3, T3, C4, T4 = _initialize_dummy(A)
@@ -322,7 +322,7 @@ class CTM_Environment:
         """
         Construct CTM_Environment from save file.
         """
-        As, C1s, C2s, C3s, C4s, T1s, T2s, T3s, T4s = [[] for i in range(9)]
+        As, C1s, C2s, C3s, C4s, T1s, T2s, T3s, T4s = ([] for i in range(9))
         with np.load(savefile) as data:
             cell = data["_CTM_cell"]
             ST = get_symmetric_tensor_type(data["_CTM_symmetry"][()])

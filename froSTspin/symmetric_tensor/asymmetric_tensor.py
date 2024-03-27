@@ -25,7 +25,7 @@ class AsymmetricTensor(SymmetricTensor):
 
     @staticmethod
     def combine_representations(reps, signature):
-        return np.prod([r for r in reps], axis=0)
+        return np.prod(reps, axis=0)
 
     @staticmethod
     def conjugate_irrep(irr):

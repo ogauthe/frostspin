@@ -25,7 +25,7 @@ args, _ = parser.parse_known_args()
 config = {"quiet": args.froSTspin_quiet, "SU2_CG_file": args.froSTspin_SU2_CG_file}
 
 # display warning if running in debug mode
-if __debug__:
+if __debug__:  # noqa: SIM102
     if not config["quiet"]:
         print("\nWarning: assert statement are activated")
         print("They may significantly impact performances")
