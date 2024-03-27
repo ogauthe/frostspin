@@ -305,7 +305,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
 
         # 2) combine into row and column
         arr = self.toarray()
-        perm = tuple(range(1, self._ndim)) + (0,)
+        perm = (*range(1, self._ndim), 0)
         for ax in range(self._ndim):
             mat = np.eye(self._shape[ax])
             mat = (mat * signs[ax])[swaps[ax]]

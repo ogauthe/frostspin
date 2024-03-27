@@ -63,6 +63,5 @@ ignore = [
     "N816",  # prefer keeping hU1
     "RET504",  # prefer to assign
     "TRY003",  # simpler with explicit message
-    "RUF005",  # may enforce it later
     "RUF012",  # not using type annotation
 ]
