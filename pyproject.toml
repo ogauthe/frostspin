@@ -53,6 +53,7 @@ select = [
     "TRY",
     "SIM",
     "RUF",
+    "FBT",
 ]
 ignore = [
     "C901",  # too demanding
@@ -61,6 +62,7 @@ ignore = [
     "N803",  # prefer keeping D
     "N806",  # prefer keeping D
     "N816",  # prefer keeping hU1
+    "N999",  # froSTspin
     "RET504",  # prefer to assign
     "TRY003",  # simpler with explicit message
     "RUF012",  # not using type annotation

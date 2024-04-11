@@ -11,7 +11,7 @@ from .o2_symmetric_tensor import O2_SymmetricTensor
 _config = froSTspin.config.get_config()
 
 
-def _get_projector(rep1, rep2, s1, s2, max_irrep=2**30):
+def compute_fusion_tensor(rep1, rep2, s1, s2, *, max_irrep=2**30):
     """
     Construct Clebsch-Gordan fusion tensor for representations rep1 and rep2 with
     signatures s1 and s2.
@@ -171,7 +171,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
     _unitary_dic = {}
 
     @classmethod
-    def compute_clebsch_gordan_tree(cls, rep_in, signature, target_irreps=None):
+    def compute_clebsch_gordan_tree(cls, rep_in, signature, *, target_irreps=None):
         assert len(signature) == len(rep_in)
 
         n = len(rep_in)
@@ -190,7 +190,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         else:
             max_irrep = target_irreps[-1] + sum(r[1, -1] for r in rep_in[2:]) - n + 2
 
-        nr, p = _get_projector(
+        nr, p = compute_fusion_tensor(
             rep_in[0], rep_in[1], signature[0], signature[1], max_irrep=max_irrep
         )
         if nr.size == 0:  # pathological case where no irrep is kept
@@ -199,8 +199,8 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         proj = p
         for i in range(2, n):
             max_irrep -= rep_in[i][1, -1] - 1
-            nr, p = _get_projector(
-                nr, rep_in[i], False, signature[i], max_irrep=max_irrep
+            nr, p = compute_fusion_tensor(
+                nr, rep_in[i], False, signature[i], max_irrep=max_irrep  # noqa: FBT003
             )
             if nr.size == 0:  # pathological case where no irrep is kept
                 return nr, np.zeros((p.shape[0] * p.shape[1], 0))

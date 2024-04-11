@@ -144,7 +144,7 @@ class CTMRG:
 
     @classmethod
     def from_elementary_tensors(
-        cls, tiling, tensors, chi_target, dummy=True, verbosity=0, **ctm_params
+        cls, tiling, tensors, chi_target, *, dummy=True, verbosity=0, **ctm_params
     ):
         """
         Construct CTMRG from elementary tensors and tiling.
@@ -192,7 +192,7 @@ class CTMRG:
             self.print_tensor_shapes()
 
     @classmethod
-    def load_from_file(cls, filename, verbosity=0):
+    def load_from_file(cls, filename, *, verbosity=0):
         """
         Construct CTMRG from npz save file, as produced by save_to_file.
         Parameters
@@ -217,7 +217,7 @@ class CTMRG:
         env = CTM_Environment.load_from_file(filename)
         return cls(env, chi_target, verbosity, **ctm_params)
 
-    def save_to_file(self, filename, additional_data={}):
+    def save_to_file(self, filename, **additional_data):
         """
         Save CTMRG data in external file.
 
@@ -304,7 +304,7 @@ class CTMRG:
     def get_corner_representations(self):
         return self._env.get_corner_representations()
 
-    def restart_environment(self, dummy=True):
+    def restart_environment(self, *, dummy=True):
         """
         Restart environment tensors from elementary ones. ERASE current environment,
         use with caution.
@@ -313,7 +313,9 @@ class CTMRG:
             print("Restart brand new environment from elementary tensors.")
         tensors = [self._env.get_A(x, y) for (x, y) in self.site_coords]
         tiling = "\n".join("".join(line) for line in self.cell)
-        self._env = CTM_Environment.from_elementary_tensors(tiling, tensors, dummy)
+        self._env = CTM_Environment.from_elementary_tensors(
+            tiling, tensors, dummy=dummy
+        )
         if self.verbosity > 0:
             print(self)
 
@@ -420,7 +422,7 @@ class CTMRG:
             self._env.get_C3(x + 2, y + 3),
         )
 
-    def compute_rdm_diag_dr(self, x, y, free_memory=False):
+    def compute_rdm_diag_dr(self, x, y, *, free_memory=False):
         if self.verbosity > 1:
             print(
                 f"Compute rdm for down right diagonal sites ({x+1},{y+1}) and",
@@ -439,7 +441,7 @@ class CTMRG:
             self._env.get_C3(x + 3, y + 3),
         )
 
-    def compute_rdm_diag_ur(self, x, y, free_memory=False):
+    def compute_rdm_diag_ur(self, x, y, *, free_memory=False):
         if self.verbosity > 1:
             print(
                 f"Compute rdm for upper right diagonal sites ({x+1},{y+2}) and",
@@ -496,7 +498,7 @@ class CTMRG:
             rdm2x1_cell.append(self.compute_rdm2x1(x, y))
         return rdm1x2_cell, rdm2x1_cell
 
-    def compute_rdm_2nd_neighbor_cell(self, free_memory=True):
+    def compute_rdm_2nd_neighbor_cell(self, *, free_memory=True):
         """
         Compute reduced density matrix for every couple of inquivalent cell next nearest
         neighbor sites.
@@ -515,10 +517,11 @@ class CTMRG:
         return rdm_dr_cell, rdm_ur_cell
 
     def compute_transfer_spectrum_h(
-        self, nval, y=0, dmax_full=200, maxiter=1000, tol=0
+        self, y, nval, *, dmax_full=200, maxiter=1000, tol=0
     ):
         """
-        Compute horizontal transfer matrix spectrum for row y.
+        Compute nval (dense) largest eigenvalues of the horizontal transfer matrix at
+        unit cell row y.
         """
         T1s = []
         T3s = []
@@ -530,10 +533,11 @@ class CTMRG:
         )
 
     def compute_transfer_spectrum_v(
-        self, nval, x=0, dmax_full=200, maxiter=1000, tol=0
+        self, x, nval, *, dmax_full=200, maxiter=1000, tol=0
     ):
         """
-        Compute vertical transfer matrix spectrum for column x.
+        Compute nval (dense) largest eigenvalues of the vertical transfer matrix at
+        unit cell column x.
         """
         T2s = []
         T4s = []
@@ -544,23 +548,23 @@ class CTMRG:
             T2s, T4s, nval, dmax_full=dmax_full, maxiter=maxiter, tol=tol
         )
 
-    def compute_corr_length_h(self, y=0, maxiter=1000, tol=0):
+    def compute_corr_length_h(self, y, *, maxiter=1000, tol=0):
         """
-        Compute maximal horizontal correlation length in row between y and y+1.
+        Compute maximal vertical correlation length at unit cell row y.
         """
-        v1, v2 = self.compute_transfer_spectrum_h(2, y=y, maxiter=maxiter, tol=tol)
+        v1, v2 = self.compute_transfer_spectrum_h(y, 2, maxiter=maxiter, tol=tol)
         xi = -self.Lx / np.log(np.abs(v2))
         return xi
 
-    def compute_corr_length_v(self, x=0, maxiter=1000, tol=0):
+    def compute_corr_length_v(self, x, *, maxiter=1000, tol=0):
         """
-        Compute maximal vertical correlation length in column between x and x+1.
+        Compute maximal vertical correlation length at unit cell column x.
         """
-        v1, v2 = self.compute_transfer_spectrum_v(2, x=x, maxiter=maxiter, tol=tol)
+        v1, v2 = self.compute_transfer_spectrum_v(x, 2, maxiter=maxiter, tol=tol)
         xi = -self.Ly / np.log(np.abs(v2))
         return xi
 
-    def construct_enlarged_dr(self, x, y, free_memory=False):
+    def construct_enlarged_dr(self, x, y, *, free_memory=False):
         """
         Construct enlarged down right corner by contracting C1, T1, T4 and A. Check _env
         to find an already computed corner, if it does not exist construct it and store
@@ -589,7 +593,7 @@ class CTMRG:
             self._env.set_corner_dr(x, y, None)
         return dr
 
-    def construct_enlarged_dl(self, x, y, free_memory=False):
+    def construct_enlarged_dl(self, x, y, *, free_memory=False):
         """
         Construct enlarged down left corner by contracting C1, T1, T4 and A. Check _env
         to find an already computed corner, if it does not exist construct it and store
@@ -609,7 +613,7 @@ class CTMRG:
             self._env.set_corner_dl(x, y, None)
         return dl
 
-    def construct_enlarged_ul(self, x, y, free_memory=False):
+    def construct_enlarged_ul(self, x, y, *, free_memory=False):
         """
         Construct enlarged upper left corner by contracting C1, T1, T4 and A. Check _env
         to find an already computed corner, if it does not exist construct it and store
@@ -629,7 +633,7 @@ class CTMRG:
             self._env.set_corner_ul(x, y, None)
         return ul
 
-    def construct_enlarged_ur(self, x, y, free_memory=False):
+    def construct_enlarged_ur(self, x, y, *, free_memory=False):
         """
         Construct enlarged upper right corner by contracting C1, T1, T4 and A. Check
         _env to find an already computed corner, if it does not exist construct it and

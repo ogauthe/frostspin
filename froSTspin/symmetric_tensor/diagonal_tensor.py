@@ -134,7 +134,7 @@ class DiagonalTensor:
             n2 += self._block_degen[i] * lg.norm(self._diagonal_blocks[i]) ** 2
         return np.sqrt(n2)
 
-    def toarray(self, sort=False):
+    def toarray(self, *, sort=False):
         """
         Parameters
         ----------
@@ -171,7 +171,7 @@ class DiagonalTensor:
         data = self.get_data_dic()
         np.savez_compressed(savefile, **data)
 
-    def get_data_dic(self, prefix=""):
+    def get_data_dic(self, *, prefix=""):
         """
         Construct data dictionary containing all information to store the
         SymmetricTensor into an external file.
@@ -189,7 +189,7 @@ class DiagonalTensor:
         return data
 
     @classmethod
-    def load_from_dic(cls, data, prefix=""):
+    def load_from_dic(cls, data, *, prefix=""):
         symmetry = str(data[prefix + "_symmetry"])
         block_irreps = data[prefix + "_block_irreps"]
         block_degen = data[prefix + "_block_degen"]
@@ -200,7 +200,7 @@ class DiagonalTensor:
         return cls(diag_blocks, representation, block_irreps, block_degen, symmetry)
 
     @classmethod
-    def load_from_file(cls, savefile, prefix=""):
+    def load_from_file(cls, savefile, *, prefix=""):
         with np.load(savefile) as fin:
             st = cls.load_from_dic(fin, prefix=prefix)
         return st

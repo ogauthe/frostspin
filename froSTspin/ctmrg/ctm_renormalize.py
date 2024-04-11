@@ -114,7 +114,9 @@ def construct_projectors(
         v_blocks[bi] = v
 
     # keep chi largest singular values + last multiplet
-    block_cuts = find_chi_largest(s_blocks, chi, dims, rcutoff, degen_ratio)
+    block_cuts = find_chi_largest(
+        s_blocks, chi, dims=dims, rcutoff=rcutoff, degen_ratio=degen_ratio
+    )
 
     # second loop: construct projectors
     p_blocks = []

@@ -109,7 +109,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
     # Lie group shared symmetry implementation
     ####################################################################################
     @classmethod
-    def compute_clebsch_gordan_tree(cls, rep_in, signature, target_irreps=None):
+    def compute_clebsch_gordan_tree(cls, rep_in, signature, *, target_irreps=None):
         r"""
         Construct chained Clebsch-Gordan fusion tensor for representations *rep_in with
         signatures signatures. Truncate final representation at max_irrep.
@@ -143,7 +143,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         raise NotImplementedError("Must be defined in derived class")
 
     @classmethod
-    def sliced_elementary_trees(cls, reps, signature, target_irreps=None):
+    def sliced_elementary_trees(cls, reps, signature, *, target_irreps=None):
         r"""
         Construct Clebsch-Gordon trees for all elementary blocks of a list of reducible
         representations, for all irreps in target.
@@ -787,7 +787,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         assert abs(st.norm() - lg.norm(arr)) <= 1e-13 * lg.norm(arr)
         return st
 
-    def toarray(self, as_matrix=False):
+    def toarray(self, *, as_matrix=False):
         # define shifts to localize elementary block position in dense format
         rshifts = []
         elementary_block_rows = np.empty((self._nrr,), dtype=int)
