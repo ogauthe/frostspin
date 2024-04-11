@@ -66,7 +66,7 @@ class AsymmetricTensor(SymmetricTensor):
         block = arr.reshape(np.prod(row_reps), np.prod(col_reps))
         return cls(row_reps, col_reps, (block,), cls._irrep, signature)
 
-    def toarray(self, as_matrix=False):
+    def toarray(self, *, as_matrix=False):
         if as_matrix:
             return self._blocks[0]
         return self._blocks[0].reshape(self._shape)

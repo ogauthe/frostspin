@@ -117,7 +117,7 @@ class SymmetricTensor:
         """
         raise NotImplementedError("Must be defined in derived class")
 
-    def toarray(self, as_matrix=False):
+    def toarray(self, *, as_matrix=False):
         raise NotImplementedError("Must be defined in derived class")
 
     def permute(self, row_axes, col_axes):  # signature != ndarray.transpose
@@ -388,7 +388,7 @@ class SymmetricTensor:
     ####################################################################################
     # misc
     ####################################################################################
-    def diagonal_mul(self, diag_blocks, diag_block_irreps, left=False):
+    def diagonal_mul(self, diag_blocks, diag_block_irreps, *, left=False):
         """
         Matrix product with a diagonal matrix with matching symmetry. If left is True,
         matrix multiplication is from the left.
@@ -472,7 +472,7 @@ class SymmetricTensor:
         return True
 
     @classmethod
-    def random(cls, row_reps, col_reps, signature=None, rng=None):
+    def random(cls, row_reps, col_reps, signature=None, *, rng=None):
         """
         Initialize random tensor with given representations and signature.
 
@@ -662,7 +662,7 @@ class SymmetricTensor:
         V = type(self)((mid_rep,), self._col_reps, v_blocks, self._block_irreps, vsign)
         return U, s, V
 
-    def eigh(self, return_eigenvectors=True):
+    def eigh(self, *, return_eigenvectors=True):
         """
         Compute all eigenvalues and eigen of the SymmetricTensor viewed as a matrix.
         It has to be a square matrix, with same row_reps and col_reps and opposite
@@ -695,7 +695,7 @@ class SymmetricTensor:
         # Too complicate for no real use, just document behavior.
         return self.eigsh(self, nvals=2**31, return_eigenvectors=return_eigenvectors)
 
-    def eig(self, return_eigenvectors=True):
+    def eig(self, *, return_eigenvectors=True):
         """
         Compute all eigenvalues and eigen of the SymmetricTensor viewed as a matrix.
         It has to be a square matrix, with same row_reps and col_reps and opposite
@@ -736,7 +736,7 @@ class SymmetricTensor:
     # Sparse linear algebra
     ####################################################################################
     def truncated_svd(
-        self, cut, max_dense_dim=None, window=0, rcutoff=0.0, degen_ratio=1.0
+        self, cut, *, max_dense_dim=None, window=0, rcutoff=0.0, degen_ratio=1.0
     ):
         """
         Compute block-wise SVD of self and keep only cut largest singular values. Keep
@@ -776,7 +776,9 @@ class SymmetricTensor:
         s_blocks = []
         v_blocks = []
         dims = np.array([self.irrep_dimension(r) for r in self._block_irreps])
-        block_cuts = find_chi_largest(raw_s, cut, dims, rcutoff, degen_ratio)
+        block_cuts = find_chi_largest(
+            raw_s, cut, dims=dims, rcutoff=rcutoff, degen_ratio=degen_ratio
+        )
         non_empty = block_cuts.nonzero()[0]
         warn = 0
         for bi in non_empty:
@@ -1381,7 +1383,7 @@ class SymmetricTensor:
         data = self.get_data_dic()
         np.savez_compressed(savefile, **data)
 
-    def get_data_dic(self, prefix=""):
+    def get_data_dic(self, *, prefix=""):
         """
         Construct data dictionary containing all information to store the
         SymmetricTensor into an external file.
@@ -1404,7 +1406,7 @@ class SymmetricTensor:
         return data
 
     @classmethod
-    def load_from_dic(cls, data, prefix=""):
+    def load_from_dic(cls, data, *, prefix=""):
         if cls._symmetry != data[prefix + "_symmetry"][()]:
             raise ValueError(f"Saved SymmetricTensor does not match type {cls}")
         row_reps = []
@@ -1421,7 +1423,7 @@ class SymmetricTensor:
         return cls(row_reps, col_reps, blocks, block_irreps, signature)
 
     @classmethod
-    def load_from_file(cls, savefile, prefix=""):
+    def load_from_file(cls, savefile, *, prefix=""):
         with np.load(savefile) as fin:
             st = cls.load_from_dic(fin, prefix=prefix)
         return st

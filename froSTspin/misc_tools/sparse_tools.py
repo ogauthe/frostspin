@@ -104,7 +104,7 @@ def _numba_double_custom_sparse(
     return res
 
 
-def sparse_transpose(m, shape, axes, n_row_axes, copy=False):
+def sparse_transpose(m, shape, axes, n_row_axes, *, copy=False):
     """
     Consider a sparse matrix as a higher rank tensor, transpose its axes and return a
     new sparse matrix.

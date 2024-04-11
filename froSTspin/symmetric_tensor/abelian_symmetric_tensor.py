@@ -349,7 +349,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
         ), "norm is not conserved in AbelianSymmetricTensor cast"
         return cls(row_reps, col_reps, blocks, block_irreps, signature)
 
-    def toarray(self, as_matrix=False):
+    def toarray(self, *, as_matrix=False):
         # cast blocks to C-contiguous to avoid numba bug
         self._blocks = tuple(np.ascontiguousarray(b) for b in self._blocks)
         m = _numba_blocks_to_array(

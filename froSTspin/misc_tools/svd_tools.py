@@ -4,7 +4,7 @@ import scipy.sparse.linalg as slg
 import numba
 
 
-def find_chi_largest(block_s, chi, dims=None, rcutoff=0.0, degen_ratio=1.0):
+def find_chi_largest(block_s, chi, *, dims=None, rcutoff=0.0, degen_ratio=1.0):
     """
     Find chi largest values from a tuple of blockwise, decreasing singular values.
     Assume number of blocks is small: block_max_val is never sorted and elements
@@ -64,7 +64,7 @@ def _numba_find_chi_largest(block_s, chi, dims, rcutoff, degen_ratio):
     return block_cuts
 
 
-def sparse_svd(A, k=6, ncv=None, tol=0, maxiter=None, return_singular_vectors=True):
+def sparse_svd(A, *, k=6, ncv=None, tol=0, maxiter=None, return_singular_vectors=True):
     # use custom svds adapted from scipy to remove small value cutoff
     # remove some other unused features: impose which='LM' and solver='arpack', do not
     # allow fixed v0, always sort values by decreasing order

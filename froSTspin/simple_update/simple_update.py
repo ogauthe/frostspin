@@ -385,7 +385,7 @@ class SimpleUpdate:
 
     @classmethod
     def square_lattice_first_neighbor(
-        cls, h1, D, tau, rcutoff=1e-10, degen_ratio=1.0, verbosity=0
+        cls, h1, D, tau, *, rcutoff=1e-10, degen_ratio=1.0, verbosity=0
     ):
         """
         Initialize first neighbor model on the square lattice at infinite temperature.
@@ -413,7 +413,16 @@ class SimpleUpdate:
 
     @classmethod
     def square_lattice_second_neighbor(
-        cls, h1, h2, D, tau, model="J1-J2", rcutoff=1e-10, degen_ratio=1.0, verbosity=0
+        cls,
+        h1,
+        h2,
+        D,
+        tau,
+        *,
+        model="J1-J2",
+        rcutoff=1e-10,
+        degen_ratio=1.0,
+        verbosity=0,
     ):
         """
         Initialize neighbor model on the square lattice at infinite temperature.
@@ -455,6 +464,7 @@ class SimpleUpdate:
         tensor_bond_indices,
         raw_update_data,
         raw_hamilts,
+        *,
         verbosity=0,
     ):
         """
@@ -586,6 +596,7 @@ class SimpleUpdate:
         tensor_bond_indices,
         raw_update_data,
         raw_hamilts,
+        *,
         verbosity=0,
     ):
         # initialize zero-temperature wavefunction with same tensor everywhere and ones
@@ -701,6 +712,7 @@ class SimpleUpdate:
         raw_update_data,
         raw_hamilts,
         bond_representations,
+        *,
         rng=None,
         verbosity=0,
     ):
@@ -835,7 +847,7 @@ class SimpleUpdate:
         )
 
     @classmethod
-    def load_from_file(cls, savefile, verbosity=0):
+    def load_from_file(cls, savefile, *, verbosity=0):
         """
         Load simple update from given file.
 
@@ -902,7 +914,7 @@ class SimpleUpdate:
             verbosity,
         )
 
-    def save_to_file(self, savefile, additional_data={}):
+    def save_to_file(self, savefile, **additional_data):
         """
         Save SimpleUpdate in given file.
 
@@ -998,7 +1010,7 @@ class SimpleUpdate:
         """
         return np.array([-w @ np.log(w) for w in self.get_weights()])
 
-    def get_weights(self, sort=True):
+    def get_weights(self, *, sort=True):
         """
         Return simple update weights for each bond with degeneracies.
         """

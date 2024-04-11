@@ -705,7 +705,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             block_irreps = tu1.block_irreps[i0:]
         return cls(row_reps, col_reps, blocks, block_irreps, tu1.signature)
 
-    def toarray(self, as_matrix=False):
+    def toarray(self, *, as_matrix=False):
         return self.toU1().toarray(as_matrix=as_matrix)
 
     def toabelian(self):

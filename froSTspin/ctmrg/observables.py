@@ -9,6 +9,7 @@ def compute_mps_transfer_spectrum(
     Tup_list,
     Tdown_list,
     nvals,
+    *,
     dmax_full=200,
     rng=None,
     maxiter=4000,
