@@ -1,6 +1,6 @@
+import numba
 import numpy as np
 import scipy.linalg as lg
-import numba
 
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 

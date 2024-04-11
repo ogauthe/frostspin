@@ -1,11 +1,12 @@
+import numba
 import numpy as np
 import scipy.linalg as lg
 import scipy.sparse as ssp
-import numba
 
 from froSTspin.misc_tools.sparse_tools import _numba_find_indices
-from .symmetric_tensor import SymmetricTensor
+
 from .asymmetric_tensor import AsymmetricTensor
+from .symmetric_tensor import SymmetricTensor
 
 
 @numba.njit(parallel=True)

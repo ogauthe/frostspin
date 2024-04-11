@@ -1,7 +1,7 @@
 import numpy as np
 
-from .symmetric_tensor import SymmetricTensor
 from .asymmetric_tensor import AsymmetricTensor
+from .symmetric_tensor import SymmetricTensor
 
 
 class NonAbelianSymmetricTensor(SymmetricTensor):

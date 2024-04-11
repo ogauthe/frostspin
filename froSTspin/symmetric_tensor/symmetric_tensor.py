@@ -3,9 +3,9 @@ import scipy.linalg as lg
 import scipy.sparse.linalg as slg
 
 import froSTspin.config
-from froSTspin.misc_tools.svd_tools import sparse_svd, find_chi_largest
-from .diagonal_tensor import DiagonalTensor
+from froSTspin.misc_tools.svd_tools import find_chi_largest, sparse_svd
 
+from .diagonal_tensor import DiagonalTensor
 
 # choices are made to make code light and fast:
 # irreps are labelled by integers (non-simple groups need another class using lexsort)

@@ -1,7 +1,8 @@
 import numpy as np
 
-from froSTspin.symmetric_tensor.tools import get_symmetric_tensor_type
 from froSTspin.symmetric_tensor.diagonal_tensor import DiagonalTensor
+from froSTspin.symmetric_tensor.tools import get_symmetric_tensor_type
+
 from .su_models import j1_j2_models
 
 

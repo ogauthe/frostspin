@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.linalg as lg
 
-from froSTspin.misc_tools.svd_tools import sparse_svd, find_chi_largest
+from froSTspin.misc_tools.svd_tools import find_chi_largest, sparse_svd
 
 
 def construct_projectors(

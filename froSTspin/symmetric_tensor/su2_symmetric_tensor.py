@@ -1,12 +1,12 @@
-import numpy as np
 import numba
+import numpy as np
 
 import froSTspin.config
 from froSTspin.groups.su2_clebsch_gordan import load_su2_cg
-from .lie_group_symmetric_tensor import LieGroupSymmetricTensor
-from .u1_symmetric_tensor import U1_SymmetricTensor
-from .o2_symmetric_tensor import O2_SymmetricTensor
 
+from .lie_group_symmetric_tensor import LieGroupSymmetricTensor
+from .o2_symmetric_tensor import O2_SymmetricTensor
+from .u1_symmetric_tensor import U1_SymmetricTensor
 
 _config = froSTspin.config.get_config()
 

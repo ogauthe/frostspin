@@ -2,9 +2,8 @@
 This file sets global configuration for froSTspin
 """
 
-import os
 import argparse
-
+import os
 
 local_dir = os.path.join(os.path.dirname(__file__))
 default_su2_cg_file = os.path.join(
