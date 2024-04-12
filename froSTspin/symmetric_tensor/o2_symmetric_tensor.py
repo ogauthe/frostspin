@@ -1,8 +1,9 @@
+import numba
 import numpy as np
 import scipy.linalg as lg
-import numba
 
 from froSTspin.misc_tools.sparse_tools import _numba_find_indices
+
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 from .u1_symmetric_tensor import U1_SymmetricTensor
 
@@ -840,9 +841,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         axes = row_axes + col_axes
         nrr = len(row_axes)
         signature = np.empty((self._ndim,), dtype=bool)
-        old_u1_reps = []
-        for r in self._row_reps + self._col_reps:
-            old_u1_reps.append(_numba_O2_rep_to_U1(r))
+        old_u1_reps = [_numba_O2_rep_to_U1(r) for r in self._row_reps + self._col_reps]
 
         reps = []
         u1_reps = []

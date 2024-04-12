@@ -1,7 +1,7 @@
+import numba
 import numpy as np
 import scipy.linalg as lg
 import scipy.sparse.linalg as slg
-import numba
 
 
 def find_chi_largest(block_s, chi, *, dims=None, rcutoff=0.0, degen_ratio=1.0):
