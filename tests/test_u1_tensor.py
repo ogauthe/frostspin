@@ -76,7 +76,8 @@ temp = temp.permute((3, 0, 2), (1, 4))
 assert (temp.toarray() == t0.transpose(3, 0, 2, 1, 4)).all()
 
 u, s, v = tu1.svd()
-us = u * s
+s2 = s.copy()
+us = u * s2
 assert (tu1 - us @ v).norm() < 1e-12
 sv = s * v
 assert (tu1 - u @ sv).norm() < 1e-12

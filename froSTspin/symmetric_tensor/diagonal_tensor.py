@@ -115,6 +115,15 @@ class DiagonalTensor:
     ####################################################################################
     # misc
     ####################################################################################
+    def copy(self):
+        return type(self)(
+            tuple(db.copy() for db in self._diagonal_blocks),
+            self._representation,
+            self._block_irreps,
+            self._block_degen,
+            self._symmetry,
+        )
+
     def symmetry(self):
         return self._symmetry
 
