@@ -76,7 +76,8 @@ temp = temp.permute((3, 0, 2), (1, 4))
 assert (temp.toarray() == t0.transpose(3, 0, 2, 1, 4)).all()
 
 u, s, v = tu1.svd()
-us = u * s
+s2 = s.copy()
+us = u * s2
 assert (tu1 - us @ v).norm() < 1e-12
 sv = s * v
 assert (tu1 - u @ sv).norm() < 1e-12
@@ -84,5 +85,7 @@ s12 = s**0.5
 us2 = u * s12
 s2v = s12 * v
 assert (tu1 - us2 @ s2v).norm() < 1e-12
+sigma = type(tu1).from_diagonal_tensor(s)
+assert (tu1 - u @ sigma @ v).norm() < 1e-12
 
 _ = U1_SymmetricTensor.random(row_reps, col_reps, signature=signature, rng=rng)

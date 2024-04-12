@@ -182,6 +182,19 @@ class SymmetricTensor:
         assert sorted(set(block_irreps)) == list(block_irreps)
         assert self.check_blocks_fit_representations()
 
+    @classmethod
+    def from_diagonal_tensor(cls, dt):
+        if type(dt) is not DiagonalTensor:
+            raise ValueError(f"Invalid input type: {type(dt)}")
+        if cls.symmetry() != dt.symmetry():
+            raise ValueError("Symmetries do not match")
+        row_reps = (dt.representation,)
+        col_reps = (dt.representation,)
+        blocks = tuple(np.diag(db) for db in dt.diagonal_blocks)
+        block_irreps = dt.block_irreps
+        signature = np.array([False, True])
+        return cls(row_reps, col_reps, blocks, block_irreps, signature)
+
     def cast(self, symmetry):
         fn = getattr(self, f"to{symmetry}")
         return fn()
