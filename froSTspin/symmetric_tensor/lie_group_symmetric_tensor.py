@@ -663,6 +663,21 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
     # Symmetry specific methods with fixed signature
     ####################################################################################
 
+    # private helper function
+    @classmethod
+    def _get_shifts_positions(cls, reps):
+        """
+        Define shifts to localize elementary block position in dense format
+        """
+        shifts = []
+        elementary_position = np.empty((len(reps),), dtype=int)
+        for i, rep in enumerate(reps):
+            n = rep.shape[1]
+            elementary_position[i] = n
+            s = [0, *(cls.representation_dimension(rep[:, : j + 1]) for j in range(n))]
+            shifts.append(s)
+        return shifts, elementary_position
+
     @classmethod
     def from_array(cls, arr, row_reps, col_reps, signature=None):
         # require that arr has structure [degen1*irrep1, degen2*irrep2 ...]
@@ -688,23 +703,8 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         )
 
         # define shifts to localize elementary block position in dense format
-        rshifts = []
-        elementary_block_rows = np.empty((nrr,), dtype=int)
-        for i, rep in enumerate(row_reps):
-            s = [0]
-            elementary_block_rows[i] = rep.shape[1]
-            for j in range(rep.shape[1]):
-                s.append(cls.representation_dimension(rep[:, : j + 1]))
-            rshifts.append(s)
-
-        cshifts = []
-        elementary_block_cols = np.empty((ndim - nrr,), dtype=int)
-        for i, rep in enumerate(col_reps):
-            s = [0]
-            elementary_block_cols[i] = rep.shape[1]
-            for j in range(rep.shape[1]):
-                s.append(cls.representation_dimension(rep[:, : j + 1]))
-            cshifts.append(s)
+        rshifts, elementary_block_rows = cls._get_shifts_positions(row_reps)
+        cshifts, elementary_block_cols = cls._get_shifts_positions(col_reps)
 
         # define permutation to bring together external degen and irrep dimension
         degen_irrep_perm = tuple(range(1, 2 * ndim, 2)) + tuple(range(0, 2 * ndim, 2))
@@ -806,23 +806,8 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
     def toarray(self, *, as_matrix=False):
         # define shifts to localize elementary block position in dense format
-        rshifts = []
-        elementary_block_rows = np.empty((self._nrr,), dtype=int)
-        for i, rep in enumerate(self._row_reps):
-            s = [0]
-            elementary_block_rows[i] = rep.shape[1]
-            for j in range(rep.shape[1]):
-                s.append(self.representation_dimension(rep[:, : j + 1]))
-            rshifts.append(s)
-
-        cshifts = []
-        elementary_block_cols = np.empty((self._ndim - self._nrr,), dtype=int)
-        for i, rep in enumerate(self._col_reps):
-            s = [0]
-            elementary_block_cols[i] = rep.shape[1]
-            for j in range(rep.shape[1]):
-                s.append(self.representation_dimension(rep[:, : j + 1]))
-            cshifts.append(s)
+        rshifts, elementary_block_rows = self._get_shifts_positions(self._row_reps)
+        cshifts, elementary_block_cols = self._get_shifts_positions(self._col_reps)
 
         # define permutation to bring together external degen and irrep dimension
         degen_irrep_perm = tuple(range(1, 2 * self._ndim, 2)) + tuple(

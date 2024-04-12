@@ -55,6 +55,7 @@ select = [
     "RUF",
     "FBT",
     "I",
+    "PERF",
 ]
 ignore = [
     "C901",  # too demanding

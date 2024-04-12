@@ -1409,17 +1409,13 @@ class SymmetricTensor:
     def load_from_dic(cls, data, *, prefix=""):
         if cls._symmetry != data[prefix + "_symmetry"][()]:
             raise ValueError(f"Saved SymmetricTensor does not match type {cls}")
-        row_reps = []
-        for ri in range(data[prefix + "_n_row_reps"][()]):
-            row_reps.append(data[f"{prefix}_row_rep_{ri}"])
-        col_reps = []
-        for ci in range(data[prefix + "_n_col_reps"][()]):
-            col_reps.append(data[f"{prefix}_col_rep_{ci}"])
+        nrr = int(data[prefix + "_n_row_reps"])
+        row_reps = [data[f"{prefix}_row_rep_{ri}"] for ri in range(nrr)]
+        nrc = int(data[prefix + "_n_col_reps"])
+        col_reps = [data[f"{prefix}_col_rep_{ri}"] for ri in range(nrc)]
         block_irreps = data[prefix + "_block_irreps"]
         signature = data[prefix + "_signature"]
-        blocks = []
-        for bi in range(block_irreps.size):
-            blocks.append(data[f"{prefix}_block_{bi}"])
+        blocks = [data[f"{prefix}_block_{bi}"] for bi in range(block_irreps.size)]
         return cls(row_reps, col_reps, blocks, block_irreps, signature)
 
     @classmethod

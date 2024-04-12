@@ -1015,10 +1015,7 @@ class SimpleUpdate:
         """
         Return simple update weights for each bond with degeneracies.
         """
-        weights = []
-        for w in self._weights:
-            weights.append(w.toarray(sort=sort))
-        return weights
+        return [w.toarray(sort=sort) for w in self._weights]
 
     def get_tensors(self):
         """

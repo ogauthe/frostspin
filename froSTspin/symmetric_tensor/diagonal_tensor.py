@@ -78,9 +78,7 @@ class DiagonalTensor:
 
     def __mul__(self, x):
         if np.issubdtype(type(x), np.number):
-            blocks = []
-            for db in self._diagonal_blocks:
-                blocks.append(x * db)
+            blocks = tuple(x * db for db in self._diagonal_blocks)
             return type(self)(
                 blocks,
                 self._representation,
@@ -105,9 +103,7 @@ class DiagonalTensor:
 
     def __pow__(self, x):
         assert np.issubdtype(type(x), np.number)
-        blocks = []
-        for db in self._diagonal_blocks:
-            blocks.append(db**x)
+        blocks = tuple(db**x for db in self._diagonal_blocks)
         return type(self)(
             blocks,
             self._representation,
@@ -194,9 +190,9 @@ class DiagonalTensor:
         block_irreps = data[prefix + "_block_irreps"]
         block_degen = data[prefix + "_block_degen"]
         representation = data[prefix + "_representation"]
-        diag_blocks = []
-        for bi in range(block_irreps.size):
-            diag_blocks.append(data[f"{prefix}_diagonal_block_{bi}"])
+        diag_blocks = tuple(
+            data[f"{prefix}_diagonal_block_{bi}"] for bi in range(block_irreps.size)
+        )
         return cls(diag_blocks, representation, block_irreps, block_degen, symmetry)
 
     @classmethod
