@@ -213,7 +213,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
     ####################################################################################
     def dual(self):
         ret = self.transpose().dagger()
-        ret._blocks = tuple(b for b in ret._blocks)
+        ret._blocks = tuple(b.conj() for b in ret._blocks)
         return ret
 
     def toSU2(self):
