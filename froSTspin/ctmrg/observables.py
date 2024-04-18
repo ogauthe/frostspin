@@ -77,6 +77,7 @@ def compute_mps_transfer_spectrum(
             rng=rng,
             maxiter=maxiter,
             tol=tol,
+            compute_vectors=False,
         )
         vals = vals.toarray()[:nvals]
     except Exception as err:  # not very stable

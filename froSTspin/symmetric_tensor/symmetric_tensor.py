@@ -3,7 +3,12 @@ import scipy.linalg as lg
 import scipy.sparse.linalg as slg
 
 import froSTspin.config
-from froSTspin.misc_tools.svd_tools import find_chi_largest, sparse_svd
+from froSTspin.misc_tools.svd_tools import (
+    find_chi_largest,
+    robust_eigh,
+    robust_svd,
+    sparse_svd,
+)
 
 from .diagonal_tensor import DiagonalTensor
 
@@ -650,16 +655,7 @@ class SymmetricTensor:
         s_blocks = [None] * self._nblocks
         v_blocks = [None] * self._nblocks
         for bi, b in enumerate(self._blocks):
-            try:
-                u, s, v = lg.svd(b, full_matrices=False, check_finite=False)
-            except lg.LinAlgError as err:
-                print("Warning: gesdd returned an error, try gesvd. Error:", err)
-                u, s, v = lg.svd(
-                    b, full_matrices=False, check_finite=False, lapack_driver="gesvd"
-                )
-            u_blocks[bi] = u
-            s_blocks[bi] = s
-            v_blocks[bi] = v
+            u_blocks[bi], s_blocks[bi], v_blocks[bi] = robust_svd(b)
 
         degen = np.array([s.size for s in s_blocks])
         mid_rep = self.init_representation(degen, self._block_irreps)
@@ -675,7 +671,7 @@ class SymmetricTensor:
         V = type(self)((mid_rep,), self._col_reps, v_blocks, self._block_irreps, vsign)
         return U, s, V
 
-    def eigh(self, *, return_eigenvectors=True):
+    def eigh(self, *, compute_vectors=True):
         """
         Compute all eigenvalues and eigen of the SymmetricTensor viewed as a matrix.
         It has to be a square matrix, with same row_reps and col_reps and opposite
@@ -685,7 +681,7 @@ class SymmetricTensor:
 
         Parameters
         ----------
-        return_eigenvectors : Bool
+        compute_vectors : Bool
             Whether to compute and returns eigenvectors. Defaults to True.
 
         Returns
@@ -694,7 +690,7 @@ class SymmetricTensor:
             eigenvalues as a DiagonalTensor. They define a new representation along the
             diagonal.
         u : SymmetricTensor
-            Eigenvectors as a SymmetricTensor. Only returned if return_eigenvectors is
+            Eigenvectors as a SymmetricTensor. Only returned if compute_vectors is
             True.
 
         Notes
@@ -713,13 +709,13 @@ class SymmetricTensor:
             None,
             None,
             2**31,
-            return_eigenvectors,
+            compute_vectors,
             None,
-            lambda b: lg.eigh(b, eigvals_only=not return_eigenvectors),
+            lambda b: robust_eigh(b, compute_vectors=compute_vectors),
             None,
         )
 
-    def eig(self, *, return_eigenvectors=True):
+    def eig(self, *, compute_vectors=True):
         """
         Compute all eigenvalues and eigen of the SymmetricTensor viewed as a matrix.
         It has to be a square matrix, with same row_reps and col_reps and opposite
@@ -727,7 +723,7 @@ class SymmetricTensor:
 
         Parameters
         ----------
-        return_eigenvectors : Bool
+        compute_vectors : Bool
             Whether to compute and returns eigenvectors. Defaults to True.
 
         Returns
@@ -736,7 +732,7 @@ class SymmetricTensor:
             eigenvalues as a DiagonalTensor. They define a new representation along the
             diagonal.
         u : SymmetricTensor
-            Eigenvectors as a SymmetricTensor. Only returned if return_eigenvectors is
+            Eigenvectors as a SymmetricTensor. Only returned if compute_vectors is
             True.
 
         Notes
@@ -755,9 +751,9 @@ class SymmetricTensor:
             None,
             None,
             2**31,
-            return_eigenvectors,
+            compute_vectors,
             None,
-            lambda b: lg.eig(b, right=return_eigenvectors),
+            lambda b: lg.eig(b, right=compute_vectors),
             None,
         )
 
@@ -791,21 +787,9 @@ class SymmetricTensor:
         raw_v = [None] * self._nblocks
         for bi, b in enumerate(self._blocks):
             if min(b.shape) < max_dense_dim:  # dense svd for small blocks
-                try:
-                    u, s, v = lg.svd(b, full_matrices=False, check_finite=False)
-                except lg.LinAlgError as err:
-                    print("Warning: gesdd returned an error, try gesvd. Error:", err)
-                    u, s, v = lg.svd(
-                        b,
-                        full_matrices=False,
-                        check_finite=False,
-                        lapack_driver="gesvd",
-                    )
+                raw_u[bi], raw_s[bi], raw_v[bi] = robust_svd(b)
             else:
-                u, s, v = sparse_svd(b, k=cut + window)
-            raw_u[bi] = u
-            raw_s[bi] = s
-            raw_v[bi] = v
+                raw_u[bi], raw_s[bi], raw_v[bi] = sparse_svd(b, cut + window)
 
         u_blocks = []
         s_blocks = []
@@ -847,7 +831,7 @@ class SymmetricTensor:
         signature=None,
         dtype=None,
         dmax_full=100,
-        return_eigenvectors=False,
+        compute_vectors=True,
         rng=None,
         maxiter=4000,
         tol=0,
@@ -885,8 +869,8 @@ class SymmetricTensor:
             will always be np.complex128 regardless of this field.
         dmax_full : int
             Maximum block size to use dense eigvals.
-        return_eigenvectors : Bool
-            Whether to compute and returns eigenvectors. Default to False.
+        compute_vectors : Bool
+            Whether to compute and returns eigenvectors. Default to True.
         rng : numpy random generator
             Random number generator. Used to initialize starting vectors for each block.
             If None, a new random generator is created with default_rng().
@@ -901,7 +885,7 @@ class SymmetricTensor:
             eigenvalues as a DiagonalTensor. Final number of eigenvalues is the smallest
             number above nvals that fits multiplets.
         u : SymmetricTensor
-            Eigenvectors as a SymmetricTensor. Only returned if return_eigenvectors is
+            Eigenvectors as a SymmetricTensor. Only returned if compute_vectors is
             True.
 
         Notes
@@ -917,7 +901,7 @@ class SymmetricTensor:
                 v0=v0,
                 maxiter=maxiter,
                 tol=tol,
-                return_eigenvectors=return_eigenvectors,
+                return_eigenvectors=compute_vectors,
             )
 
         return cls._sparse_eig(
@@ -927,9 +911,9 @@ class SymmetricTensor:
             signature,
             dtype,
             dmax_full,
-            return_eigenvectors,
+            compute_vectors,
             rng,
-            lambda b: lg.eig(b, right=return_eigenvectors),
+            lambda b: lg.eig(b, right=compute_vectors),
             block_eigs,
         )
 
@@ -943,7 +927,7 @@ class SymmetricTensor:
         signature=None,
         dtype=None,
         dmax_full=100,
-        return_eigenvectors=False,
+        compute_vectors=True,
         rng=None,
         maxiter=4000,
         tol=0,
@@ -986,8 +970,8 @@ class SymmetricTensor:
             will always be np.float64 regardless of this field.
         dmax_full : int
             Maximum block size to use dense eigvals.
-        return_eigenvectors : Bool
-            Whether to compute and returns eigenvectors. Default to False.
+        compute_vectors : Bool
+            Whether to compute and returns eigenvectors. Default to True.
         rng : numpy random generator
             Random number generator. Used to initialize starting vectors for each block.
             If None, a new random generator is created with default_rng().
@@ -1002,7 +986,7 @@ class SymmetricTensor:
             eigenvalues as a DiagonalTensor. Final number of eigenvalues is the smallest
             number above nvals that fits multiplets.
         u : SymmetricTensor
-            Eigenvectors as a SymmetricTensor. Only returned if return_eigenvectors is
+            Eigenvectors as a SymmetricTensor. Only returned if compute_vectors is
             True.
 
         Notes
@@ -1018,7 +1002,7 @@ class SymmetricTensor:
                 v0=v0,
                 maxiter=maxiter,
                 tol=tol,
-                return_eigenvectors=return_eigenvectors,
+                return_eigenvectors=compute_vectors,
             )
 
         return cls._sparse_eig(
@@ -1028,9 +1012,9 @@ class SymmetricTensor:
             signature,
             dtype,
             dmax_full,
-            return_eigenvectors,
+            compute_vectors,
             rng,
-            lambda b: lg.eigh(b, eigvals_only=not return_eigenvectors),
+            lambda b: robust_eigh(b, compute_vectors=compute_vectors),
             block_eigs,
         )
 
@@ -1043,7 +1027,7 @@ class SymmetricTensor:
         signature,
         dtype,
         dmax_full,
-        return_eigenvectors,
+        compute_vectors,
         rng,
         dense_eig,
         sparse_eig,
@@ -1053,7 +1037,7 @@ class SymmetricTensor:
         Other parameters:
         dense_eig: callable.
             Function for full diagonalization of a block, e.g. lambda b: lg.eigh(b)
-        dense_eig: callable.
+        sparse_eig: callable.
             Function for sparse diagonalization of a block,
             e.g. lamba (op, k, v0): slg.eigsh(op, k=k, v0=v0)
         """
@@ -1120,7 +1104,7 @@ class SymmetricTensor:
                 sparse.append(bi)
 
         # 3) define functions do deal with dense and sparse blocks
-        if return_eigenvectors:
+        if compute_vectors:
             vector_blocks = [None] * nblocks
 
             def eig_full_block(bi, b, k):
@@ -1239,7 +1223,7 @@ class SymmetricTensor:
         degens = [cls.irrep_dimension(irr) for irr in block_irreps]
         s = DiagonalTensor(s_blocks, s_rep, block_irreps, degens, cls._symmetry)
 
-        if not return_eigenvectors:
+        if not compute_vectors:
             return s
 
         # 8) construct SymmetricTensor for the eigenvectors
