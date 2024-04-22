@@ -47,7 +47,7 @@ check_o2(to2, tu1)
 
 # Pathological cases: missing 0e/0o/other blocks
 t2o2 = to2.copy()
-t2o2._blocks[0][:] = 0
+t2o2.blocks[0][:] = 0
 t2u1 = t2o2.toU1()
 t2o2 = O2_SymmetricTensor(  # remove 0odd block
     t2o2.row_reps,
@@ -59,7 +59,7 @@ t2o2 = O2_SymmetricTensor(  # remove 0odd block
 check_o2(t2o2, t2u1)
 
 t2o2 = to2.copy()
-t2o2._blocks[1][:] = 0
+t2o2.blocks[1][:] = 0
 t2u1 = t2o2.toU1()
 t2o2 = O2_SymmetricTensor(  # remove 0even block
     t2o2.row_reps,
@@ -71,8 +71,8 @@ t2o2 = O2_SymmetricTensor(  # remove 0even block
 check_o2(t2o2, t2u1)
 
 t2o2 = to2.copy()
-t2o2._blocks[0][:] = 0
-t2o2._blocks[1][:] = 0
+t2o2.blocks[0][:] = 0
+t2o2.blocks[1][:] = 0
 t2u1 = t2o2.toU1()
 t2o2 = O2_SymmetricTensor(  # remove both 0even and 0odd
     t2o2.row_reps, t2o2.col_reps, t2o2.blocks[2:], t2o2.block_irreps[2:], t2o2.signature

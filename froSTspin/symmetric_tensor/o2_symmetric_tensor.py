@@ -699,10 +699,10 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
                 col_reps,
                 tu1.get_column_representation(),
             )
-            blocks = blocks + tu1._blocks[i0 + 1 :]
+            blocks = blocks + tu1.blocks[i0 + 1 :]
             block_irreps = np.concatenate((block_irreps, tu1.block_irreps[i0 + 1 :]))
         else:
-            blocks = tu1._blocks[i0:]
+            blocks = tu1.blocks[i0:]
             block_irreps = tu1.block_irreps[i0:]
         return cls(row_reps, col_reps, blocks, block_irreps, tu1.signature)
 

@@ -103,7 +103,8 @@ class AsymmetricTensor(SymmetricTensor):
         )
 
     def check_blocks_fit_representations(self):
-        assert self._block_irreps == type(self)._irrep
+        assert self._block_irreps.shape == (1,)
+        assert self._block_irreps[0] == 0
         assert self._nblocks == 1
         assert len(self._blocks) == 1
         assert self._blocks[0].shape == self.matrix_shape
