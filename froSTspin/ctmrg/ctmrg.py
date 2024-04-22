@@ -1,6 +1,6 @@
 import numpy as np
 
-import froSTspin.config
+import froSTspin
 
 from . import observables, rdm
 from .ctm_contract import (
@@ -29,8 +29,6 @@ from .ctm_renormalize import (
     renormalize_T3,
     renormalize_T4,
 )
-
-_config = froSTspin.config.get_config()
 
 
 class CTMRG:
@@ -140,7 +138,7 @@ class CTMRG:
         if not (0.0 < self.degen_ratio <= 1.0):
             raise ValueError("degen_ratio must obey 0.0 <= self.degen_ratio <= 1.0")
 
-        if not _config["quiet"] and self.Dmin != self.Dmax:
+        if not froSTspin.config["quiet"] and self.Dmin != self.Dmax:
             print(
                 f"WARNING: initialize CTMRG with Dmin = {self.Dmin} != Dmax ="
                 f" {self.Dmax}"

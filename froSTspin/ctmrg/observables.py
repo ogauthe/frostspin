@@ -1,8 +1,6 @@
 import numpy as np
 
-import froSTspin.config
-
-_config = froSTspin.config.get_config()
+import froSTspin
 
 
 def compute_mps_transfer_spectrum(
@@ -90,7 +88,7 @@ def compute_mps_transfer_spectrum(
 
     if np.linalg.norm(vals.imag) < 1e-6:  # norm(vals.real) ~ 1
         vals = vals.real
-    elif not _config["quiet"]:
+    elif not froSTspin.config["quiet"]:
         # complex eigenvalues mean wavector != (m*pi/Lx, n*pi/Ly)
         # this happens if correlation do not match unit cell size, which is always the
         # case for incommensurate correlations.

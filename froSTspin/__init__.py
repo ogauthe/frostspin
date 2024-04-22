@@ -32,7 +32,3 @@ if __debug__:  # noqa: SIM102
         print("You may disable this warning with the flag --froSTspin-quiet\n")
 
 print("\n *** FROSTSPIN IS ON BRANCH DEV ***\n")
-
-
-def get_config():
-    return config
