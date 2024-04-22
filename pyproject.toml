@@ -56,6 +56,7 @@ select = [
     "FBT",
     "I",
     "PERF",
+    "SLF",
 ]
 ignore = [
     "C901",  # too demanding

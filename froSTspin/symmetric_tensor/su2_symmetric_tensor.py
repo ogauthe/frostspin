@@ -44,6 +44,7 @@ def compute_fusion_tensor(rep1, rep2, s1, s2, *, max_irrep=2**30):
     """
     # this is function is specific to SU(2), we can safely assume an irrep is labeled by
     # its dimension and use label or dimension indistinctly.
+    cg_dic = SU2_SymmetricTensor.clebsch_gordan_dic()
 
     # precompute projector size
     degen, irreps = _numba_elementary_combine_SU2(rep1[0], rep1[1], rep2[0], rep2[1])
@@ -74,7 +75,7 @@ def compute_fusion_tensor(rep1, rep2, s1, s2, *, max_irrep=2**30):
             for irr3 in range(abs(irr1 - irr2) + 1, min(irr1 + irr2, max_irrep + 1), 2):
                 # here we implicitly make use of the fact SU(2) has no outer degeneracy
                 try:
-                    p123 = SU2_SymmetricTensor._clebsch_gordan_dic[irr1, irr2, irr3]
+                    p123 = cg_dic[irr1, irr2, irr3]
                 except KeyError as err:
                     print(
                         "\n*** ERROR *** Clebsch-Gordan tensor for spins with "
@@ -137,6 +138,10 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
     ####################################################################################
     _symmetry = "SU2"
     _clebsch_gordan_dic = load_su2_cg()
+
+    @classmethod
+    def clebsch_gordan_dic(cls):
+        return cls._clebsch_gordan_dic
 
     @staticmethod
     def singlet():

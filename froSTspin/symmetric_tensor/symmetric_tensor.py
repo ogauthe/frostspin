@@ -475,16 +475,16 @@ class SymmetricTensor:
         """
         if type(self) is not type(other):
             return False
-        if self._shape != other._shape:
+        if self._shape != other.shape:
             return False
-        if self._nrr != other._nrr:
+        if self._nrr != other.n_row_reps:
             return False
-        if (self._signature != other._signature).any():
+        if (self._signature != other.signature).any():
             return False
-        for r, r2 in zip(self._row_reps, other._row_reps):
+        for r, r2 in zip(self._row_reps, other.row_reps):
             if r.shape != r2.shape or (r != r2).any():
                 return False
-        for r, r2 in zip(self._col_reps, other._col_reps):
+        for r, r2 in zip(self._col_reps, other.col_reps):
             if r.shape != r2.shape or (r != r2).any():
                 return False
         return True

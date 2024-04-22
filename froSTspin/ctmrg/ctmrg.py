@@ -301,6 +301,33 @@ class CTMRG:
     def symmetry(self):
         return self._env.symmetry()
 
+    def get_A(self, x, y):
+        return self._env.get_A(x, y)
+
+    def get_C1(self, x, y):
+        return self._env.get_C1(x, y)
+
+    def get_C2(self, x, y):
+        return self._env.get_C2(x, y)
+
+    def get_C3(self, x, y):
+        return self._env.get_C3(x, y)
+
+    def get_C4(self, x, y):
+        return self._env.get_C4(x, y)
+
+    def get_T1(self, x, y):
+        return self._env.get_T1(x, y)
+
+    def get_T2(self, x, y):
+        return self._env.get_T2(x, y)
+
+    def get_T3(self, x, y):
+        return self._env.get_T3(x, y)
+
+    def get_T4(self, x, y):
+        return self._env.get_T4(x, y)
+
     def get_corner_representations(self):
         return self._env.get_corner_representations()
 
