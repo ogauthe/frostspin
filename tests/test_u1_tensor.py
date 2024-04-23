@@ -64,7 +64,9 @@ assert tu1.permute((0, 1), (2, 3, 4)) is tu1
 
 temp = tu1.permute((2, 3, 4), (0, 1))
 assert temp.nblocks == tu1.nblocks
-assert all((b1 == b2).all() for b1, b2 in zip(temp.blocks, tu1.transpose().blocks))
+assert all(
+    (b1 == b2).all() for b1, b2 in zip(temp.blocks, tu1.transpose().blocks, strict=True)
+)
 temp = tu1.permute((3, 0, 2), (1, 4))
 assert (temp.toarray() == t0.transpose(3, 0, 2, 1, 4)).all()
 temp = tu1.permute((3,), (1, 0, 4, 2))

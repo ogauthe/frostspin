@@ -29,7 +29,6 @@ def check_tensor_bond_indices(tensor_bond_indices):
     for i, c in enumerate(count):
         if c != 2:
             raise ValueError(f"Virtual bond {i} appears {c} times")
-    return
 
 
 def check_hamiltonians(hamiltonians):
@@ -46,7 +45,6 @@ def check_hamiltonians(hamiltonians):
                 raise ValueError(f"Hamiltonian {i} has invalid representations")
             if not h.signature[a] ^ h.signature[a + 2]:
                 raise ValueError(f"Hamiltonian {i} has invalid signature")
-    return
 
 
 def decode_raw_update_data(raw_update_data, second_order):
@@ -522,7 +520,8 @@ class SimpleUpdate:
         # if tensor is purely virtual and no Hamiltonian acts on it, add dummy leg
         phys_reps = [ST.singlet() for i in range(n_tensors)]
         signatures = [[None] * (2 + len(tbi)) for tbi in tensor_bond_indices]
-        for j, (b1, b2) in enumerate(zip(bond1, bond2)):
+        for j, b1 in enumerate(bond1):
+            b2 = bond2[j]
             h = hamiltonians[gate_indices[j]]
 
             iL = left_indices[j]
@@ -626,7 +625,8 @@ class SimpleUpdate:
 
         # find signatures
         signatures = [[None] * (2 + len(tbi)) for tbi in tensor_bond_indices]
-        for j, (b1, b2) in enumerate(zip(bond1, bond2)):
+        for j, b1 in enumerate(bond1):
+            b2 = bond2[j]
             h = hamiltonians[gate_indices[j]]
 
             iL = left_indices[j]
@@ -778,7 +778,8 @@ class SimpleUpdate:
         # find signatures
         phys_reps = [ST.singlet() for i in range(n_tensors)]
         signatures = [[None] * (2 + len(tbi)) for tbi in tensor_bond_indices]
-        for j, (b1, b2) in enumerate(zip(bond1, bond2)):
+        for j, b1 in enumerate(bond1):
+            b2 = bond2[j]
             h = hamiltonians[gate_indices[j]]
 
             iL = left_indices[j]
@@ -1011,7 +1012,7 @@ class SimpleUpdate:
             # default configuration. Add weights on the virtual legs.
             rswap = (0, 1, *range(3, t0.ndim))
             t = t0
-            for j, leg in enumerate(self._tensor_bond_indices[i]):
+            for leg in self._tensor_bond_indices[i]:
                 t = t.permute(rswap, (2,))
                 t = t * sqw[leg]
             t = t.permute((0, 1), tuple(range(2, t0.ndim)))
@@ -1198,7 +1199,7 @@ class SimpleUpdate:
         # 2nd order update: update 0 is special as it may be squared or not
         # depending whether it is at the very beginning / end of update sequence
         self._initialize_update()
-        for i in range(niter - 1):  # there is 1 step out of the loop
+        for _ in range(niter - 1):  # there is 1 step out of the loop
             for j in range(self._n_updates):
                 self._elementary_update(j)
         self._finalize_update()
@@ -1466,9 +1467,8 @@ class SimpleUpdate:
             g1 = self._gates[self._gate_indices[self._n_updates]]
             if (g0 - g1 @ g1).norm() > 1e-14 * g1.norm():
                 raise ValueError("Squared gate is not squared")
-        else:
-            if self._gate_indices[0] != self._gates_indices[self._n_updates]:
-                raise ValueError("Last and first update differ")
+        elif self._gate_indices[0] != self._gates_indices[self._n_updates]:
+            raise ValueError("Last and first update differ")
 
         for i in range(self._n_tensors):
             if len(self._final_swap[i]) != 2 or len(self._final_swap[i][0]) != 2:
@@ -1480,5 +1480,3 @@ class SimpleUpdate:
             tl0 = [-1, -2, *self._tensor_bond_indices[i]]
             if tl != tl0:
                 raise ValueError(f"Tensor {i} does not come back to default state")
-
-        return

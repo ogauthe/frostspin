@@ -58,7 +58,7 @@ def compute_fusion_tensor(rep1, rep2, s1, s2, *, max_irrep=2**30):
     # initialize shifts in output, with different irrep sectors
     shifts3 = np.empty((irreps[-1] + 1,), dtype=int)
     n = 0
-    for d3, irr3 in zip(degen, irreps):
+    for d3, irr3 in zip(degen, irreps, strict=True):
         shifts3[irr3] = n  # indexed with IRREP, not index (shortcut searchsorted)
         n += d3 * irr3
 
@@ -74,15 +74,15 @@ def compute_fusion_tensor(rep1, rep2, s1, s2, *, max_irrep=2**30):
                 # here we implicitly make use of the fact SU(2) has no outer degeneracy
                 try:
                     p123 = cg_dic[irr1, irr2, irr3]
-                except KeyError as err:
-                    print(
+                except KeyError:
+                    msg = (
                         "\n*** ERROR *** Clebsch-Gordan tensor for spins with "
                         f"dimensions {(irr1, irr2, irr3)} not found.\nOn the fly"
                         "computation of CG tensors is not currently implemented.\nTo "
                         "compute a larger set of CG tensors, use the script "
                         "froSTspin/groups/compute_su2_clebsch_gordan.py.\n"
                     )
-                    raise KeyError(err)
+                    raise RuntimeError(msg) from None
 
                 # apply SU(2) spin-reversal operator according to signatures
                 if s1:
@@ -109,8 +109,10 @@ def compute_fusion_tensor(rep1, rep2, s1, s2, *, max_irrep=2**30):
 @numba.njit
 def _numba_elementary_combine_SU2(degen1, irreps1, degen2, irreps2):
     degen = np.zeros(irreps1[-1] + irreps2[-1] - 1, dtype=np.int64)
-    for d1, irr1 in zip(degen1, irreps1):
-        for d2, irr2 in zip(degen2, irreps2):
+    for i1, irr1 in enumerate(irreps1):
+        d1 = degen1[i1]
+        for i2, irr2 in enumerate(irreps2):
+            d2 = degen2[i2]
             for irr in range(abs(irr1 - irr2), irr1 + irr2 - 1, 2):
                 degen[irr] += d1 * d2  # shit irr-1 <-- irr to start at 0
     nnz = degen.nonzero()[0]
@@ -231,7 +233,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         for r in self._row_reps + self._col_reps:
             sz = np.empty((r[0] @ r[1],), dtype=np.int8)
             k = 0
-            for d, irr in zip(r[0], r[1]):
+            for d, irr in np.nditer(r, flags=["external_loop"], order="F"):
                 sz_irr = np.arange(irr - 1, -irr - 1, -2, dtype=np.int8)
                 sz[k : k + d * irr].reshape(d, irr)[:] = sz_irr
                 k += d * irr
@@ -279,7 +281,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
             sz_rep_o2 = np.empty(sz_rep.shape, dtype=np.int8)
             k = 0
             signs_rep = np.empty(sz_rep.shape, dtype=bool)
-            for d, irr in zip(r[0], r[1]):
+            for d, irr in np.nditer(r, flags=["external_loop"], order="F"):
                 sz_irr = np.arange(irr - 1, -irr - 1, -2, dtype=np.int8)
                 sz_rep[k : k + d * irr].reshape(d, irr)[:] = sz_irr
                 sz_irr_o2 = np.abs(sz_irr)

@@ -7,7 +7,8 @@ def su2_irrep_generators(s):
     Construct generator for spin-s irrep of SU(2)
     """
     if s < 0 or int(2 * s) != 2 * s:
-        raise ValueError("s must be a positive half integer")
+        msg = "s must be a positive half integer"
+        raise ValueError(msg)
 
     d = int(2 * s) + 1
     basis = np.arange(s, -s - 1, -1)
@@ -26,8 +27,10 @@ def su2_irrep_generators(s):
 @numba.njit  # numba product of 2 SU(2) representations
 def product_degen(degen1, irreps1, degen2, irreps2):
     degen = np.zeros(irreps1[-1] + irreps2[-1] - 1, dtype=np.int64)
-    for d1, irr1 in zip(degen1, irreps1):
-        for d2, irr2 in zip(degen2, irreps2):
+    for i1, d1 in enumerate(degen1):
+        irr1 = irreps1[i1]
+        for i2, d2 in enumerate(degen2):
+            irr2 = irreps2[i2]
             for irr in range(abs(irr1 - irr2), irr1 + irr2 - 1, 2):
                 degen[irr] += d1 * d2  # shit irr-1 <-- irr to start at 0
     return degen
@@ -45,9 +48,11 @@ class SU2_Representation:
         degen2 = np.asanyarray(degen)
         irreps2 = np.asanyarray(irreps)
         if degen2.ndim != 1 or irreps2.ndim != 1:
-            raise ValueError("degen and irreps must be 1D")
+            msg = "degen and irreps must be 1D"
+            raise ValueError(msg)
         if degen2.size != irreps2.size:
-            raise ValueError("degen and irreps must have same size")
+            msg = "degen and irreps must have same size"
+            raise ValueError(msg)
         ma = degen2.nonzero()[0]
         self._degen = np.ascontiguousarray(degen2[ma])
         self._irreps = np.ascontiguousarray(irreps2[ma])
@@ -130,7 +135,9 @@ class SU2_Representation:
         return SU2_Representation(degen, irreps)
 
     def __repr__(self):
-        return " + ".join(f"{d}*{irr}" for (d, irr) in zip(self._degen, self._irreps))
+        return " + ".join(
+            f"{self._degen[i]}*{self._irreps[i]}" for i in range(self._n_irr)
+        )
 
     def __hash__(self):
         return hash(tuple(self._degen) + tuple(self._irreps))
@@ -160,9 +167,9 @@ class SU2_Representation:
     def get_generators(self):
         gen = np.zeros((3, self._dim, self._dim), dtype=complex)
         k = 0
-        for d, irr in zip(self._degen, self._irreps):
+        for d, irr in zip(self._degen, self._irreps, strict=True):
             irrep_gen = su2_irrep_generators((irr - 1) / 2)
-            for i in range(d):
+            for _ in range(d):
                 gen[:, k : k + irr, k : k + irr] = irrep_gen
                 k += irr
         return gen
@@ -170,9 +177,9 @@ class SU2_Representation:
     def get_conjugator(self):
         conj = np.zeros((self._dim, self._dim))
         k = 0
-        for d, irr in zip(self._degen, self._irreps):
+        for d, irr in zip(self._degen, self._irreps, strict=True):
             irrep_conj = np.diag(1 - np.arange(irr) % 2 * 2)[::-1].copy()
-            for i in range(d):
+            for _ in range(d):
                 conj[k : k + irr, k : k + irr] = irrep_conj
                 k += irr
         return conj
@@ -180,9 +187,9 @@ class SU2_Representation:
     def get_Sz(self):
         cartan = np.empty(self._dim, dtype=np.int8)
         k = 0
-        for d, irr in zip(self._degen, self._irreps):
+        for d, irr in zip(self._degen, self._irreps, strict=True):
             irrep_cartan = -np.arange(-irr + 1, irr, 2, dtype=np.int8)
-            for i in range(d):
+            for _ in range(d):
                 cartan[k : k + irr] = irrep_cartan
                 k += irr
         return cartan
@@ -190,7 +197,7 @@ class SU2_Representation:
     def get_multiplet_structure(self):
         mult = np.empty(self._degen.sum(), dtype=int)
         k = 0
-        for d, irr in zip(self._degen, self._irreps):
+        for d, irr in zip(self._degen, self._irreps, strict=True):
             mult[k : k + d] = irr
             k += d
         return mult

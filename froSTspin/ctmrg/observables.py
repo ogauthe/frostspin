@@ -56,7 +56,7 @@ def compute_mps_transfer_spectrum(
         # bilayer matrix-vector product, MPS tensors going from right to left
         # (input is on the right).
         st = st.permute((0,), (1, 2))
-        for mu, md in zip(Tup_list, Tdown_list):
+        for mu, md in zip(Tup_list, Tdown_list, strict=True):
             st = mu @ st
             st = st.permute((3, 1, 2), (0, 4))
             st = md @ st

@@ -269,7 +269,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
     def init_representation(degen, irreps):
         rep = np.empty((sum(degen),), dtype=np.int8)
         k = 0
-        for d, irr in zip(degen, irreps):
+        for d, irr in zip(degen, irreps, strict=True):
             rep[k : k + d] = irr
             k += d
         return rep
@@ -335,7 +335,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
         col_irreps = cls.combine_representations(col_reps, ~signature[nrr:])
         shm = (row_irreps.size, col_irreps.size)
         sht = tuple(r.size for r in row_reps + col_reps)
-        assert arr.shape == shm or arr.shape == sht
+        assert arr.shape in (shm, sht)
         # requires copy if arr is not contiguous
         # using flatiter on non-contiguous is too slow, no other way
         M = arr.reshape(shm)
@@ -432,7 +432,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
         assert len(self._blocks) == self._nblocks
         row_irreps = self.get_row_representation()
         col_irreps = self.get_column_representation()
-        for irr, b in zip(self._block_irreps, self._blocks):
+        for irr, b in zip(self._block_irreps, self._blocks, strict=True):
             nr = (row_irreps == irr).sum()
             nc = (col_irreps == irr).sum()
             assert nr > 0

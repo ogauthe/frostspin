@@ -49,7 +49,7 @@ def eq_st(st1, st2):
     return (
         st1.match_representations(st2)
         and (st1.block_irreps == st2.block_irreps).all()
-        and all((b1 == b2).all() for b1, b2 in zip(st1.blocks, st2.blocks))
+        and all((b1 == b2).all() for b1, b2 in zip(st1.blocks, st2.blocks, strict=True))
     )
 
 

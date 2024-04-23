@@ -55,13 +55,12 @@ def _save_CG_json(savefile, elementary_projectors):
         coeff = proj.flat[inds]
         cg_data[nk] = [inds.tolist(), coeff.tolist()]
 
-    with open(savefile, "w") as out:
+    with open(savefile, "w", encoding="utf8") as out:
         json.dump(cg_data, out, indent=2, sort_keys=True)
-    return
 
 
 def _load_CG_json(savefile):
-    with open(savefile) as fin:
+    with open(savefile, encoding="utf8") as fin:
         cg_data = json.load(fin)
 
     del cg_data["!!info"]
@@ -92,7 +91,6 @@ def _save_CG_npz(savefile, elementary_projectors):
         cg_data["c" + sfx] = coeff
 
     np.savez_compressed(savefile, **cg_data)
-    return
 
 
 def _load_CG_npz(savefile):
@@ -124,15 +122,14 @@ def load_su2_cg(cg_file=None):
         elif extension == "json":
             elementary_projectors = _load_CG_json(cg_file)
         else:
-            raise ValueError(
-                f"Invalid file extension: must be json or npz, got {extension}"
-            )
+            msg = f"Invalid file extension: must be json or npz, got {extension}"
+            raise RuntimeError(msg)
     except FileNotFoundError:
-        print("Error: SU(2) Clebsch-Gordan coefficient savefile not found")
+        msg = f"Error: cannot read SU(2) Clebsch-Gordan coefficient savefile {cg_file}"
 
         # Computing CG coeff is expensive.
         # better to crash now than to silently trigger recomputation.
-        raise FileNotFoundError(cg_file)
+        raise FileNotFoundError(msg) from None
 
     max_spin_dim = max(k[0] for k in elementary_projectors)
     elementary_projectors["maximal_spin_dimension"] = max_spin_dim
@@ -148,20 +145,16 @@ def save_su2_cg(savefile, max_spin_dim):
     cg_file = str(savefile)
     extension = cg_file.split(".")[-1]
     if extension not in ["json", "npz"]:
-        print(
-            f"Error: Invalid savefile extension: must be json or npz, got {extension}"
-        )
-        print(f"savefile: {cg_file}")
-        raise ValueError(extension)
+        msg = f"Invalid file extension: must be json or npz, got {extension}"
+        raise RuntimeError(msg)
 
     # check output file is writable
     try:
-        with open(cg_file, "w") as out:
+        with open(cg_file, "w", encoding="utf8") as out:
             out.write("-")
     except FileNotFoundError:
-        print("Error: cannot write SU(2) Clebsch-Gordan coefficient savefile")
-        print(f"savefile: {cg_file}")
-        raise FileNotFoundError(cg_file)
+        msg = "Error: cannot write SU(2) Clebsch-Gordan coefficient savefile {cg_file}"
+        raise RuntimeError(msg) from None
 
     # compute CG coeff
     print(f"Compute SU(2) Clebsch-Gordon coefficients up to 2s+1 = {max_spin_dim}")
@@ -174,5 +167,3 @@ def save_su2_cg(savefile, max_spin_dim):
     else:
         _save_CG_json(cg_file, elementary_projectors)
     print(f"SU2(2) Clebsch-Gordon coefficients saved in file {cg_file}")
-
-    return

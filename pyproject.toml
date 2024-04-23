@@ -58,6 +58,9 @@ select = [
     "PERF",
     "SLF",
     "INP",
+    "PL",
+    "B",
+    "PGH",
 ]
 ignore = [
     "C901",  # too demanding
@@ -70,4 +73,8 @@ ignore = [
     "RET504",  # prefer to assign
     "TRY003",  # simpler with explicit message
     "RUF012",  # not using type annotation
+    "PLR0912", # too pedantic
+    "PLR0913", # too pedantic
+    "PLR0915", # too pedantic
+    "PLR2004", # too pedantic
 ]

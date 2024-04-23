@@ -24,5 +24,6 @@ def get_symmetric_tensor_type(symmetry):
     try:
         st_type = symmetric_tensor_types[symmetry]
     except KeyError:
-        raise ValueError(f"Unknown symmetry '{symmetry}'")
+        msg = f"Unknown symmetry '{symmetry}'"
+        raise RuntimeError(msg) from None
     return st_type
