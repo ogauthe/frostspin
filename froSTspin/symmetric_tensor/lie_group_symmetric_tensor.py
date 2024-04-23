@@ -1030,7 +1030,6 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             self._blocks = blocks
             self._block_irreps = block_irreps
         self._signature = new_sign
-        return
 
     def merge_legs(self, i1, i2):
         # TODO

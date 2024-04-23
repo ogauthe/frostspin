@@ -357,12 +357,12 @@ class SymmetricTensor:
 
     def __imul__(self, x):
         for b in self._blocks:
-            b *= x
+            b[:] *= x
         return self
 
     def __itruediv__(self, x):
         for b in self._blocks:
-            b /= x
+            b[:] /= x
         return self
 
     def __matmul__(self, other):
@@ -470,13 +470,12 @@ class SymmetricTensor:
         signature on every legs as self. block_irreps and blocks are not used.
         Return bool, do not raise.
         """
-        if type(self) is not type(other):
-            return False
-        if self._shape != other.shape:
-            return False
-        if self._nrr != other.n_row_reps:
-            return False
-        if (self._signature != other.signature).any():
+        if (
+            type(self) is not type(other)
+            or self._shape != other.shape
+            or self._nrr != other.n_row_reps
+            or (self._signature != other.signature).any()
+        ):
             return False
         for r, r2 in zip(self._row_reps, other.row_reps):
             if r.shape != r2.shape or (r != r2).any():
@@ -1115,7 +1114,6 @@ class SymmetricTensor:
                 val_blocks[bi] = vals[so]
                 abs_val_blocks[bi] = abs_val[so]
                 vector_blocks[bi] = vec[:, so]
-                return
 
             def eig_sparse_block(bi, op, k, v0):
                 try:
@@ -1131,7 +1129,6 @@ class SymmetricTensor:
                 val_blocks[bi] = vals[so]
                 abs_val_blocks[bi] = abs_val[so]
                 vector_blocks[bi] = vec[:, so]
-                return
 
         else:
 
@@ -1141,7 +1138,6 @@ class SymmetricTensor:
                 so = abs_val.argsort()[: -k - 1 : -1]
                 val_blocks[bi] = vals[so]
                 abs_val_blocks[bi] = abs_val[so]
-                return
 
             def eig_sparse_block(bi, op, k, v0):
                 try:
@@ -1155,7 +1151,6 @@ class SymmetricTensor:
                 so = abs_val.argsort()[: -k - 1 : -1]
                 val_blocks[bi] = vals[so]
                 abs_val_blocks[bi] = abs_val[so]
-                return
 
         # 4) construct full matrix blocks and call dense eigh on them
         if type(matmat) is cls:

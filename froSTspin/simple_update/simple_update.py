@@ -29,7 +29,6 @@ def check_tensor_bond_indices(tensor_bond_indices):
     for i, c in enumerate(count):
         if c != 2:
             raise ValueError(f"Virtual bond {i} appears {c} times")
-    return
 
 
 def check_hamiltonians(hamiltonians):
@@ -46,7 +45,6 @@ def check_hamiltonians(hamiltonians):
                 raise ValueError(f"Hamiltonian {i} has invalid representations")
             if not h.signature[a] ^ h.signature[a + 2]:
                 raise ValueError(f"Hamiltonian {i} has invalid signature")
-    return
 
 
 def decode_raw_update_data(raw_update_data, second_order):
@@ -1260,7 +1258,6 @@ class SimpleUpdate:
         self._weights[b1] = nw1
         self._tensors[self._left_indices[i]] = left
         self._tensors[self._right_indices[i]] = right
-        return
 
     def _initialize_update(self):
         # For a given tensor, its structure is defined by tensor_bond_indices between
@@ -1491,9 +1488,8 @@ class SimpleUpdate:
             g1 = self._gates[self._gate_indices[self._n_updates]]
             if (g0 - g1 @ g1).norm() > 1e-14 * g1.norm():
                 raise ValueError("Squared gate is not squared")
-        else:
-            if self._gate_indices[0] != self._gates_indices[self._n_updates]:
-                raise ValueError("Last and first update differ")
+        elif self._gate_indices[0] != self._gates_indices[self._n_updates]:
+            raise ValueError("Last and first update differ")
 
         for i in range(self._n_tensors):
             if len(self._final_swap[i]) != 2 or len(self._final_swap[i][0]) != 2:
@@ -1505,5 +1501,3 @@ class SimpleUpdate:
             tl0 = [-1, -2, *self._tensor_bond_indices[i]]
             if tl != tl0:
                 raise ValueError(f"Tensor {i} does not come back to default state")
-
-        return

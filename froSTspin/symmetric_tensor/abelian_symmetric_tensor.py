@@ -335,7 +335,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
         col_irreps = cls.combine_representations(col_reps, ~signature[nrr:])
         shm = (row_irreps.size, col_irreps.size)
         sht = tuple(r.size for r in row_reps + col_reps)
-        assert arr.shape == shm or arr.shape == sht
+        assert arr.shape in (shm, sht)
         # requires copy if arr is not contiguous
         # using flatiter on non-contiguous is too slow, no other way
         M = arr.reshape(shm)

@@ -91,7 +91,7 @@ class DiagonalTensor:
     def __imul__(self, x):
         assert np.issubdtype(type(x), np.number)
         for db in self._diagonal_blocks:
-            db *= x
+            db[:] *= x
         return self
 
     def __truediv__(self, x):

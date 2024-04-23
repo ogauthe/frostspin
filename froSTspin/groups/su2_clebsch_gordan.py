@@ -55,13 +55,12 @@ def _save_CG_json(savefile, elementary_projectors):
         coeff = proj.flat[inds]
         cg_data[nk] = [inds.tolist(), coeff.tolist()]
 
-    with open(savefile, "w") as out:
+    with open(savefile, "w", encoding="utf8") as out:
         json.dump(cg_data, out, indent=2, sort_keys=True)
-    return
 
 
 def _load_CG_json(savefile):
-    with open(savefile) as fin:
+    with open(savefile, encoding="utf8") as fin:
         cg_data = json.load(fin)
 
     del cg_data["!!info"]
@@ -92,7 +91,6 @@ def _save_CG_npz(savefile, elementary_projectors):
         cg_data["c" + sfx] = coeff
 
     np.savez_compressed(savefile, **cg_data)
-    return
 
 
 def _load_CG_npz(savefile):
@@ -156,7 +154,7 @@ def save_su2_cg(savefile, max_spin_dim):
 
     # check output file is writable
     try:
-        with open(cg_file, "w") as out:
+        with open(cg_file, "w", encoding="utf8") as out:
             out.write("-")
     except FileNotFoundError:
         print("Error: cannot write SU(2) Clebsch-Gordan coefficient savefile")
@@ -174,5 +172,3 @@ def save_su2_cg(savefile, max_spin_dim):
     else:
         _save_CG_json(cg_file, elementary_projectors)
     print(f"SU2(2) Clebsch-Gordon coefficients saved in file {cg_file}")
-
-    return

@@ -35,20 +35,19 @@ def _numba_elementary_combine_O2(degen1, irreps1, degen2, irreps2):
         for d2, irr2 in zip(degen2, irreps2):
             d = d1 * d2
             if irr1 < 1:
-                if irr2 < 1:
+                if irr2 < 1:  # 0 x 0
                     degen[(irr1 + irr2 + 1) % 2] += d
-                else:
+                else:  # 0 x n
                     degen[irr2 + 1] += d
-            else:
-                if irr2 < 1:
-                    degen[irr1 + 1] += d
-                elif irr1 == irr2:
-                    degen[0] += d
-                    degen[1] += d
-                    degen[2 * irr1 + 1] += d
-                else:
-                    degen[irr1 + irr2 + 1] += d
-                    degen[abs(irr1 - irr2) + 1] += d
+            elif irr2 < 1:  # n x 0
+                degen[irr1 + 1] += d
+            elif irr1 == irr2:  # n x n
+                degen[0] += d
+                degen[1] += d
+                degen[2 * irr1 + 1] += d
+            else:  # n x m
+                degen[irr1 + irr2 + 1] += d
+                degen[abs(irr1 - irr2) + 1] += d
 
     irreps = np.arange(-1, nmax + 1)
     nnz = degen.nonzero()[0]

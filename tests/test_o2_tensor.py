@@ -31,7 +31,6 @@ def check_o2(to2, tu1):
     tpu1 = tu1.transpose()
     assert (tpo2.toU1() - tpu1).norm() < 1e-15
     assert lg.norm(tpo2.toarray() - tpu1.toarray()) < 1e-15
-    return
 
 
 assert O2_SymmetricTensor.symmetry() == "O2"
