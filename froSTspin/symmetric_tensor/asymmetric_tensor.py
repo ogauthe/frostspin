@@ -66,36 +66,17 @@ class AsymmetricTensor(SymmetricTensor):
         block = arr.reshape(np.prod(row_reps), np.prod(col_reps))
         return cls(row_reps, col_reps, (block,), cls._irrep, signature)
 
-    def toarray(self, *, as_matrix=False):
-        if as_matrix:
-            return self._blocks[0]
-        return self._blocks[0].reshape(self._shape)
+    def _tomatrix(self):
+        return self._blocks[0]
 
-    def transpose(self):
-        blocks = (self._blocks[0].T,)
-        s = self._signature[np.arange(-self._ndim + self._nrr, self._nrr) % self._ndim]
-        return type(self)(self._col_reps, self._row_reps, blocks, self._irrep, s)
+    def _transpose_data(self):
+        return (self._blocks[0].T,), self._irrep
 
-    def permute(self, row_axes, col_axes):
-        assert sorted(row_axes + col_axes) == list(range(self._ndim))
-
-        # return early for identity or matrix transpose
-        if row_axes == tuple(range(self._nrr)) and col_axes == tuple(
-            range(self._nrr, self._ndim)
-        ):
-            return self
-        if row_axes == tuple(range(self._nrr, self._ndim)) and col_axes == tuple(
-            range(self._nrr)
-        ):
-            return self.transpose()
-
-        # generic case: goes back to tensor shape and transpose
-        perm = np.array(row_axes + col_axes)
-        arr = self._blocks[0].reshape(self._shape).transpose(perm)
-        row_reps = tuple(np.array([d]) for d in arr.shape[: len(row_axes)])
-        col_reps = tuple(np.array([d]) for d in arr.shape[len(row_axes) :])
-        signature = self._signature[perm]
-        return type(self).from_array(arr, row_reps, col_reps, signature)
+    def _permute_data(self, axes, nrr):
+        arr = self._blocks[0].reshape(self._shape).transpose(axes)
+        sh = (np.prod(arr.shape[:nrr]), np.prod(arr.shape[nrr:]))
+        arr = arr.reshape(sh)
+        return (arr,), self._irrep
 
     def dual(self):
         return type(self)(
