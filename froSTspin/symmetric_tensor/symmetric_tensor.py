@@ -2,7 +2,6 @@ import numpy as np
 import scipy.linalg as lg
 import scipy.sparse.linalg as slg
 
-import froSTspin.config
 from froSTspin.misc_tools.svd_tools import (
     find_chi_largest,
     robust_eigh,
@@ -18,8 +17,6 @@ from .diagonal_tensor import DiagonalTensor
 # coefficients are stored as dense blocks corresponding to irreps
 # blocks are always sorted according to irreps
 # blocks are tuple of contiguous F or C arrays (numba)
-
-_config = froSTspin.config.get_config()
 
 
 class SymmetricTensor:

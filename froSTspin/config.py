@@ -30,7 +30,3 @@ if __debug__:  # noqa: SIM102
         print("They may significantly impact performances")
         print("Consider running the code in optimized mode with python -O")
         print("You may disable this warning with the flag --froSTspin-quiet\n")
-
-
-def get_config():
-    return config
