@@ -120,20 +120,63 @@ class SymmetricTensor:
         raise NotImplementedError("Must be defined in derived class")
 
     def toarray(self, *, as_matrix=False):
-        raise NotImplementedError("Must be defined in derived class")
+        """
+        Cast SymmetricTensor into a dense array.
 
-    def permute(self, row_axes, col_axes):  # signature != ndarray.transpose
+        Parameters
+        ----------
+        as_matrix : bool
+            Whether to return tensor with its tensor shape (default) or its matrix shape
+        """
+        mat = self._tomatrix()
+        if as_matrix:
+            return mat
+        return mat.reshape(self._shape)
+
+    def permute(self, row_axes, col_axes):
         """
         Permutate axes, changing tensor structure.
 
         Parameters
         ----------
-        row_axes: tuple of int
+        row_axes: enumerable of int
             New row axes.
-        col_axes: tuple of int
+        col_axes: enumerable of int
             New column axes.
         """
-        raise NotImplementedError("Must be defined in derived class")
+        # input validation
+        row_axes = tuple(row_axes)
+        col_axes = tuple(col_axes)
+        axes = row_axes + col_axes
+
+        if sorted(axes) != list(range(self._ndim)):
+            raise ValueError("Axes do not match tensor")
+
+        # return early for identity or matrix transpose
+        if row_axes == tuple(range(self._nrr)) and col_axes == tuple(
+            range(self._nrr, self._ndim)
+        ):
+            return self
+        if row_axes == tuple(range(self._nrr, self._ndim)) and col_axes == tuple(
+            range(self._nrr)
+        ):
+            return self.transpose()
+
+        signature = np.empty((self._ndim,), dtype=bool)
+        reps = [None] * self._ndim
+        for i, ax in enumerate(axes):
+            signature[i] = self._signature[ax]
+            reps[i] = (
+                self._row_reps[ax] if ax < self._nrr else self._col_reps[ax - self._nrr]
+            )
+
+        # constructing new blocks, private and symmetry specific
+        nrr = len(row_axes)
+        blocks, block_irreps = self._permute_data(axes, nrr)
+
+        tp = type(self)(reps[:nrr], reps[nrr:], blocks, block_irreps, signature)
+        assert abs(self.norm() - tp.norm()) <= 1e-13 * self.norm(), "norm is different"
+        return tp
 
     def check_blocks_fit_representations(self):
         raise NotImplementedError("Must be defined in derived class")
@@ -318,7 +361,7 @@ class SymmetricTensor:
                 other.block_degen
                 == [self.irrep_dimension(irr) for irr in other.block_irreps]
             ).all()
-            return self.diagonal_mul(other.diagonal_blocks, other.block_irreps)
+            return self._diagonal_mul(other.diagonal_blocks, other.block_irreps)
         raise TypeError("unsupported operation")
 
     def __rmul__(self, other):
@@ -338,7 +381,7 @@ class SymmetricTensor:
                 other.block_degen
                 == [self.irrep_dimension(irr) for irr in other.block_irreps]
             ).all()
-            return self.diagonal_mul(
+            return self._diagonal_mul(
                 other.diagonal_blocks, other.block_irreps, left=True
             )
         raise TypeError("unsupported operation")
@@ -406,67 +449,6 @@ class SymmetricTensor:
     ####################################################################################
     # misc
     ####################################################################################
-    def diagonal_mul(self, diag_blocks, diag_block_irreps, *, left=False):
-        """
-        Matrix product with a diagonal matrix with matching symmetry. If left is True,
-        matrix multiplication is from the left.
-
-        Convention: diag_blocks is understood as diagonal weights coming from a SVD in
-        terms of representation and signature. Therefore it can only be added to the
-        right if self has only one column leg and added to the left if self has only one
-        Its signature is assumed to be trivial [False, True]. If it does not match self
-        then a signature change is done by conjugating diag_block_irreps.
-
-        Parameters
-        ----------
-        diag_blocks : enum of 1D array
-            Diagonal block to apply to self.blocks
-        diag_block_irreps : int array
-            Irreducible representation corresponding to each block
-        left : bool
-            Whether to multiply from the right (default) or from the left.
-        """
-        n = len(diag_blocks)
-        assert len(diag_block_irreps) == n
-
-        # if signatures do not match, transpose diag_blocks. This requires to conjugate
-        # diag_block_irreps and swap blocks to keep them sorted.
-        # since signature structure is trivial, block coefficients are not affected.
-        if (left and self._signature[0]) or (not left and not self._signature[-1]):
-            conj_irreps = np.array([self.conjugate_irrep(r) for r in diag_block_irreps])
-            so = conj_irreps.argsort()
-            diag_block_irreps = conj_irreps[so]
-            diag_blocks = [diag_blocks[i] for i in so]
-
-        if left:
-            assert self._nrr == 1
-            s = (slice(None, None, None), None)
-        else:
-            assert self._ndim - self._nrr == 1
-            s = None
-
-        i1 = 0
-        i2 = 0
-        blocks = []
-        block_irreps = []
-        while i1 < self._nblocks and i2 < n:
-            if self._block_irreps[i1] == diag_block_irreps[i2]:
-                blocks.append(self._blocks[i1] * diag_blocks[i2][s])
-                block_irreps.append(self._block_irreps[i1])
-                i1 += 1
-                i2 += 1
-            elif self._block_irreps[i1] < diag_block_irreps[i2]:
-                # the operation is valid but this should not happen for diagonal_irreps
-                # coming from a SVD
-                print("Warning: missing block in diagonal blocks")
-                i1 += 1
-            else:
-                i2 += 1
-
-        return type(self)(
-            self._row_reps, self._col_reps, blocks, block_irreps, self._signature
-        )
-
     def match_representations(self, other):
         """
         Check if other has same type, same shape and same representations with same
@@ -550,7 +532,9 @@ class SymmetricTensor:
         Matrix transpose operation, swapping rows and columns. This is a specific case
         of permute that can be optimized.
         """
-        raise NotImplementedError("Must be defined in derived class")
+        blocks, block_irreps = self._transpose_data()
+        s = self._signature[np.arange(-self._ndim + self._nrr, self._nrr) % self._ndim]
+        return type(self)(self._col_reps, self._row_reps, blocks, block_irreps, s)
 
     def dual(self):
         """
@@ -1004,6 +988,123 @@ class SymmetricTensor:
             block_eigs,
         )
 
+    ####################################################################################
+    # I/O
+    ####################################################################################
+    def save_to_file(self, savefile):
+        """
+        Save SymmetricTensor into savefile with npz format.
+
+        Save format may change to hdf5 in the future.
+        """
+        data = self.get_data_dic()
+        np.savez_compressed(savefile, **data)
+
+    def get_data_dic(self, *, prefix=""):
+        """
+        Construct data dictionary containing all information to store the
+        SymmetricTensor into an external file.
+        """
+        # allows to save several SymmetricTensors in one file by using different
+        # prefixes.
+        data = {
+            prefix + "_symmetry": self._symmetry,
+            prefix + "_n_row_reps": self._nrr,
+            prefix + "_n_col_reps": self._ndim - self._nrr,
+            prefix + "_block_irreps": self._block_irreps,
+            prefix + "_signature": self._signature,
+        }
+        for ri, r in enumerate(self._row_reps):
+            data[f"{prefix}_row_rep_{ri}"] = r
+        for ci, c in enumerate(self._col_reps):
+            data[f"{prefix}_col_rep_{ci}"] = c
+        for bi, b in enumerate(self._blocks):
+            data[f"{prefix}_block_{bi}"] = b
+        return data
+
+    @classmethod
+    def load_from_dic(cls, data, *, prefix=""):
+        if cls._symmetry != data[prefix + "_symmetry"][()]:
+            raise ValueError(f"Saved SymmetricTensor does not match type {cls}")
+        nrr = int(data[prefix + "_n_row_reps"])
+        row_reps = [data[f"{prefix}_row_rep_{ri}"] for ri in range(nrr)]
+        nrc = int(data[prefix + "_n_col_reps"])
+        col_reps = [data[f"{prefix}_col_rep_{ri}"] for ri in range(nrc)]
+        block_irreps = data[prefix + "_block_irreps"]
+        signature = data[prefix + "_signature"]
+        blocks = [data[f"{prefix}_block_{bi}"] for bi in range(block_irreps.size)]
+        return cls(row_reps, col_reps, blocks, block_irreps, signature)
+
+    @classmethod
+    def load_from_file(cls, savefile, *, prefix=""):
+        with np.load(savefile) as fin:
+            st = cls.load_from_dic(fin, prefix=prefix)
+        return st
+
+    ####################################################################################
+    # Private methods
+    ####################################################################################
+    def _diagonal_mul(self, diag_blocks, diag_block_irreps, *, left=False):
+        """
+        Matrix product with a diagonal matrix with matching symmetry. If left is True,
+        matrix multiplication is from the left.
+
+        Convention: diag_blocks is understood as diagonal weights coming from a SVD in
+        terms of representation and signature. Therefore it can only be added to the
+        right if self has only one column leg and added to the left if self has only one
+        Its signature is assumed to be trivial [False, True]. If it does not match self
+        then a signature change is done by conjugating diag_block_irreps.
+
+        Parameters
+        ----------
+        diag_blocks : enum of 1D array
+            Diagonal block to apply to self.blocks
+        diag_block_irreps : int array
+            Irreducible representation corresponding to each block
+        left : bool
+            Whether to multiply from the right (default) or from the left.
+        """
+        n = len(diag_blocks)
+        assert len(diag_block_irreps) == n
+
+        # if signatures do not match, transpose diag_blocks. This requires to conjugate
+        # diag_block_irreps and swap blocks to keep them sorted.
+        # since signature structure is trivial, block coefficients are not affected.
+        if (left and self._signature[0]) or (not left and not self._signature[-1]):
+            conj_irreps = np.array([self.conjugate_irrep(r) for r in diag_block_irreps])
+            so = conj_irreps.argsort()
+            diag_block_irreps = conj_irreps[so]
+            diag_blocks = [diag_blocks[i] for i in so]
+
+        if left:
+            assert self._nrr == 1
+            s = (slice(None, None, None), None)
+        else:
+            assert self._ndim - self._nrr == 1
+            s = None
+
+        i1 = 0
+        i2 = 0
+        blocks = []
+        block_irreps = []
+        while i1 < self._nblocks and i2 < n:
+            if self._block_irreps[i1] == diag_block_irreps[i2]:
+                blocks.append(self._blocks[i1] * diag_blocks[i2][s])
+                block_irreps.append(self._block_irreps[i1])
+                i1 += 1
+                i2 += 1
+            elif self._block_irreps[i1] < diag_block_irreps[i2]:
+                # the operation is valid but this should not happen for diagonal_irreps
+                # coming from a SVD
+                print("Warning: missing block in diagonal blocks")
+                i1 += 1
+            else:
+                i2 += 1
+
+        return type(self)(
+            self._row_reps, self._col_reps, blocks, block_irreps, self._signature
+        )
+
     @classmethod
     def _sparse_eig(
         cls,
@@ -1219,56 +1320,3 @@ class SymmetricTensor:
         usign[:nrr] = signature
         u = cls(reps, (mid_rep,), u_blocks, block_irreps, usign)
         return s, u
-
-    ####################################################################################
-    # I/O
-    ####################################################################################
-    def save_to_file(self, savefile):
-        """
-        Save SymmetricTensor into savefile with npz format.
-
-        Save format may change to hdf5 in the future.
-        """
-        data = self.get_data_dic()
-        np.savez_compressed(savefile, **data)
-
-    def get_data_dic(self, *, prefix=""):
-        """
-        Construct data dictionary containing all information to store the
-        SymmetricTensor into an external file.
-        """
-        # allows to save several SymmetricTensors in one file by using different
-        # prefixes.
-        data = {
-            prefix + "_symmetry": self._symmetry,
-            prefix + "_n_row_reps": self._nrr,
-            prefix + "_n_col_reps": self._ndim - self._nrr,
-            prefix + "_block_irreps": self._block_irreps,
-            prefix + "_signature": self._signature,
-        }
-        for ri, r in enumerate(self._row_reps):
-            data[f"{prefix}_row_rep_{ri}"] = r
-        for ci, c in enumerate(self._col_reps):
-            data[f"{prefix}_col_rep_{ci}"] = c
-        for bi, b in enumerate(self._blocks):
-            data[f"{prefix}_block_{bi}"] = b
-        return data
-
-    @classmethod
-    def load_from_dic(cls, data, *, prefix=""):
-        if cls._symmetry != data[prefix + "_symmetry"][()]:
-            raise ValueError(f"Saved SymmetricTensor does not match type {cls}")
-        nrr = int(data[prefix + "_n_row_reps"])
-        row_reps = [data[f"{prefix}_row_rep_{ri}"] for ri in range(nrr)]
-        nrc = int(data[prefix + "_n_col_reps"])
-        col_reps = [data[f"{prefix}_col_rep_{ri}"] for ri in range(nrc)]
-        block_irreps = data[prefix + "_block_irreps"]
-        signature = data[prefix + "_signature"]
-        blocks = [data[f"{prefix}_block_{bi}"] for bi in range(block_irreps.size)]
-        return cls(row_reps, col_reps, blocks, block_irreps, signature)
-
-    @classmethod
-    def load_from_file(cls, savefile, *, prefix=""):
-        with np.load(savefile) as fin:
-            st = cls.load_from_dic(fin, prefix=prefix)
-        return st

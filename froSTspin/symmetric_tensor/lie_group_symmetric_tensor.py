@@ -501,7 +501,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
         return ele_unitary_blocks
 
-    def _transpose_data(self, axes, nrr_out, structural_data):
+    def _lie_permute_data(self, axes, nrr_out, structural_data):
         """
         Move data and construct new data blocks
         """
@@ -789,7 +789,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         assert abs(st.norm() - lg.norm(arr)) <= 1e-13 * lg.norm(arr)
         return st
 
-    def toarray(self, *, as_matrix=False):
+    def _tomatrix(self):
         # define shifts to localize elementary block position in dense format
         rshifts, elementary_block_rows = self._get_shifts_positions(self._row_reps)
         cshifts, elementary_block_cols = self._get_shifts_positions(self._col_reps)
@@ -923,56 +923,32 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     arr[slices] = ele_dense.reshape(ele_degen_dimensions.prod(axis=0))
 
         assert abs(self.norm() - lg.norm(arr)) <= 1e-13 * self.norm()
-        if as_matrix:
-            return arr.reshape(self.matrix_shape)
-        return arr
+        return arr.reshape(self.matrix_shape)
 
-    def transpose(self):
-        row_axes = tuple(range(self._nrr, self._ndim))
-        col_axes = tuple(range(self._nrr))
-        return self.permute(row_axes, col_axes)
+    def _transpose_data(self):
+        # optimization is possible but not implemented at the moment
+        axes = tuple(range(self._nrr, self._ndim)) + tuple(range(self._nrr))
+        return self._permute_data(axes, self._ndim - self._nrr)
 
-    def permute(self, row_axes, col_axes):
-        axes = np.concatenate((row_axes, col_axes))
-        nrr_out = len(row_axes)
-        trivial = np.arange(self._ndim)
-
-        if axes.shape != (self._ndim,) or (np.sort(axes) != trivial).any():
-            raise ValueError("axes do not match tensor")
-
-        # return early for identity only, matrix transpose is not trivial
-        if nrr_out == self._nrr and (axes == trivial).all():
-            return self
-
-        si = int(2 ** np.arange(self._ndim) @ self._signature)
-        key = [self._ndim, self._nrr, nrr_out, si, *axes]
+    def _permute_data(self, axes, nrr):
+        si = (1 << np.arange(self._ndim)) @ self._signature
+        key = [self._ndim, self._nrr, nrr, si, *axes]
         in_reps = self._row_reps + self._col_reps
         for r in in_reps:
             key.append(r.shape[1])
             key.extend(r[1:].ravel())
         key = tuple(key)
+        axes = np.array(axes)
         try:
             structural_data = self._structural_data_dic[key]
         except KeyError:
             structural_data = self._compute_structural_data(
-                in_reps, self._nrr, axes, nrr_out, self._signature
+                in_reps, self._nrr, axes, nrr, self._signature
             )
             self._structural_data_dic[key] = structural_data
 
-        block_irreps, blocks = self._transpose_data(axes, nrr_out, structural_data)
-
-        reps = []
-        for ax in axes:
-            if ax < self._nrr:
-                reps.append(self._row_reps[ax])
-            else:
-                reps.append(self._col_reps[ax - self._nrr])
-        signature = self._signature[axes]
-        ret = type(self)(
-            reps[:nrr_out], reps[nrr_out:], blocks, block_irreps, signature
-        )
-        assert abs(ret.norm() - self.norm()) <= 1e-13 * self.norm()
-        return ret
+        block_irreps, blocks = self._lie_permute_data(axes, nrr, structural_data)
+        return blocks, block_irreps
 
     def update_signature(self, sign_update):
         """

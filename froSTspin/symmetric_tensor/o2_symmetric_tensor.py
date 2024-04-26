@@ -705,8 +705,8 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             block_irreps = tu1.block_irreps[i0:]
         return cls(row_reps, col_reps, blocks, block_irreps, tu1.signature)
 
-    def toarray(self, *, as_matrix=False):
-        return self.toU1().toarray(as_matrix=as_matrix)
+    def _tomatrix(self):
+        return self.toU1().toarray(as_matrix=True)
 
     def toabelian(self):
         return self.toU1()
@@ -820,28 +820,14 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         assert abs(tu1.norm() - self.norm()) <= _tol * self.norm()
         return tu1
 
-    def permute(self, row_axes, col_axes):
-        assert sorted(row_axes + col_axes) == list(range(self._ndim))
-
-        # return early for identity or matrix transpose
-        if row_axes == tuple(range(self._nrr)) and col_axes == tuple(
-            range(self._nrr, self._ndim)
-        ):
-            return self
-        if row_axes == tuple(range(self._nrr, self._ndim)) and col_axes == tuple(
-            range(self._nrr)
-        ):
-            return self.transpose()
-
+    def _permute_data(self, axes, nrr):
         # avoid numba problems with F-arrays
         self._blocks = tuple(np.ascontiguousarray(b) for b in self._blocks)
 
         # construct new row and column representations
-        axes = row_axes + col_axes
-        nrr = len(row_axes)
-        signature = np.empty((self._ndim,), dtype=bool)
         old_u1_reps = [_numba_O2_rep_to_U1(r) for r in self._row_reps + self._col_reps]
 
+        signature = np.empty((self._ndim,), dtype=bool)
         reps = []
         u1_reps = []
         for i, ax in enumerate(axes):
@@ -917,16 +903,13 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             blocks = list(b0_blocks) + blocks[1:]
             block_sz = np.concatenate((b0_irreps, block_sz[1:]))
 
-        tp = type(self)(reps[:nrr], reps[nrr:], blocks, block_sz, signature)
-        assert abs(tp.norm() - self.norm()) <= _tol * self.norm(), "norm is different"
-        return tp
+        return blocks, block_sz
 
-    def transpose(self):
+    def _transpose_data(self):
         b_neg = tuple(b.T for b in reversed(self._generate_neg_sz_blocks()))
         b0 = tuple(b.T for b in self._blocks[: self._block_irreps.searchsorted(1)])
         blocks = b0 + b_neg
-        s = self._signature[np.arange(-self._ndim + self._nrr, self._nrr) % self._ndim]
-        return type(self)(self._col_reps, self._row_reps, blocks, self._block_irreps, s)
+        return blocks, self._block_irreps
 
     def update_signature(self, sign_update):
         # blocks coeff are defined as identical to abelian U(1) case, which are
