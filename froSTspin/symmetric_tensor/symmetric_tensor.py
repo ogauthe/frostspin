@@ -538,26 +538,30 @@ class SymmetricTensor:
 
     def dual(self):
         """
-        Return a new tensor with all representations (row, columns and blocks irreps)
-        conjugated according to group rules. Since the dense tensor is a group singlet,
-        it is unaffected in its dense form, however symmetric blocks may change,
-        especially in the non-abelian case.
+        Construct dual tensor with reverse signature on all legs. No complex conjugation
+        involved. Only the arrow direction is reversed, the irreps inside a
+        representation stay the same.
         """
-        raise NotImplementedError("Must be defined in derived class")
+        return self.dagger().conjugate().transpose()
 
     def conjugate(self):
         """
-        Complex conjugate operation. Block values are conjugate and all representations
-        are mapped to their dual.
+        Complex conjugate coefficient wise. Representations and signature are not
+        affected.
         """
-        conj = self.dual()
-        conj._blocks = tuple(b.conj() for b in conj._blocks)
-        return conj
+        blocks = tuple(b.conj() for b in self._blocks)
+        return type(self)(
+            self._row_reps, self._col_reps, blocks, self._block_irreps, self._signature
+        )
 
     def dagger(self):
         """
-        Hermitian conjugate operation, swapping rows and columns and conjugating blocks.
-        block_irreps and block order are not affected.
+        Return adjoint matrix: swap rows and columns, apply complex conjugation
+        coefficient wise and reverse signature for all leg.
+        block_irreps and block order are not affected (transpose maps a block irrep to
+        its dual, then signature reversal maps it back to origin)
+
+        This is a costless operation, regardless of symmetry.
         """
         blocks = tuple(b.T.conj() for b in self._blocks)
         s = np.empty((self._ndim,), dtype=bool)

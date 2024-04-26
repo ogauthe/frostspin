@@ -364,9 +364,9 @@ class AbelianSymmetricTensor(SymmetricTensor):
         return m.reshape(self._shape)
 
     def transpose(self):
-        # in the abelian case, matrix transpose can be obtained by conjugating
-        # block_irreps transposing, transpose all blocks and reorder them according to
-        # their new (conjugate) irrep.
+        # in the abelian case, matrix transpose can be obtained by taking dual of
+        # block_irreps, transpose all blocks and reorder them according to
+        # their new (conjugated) irrep.
         conj_irreps = self.conjugate_representation(self._block_irreps)
         so = conj_irreps.argsort()
         block_irreps = conj_irreps[so]
@@ -426,16 +426,6 @@ class AbelianSymmetricTensor(SymmetricTensor):
         tp = type(self)(reps[:nrr], reps[nrr:], blocks, block_irreps, signature)
         assert abs(self.norm() - tp.norm()) <= 1e-13 * self.norm()
         return tp
-
-    def dual(self):
-        conj_irreps = self.conjugate_representation(self._block_irreps)  # abelian only
-        so = conj_irreps.argsort()
-        block_irreps = conj_irreps[so]
-        blocks = tuple(self._blocks[i] for i in so)
-        signature = ~self._signature
-        return type(self)(
-            self._row_reps, self._col_reps, blocks, block_irreps, signature
-        )
 
     def check_blocks_fit_representations(self):
         assert self._block_irreps.size == self._nblocks

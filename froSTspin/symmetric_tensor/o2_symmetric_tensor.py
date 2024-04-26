@@ -929,14 +929,6 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         s = self._signature[np.arange(-self._ndim + self._nrr, self._nrr) % self._ndim]
         return type(self)(self._col_reps, self._row_reps, blocks, self._block_irreps, s)
 
-    def dual(self):
-        signature = ~self._signature
-        blocks = tuple(self._generate_neg_sz_blocks()[::-1])
-        blocks = self._blocks[: self._block_irreps.searchsorted(1)] + blocks
-        return type(self)(
-            self._row_reps, self._col_reps, blocks, self._block_irreps, signature
-        )
-
     def update_signature(self, sign_update):
         # blocks coeff are defined as identical to abelian U(1) case, which are
         # unaffected by update_signature.
