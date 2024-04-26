@@ -376,7 +376,10 @@ class SymmetricTensor:
         assert type(self) is type(other)
         assert self._shape[self._nrr :] == other._shape[: other._nrr]
         assert (self._signature[self._nrr :] ^ other._signature[: other._nrr]).all()
-        assert all((r == r2).all() for (r, r2) in zip(self._col_reps, other._row_reps))
+        assert all(
+            (r == r2).all()
+            for (r, r2) in zip(self._col_reps, other._row_reps, strict=True)
+        )
 
         i1 = 0
         i2 = 0
@@ -473,14 +476,13 @@ class SymmetricTensor:
         if (
             type(self) is not type(other)
             or self._shape != other.shape
-            or self._nrr != other.n_row_reps
             or (self._signature != other.signature).any()
         ):
             return False
-        for r, r2 in zip(self._row_reps, other.row_reps):
+        for r, r2 in zip(self._row_reps, other.row_reps, strict=True):
             if r.shape != r2.shape or (r != r2).any():
                 return False
-        for r, r2 in zip(self._col_reps, other.col_reps):
+        for r, r2 in zip(self._col_reps, other.col_reps, strict=True):
             if r.shape != r2.shape or (r != r2).any():
                 return False
         return True
@@ -594,7 +596,7 @@ class SymmetricTensor:
         Tensor Frobenius norm.
         """
         n2 = 0.0
-        for irr, b in zip(self._block_irreps, self._blocks):
+        for irr, b in zip(self._block_irreps, self._blocks, strict=True):
             n2 += self.irrep_dimension(irr) * lg.norm(b) ** 2
         return np.sqrt(n2)
 
@@ -609,7 +611,7 @@ class SymmetricTensor:
         assert self.match_representations(other.dagger())
         x = 0.0
         shared = (self._block_irreps[:, None] == other.block_irreps).nonzero()
-        for i1, i2 in zip(*shared):
+        for i1, i2 in zip(*shared, strict=True):
             bx = np.einsum("ij,ji->", self._blocks[i1], other.blocks[i2])
             x += self.irrep_dimension(self._block_irreps[i1]) * bx
         return x
@@ -1044,11 +1046,9 @@ class SymmetricTensor:
         # 0) input validation
         if type(matmat) is cls:
             nrr = matmat.n_row_reps
-            if matmat.shape[:nrr] != matmat.shape[nrr:]:
-                raise ValueError("M shape is incompatible with a square matrix")
             if any(
                 r1.shape != r2.shape or (r1 != r2).any()
-                for (r1, r2) in zip(matmat.row_reps, matmat.col_reps)
+                for (r1, r2) in zip(matmat.row_reps, matmat.col_reps, strict=True)
             ):
                 raise ValueError(
                     "M representations are incompatible with a square matrix"
@@ -1104,6 +1104,12 @@ class SymmetricTensor:
                 sparse.append(bi)
 
         # 3) define functions do deal with dense and sparse blocks
+        def matvec(x, st0, bj):
+            st0.blocks[0][:, 0] = x
+            st1 = matmat(st0)
+            y = st1.blocks[bj].ravel()
+            return y
+
         if compute_vectors:
             vector_blocks = [None] * nblocks
 
@@ -1187,18 +1193,14 @@ class SymmetricTensor:
                 brep = cls.init_representation(
                     np.ones((1,), dtype=int), block_irreps_bi
                 )
+
                 st0 = cls(reps, (brep,), (v0[:, None],), block_irreps_bi, sigv)
                 st1 = matmat(st0)
+                # assume bj does not depend on x values and stays fixed over iterations
                 bj = st1.block_irreps.searchsorted(irr)
-
-                def matvec(x):
-                    st0.blocks[0][:, 0] = x
-                    st1 = matmat(st0)
-                    # here we assume bj does not depend on x values
-                    y = st1.blocks[bj].ravel()
-                    return y
-
-                op = slg.LinearOperator(sh, matvec=matvec, dtype=dtype)
+                op = slg.LinearOperator(
+                    sh, matvec=lambda x: matvec(x, st0, bj), dtype=dtype  # noqa: B023
+                )
 
                 # check that irr block actually appears in output
                 if bj < st1.nblocks and st1.block_irreps[bj] == irr:

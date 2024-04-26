@@ -73,7 +73,7 @@ assert abs(su2.rcutoff - su.rcutoff) < 1e-14
 assert abs(su2.logZ - su.logZ) < 1e-14
 
 tensors2 = su.get_tensors()
-assert all((t - t2).norm() < 1e-14 for (t, t2) in zip(tensors, tensors2))
+assert all((t - t2).norm() < 1e-14 for (t, t2) in zip(tensors, tensors2, strict=True))
 
 
 # -------------------------------------   J1-J2   --------------------------------------

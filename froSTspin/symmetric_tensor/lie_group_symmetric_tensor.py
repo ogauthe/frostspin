@@ -464,7 +464,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         out_proj_block = []
         dims_out = []
         di = 0
-        for rtree, ctree in zip(cg_ro, cg_co):
+        for rtree, ctree in zip(cg_ro, cg_co, strict=True):
             if rtree is not None and ctree is not None:
                 assert rtree.shape[-1] == ctree.shape[-1]
                 dim = rtree.shape[-1]  # dim(irrep)
@@ -578,7 +578,9 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         rshb = slices_or[-1]
         cshb = slices_oc[-1]
         dtype = self.dtype
-        blocks_out = tuple(np.zeros(sh, dtype=dtype) for sh in zip(rshb, cshb))
+        blocks_out = tuple(
+            np.zeros(sh, dtype=dtype) for sh in zip(rshb, cshb, strict=True)
+        )
 
         data_perm = (0, self._nrr + 1, *(axes + 1 + (axes >= self._nrr)))
 

@@ -155,11 +155,10 @@ class DiagonalTensor:
         arr = np.empty(self.shape, dtype=self.dtype)
         k = 0
         for i in range(self._nblocks):
-            dim = self._diagonal_blocks[i].size
             deg = self._block_degen[i]
-            for j in range(deg):
-                arr[k : k + dim] = self._diagonal_blocks[i]
-                k += dim
+            dim = self._diagonal_blocks[i].size
+            arr[k : k + deg * dim].reshape(-1, deg, dim)[:] = self._diagonal_blocks[i]
+            k += deg * dim
         assert k == arr.size
         if sort:
             # SVD convention: sort from largest to smallest

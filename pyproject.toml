@@ -59,6 +59,8 @@ select = [
     "SLF",
     "INP",
     "PL",
+    "B",
+    "PGH",
 ]
 ignore = [
     "C901",  # too demanding

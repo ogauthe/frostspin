@@ -525,7 +525,8 @@ class SimpleUpdate:
         # if tensor is purely virtual and no Hamiltonian acts on it, add dummy leg
         phys_reps = [ST.singlet() for i in range(n_tensors)]
         signatures = [[None] * (2 + len(tbi)) for tbi in tensor_bond_indices]
-        for j, (b1, b2) in enumerate(zip(bond1, bond2)):
+        for j, b1 in enumerate(bond1):
+            b2 = bond2[j]
             h = hamiltonians[gate_indices[j]]
 
             iL = left_indices[j]
@@ -631,7 +632,8 @@ class SimpleUpdate:
 
         # find signatures
         signatures = [[None] * (2 + len(tbi)) for tbi in tensor_bond_indices]
-        for j, (b1, b2) in enumerate(zip(bond1, bond2)):
+        for j, b1 in enumerate(bond1):
+            b2 = bond2[j]
             h = hamiltonians[gate_indices[j]]
 
             iL = left_indices[j]
@@ -783,7 +785,8 @@ class SimpleUpdate:
         # find signatures
         phys_reps = [ST.singlet() for i in range(n_tensors)]
         signatures = [[None] * (2 + len(tbi)) for tbi in tensor_bond_indices]
-        for j, (b1, b2) in enumerate(zip(bond1, bond2)):
+        for j, b1 in enumerate(bond1):
+            b2 = bond2[j]
             h = hamiltonians[gate_indices[j]]
 
             iL = left_indices[j]
@@ -1029,7 +1032,7 @@ class SimpleUpdate:
             # default configuration. Add weights on the virtual legs.
             rswap = (0, 1, *range(3, t0.ndim))
             t = t0
-            for j, leg in enumerate(self._tensor_bond_indices[i]):
+            for leg in self._tensor_bond_indices[i]:
                 t = t.permute(rswap, (2,))
                 t = t * sqw[leg]
             t = t.permute((0, 1), tuple(range(2, t0.ndim)))
@@ -1218,7 +1221,7 @@ class SimpleUpdate:
         # 2nd order update: update 0 is special as it may be squared or not
         # depending whether it is at the very beginning / end of update sequence
         self._initialize_update()
-        for i in range(niter - 1):  # there is 1 step out of the loop
+        for _ in range(niter - 1):  # there is 1 step out of the loop
             for j in range(self._n_updates):
                 self._elementary_update(j)
         self._finalize_update()

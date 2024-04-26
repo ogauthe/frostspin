@@ -131,7 +131,7 @@ print("SU(2)..........", lg.eigvalsh(rdmSU2), get_tol(rdmSU2))
 
 ctm_iter = 10
 print(f"\nRun CTMRG for {ctm_iter} iterations...")
-for i in range(ctm_iter):
+for _ in range(ctm_iter):
     ctmAs.iterate()
     ctmU1.iterate()
     ctmO2.iterate()

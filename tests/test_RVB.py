@@ -26,7 +26,7 @@ def check_rdm(ctm1, ctm2):
 
 def check_ctm(ctm1, ctm2):
     check_rdm(ctm1, ctm2)
-    for i in range(4):
+    for _ in range(4):
         ctm1.iterate()
         ctm2.iterate()
         check_rdm(ctm1, ctm2)

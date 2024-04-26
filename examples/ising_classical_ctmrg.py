@@ -325,7 +325,7 @@ s, T, a, a2 = s0_asym, T0_asym, a_asym, a_asym2
 print("\n" + "#" * 88)
 print("Begin CTMRG with trivial symmetry")
 print(f"Iterate CTMRG for n_iter = {n_iter}...")
-for i in range(n_iter):
+for _ in range(n_iter):
     s, T = iterate_ctm(s, T, a, a2)
 
 print("Done with CTMRG iterations.")
@@ -430,7 +430,7 @@ s, T, a, a2 = s0_Z2, T0_Z2, a_Z2, a_Z2_2
 # iterate CTMRG
 print("Begin CTMRG with Z2 symmetry")
 print(f"Iterate CTMRG for n_iter = {n_iter}...")
-for i in range(n_iter):
+for _ in range(n_iter):
     s, T = iterate_ctm(s, T, a, a2)
 
 print("Done with CTMRG iterations")
