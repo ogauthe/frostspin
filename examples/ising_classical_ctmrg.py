@@ -160,7 +160,7 @@ def iterate_ctm(s, T, a, a2):
     #  3*    2*
     matC = matC.permute((0, 2), (1, 3))
 
-    news, U = matC.eigsh(matC, chi_target, return_eigenvectors=True)
+    news, U = matC.eigsh(matC, chi_target)
     news /= news.norm()
     #  1     0
     #  v     v

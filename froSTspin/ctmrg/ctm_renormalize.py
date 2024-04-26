@@ -1,7 +1,6 @@
 import numpy as np
-import scipy.linalg as lg
 
-from froSTspin.misc_tools.svd_tools import find_chi_largest, sparse_svd
+from froSTspin.misc_tools.svd_tools import find_chi_largest, robust_svd, sparse_svd
 
 
 def construct_projectors(
@@ -90,18 +89,7 @@ def construct_projectors(
         m = r_blocks[bi] @ rt_blocks[bi]
         dims.append(corner2.irrep_dimension(corner2.block_irreps[ind2[bi]]))
         if min(m.shape) < max(100, 6 * block_chi[bi]):  # use full svd for small blocks
-            try:
-                u, s, v = lg.svd(m, full_matrices=False, overwrite_a=True)
-            except lg.LinAlgError as err:
-                print("Error in scipy dense SVD:", err)
-                m = r_blocks[bi] @ rt_blocks[bi]  # overwrite_a=True may have erased it
-                u, s, v = lg.svd(
-                    m,
-                    full_matrices=False,
-                    overwrite_a=True,
-                    check_finite=False,
-                    lapack_driver="gesvd",
-                )
+            u, s, v = robust_svd(m)
         else:
             # a good precision is required for singular values, especially with pseudo
             # inverse. If precision is not good enough, reduced density matrix are less
