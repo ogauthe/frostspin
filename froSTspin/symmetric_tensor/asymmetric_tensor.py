@@ -58,13 +58,9 @@ class AsymmetricTensor(SymmetricTensor):
         return cls._irrep, np.array([[nr, nc]])
 
     @classmethod
-    def from_array(cls, arr, row_reps, col_reps, signature=None):
-        if signature is None:
-            signature = np.zeros((len(row_reps) + len(col_reps)), dtype=bool)
-            signature[len(row_reps) :] = True
-        assert arr.shape == tuple(row_reps) + tuple(col_reps)
+    def _blocks_from_dense(cls, arr, row_reps, col_reps, signature):
         block = arr.reshape(np.prod(row_reps), np.prod(col_reps))
-        return cls(row_reps, col_reps, (block,), cls._irrep, signature)
+        return (block,), cls._irrep
 
     def _tomatrix(self):
         return self._blocks[0]
