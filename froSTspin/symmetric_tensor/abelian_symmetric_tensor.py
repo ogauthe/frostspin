@@ -1,7 +1,5 @@
 import numba
 import numpy as np
-import scipy.linalg as lg
-import scipy.sparse as ssp
 
 from froSTspin.misc_tools.sparse_tools import _numba_find_indices
 
@@ -319,36 +317,88 @@ class AbelianSymmetricTensor(SymmetricTensor):
         block_shapes = np.array([row_sizes[rinds], col_sizes[cinds]]).T.copy()
         return block_irreps, block_shapes
 
-    @classmethod
-    def from_array(cls, arr, row_reps, col_reps, signature=None):
-        """
-        AbelianSymmetricTensor.from_array also allows for sparse array as input.
-        """
-        nrr = len(row_reps)
-        if signature is None:
-            signature = np.arange(nrr + len(col_reps)) >= nrr
-        else:
-            signature = np.ascontiguousarray(signature, dtype=bool)
-            assert signature.shape == (nrr + len(col_reps),)
+    def toabelian(self):
+        return self
 
+    def totrivial(self):
+        ar = self.toarray()
+        rr = tuple(np.array([d]) for d in self._shape[: self._nrr])
+        cr = tuple(np.array([d]) for d in self._shape[self._nrr :])
+        return AsymmetricTensor.from_array(ar, rr, cr, signature=self.signature)
+
+    def update_signature(self, sign_update):
+        # in the abelian case, bending an index to the left or to the right makes no
+        # difference, signs can be ignored.
+        up = np.asarray(sign_update, dtype=bool)
+        assert up.shape == (self._ndim,)
+        row_reps = list(self._row_reps)
+        col_reps = list(self._col_reps)
+        for i in up.nonzero()[0]:
+            if i < self._nrr:
+                row_reps[i] = self.conjugate_representation(row_reps[i])
+            else:
+                j = i - self._nrr
+                col_reps[j] = self.conjugate_representation(col_reps[j])
+        self._row_reps = tuple(row_reps)
+        self._col_reps = tuple(col_reps)
+        self._signature = self._signature ^ up
+        assert self.check_blocks_fit_representations()
+
+    def merge_legs(self, i1, i2):
+        if self._signature[i1] != self._signature[i2]:
+            raise ValueError("Cannot merge legs with different signatures")
+        if i1 + 1 != i2:
+            raise ValueError("Cannot merge non-contiguous legs: need i2 = i1 + 1")
+        if i2 == self._nrr:
+            raise ValueError("Cannot merge legs split between rows and columns")
+        s = np.array([False, False])
+        if i2 < self._nrr:
+            r = self.combine_representations(
+                (self._row_reps[i1], self._row_reps[i2]), s
+            )
+            row_reps = self._row_reps[:i1] + (r,) + self._row_reps[i2 + 1 :]
+            col_reps = self._col_reps
+        else:
+            j = i1 - self._nrr
+            r = self.combine_representations(
+                (self._col_reps[j], self._col_reps[j + 1]), s
+            )
+            col_reps = self._col_reps[:j] + (r,) + self._col_reps[j + 2 :]
+            row_reps = self._row_reps
+        signature = np.empty((self._ndim - 1,), dtype=bool)
+        signature[:i1] = self._signature[:i1]
+        signature[i1:] = self._signature[i2:]
+        return type(self)(
+            row_reps, col_reps, self._blocks, self._block_irreps, signature
+        )
+
+    def check_blocks_fit_representations(self):
+        assert self._block_irreps.size == self._nblocks
+        assert len(self._blocks) == self._nblocks
+        row_irreps = self.get_row_representation()
+        col_irreps = self.get_column_representation()
+        for irr, b in zip(self._block_irreps, self._blocks, strict=True):
+            nr = (row_irreps == irr).sum()
+            nc = (col_irreps == irr).sum()
+            assert nr > 0
+            assert nc > 0
+            assert b.shape == (nr, nc)
+        return True
+
+    ####################################################################################
+    # Private
+    ####################################################################################
+    @classmethod
+    def _blocks_from_dense(cls, arr, row_reps, col_reps, signature):
+        nrr = len(row_reps)
         row_irreps = cls.combine_representations(row_reps, signature[:nrr])
         col_irreps = cls.combine_representations(col_reps, ~signature[nrr:])
         shm = (row_irreps.size, col_irreps.size)
-        sht = tuple(r.size for r in row_reps + col_reps)
-        assert arr.shape in (shm, sht)
         # requires copy if arr is not contiguous
         # using flatiter on non-contiguous is too slow, no other way
-        M = arr.reshape(shm)
-        if ssp.issparse(arr):
-            n0 = ssp.linalg.norm(arr)
-            blocks, block_irreps = _blocks_from_sparse(M, row_irreps, col_irreps)
-        else:
-            n0 = lg.norm(arr)
-            blocks, block_irreps = _numba_reduce_to_blocks(M, row_irreps, col_irreps)
-        assert (
-            abs(n0 - np.sqrt(sum(lg.norm(b) ** 2 for b in blocks))) <= 1e-13 * n0
-        ), "norm is not conserved in AbelianSymmetricTensor cast"
-        return cls(row_reps, col_reps, blocks, block_irreps, signature)
+        m = arr.reshape(shm)
+        blocks, block_irreps = _numba_reduce_to_blocks(m, row_irreps, col_irreps)
+        return blocks, block_irreps
 
     def _tomatrix(self):
         # cast blocks to C-contiguous to avoid numba bug
@@ -407,71 +457,3 @@ class AbelianSymmetricTensor(SymmetricTensor):
             col_irreps,
         )
         return blocks, block_irreps
-
-    def check_blocks_fit_representations(self):
-        assert self._block_irreps.size == self._nblocks
-        assert len(self._blocks) == self._nblocks
-        row_irreps = self.get_row_representation()
-        col_irreps = self.get_column_representation()
-        for irr, b in zip(self._block_irreps, self._blocks, strict=True):
-            nr = (row_irreps == irr).sum()
-            nc = (col_irreps == irr).sum()
-            assert nr > 0
-            assert nc > 0
-            assert b.shape == (nr, nc)
-        return True
-
-    def toabelian(self):
-        return self
-
-    def totrivial(self):
-        ar = self.toarray()
-        rr = tuple(np.array([d]) for d in self._shape[: self._nrr])
-        cr = tuple(np.array([d]) for d in self._shape[self._nrr :])
-        return AsymmetricTensor.from_array(ar, rr, cr, signature=self.signature)
-
-    def update_signature(self, sign_update):
-        # in the abelian case, bending an index to the left or to the right makes no
-        # difference, signs can be ignored.
-        up = np.asarray(sign_update, dtype=bool)
-        assert up.shape == (self._ndim,)
-        row_reps = list(self._row_reps)
-        col_reps = list(self._col_reps)
-        for i in up.nonzero()[0]:
-            if i < self._nrr:
-                row_reps[i] = self.conjugate_representation(row_reps[i])
-            else:
-                j = i - self._nrr
-                col_reps[j] = self.conjugate_representation(col_reps[j])
-        self._row_reps = tuple(row_reps)
-        self._col_reps = tuple(col_reps)
-        self._signature = self._signature ^ up
-        assert self.check_blocks_fit_representations()
-
-    def merge_legs(self, i1, i2):
-        if self._signature[i1] != self._signature[i2]:
-            raise ValueError("Cannot merge legs with different signatures")
-        if i1 + 1 != i2:
-            raise ValueError("Cannot merge non-contiguous legs: need i2 = i1 + 1")
-        if i2 == self._nrr:
-            raise ValueError("Cannot merge legs split between rows and columns")
-        s = np.array([False, False])
-        if i2 < self._nrr:
-            r = self.combine_representations(
-                (self._row_reps[i1], self._row_reps[i2]), s
-            )
-            row_reps = self._row_reps[:i1] + (r,) + self._row_reps[i2 + 1 :]
-            col_reps = self._col_reps
-        else:
-            j = i1 - self._nrr
-            r = self.combine_representations(
-                (self._col_reps[j], self._col_reps[j + 1]), s
-            )
-            col_reps = self._col_reps[:j] + (r,) + self._col_reps[j + 2 :]
-            row_reps = self._row_reps
-        signature = np.empty((self._ndim - 1,), dtype=bool)
-        signature[:i1] = self._signature[:i1]
-        signature[i1:] = self._signature[i2:]
-        return type(self)(
-            row_reps, col_reps, self._blocks, self._block_irreps, signature
-        )

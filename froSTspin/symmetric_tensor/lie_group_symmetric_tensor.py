@@ -681,28 +681,12 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         return shifts, elementary_position
 
     @classmethod
-    def from_array(cls, arr, row_reps, col_reps, signature=None):
-        # require that arr has structure [degen1*irrep1, degen2*irrep2 ...]
-        # e.g. (singlet1, singlet2, up1, down1, up2, down2)
-
-        row_reps = tuple(row_reps)
-        col_reps = tuple(col_reps)
-        in_reps = row_reps + col_reps
-        if arr.shape != tuple(cls.representation_dimension(rep) for rep in in_reps):
-            raise ValueError("Representations do not match array shape")
-
-        nrr = len(row_reps)
-        ndim = len(in_reps)
-        if signature is None:
-            signature = np.arange(ndim) >= nrr
-        else:
-            signature = np.ascontiguousarray(signature, dtype=bool)
-            if signature.shape != (arr.ndim,):
-                raise ValueError("Signature does not match array shape")
-
+    def _blocks_from_dense(cls, arr, row_reps, col_reps, signature):
         block_irreps, block_shapes_in = cls.get_block_sizes(
             row_reps, col_reps, signature
         )
+        nrr = len(row_reps)
+        ndim = nrr + len(col_reps)
 
         # define shifts to localize elementary block position in dense format
         rshifts, elementary_block_rows = cls._get_shifts_positions(row_reps)
@@ -802,9 +786,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                         )
                         blocks[bi][rs, cs] = data_block
 
-        st = cls(row_reps, col_reps, blocks, block_irreps, signature)
-        assert abs(st.norm() - lg.norm(arr)) <= 1e-13 * lg.norm(arr)
-        return st
+        return blocks, block_irreps
 
     def _tomatrix(self):
         # define shifts to localize elementary block position in dense format

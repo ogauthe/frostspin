@@ -650,21 +650,6 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
     # Symmetry specific methods with fixed signature
     ####################################################################################
     @classmethod
-    def from_array(cls, arr, row_reps, col_reps, signature=None):
-        # not fully efficient: 1st construct U(1) symmetric tensor to get abelian blocks
-        # then split sector 0 into 0even and 0odd
-        # discard sectors with n < 0
-        # keep sectors with n > 0 as they are
-        u1_row_reps = tuple(_numba_O2_rep_to_U1(r) for r in row_reps)
-        u1_col_reps = tuple(_numba_O2_rep_to_U1(r) for r in col_reps)
-        tu1 = U1_SymmetricTensor.from_array(arr, u1_row_reps, u1_col_reps, signature)
-        to2 = cls.from_U1(tu1, row_reps, col_reps)
-        assert abs(to2.norm() - lg.norm(arr)) <= _tol * lg.norm(
-            arr
-        ), "norm is not conserved in O2_SymmetricTensor cast"
-        return to2
-
-    @classmethod
     def from_U1(cls, tu1, row_reps, col_reps):
         """
         Assume tu1 has O(2) symmetry and its irreps are sorted according to O(2) rules.
@@ -688,7 +673,113 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             (_numba_O2_rep_to_U1(r) == tu1.col_reps[i]).all()
             for i, r in enumerate(col_reps)
         )
+        blocks, block_irreps = cls._blocks_from_U1(tu1, row_reps, col_reps)
+        return cls(row_reps, col_reps, blocks, block_irreps, tu1.signature)
 
+    def toabelian(self):
+        return self.toU1()
+
+    def toO2(self):
+        return self
+
+    def toU1(self):
+        # Sz < 0 blocks
+        u1_row_reps = tuple(_numba_O2_rep_to_U1(r) for r in self._row_reps)
+        u1_col_reps = tuple(_numba_O2_rep_to_U1(r) for r in self._col_reps)
+        blocks = self._generate_neg_sz_blocks()
+        block_sz = -self._block_irreps[::-1]
+
+        # Sz = 0 blocks (may not exist)
+        if self._block_irreps[0] < 1:
+            sz_values = U1_SymmetricTensor.combine_representations(
+                u1_row_reps, self._signature[: self._nrr]
+            )
+            rocoeff, rocol, recoeff, recol = _numba_b0_arrays(self._row_reps, sz_values)
+            sz_values = U1_SymmetricTensor.combine_representations(
+                u1_col_reps, ~self._signature[self._nrr :]
+            )
+            cocoeff, cocol, cecoeff, cecol = _numba_b0_arrays(self._col_reps, sz_values)
+            if self._block_irreps[0] == 0:  # no 0o block
+                # this should be highly uncommon, don't bother optimize
+                i1 = 1
+                b0o = np.zeros((0, 0), dtype=self.dtype)
+                b0e = self._blocks[0]
+                block_sz = np.hstack((block_sz, self._block_irreps[1:]))
+            elif self.nblocks > 1 and self._block_irreps[1] > 0:  # no 0e block
+                i1 = 1
+                b0o = self._blocks[0]
+                b0e = np.zeros((0, 0), dtype=self.dtype)
+                block_sz[-1] = 0
+                block_sz = np.hstack((block_sz, self._block_irreps[1:]))
+            else:
+                i1 = 2
+                b0o = self._blocks[0]
+                b0e = self._blocks[1]
+                block_sz = np.hstack((block_sz[:-1], self._block_irreps[2:]))
+            b0 = _numba_merge_b0oe(
+                b0o, rocoeff, rocol, cocoeff, cocol, b0e, recoeff, recol, cecoeff, cecol
+            )
+            blocks.append(b0)
+        else:
+            i1 = 0
+            block_sz = np.hstack((block_sz, self._block_irreps))
+
+        # Sz > 0 blocks
+        blocks.extend(self._blocks[i1:])
+
+        tu1 = U1_SymmetricTensor(
+            u1_row_reps, u1_col_reps, blocks, block_sz, self._signature
+        )
+        assert abs(tu1.norm() - self.norm()) <= _tol * self.norm()
+        return tu1
+
+    def update_signature(self, sign_update):
+        # blocks coeff are defined as identical to abelian U(1) case, which are
+        # unaffected by update_signature.
+        # Additionnaly, every O(2) representation is self-conjugate, therefore signature
+        # has no effect on O(2) tensor with current conventions (another fine convention
+        # would be to change a sign here, when conjugating 0odd and in toU1)
+        up = np.asarray(sign_update, dtype=bool)
+        assert up.shape == (self._ndim,)
+        self._signature ^= up
+        assert self.check_blocks_fit_representations()
+
+    def check_blocks_fit_representations(self):
+        assert self._block_irreps.size == self._nblocks
+        assert len(self._blocks) == self._nblocks
+        row_rep = self.get_row_representation()
+        col_rep = self.get_column_representation()
+        r_indices = row_rep[1].searchsorted(self._block_irreps)
+        c_indices = col_rep[1].searchsorted(self._block_irreps)
+        assert (row_rep[1, r_indices] == self._block_irreps).all()
+        assert (col_rep[1, c_indices] == self._block_irreps).all()
+        for bi in range(self._nblocks):
+            nr = row_rep[0, r_indices[bi]]
+            nc = col_rep[0, c_indices[bi]]
+            assert nr > 0
+            assert nc > 0
+            assert self._blocks[bi].shape == (nr, nc)
+        return True
+
+    def merge_legs(self, i1, i2):
+        raise NotImplementedError("To do!")
+
+    ####################################################################################
+    # Private
+    ####################################################################################
+    @classmethod
+    def _blocks_from_dense(cls, arr, row_reps, col_reps, signature):
+        # not fully efficient: 1st construct U(1) symmetric tensor to get abelian blocks
+        # then split sector 0 into 0even and 0odd
+        # discard sectors with n < 0
+        # keep sectors with n > 0 as they are
+        u1_row_reps = tuple(_numba_O2_rep_to_U1(r) for r in row_reps)
+        u1_col_reps = tuple(_numba_O2_rep_to_U1(r) for r in col_reps)
+        tu1 = U1_SymmetricTensor.from_array(arr, u1_row_reps, u1_col_reps, signature)
+        return cls._blocks_from_U1(tu1, row_reps, col_reps)
+
+    @classmethod
+    def _blocks_from_U1(cls, tu1, row_reps, col_reps):
         i0 = tu1.block_irreps.searchsorted(0)
         if tu1.block_irreps[i0] == 0:  # tu1 is O(2) => i0 < len(tu1.block_irreps)
             blocks, block_irreps = split_b0(
@@ -703,13 +794,10 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         else:
             blocks = tu1.blocks[i0:]
             block_irreps = tu1.block_irreps[i0:]
-        return cls(row_reps, col_reps, blocks, block_irreps, tu1.signature)
+        return blocks, block_irreps
 
     def _tomatrix(self):
         return self.toU1().toarray(as_matrix=True)
-
-    def toabelian(self):
-        return self.toU1()
 
     def _generate_neg_sz_blocks(self):
         u1_row_reps = [None] * self._nrr
@@ -765,60 +853,6 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             isz -= 1
 
         return blocks
-
-    def toO2(self):
-        return self
-
-    def toU1(self):
-        # Sz < 0 blocks
-        u1_row_reps = tuple(_numba_O2_rep_to_U1(r) for r in self._row_reps)
-        u1_col_reps = tuple(_numba_O2_rep_to_U1(r) for r in self._col_reps)
-        blocks = self._generate_neg_sz_blocks()
-        block_sz = -self._block_irreps[::-1]
-
-        # Sz = 0 blocks (may not exist)
-        if self._block_irreps[0] < 1:
-            sz_values = U1_SymmetricTensor.combine_representations(
-                u1_row_reps, self._signature[: self._nrr]
-            )
-            rocoeff, rocol, recoeff, recol = _numba_b0_arrays(self._row_reps, sz_values)
-            sz_values = U1_SymmetricTensor.combine_representations(
-                u1_col_reps, ~self._signature[self._nrr :]
-            )
-            cocoeff, cocol, cecoeff, cecol = _numba_b0_arrays(self._col_reps, sz_values)
-            if self._block_irreps[0] == 0:  # no 0o block
-                # this should be highly uncommon, don't bother optimize
-                i1 = 1
-                b0o = np.zeros((0, 0), dtype=self.dtype)
-                b0e = self._blocks[0]
-                block_sz = np.hstack((block_sz, self._block_irreps[1:]))
-            elif self.nblocks > 1 and self._block_irreps[1] > 0:  # no 0e block
-                i1 = 1
-                b0o = self._blocks[0]
-                b0e = np.zeros((0, 0), dtype=self.dtype)
-                block_sz[-1] = 0
-                block_sz = np.hstack((block_sz, self._block_irreps[1:]))
-            else:
-                i1 = 2
-                b0o = self._blocks[0]
-                b0e = self._blocks[1]
-                block_sz = np.hstack((block_sz[:-1], self._block_irreps[2:]))
-            b0 = _numba_merge_b0oe(
-                b0o, rocoeff, rocol, cocoeff, cocol, b0e, recoeff, recol, cecoeff, cecol
-            )
-            blocks.append(b0)
-        else:
-            i1 = 0
-            block_sz = np.hstack((block_sz, self._block_irreps))
-
-        # Sz > 0 blocks
-        blocks.extend(self._blocks[i1:])
-
-        tu1 = U1_SymmetricTensor(
-            u1_row_reps, u1_col_reps, blocks, block_sz, self._signature
-        )
-        assert abs(tu1.norm() - self.norm()) <= _tol * self.norm()
-        return tu1
 
     def _permute_data(self, axes, nrr):
         # avoid numba problems with F-arrays
@@ -910,34 +944,3 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         b0 = tuple(b.T for b in self._blocks[: self._block_irreps.searchsorted(1)])
         blocks = b0 + b_neg
         return blocks, self._block_irreps
-
-    def update_signature(self, sign_update):
-        # blocks coeff are defined as identical to abelian U(1) case, which are
-        # unaffected by update_signature.
-        # Additionnaly, every O(2) representation is self-conjugate, therefore signature
-        # has no effect on O(2) tensor with current conventions (another fine convention
-        # would be to change a sign here, when conjugating 0odd and in toU1)
-        up = np.asarray(sign_update, dtype=bool)
-        assert up.shape == (self._ndim,)
-        self._signature ^= up
-        assert self.check_blocks_fit_representations()
-
-    def check_blocks_fit_representations(self):
-        assert self._block_irreps.size == self._nblocks
-        assert len(self._blocks) == self._nblocks
-        row_rep = self.get_row_representation()
-        col_rep = self.get_column_representation()
-        r_indices = row_rep[1].searchsorted(self._block_irreps)
-        c_indices = col_rep[1].searchsorted(self._block_irreps)
-        assert (row_rep[1, r_indices] == self._block_irreps).all()
-        assert (col_rep[1, c_indices] == self._block_irreps).all()
-        for bi in range(self._nblocks):
-            nr = row_rep[0, r_indices[bi]]
-            nc = col_rep[0, c_indices[bi]]
-            assert nr > 0
-            assert nc > 0
-            assert self._blocks[bi].shape == (nr, nc)
-        return True
-
-    def merge_legs(self, i1, i2):
-        raise NotImplementedError("To do!")

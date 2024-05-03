@@ -117,7 +117,28 @@ class SymmetricTensor:
             Signature of each representation. If None, assumed to be False for rows and
             True for columns.
         """
-        raise NotImplementedError("Must be defined in derived class")
+        row_reps = tuple(row_reps)
+        col_reps = tuple(col_reps)
+        in_reps = row_reps + col_reps
+        if arr.shape != tuple(cls.representation_dimension(rep) for rep in in_reps):
+            raise ValueError("Representations do not match array shape")
+
+        nrr = len(row_reps)
+        ndim = len(in_reps)
+        if signature is None:
+            signature = np.arange(ndim) >= nrr
+        else:
+            signature = np.ascontiguousarray(signature, dtype=bool)
+            if signature.shape != (arr.ndim,):
+                raise ValueError("Signature does not match array shape")
+
+        blocks, block_irreps = cls._blocks_from_dense(
+            arr, row_reps, col_reps, signature
+        )
+
+        st = cls(row_reps, col_reps, blocks, block_irreps, signature)
+        assert abs(st.norm() - lg.norm(arr)) <= 1e-13 * lg.norm(arr)
+        return st
 
     def toarray(self, *, as_matrix=False):
         """
