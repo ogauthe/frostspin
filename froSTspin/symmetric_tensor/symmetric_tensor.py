@@ -510,7 +510,7 @@ class SymmetricTensor:
         Returns
         -------
         st : SymmetricTensor with cls subclass
-            Random SymmetricTensor.
+            Random SymmetricTensor with np.float64 dtype.
         """
         if signature is None:
             signature = np.zeros((len(row_reps) + len(col_reps),), dtype=bool)
@@ -986,8 +986,8 @@ class SymmetricTensor:
         be truncated and no value or vector will be returned for the null eigenspace.
         """
 
-        def block_eigs(op, k, v0):
-            return slg.eigs(
+        def block_eigsh(op, k, v0):
+            return slg.eigsh(
                 op,
                 k=k,
                 v0=v0,
@@ -1006,7 +1006,7 @@ class SymmetricTensor:
             compute_vectors,
             rng,
             lambda b: robust_eigh(b, compute_vectors=compute_vectors),
-            block_eigs,
+            block_eigsh,
         )
 
     ####################################################################################
@@ -1286,7 +1286,7 @@ class SymmetricTensor:
             irr = block_irreps[bi]
             sh = block_shapes[bi]
             k = nvals // dims[bi] + 1
-            v0 = rng.normal(size=(sh[0],)).astype(dtype, copy=False)
+            v0 = rng.standard_normal(size=(sh[0],), dtype=dtype)
             if type(matmat) is cls:  # use constructed blocks
                 bj = matmat.block_irreps.searchsorted(irr)
                 if bj < matmat.nblocks and matmat.block_irreps[bj] == irr:
