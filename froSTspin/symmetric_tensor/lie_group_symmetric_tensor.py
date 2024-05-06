@@ -754,7 +754,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     idib = idirb[i_ir] * idicb[i_ic]
                     for bi in idib.nonzero()[0]:
                         # construct CG projector on block irrep elementary sector
-                        # see toarray fro a discussion of the contraction scheme
+                        # see _tomatrix for a discussion of the contraction scheme
 
                         rtree = irb_trees[i_ir, bi]
                         rtree = rtree.reshape(-1, rtree.shape[-1])
