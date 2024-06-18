@@ -77,13 +77,14 @@ def compute_mps_transfer_spectrum(
             tol=tol,
             compute_vectors=False,
         )
-        vals = vals.toarray()[:nvals]
+        vals = vals.toarray()
     except Exception as err:  # not very stable
         print("WARNING: transfer matrix spectrum computation failed")
         print("Error:", err)
         return np.nan * np.ones((nvals,))
 
-    vals = vals[np.abs(vals).argsort()[::-1]]
+    sortperm = np.abs(vals).argsort()[: -nvals - 1 : -1]
+    vals = vals[sortperm]
     vals /= vals[0]
 
     if np.linalg.norm(vals.imag) < 1e-6:  # norm(vals.real) ~ 1

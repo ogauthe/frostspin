@@ -157,7 +157,9 @@ class DiagonalTensor:
         for i in range(self._nblocks):
             deg = self._block_degen[i]
             dim = self._diagonal_blocks[i].size
-            arr[k : k + deg * dim].reshape(-1, deg, dim)[:] = self._diagonal_blocks[i]
+            arr[k : k + deg * dim].reshape(dim, deg)[:] = self._diagonal_blocks[i][
+                :, None
+            ]
             k += deg * dim
         assert k == arr.size
         if sort:
