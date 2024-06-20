@@ -118,7 +118,7 @@ class CTMRG:
 
         # set parameters.
         self.block_chi_ratio = float(ctm_params.get("block_chi_ratio", 1.1))
-        self.ncv_ratio = float(ctm_params.get("block_ncv_ratio", 2.0))
+        self.ncv_ratio = float(ctm_params.get("ncv_ratio", 2.0))
         self.cutoff = float(ctm_params.get("cutoff", 1e-11))
         self.degen_ratio = float(ctm_params.get("degen_ratio", 0.9999))
 
