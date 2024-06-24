@@ -90,13 +90,13 @@ def robust_eigh(a, *, compute_vectors=True):
     try:
         out = lg.eigh(a, eigvals_only=eigvals_only, driver=driver)
     except lg.LinAlgError as err:
-        print(f"Warning: eigh failed with evd, try evr. Error: {err}")
+        print(f"Warning: eigh: evd failed with {err}. Try evr")
         try:
             out = lg.eigh(
                 a, eigvals_only=eigvals_only, check_finite=False, driver="evr"
             )
         except lg.LinAlgError as err2:
-            print(f"Warning: eigh failed with evr, try evx. Error: {err2}")
+            print(f"Warning: eigh: evr failed with {err2}. Try evx")
             out = lg.eigh(
                 a, eigvals_only=eigvals_only, check_finite=False, driver="evx"
             )
@@ -130,7 +130,7 @@ def robust_svd(a, *, compute_vectors=True):
             a, full_matrices=False, compute_uv=compute_vectors, lapack_driver="gesdd"
         )
     except lg.LinAlgError as err:
-        print(f"Warning: svd failed with gesdd, try gesvd. Error: {err}")
+        print(f"Warning: svd: gesdd failed with {err}. Try gesvd")
         out = lg.svd(
             a,
             full_matrices=False,
