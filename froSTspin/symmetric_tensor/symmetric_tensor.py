@@ -193,7 +193,10 @@ class SymmetricTensor:
 
         # constructing new blocks, private and symmetry specific
         nrr = len(row_axes)
-        blocks, block_irreps = self._permute_data(axes, nrr)
+        if self._nblocks == 0:  # pathological case
+            blocks, block_irreps = (), self._block_irreps
+        else:
+            blocks, block_irreps = self._permute_data(axes, nrr)
 
         tp = type(self)(reps[:nrr], reps[nrr:], blocks, block_irreps, signature)
         assert abs(self.norm() - tp.norm()) <= 1e-13 * self.norm(), "norm is different"
