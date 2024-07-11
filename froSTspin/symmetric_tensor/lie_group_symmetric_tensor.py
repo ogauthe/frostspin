@@ -5,20 +5,25 @@ import scipy.linalg as lg
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 
 
+def set_non_writable(*args):
+    for a in args:
+        a.flags["W"] = False
+
+
 @numba.njit(parallel=True)
 def fill_blocks_out(
     new_blocks,
     old_blocks,
     old_nrr,
     ele_indices,
-    edir,
-    edic,
-    edor,
-    edoc,
     idirb,
     idicb,
     idorb,
     idocb,
+    edir,
+    edic,
+    edor,
+    edoc,
     block_inds,
     slices_ir,
     slices_ic,
@@ -385,9 +390,11 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         singlet = cls.singlet()[1, 0]
 
         # convention: return elementary unitary blocked sliced for IN irrep blocks
+        non_writable_array = np.empty((2, 2))
+        set_non_writable(non_writable_array)
         isometry_blocks = numba.typed.Dict.empty(
             key_type=numba.types.UniTuple(numba.types.int64, 2),
-            value_type=numba.types.float64[:, ::1],
+            value_type=numba.typeof(non_writable_array),
         )
 
         # need to add idirb and idicb axes in permutation
@@ -537,6 +544,8 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             == (idorb[ele_indices[:, 2]] * idocb[ele_indices[:, 3]]).sum(axis=1)
         ).all(), "number of coefficient not conserved"
 
+        set_non_writable(ele_indices, idirb, idicb, idorb, idocb, block_irreps_out)
+
         structual_data = (
             ele_indices,
             idirb,
@@ -621,6 +630,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     k += dbo
 
                 assert k == isometry_bi.shape[0]
+                set_non_writable(isometry_bi)
                 ele_unitary_blocks.append(isometry_bi)
 
         return ele_unitary_blocks
@@ -671,6 +681,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                 self._row_reps, self._col_reps, self._signature
             )
             _, block_inds = (self._block_irreps[:, None] == block_irreps_in).nonzero()
+            block_inds = np.ascontiguousarray(block_inds)
             # possible also filter ele_indices with (idirb.T @ idicb).nonzero()[0]
             # probably not worth it
         else:
@@ -682,27 +693,40 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         slices_oc = (edoc[:, None] * idocb).cumsum(axis=0)
 
         # need to initalize blocks_out in case of missing blocks_in
-        rshb = slices_or[-1]
-        cshb = slices_oc[-1]
-        dtype = self.dtype
+        old_blocks = tuple(np.ascontiguousarray(b) for b in self._blocks)
+        set_non_writable(
+            edir,
+            edic,
+            edor,
+            edoc,
+            block_inds,
+            slices_ir,
+            slices_ic,
+            slices_or,
+            slices_oc,
+            external_degen_ir,
+            external_degen_ic,
+            *old_blocks,
+        )
         new_blocks = tuple(
-            np.zeros(sh, dtype=dtype) for sh in zip(rshb, cshb, strict=True)
+            np.zeros(sh, dtype=self.dtype)
+            for sh in zip(slices_or[-1], slices_oc[-1], strict=True)
         )
 
         data_perm = (0, self._nrr + 1, *(axes + 1 + (axes >= self._nrr)))
         fill_blocks_out(
             new_blocks,
-            tuple(np.ascontiguousarray(b) for b in self._blocks),
+            old_blocks,
             self._nrr,
             ele_indices,
-            edir,
-            edic,
-            edor,
-            edoc,
             idirb,
             idicb,
             idorb,
             idocb,
+            edir,
+            edic,
+            edor,
+            edoc,
             block_inds,
             slices_ir,
             slices_ic,
