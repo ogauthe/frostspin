@@ -5,7 +5,7 @@ import scipy.linalg as lg
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 
 
-@numba.njit
+@numba.njit(parallel=True)
 def fill_blocks_out(
     new_blocks,
     old_blocks,
@@ -33,11 +33,11 @@ def fill_blocks_out(
     nblocks_out = len(new_blocks)
     NDIMP2 = len(data_perm)
 
-    for i_ele, indices in enumerate(ele_indices):
+    for i_ele in numba.prange(len(ele_indices)):
         # edor = external degeneracy out row
         # idicb = internal degeneracy in column block
 
-        i_ir, i_ic, i_or, i_oc = indices
+        i_ir, i_ic, i_or, i_oc = ele_indices[i_ele]
         edir_ele = edir[i_ir]
         edic_ele = edic[i_ic]
         ele_sh = np.zeros((NDIMP2,), dtype=np.int64)
