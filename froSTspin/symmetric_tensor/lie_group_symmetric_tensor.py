@@ -76,7 +76,7 @@ def fill_blocks_out(
         ]
         edir_ele = edir[i_old_row]
         edic_ele = edic[i_old_col]
-        ele_sh = np.zeros((NDIMP2,), dtype=np.int64)
+        ele_sh = np.empty((NDIMP2,), dtype=np.int64)
         ele_sh[1:old_nrrp1] = old_row_external_mult[i_old_row]
         ele_sh[old_nrrp1 + 1 :] = old_col_external_mult[i_old_col]
         edor_ele = edor[i_new_row]
@@ -133,9 +133,8 @@ def fill_blocks_out(
                 # but not for its rows = "OUT"
                 # meaning it is applied to "IN" irrep block data, but generates data
                 # for all OUT irrep blocks
-                new_simple_block += (
-                    isometry_in_blocks[i_simple_block, i_sector] @ swapped_old_sym_mat
-                )
+                unitary_rows = isometry_in_blocks[i_simple_block, i_sector]
+                new_simple_block += unitary_rows @ swapped_old_sym_mat
 
         # transpose new_simple_block only after every IN blocks have been processed
         oshift = 0
@@ -145,7 +144,7 @@ def fill_blocks_out(
             idob = idorb_ele * idocb_ele
 
             if idob > 0:
-                new_symmetric_block = new_simple_block[oshift : oshift + idob].copy()
+                new_symmetric_block = new_simple_block[oshift : oshift + idob]
                 sh = (idorb_ele, idocb_ele, edor_ele, edoc_ele)
                 new_symmetric_block = new_symmetric_block.reshape(sh).transpose(
                     0, 2, 1, 3
