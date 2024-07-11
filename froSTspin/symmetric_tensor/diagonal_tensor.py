@@ -88,6 +88,12 @@ class DiagonalTensor:
             )
         return NotImplemented  # call x.__rmul__(self)
 
+    def __rmul__(self, x):
+        if np.issubdtype(type(x), np.number):
+            return self * x
+        msg = f"Unsupported operation for type: {type(x)}"
+        raise TypeError(msg)
+
     def __imul__(self, x):
         assert np.issubdtype(type(x), np.number)
         for db in self._diagonal_blocks:
