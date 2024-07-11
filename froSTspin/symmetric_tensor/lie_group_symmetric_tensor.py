@@ -14,7 +14,6 @@ def set_non_writable(*args):
 def fill_blocks_out(
     new_blocks,
     old_blocks,
-    old_nrr,
     ele_indices,
     idirb,
     idicb,
@@ -37,6 +36,7 @@ def fill_blocks_out(
     dtype = new_blocks[0].dtype
     nblocks_out = len(new_blocks)
     NDIMP2 = len(data_perm)
+    old_nrr = data_perm[1] - 1
 
     for i_ele in numba.prange(len(ele_indices)):
         # edor = external degeneracy out row
@@ -427,9 +427,9 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         sig_ro = signature_out[:nrr_out]
         sig_co = ~signature_out[nrr_out:]
 
-        xxx = 0
-        for i_ele in range(n_ele_ri * n_ele_ci):
-            i_mul = np.array(np.unravel_index(i_ele, elementary_block_per_axis))
+        i_ele = 0
+        for i0 in range(n_ele_ri * n_ele_ci):
+            i_mul = np.array(np.unravel_index(i0, elementary_block_per_axis))
             reps_ei = [None] * ndim
             for i in range(ndim):
                 irr = in_reps[i][1, i_mul[i]]
@@ -535,8 +535,8 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                 # map ele in_blocks_index to full tensor in_blocks_index
                 for i, eub in enumerate(ele_unitary):
                     bi_in = ele_in_binds[i]
-                    isometry_blocks[xxx, bi_in] = eub
-                xxx += 1
+                    isometry_blocks[i_ele, bi_in] = eub
+                i_ele += 1
 
         ele_indices = np.array(ele_indices)
         assert (
@@ -666,9 +666,8 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         edor = external_degen_or.prod(axis=1)
         edoc = external_degen_oc.prod(axis=1)
 
-        nblocks_out = len(block_irreps_out)
-        assert idorb.shape[1] == nblocks_out
-        assert idocb.shape[1] == nblocks_out
+        assert idorb.shape[1] == len(block_irreps_out)
+        assert idocb.shape[1] == len(block_irreps_out)
         assert external_degen_or.shape[0] == idorb.shape[0]
         assert external_degen_oc.shape[0] == idocb.shape[0]
         assert external_degen_ir.shape[0] == idirb.shape[0]
@@ -717,7 +716,6 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         fill_blocks_out(
             new_blocks,
             old_blocks,
-            self._nrr,
             ele_indices,
             idirb,
             idicb,
