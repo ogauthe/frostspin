@@ -10,6 +10,38 @@ def set_non_writable(*args):
         a.flags["W"] = False
 
 
+@numba.njit
+def _numba_transpose_reshape(old_mat, r1, r2, c1, c2, old_nrr, old_tensor_shape, perm):
+    """
+    numba version of
+    old_mat[r1:r2, c1:c2].reshape(old_tensor_shape).transpose(perm)
+    """
+    NDIM = len(perm)
+
+    old_tensor_strides = np.empty((NDIM,), dtype=np.int64)
+    old_tensor_strides[old_nrr - 1] = old_mat.strides[0]
+    old_tensor_strides[: old_nrr - 1] = (
+        old_mat.strides[0] * np.cumprod(old_tensor_shape[old_nrr - 1 : 0 : -1])[::-1]
+    )
+    old_tensor_strides[old_nrr : NDIM - 1] = (
+        old_mat.itemsize * np.cumprod(old_tensor_shape[NDIM - 1 : old_nrr : -1])[::-1]
+    )
+    old_tensor_strides[NDIM - 1] = old_mat.itemsize
+
+    new_tensor_shape = np.empty((NDIM,), dtype=np.int64)
+    new_tensor_strides = np.empty((NDIM,), dtype=np.int64)
+    for i in range(NDIM):
+        new_tensor_shape[i] = old_tensor_shape[perm[i]]
+        new_tensor_strides[i] = old_tensor_strides[perm[i]]
+
+    sht = numba.np.unsafe.ndarray.to_fixed_tuple(new_tensor_shape, NDIM)
+    stridest = numba.np.unsafe.ndarray.to_fixed_tuple(new_tensor_strides, NDIM)
+    permuted = np.lib.stride_tricks.as_strided(
+        old_mat[r1:r2, c1:c2], shape=sht, strides=stridest
+    )
+    return permuted
+
+
 @numba.njit(parallel=True)
 def fill_blocks_out(
     new_matrix_blocks,
@@ -36,7 +68,7 @@ def fill_blocks_out(
     dtype = new_matrix_blocks[0].dtype
     n_new_matrix_blocks = len(new_matrix_blocks)
     NDIMP2 = len(data_perm)
-    old_nrr = data_perm[1] - 1
+    old_nrrp1 = data_perm[1]
 
     for i_simple_block in numba.prange(len(simple_block_indices)):
         # edor = external degeneracy out row
@@ -48,8 +80,8 @@ def fill_blocks_out(
         edir_ele = edir[i_old_row]
         edic_ele = edic[i_old_col]
         ele_sh = np.zeros((NDIMP2,), dtype=np.int64)
-        ele_sh[1 : old_nrr + 1] = old_row_external_mult[i_old_row]
-        ele_sh[old_nrr + 2 :] = old_col_external_mult[i_old_col]
+        ele_sh[1:old_nrrp1] = old_row_external_mult[i_old_row]
+        ele_sh[old_nrrp1 + 1 :] = old_col_external_mult[i_old_col]
         edor_ele = edor[i_new_row]
         edoc_ele = edoc[i_new_col]
         ext_mult = edor_ele * edoc_ele
@@ -64,39 +96,40 @@ def fill_blocks_out(
             struct_mult_sector = idirb[i_old_row, i_sector] * idicb[i_old_col, i_sector]
             # need to check if this block_irrep_in appears in elementary_block
             if struct_mult_sector > 0:
-                sir2 = slices_ir[i_old_row, i_sector]
-                sir1 = sir2 - edir_ele * idirb[i_old_row, i_sector]
-                sic2 = slices_ic[i_old_col, i_sector]
-                sic1 = sic2 - edic_ele * idicb[i_old_col, i_sector]
-
+                r2 = slices_ir[i_old_row, i_sector]
+                c2 = slices_ic[i_old_col, i_sector]
                 # there are two operations: changing basis with elementary AND
                 # swapping axes in external degeneracy part. Transpose tensor BEFORE
                 # applying unitary to do only one transpose
 
-                old_symmetric_block = old_matrix_blocks[i_existing_sector][
-                    sir1:sir2, sic1:sic2
-                ]
+                ele_sh[0] = idirb[i_old_row, i_sector]
+                ele_sh[old_nrrp1] = idicb[i_old_col, i_sector]
 
                 # initial tensor shape = (
                 # internal degeneracy in row block,
                 # *external degeneracies per in row axes,
                 # internal degeneracy in col block,
                 # *external degeneracies per in col axes)
-                ele_sh[0] = idirb[i_old_row, i_sector]
-                ele_sh[old_nrr + 1] = idicb[i_old_col, i_sector]
-                sht = numba.np.unsafe.ndarray.to_fixed_tuple(ele_sh, NDIMP2)
-                # sht = ele_sh
-                old_symmetric_block = old_symmetric_block.copy().reshape(sht)
-
+                #
                 # transpose to shape = (
                 # internal degeneracy in row block,
                 # internal degeneracy in col, block,
                 # *external degeneracies per OUT row axes,
                 # *external degeneracies per OUT col axes)
-                old_symmetric_block = (
-                    old_symmetric_block.transpose(data_perm)
-                    .copy()
-                    .reshape(struct_mult_sector, ext_mult)
+
+                swapped_old_sym_block = _numba_transpose_reshape(
+                    old_matrix_blocks[i_existing_sector],
+                    r2 - edir_ele * idirb[i_old_row, i_sector],
+                    r2,
+                    c2 - edic_ele * idicb[i_old_col, i_sector],
+                    c2,
+                    old_nrrp1,
+                    ele_sh,
+                    data_perm,
+                )
+
+                swapped_old_sym_mat = swapped_old_sym_block.copy().reshape(
+                    struct_mult_sector, ext_mult
                 )
 
                 # convention: iso_iblock is sliced irrep-wise on its columns = "IN"
@@ -104,7 +137,7 @@ def fill_blocks_out(
                 # meaning it is applied to "IN" irrep block data, but generates data
                 # for all OUT irrep blocks
                 new_simple_block += (
-                    isometry_in_blocks[i_simple_block, i_sector] @ old_symmetric_block
+                    isometry_in_blocks[i_simple_block, i_sector] @ swapped_old_sym_mat
                 )
 
         # transpose new_simple_block only after every IN blocks have been processed
@@ -657,16 +690,16 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
         return ele_unitary_blocks
 
-    def _lie_permute_data(self, axes, nrr_out, structural_data):
+    def _lie_permute_data(self, axes, new_nrr, structural_data):
         """
         Move data and construct new data blocks
         """
         # 3 nested loops: elementary blocks, rows, columns
         # change loop order?
 
-        in_reps = self._row_reps + self._col_reps
-        out_row_reps = tuple(in_reps[i] for i in axes[:nrr_out])
-        out_col_reps = tuple(in_reps[i] for i in axes[nrr_out:])
+        old_reps = self._row_reps + self._col_reps
+        new_row_reps = tuple(old_reps[i] for i in axes[:new_nrr])
+        new_col_reps = tuple(old_reps[i] for i in axes[new_nrr:])
 
         (
             simple_block_indices,
@@ -683,8 +716,8 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
         edir = old_row_external_mult.prod(axis=1)
         edic = old_col_external_mult.prod(axis=1)
-        edor = _numba_compute_external_degen(out_row_reps).prod(axis=1)
-        edoc = _numba_compute_external_degen(out_col_reps).prod(axis=1)
+        edor = _numba_compute_external_degen(new_row_reps).prod(axis=1)
+        edoc = _numba_compute_external_degen(new_col_reps).prod(axis=1)
 
         assert idorb.shape[1] == len(block_irreps_out)
         assert idocb.shape[1] == len(block_irreps_out)
@@ -1039,9 +1072,9 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         axes = tuple(range(self._nrr, self._ndim)) + tuple(range(self._nrr))
         return self._permute_data(axes, self._ndim - self._nrr)
 
-    def _permute_data(self, axes, nrr):
+    def _permute_data(self, axes, new_nrr):
         si = (1 << np.arange(self._ndim)) @ self._signature
-        key = [self._ndim, self._nrr, nrr, si, *axes]
+        key = [self._ndim, self._nrr, new_nrr, si, *axes]
         in_reps = self._row_reps + self._col_reps
         for r in in_reps:
             key.append(r.shape[1])
@@ -1052,11 +1085,11 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             structural_data = self._structural_data_dic[key]
         except KeyError:
             structural_data = self._compute_structural_data(
-                in_reps, self._nrr, axes, nrr, self._signature
+                in_reps, self._nrr, axes, new_nrr, self._signature
             )
             self._structural_data_dic[key] = structural_data
 
-        block_irreps, blocks = self._lie_permute_data(axes, nrr, structural_data)
+        block_irreps, blocks = self._lie_permute_data(axes, new_nrr, structural_data)
         return blocks, block_irreps
 
     def update_signature(self, sign_update):
