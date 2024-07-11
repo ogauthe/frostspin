@@ -2,12 +2,9 @@ import numba
 import numpy as np
 import scipy.linalg as lg
 
+from froSTspin.misc_tools.numba_tools import set_readonly_flag
+
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
-
-
-def set_non_writable(*args):
-    for a in args:
-        a.flags["W"] = False
 
 
 @numba.njit
@@ -440,7 +437,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
         # convention: return elementary unitary blocked sliced for IN irrep blocks
         non_writable_array = np.empty((2, 2))
-        set_non_writable(non_writable_array)
+        set_readonly_flag(non_writable_array)
         isometry_blocks = numba.typed.Dict.empty(
             key_type=numba.types.UniTuple(numba.types.int64, 2),
             value_type=numba.typeof(non_writable_array),
@@ -597,7 +594,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             ).sum(axis=1)
         ).all(), "number of coefficient not conserved"
 
-        set_non_writable(
+        set_readonly_flag(
             simple_block_indices, idirb, idicb, idorb, idocb, block_irreps_out
         )
 
@@ -685,7 +682,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     k += dbo
 
                 assert k == isometry_bi.shape[0]
-                set_non_writable(isometry_bi)
+                set_readonly_flag(isometry_bi)
                 ele_unitary_blocks.append(isometry_bi)
 
         return ele_unitary_blocks
@@ -748,7 +745,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
         # need to initalize blocks_out in case of missing blocks_in
         old_matrix_blocks = tuple(np.ascontiguousarray(b) for b in self._blocks)
-        set_non_writable(
+        set_readonly_flag(
             edir,
             edic,
             edor,

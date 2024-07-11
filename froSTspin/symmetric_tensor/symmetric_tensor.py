@@ -2,6 +2,7 @@ import numpy as np
 import scipy.linalg as lg
 import scipy.sparse.linalg as slg
 
+from froSTspin.misc_tools.numba_tools import set_writable_flag
 from froSTspin.misc_tools.svd_tools import (
     find_chi_largest,
     robust_eigh,
@@ -423,11 +424,13 @@ class SymmetricTensor:
         )
 
     def __imul__(self, x):
+        set_writable_flag(*self._blocks)
         for b in self._blocks:
             b[:] *= x
         return self
 
     def __itruediv__(self, x):
+        set_writable_flag(*self._blocks)
         for b in self._blocks:
             b[:] /= x
         return self
