@@ -1233,6 +1233,7 @@ class SymmetricTensor:
 
         # 3) define functions do deal with dense and sparse blocks
         def matvec(x, st0, bj):
+            st0.blocks[0].flags["W"] = True  # st0 may be permuted and set readonly
             st0.blocks[0][:, 0] = x
             st1 = matmat(st0)
             y = st1.blocks[bj].ravel()
