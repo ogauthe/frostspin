@@ -64,6 +64,7 @@ def fill_blocks_out(
 ):
     dtype = new_matrix_blocks[0].dtype
     n_new_matrix_blocks = len(new_matrix_blocks)
+    n_old_matrix_blocks = len(old_matrix_blocks)
     NDIMP2 = len(data_perm)
     old_nrrp1 = data_perm[1]
 
@@ -133,7 +134,9 @@ def fill_blocks_out(
                 # but not for its rows = "OUT"
                 # meaning it is applied to "IN" irrep block data, but generates data
                 # for all OUT irrep blocks
-                unitary_rows = isometry_in_blocks[i_simple_block, i_sector]
+                unitary_rows = isometry_in_blocks[
+                    i_simple_block * n_old_matrix_blocks + i_sector
+                ]
                 new_simple_block += unitary_rows @ swapped_old_sym_mat
 
         # transpose new_simple_block only after every IN blocks have been processed
@@ -435,12 +438,10 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         singlet = cls.singlet()[1, 0]
 
         # convention: return elementary unitary blocked sliced for IN irrep blocks
-        non_writable_array = np.empty((2, 2))
-        set_readonly_flag(non_writable_array)
-        isometry_blocks = numba.typed.Dict.empty(
-            key_type=numba.types.UniTuple(numba.types.int64, 2),
-            value_type=numba.typeof(non_writable_array),
-        )
+        dummy_ar = np.empty((0, 0))
+        dummy_ar.flags["W"] = False
+        dummy_list = numba.typed.List([dummy_ar for _ in block_irreps_in])
+        isometry_blocks = numba.typed.List()
 
         # need to add idirb and idicb axes in permutation
         perm = np.empty((ndim + 2,), dtype=int)
@@ -578,10 +579,12 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
                 assert idirb[ir_in] @ idicb[ic_in] == idorb[ir_out] @ idocb[ic_out]
                 # map ele in_blocks_index to full tensor in_blocks_index
+                ele_unitary_list = dummy_list.copy()
                 for i, eub in enumerate(ele_unitary):
                     bi_in = ele_in_binds[i]
-                    isometry_blocks[i_ele, bi_in] = eub
+                    ele_unitary_list[bi_in] = eub
                 i_ele += 1
+                isometry_blocks.extend(ele_unitary_list)
 
         simple_block_indices = np.array(simple_block_indices)
         assert (
