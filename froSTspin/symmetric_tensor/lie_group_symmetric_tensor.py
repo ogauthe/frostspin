@@ -137,7 +137,7 @@ def fill_blocks_out(
                 # but not for its rows = "OUT"
                 # meaning it is applied to "IN" irrep block data, but generates data
                 # for all OUT irrep blocks
-                unitary_rows = isometry_in_blocks[np.int64(i_simple_block), i_sector]
+                unitary_rows = isometry_in_blocks[i_simple_block, i_sector]
                 new_simple_block += unitary_rows @ swapped_old_sym_mat
 
         # transpose new_simple_block only after every IN blocks have been processed
