@@ -39,7 +39,7 @@ def _numba_transpose_reshape(old_mat, r1, r2, c1, c2, old_nrr, old_tensor_shape,
     return permuted
 
 
-@numba.njit(parallel=True)
+@numba.njit
 def fill_blocks_out(
     old_matrix_blocks,
     simple_block_indices,
@@ -71,7 +71,7 @@ def fill_blocks_out(
         for i in range(n_new_matrix_blocks)
     ]
 
-    for i_simple_block in numba.prange(len(simple_block_indices)):
+    for i_simple_block in range(len(simple_block_indices)):
         # edor = external degeneracy out row
         # idicb = internal degeneracy in column block
 
