@@ -41,6 +41,7 @@ def _numba_transpose_reshape(old_mat, r1, r2, c1, c2, old_nrr, old_tensor_shape,
 
 @numba.njit
 def fill_blocks_out(
+    new_matrix_blocks,
     old_matrix_blocks,
     simple_block_indices,
     idirb,
@@ -61,15 +62,10 @@ def fill_blocks_out(
     isometry_in_blocks,
     data_perm,
 ):
-    dtype = old_matrix_blocks[0].dtype
-    n_new_matrix_blocks = slices_or.shape[1]
+    dtype = new_matrix_blocks[0].dtype
+    n_new_matrix_blocks = len(new_matrix_blocks)
     NDIMP2 = len(data_perm)
     old_nrrp1 = data_perm[1]
-
-    new_matrix_blocks = [
-        np.zeros((slices_or[-1, i], slices_oc[-1, i]), dtype=dtype)
-        for i in range(n_new_matrix_blocks)
-    ]
 
     for i_simple_block in range(len(simple_block_indices)):
         # edor = external degeneracy out row
@@ -163,8 +159,6 @@ def fill_blocks_out(
                 soc1 = soc2 - sh2[1]
                 new_matrix_blocks[ibo][sor1:sor2, soc1:soc2] = new_symmetric_block
                 oshift += idob
-
-    return new_matrix_blocks
 
 
 @numba.njit
@@ -764,9 +758,14 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             old_col_external_mult,
             *old_matrix_blocks,
         )
+        new_matrix_blocks = tuple(
+            np.zeros(sh, dtype=self.dtype)
+            for sh in zip(slices_or[-1], slices_oc[-1], strict=True)
+        )
 
         data_perm = (0, self._nrr + 1, *(axes + 1 + (axes >= self._nrr)))
-        new_matrix_blocks = fill_blocks_out(
+        fill_blocks_out(
+            new_matrix_blocks,
             old_matrix_blocks,
             simple_block_indices,
             idirb,
