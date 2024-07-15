@@ -63,7 +63,7 @@ def fill_blocks_out(
 ):
     dtype = new_matrix_blocks[0].dtype
     n_new_matrix_blocks = len(new_matrix_blocks)
-    n_old_matrix_blocks = len(old_matrix_blocks)
+    n_old_sectors = idirb.shape[1]
     NDIMP2 = len(data_perm)
     old_nrrp1 = data_perm[1]
 
@@ -134,7 +134,7 @@ def fill_blocks_out(
                 # meaning it is applied to "IN" irrep block data, but generates data
                 # for all OUT irrep blocks
                 unitary_rows = isometry_in_blocks[
-                    i_simple_block * n_old_matrix_blocks + i_sector
+                    i_simple_block * n_old_sectors + i_sector
                 ]
                 new_simple_block += unitary_rows @ swapped_old_sym_mat
 
@@ -439,7 +439,6 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         # convention: return elementary unitary blocked sliced for IN irrep blocks
         dummy_ar = np.empty((0, 0))
         dummy_ar.flags["W"] = False
-        dummy_list = numba.typed.List([dummy_ar for _ in block_irreps_in])
         isometry_blocks = numba.typed.List()
 
         # need to add idirb and idicb axes in permutation
@@ -578,7 +577,8 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
                 assert idirb[ir_in] @ idicb[ic_in] == idorb[ir_out] @ idocb[ic_out]
                 # map ele in_blocks_index to full tensor in_blocks_index
-                ele_unitary_list = dummy_list.copy()
+                ele_unitary_list = numba.typed.List([dummy_ar for _ in block_irreps_in])
+
                 for i, eub in enumerate(ele_unitary):
                     bi_in = ele_in_binds[i]
                     ele_unitary_list[bi_in] = eub
