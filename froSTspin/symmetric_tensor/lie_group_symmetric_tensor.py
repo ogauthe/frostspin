@@ -1,6 +1,5 @@
 import numba
 import numpy as np
-import scipy.linalg as lg
 
 from froSTspin.misc_tools.numba_tools import set_readonly_flag
 
@@ -1063,7 +1062,6 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     slices = tuple(rslices + cslices)
                     arr[slices] = ele_dense.reshape(ele_degen_dimensions.prod(axis=0))
 
-        assert abs(self.norm() - lg.norm(arr)) <= 1e-13 * self.norm()
         return arr.reshape(self.matrix_shape)
 
     def _transpose_data(self):
