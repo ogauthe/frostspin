@@ -38,6 +38,7 @@ def _numba_transpose_reshape(old_mat, r1, r2, c1, c2, old_nrr, old_tensor_shape,
     return permuted
 
 
+@numba.njit
 def fill_blocks_out(
     new_matrix_blocks,
     old_matrix_blocks,
