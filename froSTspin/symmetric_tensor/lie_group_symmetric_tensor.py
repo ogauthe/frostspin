@@ -7,6 +7,21 @@ from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 
 
 @numba.njit
+def _numba_compute_tensor_strides(mat_strides, nrr, tensor_shape):
+    ndim = len(tensor_shape)
+    tensor_strides = np.empty((ndim,), dtype=np.int64)
+    tensor_strides[nrr - 1] = mat_strides[0]
+    tensor_strides[: nrr - 1] = (
+        mat_strides[0] * np.cumprod(tensor_shape[nrr - 1 : 0 : -1])[::-1]
+    )
+    tensor_strides[nrr : ndim - 1] = (
+        mat_strides[1] * np.cumprod(tensor_shape[ndim - 1 : nrr : -1])[::-1]
+    )
+    tensor_strides[ndim - 1] = mat_strides[1]
+    return tensor_strides
+
+
+@numba.njit
 def _numba_transpose_reshape(old_mat, r1, r2, c1, c2, old_nrr, old_tensor_shape, perm):
     """
     numba version of
@@ -14,16 +29,9 @@ def _numba_transpose_reshape(old_mat, r1, r2, c1, c2, old_nrr, old_tensor_shape,
     """
     NDIM = len(perm)
 
-    old_tensor_strides = np.empty((NDIM,), dtype=np.int64)
-    old_tensor_strides[old_nrr - 1] = old_mat.strides[0]
-    old_tensor_strides[: old_nrr - 1] = (
-        old_mat.strides[0] * np.cumprod(old_tensor_shape[old_nrr - 1 : 0 : -1])[::-1]
+    old_tensor_strides = _numba_compute_tensor_strides(
+        old_mat.strides, old_nrr, old_tensor_shape
     )
-    old_tensor_strides[old_nrr : NDIM - 1] = (
-        old_mat.itemsize * np.cumprod(old_tensor_shape[NDIM - 1 : old_nrr : -1])[::-1]
-    )
-    old_tensor_strides[NDIM - 1] = old_mat.itemsize
-
     new_tensor_shape = np.empty((NDIM,), dtype=np.int64)
     new_tensor_strides = np.empty((NDIM,), dtype=np.int64)
     for i in range(NDIM):
