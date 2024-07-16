@@ -8,16 +8,14 @@ from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 
 @numba.njit
 def _numba_compute_tensor_strides(mat_strides, nrr, tensor_shape):
-    ndim = len(tensor_shape)
-    tensor_strides = np.empty((ndim,), dtype=np.int64)
+    NDIM = len(tensor_shape)
+    tensor_strides = np.empty((NDIM,), dtype=np.int64)
+    tensor_strides[NDIM - 1] = mat_strides[1]
+    for i in range(1, NDIM - nrr):
+        tensor_strides[NDIM - i - 1] = tensor_strides[NDIM - i] * tensor_shape[NDIM - i]
     tensor_strides[nrr - 1] = mat_strides[0]
-    tensor_strides[: nrr - 1] = (
-        mat_strides[0] * np.cumprod(tensor_shape[nrr - 1 : 0 : -1])[::-1]
-    )
-    tensor_strides[nrr : ndim - 1] = (
-        mat_strides[1] * np.cumprod(tensor_shape[ndim - 1 : nrr : -1])[::-1]
-    )
-    tensor_strides[ndim - 1] = mat_strides[1]
+    for i in range(1, nrr):
+        tensor_strides[nrr - 1 - i] = tensor_strides[nrr - i] * tensor_shape[nrr - i]
     return tensor_strides
 
 
@@ -129,7 +127,7 @@ def fill_blocks_out(
                     c2 - edic_ele * idicb[i_old_col, i_sector],
                     c2,
                     old_nrrp1,
-                    ele_sh,
+                    numba.np.unsafe.ndarray.to_fixed_tuple(ele_sh, NDIMP2),
                     data_perm,
                 )
 
