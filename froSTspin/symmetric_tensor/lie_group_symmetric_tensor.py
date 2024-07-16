@@ -154,20 +154,26 @@ def fill_blocks_out(
             idob = idorb_ele * idocb_ele
 
             if idob > 0:
-                new_symmetric_block = new_simple_block[oshift : oshift + idob]
+                new_sym_block = new_simple_block[oshift : oshift + idob]
                 sh = (idorb_ele, idocb_ele, edor_ele, edoc_ele)
-                new_symmetric_block = new_symmetric_block.reshape(sh).transpose(
-                    0, 2, 1, 3
-                )
-                sh2 = (sh[0] * sh[2], sh[1] * sh[3])
-                new_symmetric_block = new_symmetric_block.copy().reshape(sh2)
-
-                # different IN block irreps may contribute: need +=
+                permuted_new_sym_block = new_sym_block.reshape(sh).transpose(0, 2, 1, 3)
                 sor2 = slices_or[i_new_row, ibo]
-                sor1 = sor2 - sh2[0]
+                sor1 = sor2 - edor_ele * idorb_ele
                 soc2 = slices_oc[i_new_col, ibo]
-                soc1 = soc2 - sh2[1]
-                new_matrix_blocks[ibo][sor1:sor2, soc1:soc2] = new_symmetric_block
+                soc1 = soc2 - edoc_ele * idocb_ele
+                old_strides = new_matrix_blocks[ibo].strides
+                tensor_strides = (
+                    edor_ele * old_strides[0],
+                    old_strides[0],
+                    edoc_ele * old_strides[1],
+                    old_strides[1],
+                )
+                inplace = np.lib.stride_tricks.as_strided(
+                    new_matrix_blocks[ibo][sor1:sor2, soc1:soc2],
+                    shape=(idorb_ele, edor_ele, idocb_ele, edoc_ele),
+                    strides=tensor_strides,
+                )
+                inplace[:] = permuted_new_sym_block
                 oshift += idob
 
 
