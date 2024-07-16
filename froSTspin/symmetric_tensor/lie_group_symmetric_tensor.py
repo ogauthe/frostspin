@@ -647,15 +647,15 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     out_block = out_data[oshift : oshift + idob]
                     sh = (idorb_ele, idocb_ele, edor_ele, edoc_ele)
                     out_block = out_block.reshape(sh).swapaxes(1, 2)
-                    sh2 = (edor_ele * idorb_ele, edoc_ele * idocb_ele)
-                    out_block = out_block.reshape(sh2)
 
                     # different IN block irreps may contribute: need +=
                     sor2 = slices_or[i_or, ibo]
                     sor1 = sor2 - edor_ele * idorb_ele
                     soc2 = slices_oc[i_oc, ibo]
                     soc1 = soc2 - edoc_ele * idocb_ele
-                    blocks_out[ibo][sor1:sor2, soc1:soc2] = out_block
+                    blocks_out[ibo][sor1:sor2, soc1:soc2].reshape(out_block.shape)[
+                        :
+                    ] = out_block
                     oshift += idob
 
         return block_irreps_out, blocks_out
