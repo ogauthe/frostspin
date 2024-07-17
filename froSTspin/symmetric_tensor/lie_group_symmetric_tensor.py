@@ -45,6 +45,125 @@ def _numba_transpose_reshape(old_mat, r1, r2, c1, c2, old_nrr, old_tensor_shape,
 
 
 @numba.njit
+def permute_simple_block(
+    old_matrix_blocks,
+    new_matrix_blocks,
+    data_perm,
+    existing_matrix_block_inds,
+    unitary_row_sectors,
+    old_row_sectors_struct_mult,
+    old_col_sectors_struct_mult,
+    new_row_sectors_struct_mult,
+    new_col_sectors_struct_mult,
+    old_row_ext_mult,
+    old_col_ext_mult,
+    new_row_ext_mult,
+    new_col_ext_mult,
+    old_domain_ext_mult,
+    old_codomain_ext_mult,
+    old_row_sector_matrix_indices,
+    old_col_sector_matrix_indices,
+    new_row_sector_matrix_indices,
+    new_col_sector_matrix_indices,
+):
+    old_nrrp1 = data_perm[1]
+    NDIMP2 = len(data_perm)
+    simple_shape = np.empty((NDIMP2,), dtype=np.int64)
+    simple_shape[1:old_nrrp1] = old_domain_ext_mult
+    simple_shape[old_nrrp1 + 1 :] = old_codomain_ext_mult
+    ext_mult = new_row_ext_mult * new_col_ext_mult
+
+    new_simple_block = np.zeros(
+        ((new_row_sectors_struct_mult * new_col_sectors_struct_mult).sum(), ext_mult),
+        dtype=new_matrix_blocks[0].dtype,
+    )
+
+    # loop over all existing matrix blocks (!= all allowed matrix blocks)
+    for i_existing_sector, i_sector in enumerate(existing_matrix_block_inds):
+        struct_mult_old_sector = (
+            old_row_sectors_struct_mult[i_sector]
+            * old_col_sectors_struct_mult[i_sector]
+        )
+        # need to check if this sector appears in elementary_block
+        if struct_mult_old_sector > 0:
+            r2 = old_row_sector_matrix_indices[i_sector]
+            c2 = old_col_sector_matrix_indices[i_sector]
+            # there are two operations: changing basis with elementary AND
+            # swapping axes in external multiplicity part. Transpose tensor BEFORE
+            # applying unitary to do only one transpose
+
+            simple_shape[0] = old_row_sectors_struct_mult[i_sector]
+            simple_shape[old_nrrp1] = old_col_sectors_struct_mult[i_sector]
+
+            # initial tensor shape = (
+            # old_structural_multiplicity_row,
+            # *external multiplicity for each old domain axis,
+            # old_structural_multiplicity_column,
+            # *external multiplicity for each old codomain axis,
+            #
+            # transpose to shape = (
+            # old_structural_multiplicity_row,
+            # old_structural_multiplicity_column,
+            # *external multiplicity for each NEW domain axis,
+            # *external multiplicity for each NEW codomain axis,
+
+            swapped_old_sym_block = _numba_transpose_reshape(
+                old_matrix_blocks[i_existing_sector],
+                r2 - old_row_ext_mult * old_row_sectors_struct_mult[i_sector],
+                r2,
+                c2 - old_col_ext_mult * old_col_sectors_struct_mult[i_sector],
+                c2,
+                old_nrrp1,
+                numba.np.unsafe.ndarray.to_fixed_tuple(simple_shape, NDIMP2),
+                data_perm,
+            )
+
+            swapped_old_sym_mat = np.ascontiguousarray(swapped_old_sym_block).reshape(
+                struct_mult_old_sector, ext_mult
+            )
+
+            # convention: simple block unitary is sliced sector-wise on its columns=OLD
+            # but not for its rows = NEW
+            # meaning one applies a unitary block on old symmetric block to produce the
+            # full new simple block, with all NEW sectors
+            unitary_rows = unitary_row_sectors[i_sector]
+            new_simple_block += unitary_rows @ swapped_old_sym_mat
+
+    # all OLD sectors have been processed = we have the full simple block
+    # slice it for all new sectors to generate the new symmetric blocks
+    nmb_shift = 0
+    for i_nmb, nmb in enumerate(new_matrix_blocks):
+        struct_mult_new_sector = (
+            new_row_sectors_struct_mult[i_nmb] * new_col_sectors_struct_mult[i_nmb]
+        )
+
+        if struct_mult_new_sector > 0:
+            sh = (
+                new_row_sectors_struct_mult[i_nmb],
+                new_col_sectors_struct_mult[i_nmb],
+                new_row_ext_mult,
+                new_col_ext_mult,
+            )
+            new_sym_block = new_simple_block[
+                nmb_shift : nmb_shift + struct_mult_new_sector
+            ]
+            nr2 = new_row_sector_matrix_indices[i_nmb]
+            nc2 = new_col_sector_matrix_indices[i_nmb]
+            inplace = _numba_transpose_reshape(
+                nmb,
+                nr2 - new_row_ext_mult * new_row_sectors_struct_mult[i_nmb],
+                nr2,
+                nc2 - new_col_ext_mult * new_col_sectors_struct_mult[i_nmb],
+                nc2,
+                2,
+                (sh[0], sh[2], sh[1], sh[3]),
+                (0, 2, 1, 3),
+            )
+            inplace[:] = new_sym_block.reshape(sh)
+            nmb_shift += struct_mult_new_sector
+
+
+@numba.njit
 def fill_blocks_out(
     new_matrix_blocks,
     old_matrix_blocks,
@@ -67,109 +186,35 @@ def fill_blocks_out(
     isometry_in_blocks,
     data_perm,
 ):
-    dtype = new_matrix_blocks[0].dtype
-    n_new_matrix_blocks = len(new_matrix_blocks)
+
     n_old_sectors = idirb.shape[1]
-    NDIMP2 = len(data_perm)
-    old_nrrp1 = data_perm[1]
-
     for i_simple_block in range(len(simple_block_indices)):
-        # edor = external degeneracy out row
-        # idicb = internal degeneracy in column block
-
         i_old_row, i_old_col, i_new_row, i_new_col = simple_block_indices[
             i_simple_block
         ]
-        edir_ele = edir[i_old_row]
-        edic_ele = edic[i_old_col]
-        ele_sh = np.empty((NDIMP2,), dtype=np.int64)
-        ele_sh[1:old_nrrp1] = old_row_external_mult[i_old_row]
-        ele_sh[old_nrrp1 + 1 :] = old_col_external_mult[i_old_col]
-        edor_ele = edor[i_new_row]
-        edoc_ele = edoc[i_new_col]
-        ext_mult = edor_ele * edoc_ele
-
-        new_simple_block = np.zeros(
-            ((idorb[i_new_row] * idocb[i_new_col]).sum(), ext_mult), dtype=dtype
+        permute_simple_block(
+            old_matrix_blocks,
+            new_matrix_blocks,
+            data_perm,
+            existing_matrix_block_inds,
+            isometry_in_blocks[
+                i_simple_block * n_old_sectors : (i_simple_block + 1) * n_old_sectors
+            ],
+            idirb[i_old_row],
+            idicb[i_old_col],
+            idorb[i_new_row],
+            idocb[i_new_col],
+            edir[i_old_row],
+            edic[i_old_col],
+            edor[i_new_row],
+            edoc[i_new_col],
+            old_row_external_mult[i_old_row],
+            old_col_external_mult[i_old_col],
+            slices_ir[i_old_row],
+            slices_ic[i_old_col],
+            slices_or[i_new_row],
+            slices_oc[i_new_col],
         )
-
-        for i_existing_sector, i_sector in enumerate(
-            existing_matrix_block_inds
-        ):  # filter missing blocks
-            struct_mult_sector = idirb[i_old_row, i_sector] * idicb[i_old_col, i_sector]
-            # need to check if this block_irrep_in appears in elementary_block
-            if struct_mult_sector > 0:
-                r2 = slices_ir[i_old_row, i_sector]
-                c2 = slices_ic[i_old_col, i_sector]
-                # there are two operations: changing basis with elementary AND
-                # swapping axes in external degeneracy part. Transpose tensor BEFORE
-                # applying unitary to do only one transpose
-
-                ele_sh[0] = idirb[i_old_row, i_sector]
-                ele_sh[old_nrrp1] = idicb[i_old_col, i_sector]
-
-                # initial tensor shape = (
-                # internal degeneracy in row block,
-                # *external degeneracies per in row axes,
-                # internal degeneracy in col block,
-                # *external degeneracies per in col axes)
-                #
-                # transpose to shape = (
-                # internal degeneracy in row block,
-                # internal degeneracy in col, block,
-                # *external degeneracies per OUT row axes,
-                # *external degeneracies per OUT col axes)
-
-                swapped_old_sym_block = _numba_transpose_reshape(
-                    old_matrix_blocks[i_existing_sector],
-                    r2 - edir_ele * idirb[i_old_row, i_sector],
-                    r2,
-                    c2 - edic_ele * idicb[i_old_col, i_sector],
-                    c2,
-                    old_nrrp1,
-                    numba.np.unsafe.ndarray.to_fixed_tuple(ele_sh, NDIMP2),
-                    data_perm,
-                )
-
-                swapped_old_sym_mat = np.ascontiguousarray(
-                    swapped_old_sym_block
-                ).reshape(struct_mult_sector, ext_mult)
-
-                # convention: iso_iblock is sliced irrep-wise on its columns = "IN"
-                # but not for its rows = "OUT"
-                # meaning it is applied to "IN" irrep block data, but generates data
-                # for all OUT irrep blocks
-                unitary_rows = isometry_in_blocks[
-                    i_simple_block * n_old_sectors + i_sector
-                ]
-                new_simple_block += unitary_rows @ swapped_old_sym_mat
-
-        # transpose new_simple_block only after every IN blocks have been processed
-        oshift = 0
-        for ibo in range(n_new_matrix_blocks):
-            idorb_ele = idorb[i_new_row, ibo]
-            idocb_ele = idocb[i_new_col, ibo]
-            idob = idorb_ele * idocb_ele
-
-            if idob > 0:
-                sh = (idorb_ele, idocb_ele, edor_ele, edoc_ele)
-                new_sym_block = new_simple_block[oshift : oshift + idob].reshape(sh)
-                sor2 = slices_or[i_new_row, ibo]
-                sor1 = sor2 - edor_ele * idorb_ele
-                soc2 = slices_oc[i_new_col, ibo]
-                soc1 = soc2 - edoc_ele * idocb_ele
-                inplace = _numba_transpose_reshape(
-                    new_matrix_blocks[ibo],
-                    sor1,
-                    sor2,
-                    soc1,
-                    soc2,
-                    2,
-                    (sh[0], sh[2], sh[1], sh[3]),
-                    (0, 2, 1, 3),
-                )
-                inplace[:] = new_sym_block
-                oshift += idob
 
 
 @numba.njit
