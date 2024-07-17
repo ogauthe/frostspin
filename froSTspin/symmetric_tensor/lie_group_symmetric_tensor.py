@@ -131,9 +131,9 @@ def fill_blocks_out(
                     data_perm,
                 )
 
-                swapped_old_sym_mat = swapped_old_sym_block.copy().reshape(
-                    struct_mult_sector, ext_mult
-                )
+                swapped_old_sym_mat = np.ascontiguousarray(
+                    swapped_old_sym_block
+                ).reshape(struct_mult_sector, ext_mult)
 
                 # convention: iso_iblock is sliced irrep-wise on its columns = "IN"
                 # but not for its rows = "OUT"
