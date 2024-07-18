@@ -1,8 +1,220 @@
 import numba
 import numpy as np
-import scipy.linalg as lg
+
+from froSTspin.misc_tools.numba_tools import set_readonly_flag
 
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
+
+
+@numba.njit
+def _numba_compute_tensor_strides(mat_strides, nrr, tensor_shape):
+    NDIM = len(tensor_shape)
+    tensor_strides = np.empty((NDIM,), dtype=np.int64)
+    tensor_strides[NDIM - 1] = mat_strides[1]
+    for i in range(1, NDIM - nrr):
+        tensor_strides[NDIM - i - 1] = tensor_strides[NDIM - i] * tensor_shape[NDIM - i]
+    tensor_strides[nrr - 1] = mat_strides[0]
+    for i in range(1, nrr):
+        tensor_strides[nrr - 1 - i] = tensor_strides[nrr - i] * tensor_shape[nrr - i]
+    return tensor_strides
+
+
+@numba.njit
+def _numba_transpose_reshape(old_mat, r1, r2, c1, c2, old_nrr, old_tensor_shape, perm):
+    """
+    numba version of
+    old_mat[r1:r2, c1:c2].reshape(old_tensor_shape).transpose(perm)
+    """
+    NDIM = len(perm)
+
+    old_tensor_strides = _numba_compute_tensor_strides(
+        old_mat.strides, old_nrr, old_tensor_shape
+    )
+    new_tensor_shape = np.empty((NDIM,), dtype=np.int64)
+    new_tensor_strides = np.empty((NDIM,), dtype=np.int64)
+    for i in range(NDIM):
+        new_tensor_shape[i] = old_tensor_shape[perm[i]]
+        new_tensor_strides[i] = old_tensor_strides[perm[i]]
+
+    sht = numba.np.unsafe.ndarray.to_fixed_tuple(new_tensor_shape, NDIM)
+    stridest = numba.np.unsafe.ndarray.to_fixed_tuple(new_tensor_strides, NDIM)
+    permuted = np.lib.stride_tricks.as_strided(
+        old_mat[r1:r2, c1:c2], shape=sht, strides=stridest
+    )
+    return permuted
+
+
+@numba.njit
+def permute_simple_block(
+    old_matrix_blocks,
+    new_matrix_blocks,
+    data_perm,
+    existing_matrix_block_inds,
+    unitary_row_sectors,
+    old_row_sectors_struct_mult,
+    old_col_sectors_struct_mult,
+    new_row_sectors_struct_mult,
+    new_col_sectors_struct_mult,
+    old_row_ext_mult,
+    old_col_ext_mult,
+    new_row_ext_mult,
+    new_col_ext_mult,
+    old_domain_ext_mult,
+    old_codomain_ext_mult,
+    old_row_sector_matrix_indices,
+    old_col_sector_matrix_indices,
+    new_row_sector_matrix_indices,
+    new_col_sector_matrix_indices,
+):
+    old_nrrp1 = data_perm[1]
+    NDIMP2 = len(data_perm)
+    simple_shape = np.empty((NDIMP2,), dtype=np.int64)
+    simple_shape[1:old_nrrp1] = old_domain_ext_mult
+    simple_shape[old_nrrp1 + 1 :] = old_codomain_ext_mult
+    ext_mult = new_row_ext_mult * new_col_ext_mult
+
+    new_simple_block = np.zeros(
+        ((new_row_sectors_struct_mult * new_col_sectors_struct_mult).sum(), ext_mult),
+        dtype=new_matrix_blocks[0].dtype,
+    )
+
+    # loop over all existing matrix blocks (!= all allowed matrix blocks)
+    for i_existing_sector, i_sector in enumerate(existing_matrix_block_inds):
+        struct_mult_old_sector = (
+            old_row_sectors_struct_mult[i_sector]
+            * old_col_sectors_struct_mult[i_sector]
+        )
+        # need to check if this sector appears in elementary_block
+        if struct_mult_old_sector > 0:
+            r2 = old_row_sector_matrix_indices[i_sector]
+            c2 = old_col_sector_matrix_indices[i_sector]
+            # there are two operations: changing basis with elementary AND
+            # swapping axes in external multiplicity part. Transpose tensor BEFORE
+            # applying unitary to do only one transpose
+
+            simple_shape[0] = old_row_sectors_struct_mult[i_sector]
+            simple_shape[old_nrrp1] = old_col_sectors_struct_mult[i_sector]
+
+            # initial tensor shape = (
+            # old_structural_multiplicity_row,
+            # *external multiplicity for each old domain axis,
+            # old_structural_multiplicity_column,
+            # *external multiplicity for each old codomain axis,
+            #
+            # transpose to shape = (
+            # old_structural_multiplicity_row,
+            # old_structural_multiplicity_column,
+            # *external multiplicity for each NEW domain axis,
+            # *external multiplicity for each NEW codomain axis,
+
+            swapped_old_sym_block = _numba_transpose_reshape(
+                old_matrix_blocks[i_existing_sector],
+                r2 - old_row_ext_mult * old_row_sectors_struct_mult[i_sector],
+                r2,
+                c2 - old_col_ext_mult * old_col_sectors_struct_mult[i_sector],
+                c2,
+                old_nrrp1,
+                numba.np.unsafe.ndarray.to_fixed_tuple(simple_shape, NDIMP2),
+                data_perm,
+            )
+
+            swapped_old_sym_mat = np.ascontiguousarray(swapped_old_sym_block).reshape(
+                struct_mult_old_sector, ext_mult
+            )
+
+            # convention: simple block unitary is sliced sector-wise on its columns=OLD
+            # but not for its rows = NEW
+            # meaning one applies a unitary block on old symmetric block to produce the
+            # full new simple block, with all NEW sectors
+            unitary_rows = unitary_row_sectors[i_sector]
+            new_simple_block += unitary_rows @ swapped_old_sym_mat
+
+    # all OLD sectors have been processed = we have the full simple block
+    # slice it for all new sectors to generate the new symmetric blocks
+    nmb_shift = 0
+    for i_nmb, nmb in enumerate(new_matrix_blocks):
+        struct_mult_new_sector = (
+            new_row_sectors_struct_mult[i_nmb] * new_col_sectors_struct_mult[i_nmb]
+        )
+
+        if struct_mult_new_sector > 0:
+            sh = (
+                new_row_sectors_struct_mult[i_nmb],
+                new_col_sectors_struct_mult[i_nmb],
+                new_row_ext_mult,
+                new_col_ext_mult,
+            )
+            new_sym_block = new_simple_block[
+                nmb_shift : nmb_shift + struct_mult_new_sector
+            ]
+            nr2 = new_row_sector_matrix_indices[i_nmb]
+            nc2 = new_col_sector_matrix_indices[i_nmb]
+            inplace = _numba_transpose_reshape(
+                nmb,
+                nr2 - new_row_ext_mult * new_row_sectors_struct_mult[i_nmb],
+                nr2,
+                nc2 - new_col_ext_mult * new_col_sectors_struct_mult[i_nmb],
+                nc2,
+                2,
+                (sh[0], sh[2], sh[1], sh[3]),
+                (0, 2, 1, 3),
+            )
+            inplace[:] = new_sym_block.reshape(sh)
+            nmb_shift += struct_mult_new_sector
+
+
+@numba.njit
+def fill_blocks_out(
+    new_matrix_blocks,
+    old_matrix_blocks,
+    simple_block_indices,
+    idirb,
+    idicb,
+    idorb,
+    idocb,
+    edir,
+    edic,
+    edor,
+    edoc,
+    existing_matrix_block_inds,
+    slices_ir,
+    slices_ic,
+    slices_or,
+    slices_oc,
+    old_row_external_mult,
+    old_col_external_mult,
+    isometry_in_blocks,
+    data_perm,
+):
+
+    n_old_sectors = idirb.shape[1]
+    for i_simple_block in range(len(simple_block_indices)):
+        i_old_row, i_old_col, i_new_row, i_new_col = simple_block_indices[
+            i_simple_block
+        ]
+        permute_simple_block(
+            old_matrix_blocks,
+            new_matrix_blocks,
+            data_perm,
+            existing_matrix_block_inds,
+            isometry_in_blocks[
+                i_simple_block * n_old_sectors : (i_simple_block + 1) * n_old_sectors
+            ],
+            idirb[i_old_row],
+            idicb[i_old_col],
+            idorb[i_new_row],
+            idocb[i_new_col],
+            edir[i_old_row],
+            edic[i_old_col],
+            edor[i_new_row],
+            edoc[i_new_col],
+            old_row_external_mult[i_old_row],
+            old_col_external_mult[i_old_col],
+            slices_ir[i_old_row],
+            slices_ic[i_old_col],
+            slices_or[i_new_row],
+            slices_oc[i_new_col],
+        )
 
 
 @numba.njit
@@ -253,7 +465,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         block_irreps_out, _ = cls.get_block_sizes(
             out_row_reps, out_col_reps, signature_out
         )
-        nblocks_out = len(block_irreps_out)
+        n_new_matrix_blocks = len(block_irreps_out)
 
         elementary_block_per_axis = np.array([r.shape[1] for r in in_reps])
         n_ele_ri = elementary_block_per_axis[:nrr_in].prod()
@@ -263,23 +475,24 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
         idirb = np.zeros((n_ele_ri, nblocks_in), dtype=int)
         idicb = np.zeros((n_ele_ci, nblocks_in), dtype=int)
-        idorb = np.zeros((n_ele_ro, nblocks_out), dtype=int)
-        idocb = np.zeros((n_ele_co, nblocks_out), dtype=int)
+        idorb = np.zeros((n_ele_ro, n_new_matrix_blocks), dtype=int)
+        idocb = np.zeros((n_ele_co, n_new_matrix_blocks), dtype=int)
         cg_trees_ri = [None] * n_ele_ri
         cg_trees_ci = [None] * n_ele_ci
         cg_trees_ro = [None] * n_ele_ro
         cg_trees_co = [None] * n_ele_co
-        ele_indices = []
+        simple_block_indices = []
 
         key0 = np.empty((2 * ndim + 3,), dtype=np.int64)
-        key0[0] = nrr_in
-        key0[1] = nrr_out
-        key0[2] = int(2 ** np.arange(ndim) @ signature_in)
-        key0[3 : ndim + 3] = axes
-        key_shift = ndim + 3
+        key0[ndim] = nrr_in
+        key0[ndim + 1] = nrr_out
+        key0[ndim + 2] = (1 << np.arange(ndim)) @ signature_in
+        key0[ndim + 3 :] = axes
 
         # convention: return elementary unitary blocked sliced for IN irrep blocks
-        isometry_blocks = []
+        dummy_ar = np.empty((0, 0))
+        dummy_ar.flags["W"] = False
+        isometry_blocks = numba.typed.List()
 
         # need to add idirb and idicb axes in permutation
         perm = np.empty((ndim + 2,), dtype=int)
@@ -311,11 +524,14 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         sig_ro = signature_out[:nrr_out]
         sig_co = ~signature_out[nrr_out:]
 
-        for i_ele in range(n_ele_ri * n_ele_ci):
-            i_mul = np.array(np.unravel_index(i_ele, elementary_block_per_axis))
-            reps_ei = tuple(
-                np.array([[1], [r[1, i_mul[i]]]]) for i, r in enumerate(in_reps)
-            )
+        i_ele = 0
+        for i0 in range(n_ele_ri * n_ele_ci):
+            i_mul = np.array(np.unravel_index(i0, elementary_block_per_axis))
+            reps_ei = [None] * ndim
+            for i in range(ndim):
+                irr = in_reps[i][1, i_mul[i]]
+                reps_ei[i] = np.array([[1], [irr]])
+                key0[i] = irr
             ri_rep = cls.combine_representations(reps_ei[:nrr_in], sig_ri)
             ci_rep = cls.combine_representations(reps_ei[nrr_in:], sig_ci)
             shared_ri = (ri_rep[1, :, None] == ci_rep[1]).nonzero()[0]
@@ -323,7 +539,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             if shared_ri.size:  # if the block contributes
                 ele_inds = strides @ i_mul
                 ir_in, ic_in, ir_out, ic_out = ele_inds
-                ele_indices.append(ele_inds)
+                simple_block_indices.append(ele_inds)
                 irreps_in_ele = ri_rep[1, shared_ri]
                 ele_in_binds = (irreps_in_ele[:, None] == block_irreps_in).nonzero()[1]
                 reps_ero = tuple(reps_ei[i] for i in axes[:nrr_out])
@@ -346,7 +562,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
                 # TODO remove singlets, adjust perm and signature
                 for i in range(ndim):
-                    key0[key_shift + i] = reps_ei[i][1, 0]
+                    key0[i] = reps_ei[i][1, 0]
                 key = tuple(key0)
 
                 try:  # maybe we already computed the unitary
@@ -399,28 +615,36 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
                 assert idirb[ir_in] @ idicb[ic_in] == idorb[ir_out] @ idocb[ic_out]
                 # map ele in_blocks_index to full tensor in_blocks_index
-                unitary_blocks = [None] * nblocks_in
+                ele_unitary_list = numba.typed.List([dummy_ar for _ in block_irreps_in])
+
                 for i, eub in enumerate(ele_unitary):
                     bi_in = ele_in_binds[i]
-                    unitary_blocks[bi_in] = eub
-                isometry_blocks.append(unitary_blocks)
+                    ele_unitary_list[bi_in] = eub
+                i_ele += 1
+                isometry_blocks.extend(ele_unitary_list)
 
-        ele_indices = np.array(ele_indices)
-        isometry_in_blocks = np.empty((ele_indices.shape[0], nblocks_in), dtype=object)
-        isometry_in_blocks[:] = isometry_blocks
+        simple_block_indices = np.array(simple_block_indices)
         assert (
-            (idirb[ele_indices[:, 0]] * idicb[ele_indices[:, 1]]).sum(axis=1)
-            == (idorb[ele_indices[:, 2]] * idocb[ele_indices[:, 3]]).sum(axis=1)
+            (idirb[simple_block_indices[:, 0]] * idicb[simple_block_indices[:, 1]]).sum(
+                axis=1
+            )
+            == (
+                idorb[simple_block_indices[:, 2]] * idocb[simple_block_indices[:, 3]]
+            ).sum(axis=1)
         ).all(), "number of coefficient not conserved"
 
+        set_readonly_flag(
+            simple_block_indices, idirb, idicb, idorb, idocb, block_irreps_out
+        )
+
         structual_data = (
-            ele_indices,
+            simple_block_indices,
             idirb,
             idicb,
             idorb,
             idocb,
             block_irreps_out,
-            isometry_in_blocks,
+            isometry_blocks,
         )
         return structual_data
 
@@ -497,23 +721,24 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     k += dbo
 
                 assert k == isometry_bi.shape[0]
+                set_readonly_flag(isometry_bi)
                 ele_unitary_blocks.append(isometry_bi)
 
         return ele_unitary_blocks
 
-    def _lie_permute_data(self, axes, nrr_out, structural_data):
+    def _lie_permute_data(self, axes, new_nrr, structural_data):
         """
         Move data and construct new data blocks
         """
         # 3 nested loops: elementary blocks, rows, columns
         # change loop order?
 
-        in_reps = self._row_reps + self._col_reps
-        out_row_reps = tuple(in_reps[i] for i in axes[:nrr_out])
-        out_col_reps = tuple(in_reps[i] for i in axes[nrr_out:])
+        old_reps = self._row_reps + self._col_reps
+        new_row_reps = tuple(old_reps[i] for i in axes[:new_nrr])
+        new_col_reps = tuple(old_reps[i] for i in axes[new_nrr:])
 
         (
-            ele_indices,
+            simple_block_indices,
             idirb,
             idicb,
             idorb,
@@ -522,23 +747,18 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             isometry_in_blocks,
         ) = structural_data
 
-        external_degen_ir = _numba_compute_external_degen(self._row_reps)
-        external_degen_ic = _numba_compute_external_degen(self._col_reps)
-        external_degen_or = _numba_compute_external_degen(out_row_reps)
-        external_degen_oc = _numba_compute_external_degen(out_col_reps)
+        old_row_external_mult = _numba_compute_external_degen(self._row_reps)
+        old_col_external_mult = _numba_compute_external_degen(self._col_reps)
 
-        edir = external_degen_ir.prod(axis=1)
-        edic = external_degen_ic.prod(axis=1)
-        edor = external_degen_or.prod(axis=1)
-        edoc = external_degen_oc.prod(axis=1)
+        edir = old_row_external_mult.prod(axis=1)
+        edic = old_col_external_mult.prod(axis=1)
+        edor = _numba_compute_external_degen(new_row_reps).prod(axis=1)
+        edoc = _numba_compute_external_degen(new_col_reps).prod(axis=1)
 
-        nblocks_out = len(block_irreps_out)
-        assert idorb.shape[1] == nblocks_out
-        assert idocb.shape[1] == nblocks_out
-        assert external_degen_or.shape[0] == idorb.shape[0]
-        assert external_degen_oc.shape[0] == idocb.shape[0]
-        assert external_degen_ir.shape[0] == idirb.shape[0]
-        assert external_degen_ic.shape[0] == idicb.shape[0]
+        assert idorb.shape[1] == len(block_irreps_out)
+        assert idocb.shape[1] == len(block_irreps_out)
+        assert old_row_external_mult.shape[0] == idirb.shape[0]
+        assert old_col_external_mult.shape[0] == idicb.shape[0]
 
         assert self._nblocks <= idirb.shape[1]
         if self._nblocks < idirb.shape[1]:  # if a block is missing
@@ -546,11 +766,16 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             block_irreps_in, _ = self.get_block_sizes(
                 self._row_reps, self._col_reps, self._signature
             )
-            _, block_inds = (self._block_irreps[:, None] == block_irreps_in).nonzero()
-            # possible also filter ele_indices with (idirb.T @ idicb).nonzero()[0]
+            _, existing_matrix_block_inds = (
+                self._block_irreps[:, None] == block_irreps_in
+            ).nonzero()
+            existing_matrix_block_inds = np.ascontiguousarray(
+                existing_matrix_block_inds
+            )
+            # possible also filter simple_block_indices with (idirb.T @ idicb).nonzero()
             # probably not worth it
         else:
-            block_inds = range(self._nblocks)
+            existing_matrix_block_inds = np.arange(self._nblocks)
 
         slices_ir = (edir[:, None] * idirb).cumsum(axis=0)
         slices_ic = (edic[:, None] * idicb).cumsum(axis=0)
@@ -558,91 +783,50 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         slices_oc = (edoc[:, None] * idocb).cumsum(axis=0)
 
         # need to initalize blocks_out in case of missing blocks_in
-        rshb = slices_or[-1]
-        cshb = slices_oc[-1]
-        dtype = self.dtype
-        blocks_out = tuple(
-            np.zeros(sh, dtype=dtype) for sh in zip(rshb, cshb, strict=True)
+        old_matrix_blocks = tuple(np.ascontiguousarray(b) for b in self._blocks)
+        set_readonly_flag(
+            edir,
+            edic,
+            edor,
+            edoc,
+            existing_matrix_block_inds,
+            slices_ir,
+            slices_ic,
+            slices_or,
+            slices_oc,
+            old_row_external_mult,
+            old_col_external_mult,
+            *old_matrix_blocks,
+        )
+        new_matrix_blocks = tuple(
+            np.zeros(sh, dtype=self.dtype)
+            for sh in zip(slices_or[-1], slices_oc[-1], strict=True)
         )
 
         data_perm = (0, self._nrr + 1, *(axes + 1 + (axes >= self._nrr)))
-
-        for i_ele, indices in enumerate(ele_indices):
-            # edor = external degeneracy out row
-            # idicb = internal degeneracy in column block
-
-            i_ir, i_ic, i_or, i_oc = indices
-            edir_ele = edir[i_ir]
-            edic_ele = edic[i_ic]
-            ele_sh = [0, *external_degen_ir[i_ir], 0, *external_degen_ic[i_ic]]
-            edor_ele = edor[i_or]
-            edoc_ele = edoc[i_oc]
-            ed = edor_ele * edoc_ele
-            assert ed == edir_ele * edic_ele
-
-            out_data = np.zeros((idorb[i_or] @ idocb[i_oc], ed), dtype=dtype)
-
-            for ib_self, ibi in enumerate(block_inds):  # missing blocks are filtered
-                idib = idirb[i_ir, ibi] * idicb[i_ic, ibi]
-                # need to check if this block_irrep_in appears in elementary_block
-                if idib > 0:
-                    assert isometry_in_blocks[i_ele, ibi] is not None
-                    sir2 = slices_ir[i_ir, ibi]
-                    sir1 = sir2 - edir_ele * idirb[i_ir, ibi]
-                    sic2 = slices_ic[i_ic, ibi]
-                    sic1 = sic2 - edic_ele * idicb[i_ic, ibi]
-
-                    # there are two operations: changing basis with elementary AND
-                    # swapping axes in external degeneracy part. Transpose tensor BEFORE
-                    # applying unitary to do only one transpose
-
-                    in_data = self._blocks[ib_self][sir1:sir2, sic1:sic2]
-
-                    # initial tensor shape = (
-                    # internal degeneracy in row block,
-                    # *external degeneracies per in row axes,
-                    # internal degeneracy in col block,
-                    # *external degeneracies per in col axes)
-                    ele_sh[0] = idirb[i_ir, ibi]
-                    ele_sh[self._nrr + 1] = idicb[i_ic, ibi]
-                    in_data = in_data.reshape(ele_sh)
-
-                    # transpose to shape = (
-                    # internal degeneracy in row block,
-                    # internal degeneracy in col, block,
-                    # *external degeneracies per OUT row axes,
-                    # *external degeneracies per OUT col axes)
-                    in_data = in_data.transpose(data_perm).reshape(idib, ed)
-
-                    # convention: iso_iblock is sliced irrep-wise on its columns = "IN"
-                    # but not for its rows = "OUT"
-                    # meaning it is applied to "IN" irrep block data, but generates data
-                    # for all OUT irrep blocks
-                    out_data += isometry_in_blocks[i_ele, ibi] @ in_data
-
-            # transpose out_data only after every IN blocks have been processed
-            oshift = 0
-            for ibo in range(nblocks_out):
-                idorb_ele = idorb[i_or, ibo]
-                idocb_ele = idocb[i_oc, ibo]
-                idob = idorb_ele * idocb_ele
-
-                if idob > 0:
-                    out_block = out_data[oshift : oshift + idob]
-                    sh = (idorb_ele, idocb_ele, edor_ele, edoc_ele)
-                    out_block = out_block.reshape(sh).swapaxes(1, 2)
-                    sh2 = (edor_ele * idorb_ele, edoc_ele * idocb_ele)
-                    out_block = out_block.reshape(sh2)
-
-                    # different IN block irreps may contribute: need +=
-                    sor2 = slices_or[i_or, ibo]
-                    sor1 = sor2 - edor_ele * idorb_ele
-                    soc2 = slices_oc[i_oc, ibo]
-                    soc1 = soc2 - edoc_ele * idocb_ele
-                    blocks_out[ibo][sor1:sor2, soc1:soc2] = out_block
-                    oshift += idob
-
-        return block_irreps_out, blocks_out
+        fill_blocks_out(
+            new_matrix_blocks,
+            old_matrix_blocks,
+            simple_block_indices,
+            idirb,
+            idicb,
+            idorb,
+            idocb,
+            edir,
+            edic,
+            edor,
+            edoc,
+            existing_matrix_block_inds,
+            slices_ir,
+            slices_ic,
+            slices_or,
+            slices_oc,
+            old_row_external_mult,
+            old_col_external_mult,
+            isometry_in_blocks,
+            data_perm,
+        )
+        return block_irreps_out, new_matrix_blocks
 
     ####################################################################################
     # Symmetry specific methods with fixed signature
@@ -687,10 +871,10 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         )
 
         # precompute external degeneracies and irrep block shifts
-        external_degen_ir = _numba_compute_external_degen(row_reps)
-        external_degen_ic = _numba_compute_external_degen(col_reps)
-        edir = external_degen_ir.prod(axis=1)
-        edic = external_degen_ic.prod(axis=1)
+        old_row_external_mult = _numba_compute_external_degen(row_reps)
+        old_col_external_mult = _numba_compute_external_degen(col_reps)
+        edir = old_row_external_mult.prod(axis=1)
+        edic = old_col_external_mult.prod(axis=1)
         block_shifts_row = (edir[:, None] * idirb).cumsum(axis=0)
         block_shifts_col = (edic[:, None] * idicb).cumsum(axis=0)
 
@@ -699,10 +883,10 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         irrep_dims = [cls.irrep_dimension(irr) for irr in block_irreps]
 
         # loop over row elementary blocks
-        for i_ir in range(idirb.shape[0]):
+        for i_old_row in range(idirb.shape[0]):
             ele_degen_dimensions = np.empty((2, ndim), dtype=int)
-            ele_degen_dimensions[0, :nrr] = external_degen_ir[i_ir]
-            irmul = np.unravel_index(i_ir, elementary_block_rows)
+            ele_degen_dimensions[0, :nrr] = old_row_external_mult[i_old_row]
+            irmul = np.unravel_index(i_old_row, elementary_block_rows)
             rslices = []
             for i in range(nrr):
                 ele_degen_dimensions[1, i] = cls.irrep_dimension(
@@ -712,11 +896,11 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             rdim = ele_degen_dimensions[1, :nrr].prod()
 
             # loop over column elementary blocks
-            for i_ic in range(idicb.shape[0]):
-                idi = idirb[i_ir].T @ idicb[i_ic]
+            for i_old_col in range(idicb.shape[0]):
+                idi = idirb[i_old_row].T @ idicb[i_old_col]
                 if idi > 0:
-                    ele_degen_dimensions[0, nrr:] = external_degen_ic[i_ic]
-                    icmul = np.unravel_index(i_ic, elementary_block_cols)
+                    ele_degen_dimensions[0, nrr:] = old_col_external_mult[i_old_col]
+                    icmul = np.unravel_index(i_old_col, elementary_block_cols)
                     cslices = []
                     for i in range(ndim - nrr):
                         ele_degen_dimensions[1, nrr + i] = cls.irrep_dimension(
@@ -725,7 +909,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                         cslices.append(
                             slice(cshifts[i][icmul[i]], cshifts[i][icmul[i] + 1])
                         )
-                    edi = edir[i_ir] * edic[i_ic]
+                    edi = edir[i_old_row] * edic[i_old_col]
                     cdim = ele_degen_dimensions[1, nrr:].prod()
 
                     # split degen and structural
@@ -734,16 +918,16 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     data = arr[slices].reshape(sh)
                     assert rdim * cdim == ele_degen_dimensions[1].prod()
                     data = data.transpose(degen_irrep_perm).reshape(rdim * cdim, edi)
-                    idib = idirb[i_ir] * idicb[i_ic]
+                    idib = idirb[i_old_row] * idicb[i_old_col]
                     for bi in idib.nonzero()[0]:
                         # construct CG projector on block irrep elementary sector
-                        # see toarray fro a discussion of the contraction scheme
+                        # see _tomatrix for a discussion of the contraction scheme
 
-                        rtree = irb_trees[i_ir, bi]
+                        rtree = irb_trees[i_old_row, bi]
                         rtree = rtree.reshape(-1, rtree.shape[-1])
-                        ctree = icb_trees[i_ic, bi].reshape(-1, rtree.shape[1])
+                        ctree = icb_trees[i_old_col, bi].reshape(-1, rtree.shape[1])
                         block_ele_proj = rtree @ ctree.T
-                        sh = (rdim, idirb[i_ir, bi], cdim, idicb[i_ic, bi])
+                        sh = (rdim, idirb[i_old_row, bi], cdim, idicb[i_old_col, bi])
                         block_ele_proj = block_ele_proj.reshape(sh).swapaxes(1, 2)
                         block_ele_proj = block_ele_proj.reshape(rdim * cdim, idib[bi])
 
@@ -754,18 +938,23 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                         # (int_degen_row, int_degen_col, ext_degen_row, ext_degen_col)
                         # we need to permute axes to reshape as
                         # (ext_degen_row * int_degen_row, ext_degen_col * int_degen_col)
-                        sh = (idirb[i_ir, bi], idicb[i_ic, bi], edir[i_ir], edic[i_ic])
+                        sh = (
+                            idirb[i_old_row, bi],
+                            idicb[i_old_col, bi],
+                            edir[i_old_row],
+                            edic[i_old_col],
+                        )
                         sh2 = (sh[0] * sh[2], sh[1] * sh[3])
                         data_block = data_block.reshape(sh).swapaxes(1, 2)
                         data_block = (data_block / irrep_dims[bi]).reshape(sh2)
 
                         rs = slice(
-                            block_shifts_row[i_ir, bi] - sh2[0],
-                            block_shifts_row[i_ir, bi],
+                            block_shifts_row[i_old_row, bi] - sh2[0],
+                            block_shifts_row[i_old_row, bi],
                         )
                         cs = slice(
-                            block_shifts_col[i_ic, bi] - sh2[1],
-                            block_shifts_col[i_ic, bi],
+                            block_shifts_col[i_old_col, bi] - sh2[1],
+                            block_shifts_col[i_old_col, bi],
                         )
                         blocks[bi][rs, cs] = data_block
 
@@ -807,10 +996,10 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         arr = np.zeros(self._shape, dtype=dtype)
 
         # loop over row elementary blocks
-        for i_or in range(idorb.shape[0]):
+        for i_new_row in range(idorb.shape[0]):
             ele_degen_dimensions = np.empty((2, self._ndim), dtype=int)
-            ele_degen_dimensions[0, : self._nrr] = external_degen_or[i_or]
-            irmul = np.unravel_index(i_or, elementary_block_rows)
+            ele_degen_dimensions[0, : self._nrr] = external_degen_or[i_new_row]
+            irmul = np.unravel_index(i_new_row, elementary_block_rows)
             rslices = []
             for i in range(self._nrr):
                 ele_degen_dimensions[1, i] = self.irrep_dimension(
@@ -820,11 +1009,11 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             rdim = ele_degen_dimensions[1, : self._nrr].prod()
 
             # loop over column elementary blocks
-            for i_oc in range(idocb.shape[0]):
-                ido = idorb[i_or].T @ idocb[i_oc]
+            for i_new_col in range(idocb.shape[0]):
+                ido = idorb[i_new_row].T @ idocb[i_new_col]
                 if ido > 0:  # if this elementary block is allowed
-                    ele_degen_dimensions[0, self._nrr :] = external_degen_oc[i_oc]
-                    icmul = np.unravel_index(i_oc, elementary_block_cols)
+                    ele_degen_dimensions[0, self._nrr :] = external_degen_oc[i_new_col]
+                    icmul = np.unravel_index(i_new_col, elementary_block_cols)
                     cslices = []
                     for i in range(self._ndim - self._nrr):
                         ele_degen_dimensions[1, self._nrr + i] = self.irrep_dimension(
@@ -833,22 +1022,29 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                         cslices.append(
                             slice(cshifts[i][icmul[i]], cshifts[i][icmul[i] + 1])
                         )
-                    edo = edor[i_or] * edoc[i_oc]
+                    edo = edor[i_new_row] * edoc[i_new_col]
                     cdim = ele_degen_dimensions[1, self._nrr :].prod()
                     ele_dense = np.zeros((rdim * cdim, edo), dtype=dtype)
-                    idob = idorb[i_or] * idocb[i_oc]
+                    idob = idorb[i_new_row] * idocb[i_new_col]
                     for bi in idob.nonzero()[0]:
                         rs = slice(
-                            block_shifts_row[i_or, bi] - edor[i_or] * idorb[i_or, bi],
-                            block_shifts_row[i_or, bi],
+                            block_shifts_row[i_new_row, bi]
+                            - edor[i_new_row] * idorb[i_new_row, bi],
+                            block_shifts_row[i_new_row, bi],
                             1,
                         )
                         cs = slice(
-                            block_shifts_col[i_oc, bi] - edoc[i_oc] * idocb[i_oc, bi],
-                            block_shifts_col[i_oc, bi],
+                            block_shifts_col[i_new_col, bi]
+                            - edoc[i_new_col] * idocb[i_new_col, bi],
+                            block_shifts_col[i_new_col, bi],
                             1,
                         )
-                        sh = (idorb[i_or, bi], edor[i_or], idocb[i_oc, bi], edoc[i_oc])
+                        sh = (
+                            idorb[i_new_row, bi],
+                            edor[i_new_row],
+                            idocb[i_new_col, bi],
+                            edoc[i_new_col],
+                        )
                         data_block = self._blocks[bi][rs, cs].reshape(sh)
                         data_block = data_block.swapaxes(1, 2).reshape(idob[bi], edo)
 
@@ -886,11 +1082,11 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
 
                         # decision: optimize for larger edo, go for contracting
                         # block_proj = rtree * ctree
-                        rtree = orb_trees[i_or, bi]
+                        rtree = orb_trees[i_new_row, bi]
                         rtree = rtree.reshape(-1, rtree.shape[-1])
-                        ctree = ocb_trees[i_oc, bi].reshape(-1, rtree.shape[1])
+                        ctree = ocb_trees[i_new_col, bi].reshape(-1, rtree.shape[1])
                         block_ele_proj = rtree @ ctree.T
-                        sh = (rdim, idorb[i_or, bi], cdim, idocb[i_oc, bi])
+                        sh = (rdim, idorb[i_new_row, bi], cdim, idocb[i_new_col, bi])
                         block_ele_proj = block_ele_proj.reshape(sh).swapaxes(1, 2)
                         block_ele_proj = block_ele_proj.reshape(rdim * cdim, idob[bi])
 
@@ -904,7 +1100,6 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     slices = tuple(rslices + cslices)
                     arr[slices] = ele_dense.reshape(ele_degen_dimensions.prod(axis=0))
 
-        assert abs(self.norm() - lg.norm(arr)) <= 1e-13 * self.norm()
         return arr.reshape(self.matrix_shape)
 
     def _transpose_data(self):
@@ -912,9 +1107,9 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         axes = tuple(range(self._nrr, self._ndim)) + tuple(range(self._nrr))
         return self._permute_data(axes, self._ndim - self._nrr)
 
-    def _permute_data(self, axes, nrr):
+    def _permute_data(self, axes, new_nrr):
         si = (1 << np.arange(self._ndim)) @ self._signature
-        key = [self._ndim, self._nrr, nrr, si, *axes]
+        key = [self._ndim, self._nrr, new_nrr, si, *axes]
         in_reps = self._row_reps + self._col_reps
         for r in in_reps:
             key.append(r.shape[1])
@@ -925,11 +1120,11 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             structural_data = self._structural_data_dic[key]
         except KeyError:
             structural_data = self._compute_structural_data(
-                in_reps, self._nrr, axes, nrr, self._signature
+                in_reps, self._nrr, axes, new_nrr, self._signature
             )
             self._structural_data_dic[key] = structural_data
 
-        block_irreps, blocks = self._lie_permute_data(axes, nrr, structural_data)
+        block_irreps, blocks = self._lie_permute_data(axes, new_nrr, structural_data)
         return blocks, block_irreps
 
     def update_signature(self, sign_update):

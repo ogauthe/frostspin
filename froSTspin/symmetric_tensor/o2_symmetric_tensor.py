@@ -2,12 +2,11 @@ import numba
 import numpy as np
 import scipy.linalg as lg
 
-from froSTspin.misc_tools.sparse_tools import _numba_find_indices
+from froSTspin.config import ASSERT_TOL
+from froSTspin.misc_tools.numba_tools import _numba_find_indices
 
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 from .u1_symmetric_tensor import U1_SymmetricTensor
-
-_tol = 2e-13  # used only in assert
 
 
 @numba.njit
@@ -319,7 +318,7 @@ def split_b0(b0, row_reps, rsz_values, col_reps, csz_values):
     )
     assert abs(
         np.sqrt(lg.norm(b0o) ** 2 + lg.norm(b0e) ** 2) - lg.norm(b0)
-    ) <= _tol * lg.norm(b0), "b0 splitting does not preserve norm"
+    ) <= ASSERT_TOL * lg.norm(b0), "b0 splitting does not preserve norm"
     if b0o.size and b0e.size:
         return (b0o, b0e), (-1, 0)
     if b0o.size:
@@ -730,7 +729,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         tu1 = U1_SymmetricTensor(
             u1_row_reps, u1_col_reps, blocks, block_sz, self._signature
         )
-        assert abs(tu1.norm() - self.norm()) <= _tol * self.norm()
+        assert abs(tu1.norm() - self.norm()) <= ASSERT_TOL * self.norm()
         return tu1
 
     def update_signature(self, sign_update):

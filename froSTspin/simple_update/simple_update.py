@@ -245,6 +245,7 @@ class SimpleUpdate:
         raw_update_data,
         raw_hamilts,
         weights,
+        logZ,
         verbosity,
     ):
         """
@@ -276,6 +277,8 @@ class SimpleUpdate:
             List of elementary bond Hamiltonians acting on the tensors.
         weights : list of DiagonalTensor
             Simple update weights for each bond.
+        logZ : float
+            Logarithm of the PEPS norm. Used to compute free energy.
         verbosity : int
             Level of log verbosity.
 
@@ -307,6 +310,7 @@ class SimpleUpdate:
         raw_update_data = np.asarray(raw_update_data, dtype=int)
         raw_hamilts = list(raw_hamilts)
         weights = list(weights)
+        logZ = float(logZ)
         verbosity = int(verbosity)
 
         # quick crash for very simple errors
@@ -348,6 +352,7 @@ class SimpleUpdate:
         self._tensors = tensors
         self._weights = list(weights)
         self.D = D
+        self._logZ = logZ
         self.rcutoff = rcutoff
         self.degen_ratio = degen_ratio
         self.tau = tau  # also set gates
@@ -563,6 +568,7 @@ class SimpleUpdate:
             DiagonalTensor(w, ST.singlet(), irr, [1], ST.symmetry())
             for i in range(n_bonds)
         ]
+        logZ = 0.0
 
         return SimpleUpdate(
             D,
@@ -575,6 +581,7 @@ class SimpleUpdate:
             raw_update_data,
             raw_hamilts,
             weights,
+            logZ,
             verbosity,
         )
 
@@ -862,6 +869,13 @@ class SimpleUpdate:
             D = fin["_SimpleUpdate_D"][()]
             beta = fin["_SimpleUpdate_beta"][()]
             tau = fin["_SimpleUpdate_tau"][()]
+            # pragmatism: use np.nan as default for logZ to preserve retrocompatibility
+            try:
+                logZ = fin["_SimpleUpdate_logZ"][()]
+            except KeyError:
+                print("Warning: logZ missing in simple update savefile", savefile)
+                print("Set it to nan")
+                logZ = np.nan
             rcutoff = fin["_SimpleUpdate_rcutoff"][()]
             degen_ratio = fin["_SimpleUpdate_degen_ratio"][()]
 
@@ -898,6 +912,7 @@ class SimpleUpdate:
             raw_update_data,
             raw_hamilts,
             weights,
+            logZ,
             verbosity,
         )
 
@@ -918,6 +933,7 @@ class SimpleUpdate:
             "_SimpleUpdate_D": self.D,
             "_SimpleUpdate_beta": self._beta,
             "_SimpleUpdate_tau": self._tau,
+            "_SimpleUpdate_logZ": self._logZ,
             "_SimpleUpdate_is_second_order": self._is_second_order,
             "_SimpleUpdate_rcutoff": self.rcutoff,
             "_SimpleUpdate_degen_ratio": self.degen_ratio,
@@ -959,6 +975,10 @@ class SimpleUpdate:
     @property
     def tau(self):
         return self._tau
+
+    @property
+    def logZ(self):
+        return self._logZ / self._n_tensors
 
     @tau.setter
     def tau(self, tau):
@@ -1072,7 +1092,10 @@ class SimpleUpdate:
         )
 
         # normalize weights and apply them to new left and new right
-        new_weights /= new_weights.sum()
+        # save log of normalization factor to update logZ
+        nf = new_weights.sum()
+        lognf = np.log(nf)
+        new_weights /= nf
         effL = effL * new_weights
         effR = new_weights * effR
 
@@ -1084,7 +1107,7 @@ class SimpleUpdate:
         newL = cstL @ effL
         newR = cstR @ effR
 
-        return newL, newR, new_weights
+        return newL, newR, new_weights, lognf
 
     def update_through_proxy(self, left, mid, right, weightsL, weightsR, gate):
         r"""
@@ -1155,7 +1178,9 @@ class SimpleUpdate:
         effR, new_weightsR, theta = theta.truncated_svd(
             self.D, rcutoff=self.rcutoff, degen_ratio=self.degen_ratio
         )
-        new_weightsR /= new_weightsR.sum()
+        nf = new_weightsR.sum()
+        lognf = np.log(nf)
+        new_weightsR /= nf
         effR = effR * new_weightsR  # pR, auxR = effR - mR
 
         # 2nd SVD
@@ -1164,7 +1189,9 @@ class SimpleUpdate:
         effL, new_weightsL, effm = theta.truncated_svd(
             self.D, rcutoff=self.rcutoff, degen_ratio=self.degen_ratio
         )
-        new_weightsL /= new_weightsL.sum()
+        nf = new_weightsL.sum()
+        lognf += np.log(nf)
+        new_weightsL /= nf
         effm = new_weightsL * effm  # mL - effm = auxm, mR
         effL = effL * new_weightsL  # auxL, pL = effL - mL
 
@@ -1177,7 +1204,7 @@ class SimpleUpdate:
         newL = cstL @ effL
         new_mid = cstm @ effm
         newR = cstR @ effR
-        return newL, new_mid, newR, new_weightsL, new_weightsR
+        return newL, new_mid, newR, new_weightsL, new_weightsR, lognf
 
     def evolve(self, beta_evolve):
         """
@@ -1204,6 +1231,7 @@ class SimpleUpdate:
                 self._elementary_update(j)
         self._finalize_update()
         self._beta += niter * self._dbeta
+        return
 
     def _elementary_update(self, i):
         """
@@ -1217,13 +1245,13 @@ class SimpleUpdate:
         b1 = self._1st_updated_bond[i]
         b2 = self._2nd_updated_bond[i]
         if b1 == b2:  # 1st neighbor update
-            left, right, nw1 = self.update_first_neighbor(
+            left, right, nw1, lognf = self.update_first_neighbor(
                 left, right, self._weights[b1], self._gates[self._gate_indices[i]]
             )
 
         else:  # update through middle site im
             mid = self._tensors[self._middle_indices[i]].permute(*self._mperm[i])
-            left, mid, right, nw1, nw2 = self.update_through_proxy(
+            left, mid, right, nw1, nw2, lognf = self.update_through_proxy(
                 left,
                 mid,
                 right,
@@ -1234,6 +1262,7 @@ class SimpleUpdate:
             self._weights[b2] = nw2
             self._tensors[self._middle_indices[i]] = mid
 
+        self._logZ += lognf
         self._weights[b1] = nw1
         self._tensors[self._left_indices[i]] = left
         self._tensors[self._right_indices[i]] = right

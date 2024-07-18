@@ -243,7 +243,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         out = U1_SymmetricTensor.from_array(
             arr, reps[: self._nrr], reps[self._nrr :], self._signature
         )
-        assert abs(out.norm() - self.norm()) <= 1e-13 * self.norm()
+        assert abs(out.norm() - self.norm()) <= froSTspin.ASSERT_TOL * self.norm()
         return out
 
     def toO2(self):
@@ -315,7 +315,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         out = O2_SymmetricTensor.from_array(
             arr, o2_reps[: self._nrr], o2_reps[self._nrr :], self._signature
         )
-        assert abs(out.norm() - self.norm()) <= 1e-13 * self.norm()
+        assert abs(out.norm() - self.norm()) <= froSTspin.ASSERT_TOL * self.norm()
         return out
 
     ####################################################################################

@@ -2,6 +2,8 @@ import numpy as np
 import scipy.linalg as lg
 import scipy.sparse.linalg as slg
 
+from froSTspin.config import ASSERT_TOL
+from froSTspin.misc_tools.numba_tools import set_writable_flag
 from froSTspin.misc_tools.svd_tools import (
     find_chi_largest,
     robust_eigh,
@@ -137,7 +139,7 @@ class SymmetricTensor:
         )
 
         st = cls(row_reps, col_reps, blocks, block_irreps, signature)
-        assert abs(st.norm() - lg.norm(arr)) <= 1e-13 * lg.norm(arr)
+        assert abs(st.norm() - lg.norm(arr)) <= ASSERT_TOL * lg.norm(arr)
         return st
 
     def toarray(self, *, as_matrix=False):
@@ -150,6 +152,7 @@ class SymmetricTensor:
             Whether to return tensor with its tensor shape (default) or its matrix shape
         """
         mat = self._tomatrix()
+        assert abs(self.norm() - lg.norm(mat)) <= ASSERT_TOL * self.norm()
         if as_matrix:
             return mat
         return mat.reshape(self._shape)
@@ -199,7 +202,9 @@ class SymmetricTensor:
             blocks, block_irreps = self._permute_data(axes, nrr)
 
         tp = type(self)(reps[:nrr], reps[nrr:], blocks, block_irreps, signature)
-        assert abs(self.norm() - tp.norm()) <= 1e-13 * self.norm(), "norm is different"
+        assert (
+            abs(self.norm() - tp.norm()) <= ASSERT_TOL * self.norm()
+        ), "norm is different"
         return tp
 
     def check_blocks_fit_representations(self):
@@ -423,11 +428,13 @@ class SymmetricTensor:
         )
 
     def __imul__(self, x):
+        set_writable_flag(*self._blocks)
         for b in self._blocks:
             b[:] *= x
         return self
 
     def __itruediv__(self, x):
+        set_writable_flag(*self._blocks)
         for b in self._blocks:
             b[:] /= x
         return self
@@ -607,6 +614,22 @@ class SymmetricTensor:
         for irr, b in zip(self._block_irreps, self._blocks, strict=True):
             n2 += self.irrep_dimension(irr) * lg.norm(b) ** 2
         return np.sqrt(n2)
+
+    def full_contract(self, other):
+        """
+        Contract all legs, equialent to Tr(A @ B) as matrices or tensordot(A, B, ndim)
+        as tenosrs. Tensors have to match each other representations and signatures.
+
+        The name of this method is subject to change in the future.
+        """
+        # TBD rename full_dot, bicontract, trace_contract?
+        assert self.match_representations(other.dagger())
+        x = 0.0
+        shared = (self._block_irreps[:, None] == other.block_irreps).nonzero()
+        for i1, i2 in zip(*shared, strict=True):
+            bx = np.einsum("ij,ji->", self._blocks[i1], other.blocks[i2])
+            x += self.irrep_dimension(self._block_irreps[i1]) * bx
+        return x
 
     def qr(self):
         q_blocks = [None] * self._nblocks
@@ -1214,6 +1237,7 @@ class SymmetricTensor:
 
         # 3) define functions do deal with dense and sparse blocks
         def matvec(x, st0, bj):
+            st0.blocks[0].flags["W"] = True  # st0 may be permuted and set readonly
             st0.blocks[0][:, 0] = x
             st1 = matmat(st0)
             y = st1.blocks[bj].ravel()

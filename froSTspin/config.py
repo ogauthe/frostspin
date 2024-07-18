@@ -5,6 +5,7 @@ This file sets global configuration for froSTspin
 import argparse
 import os
 
+# =================================  Parse arguments  ==================================
 local_dir = os.path.join(os.path.dirname(__file__))
 default_su2_cg_file = os.path.join(
     local_dir, "groups/clebsch-gordan_data/data_su2_clebsch-gordan.json"
@@ -23,10 +24,15 @@ parser.add_argument(
 args, _ = parser.parse_known_args()
 config = {"quiet": args.froSTspin_quiet, "SU2_CG_file": args.froSTspin_SU2_CG_file}
 
-# display warning if running in debug mode
+
+# ==============================  Display debug warning  ===============================
 if __debug__:  # noqa: SIM102
     if not config["quiet"]:
         print("\nWarning: assert statement are activated")
         print("They may significantly impact performances")
         print("Consider running the code in optimized mode with python -O")
         print("You may disable this warning with the flag --froSTspin-quiet\n")
+
+print("\n *** FROSTSPIN IS ON BRANCH DEV ***\n")
+
+ASSERT_TOL = 4e-13

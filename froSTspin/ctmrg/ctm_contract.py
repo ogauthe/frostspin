@@ -98,3 +98,69 @@ def contract_dl(T4, A, C4, T3):
         T3.permute((3,), (0, 1, 2)),
         A.permute((0, 1, 2, 3), (5, 4)),
     )
+
+
+def contract_C1234(C1, C2, C4, C3):
+    up = C2 @ C1
+    down = C4 @ C3.transpose()
+    out = up.full_contract(down)
+    return out
+
+
+def contract_T1T3(C1, T1, C2, C4, T3, C3):
+    left = C1 @ C4
+    T1p = T1.permute((0, 1, 2), (3,))
+    left = T1p @ left
+    #  C1--T1-0
+    #  |   ||
+    #  |   12
+    #  C4-3
+
+    right = C3.transpose() @ C2
+    T3p = T3.permute((3, 0, 1), (2,))
+    right = T3p @ right
+    #       3-C2
+    #     12   |
+    #     ||   |
+    #  0--T3--C3
+    right = right.permute((0,), (3, 1, 2))
+
+    out = left.full_contract(right)
+    return out
+
+
+def contract_T2T4(C1, C2, T4, T2, C4, C3):
+    left = C2 @ C1
+    T4 = T4.permute((0,), (1, 2, 3))
+    left = left @ T4
+    down = C4 @ C3.transpose()
+    left = left.permute((0, 1, 2), (3,))
+    left = left @ down
+    T2 = T2.permute((1,), (0, 2, 3))
+    out = left.full_contract(T2)
+    return out
+
+
+def contract_norm(C1, T1, C2, T4, A, T2, C4, T3, C3):
+    ul = contract_ul(C1, T1, T4, A)
+    #   C1--T1--2
+    #   |   ||
+    #   T4==AA==0,1
+    #   |   ||
+    #   5   34
+
+    right = C2.transpose() @ T2.permute((0,), (2, 3, 1))
+    right = right.permute((3,), (1, 2, 0))
+    up = right @ ul
+    #   C1--T1--C2
+    #   |   ||   |
+    #   T4==AA==T2
+    #   |   ||   |
+    #   3   12   0
+
+    down = C3 @ T3.permute((2,), (0, 1, 3))
+    down = down.permute((3,), (1, 2, 0))
+    down = C4 @ down
+    down = down.permute((1, 2, 0), (3,))
+    out = up.full_contract(down)
+    return out
