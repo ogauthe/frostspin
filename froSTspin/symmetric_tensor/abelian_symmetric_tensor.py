@@ -1,7 +1,7 @@
 import numba
 import numpy as np
 
-from froSTspin.misc_tools.numba_tools import _numba_find_indices
+from froSTspin.misc_tools.numba_tools import numba_find_indices
 
 from .asymmetric_tensor import AsymmetricTensor
 from .symmetric_tensor import SymmetricTensor
@@ -224,9 +224,9 @@ def _numba_abelian_transpose(
     # much faster NOT to parallelize loop on old_blocks (huge difference in block sizes)
     for bi in range(old_block_irreps.size):
         block_nrows, block_ncols = old_blocks[bi].shape
-        ori = _numba_find_indices(old_row_irreps, old_block_irreps[bi], block_nrows)
+        ori = numba_find_indices(old_row_irreps, old_block_irreps[bi], block_nrows)
         ori = (ori.reshape(-1, 1) // rstrides1 % rmod * rstrides2).sum(axis=1)
-        oci = _numba_find_indices(old_col_irreps, old_block_irreps[bi], block_ncols)
+        oci = numba_find_indices(old_col_irreps, old_block_irreps[bi], block_ncols)
         oci = (oci.reshape(-1, 1) // cstrides1 % cmod * cstrides2).sum(axis=1)
         # ori and oci cannot be empty since old irrep block exists
         for i in numba.prange(ori.size):
