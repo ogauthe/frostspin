@@ -49,6 +49,7 @@ def permute_simple_block(
     old_matrix_blocks,
     new_matrix_blocks,
     data_perm,
+    existing_matrix_block_inds,
     unitary_row_sectors,
     old_row_sectors_struct_mult,
     old_col_sectors_struct_mult,
@@ -77,8 +78,8 @@ def permute_simple_block(
         dtype=new_matrix_blocks[0].dtype,
     )
 
-    # missing sectors have been pruned out
-    for i_sector, old_mat in enumerate(old_matrix_blocks):
+    # loop over all existing matrix blocks (!= all allowed matrix blocks)
+    for i_existing_sector, i_sector in enumerate(existing_matrix_block_inds):
         struct_mult_old_sector = (
             old_row_sectors_struct_mult[i_sector]
             * old_col_sectors_struct_mult[i_sector]
@@ -107,7 +108,7 @@ def permute_simple_block(
             # *external multiplicity for each NEW codomain axis,
 
             swapped_old_sym_block = _numba_transpose_reshape(
-                old_mat,
+                old_matrix_blocks[i_existing_sector],
                 r2 - old_row_ext_mult * old_row_sectors_struct_mult[i_sector],
                 r2,
                 c2 - old_col_ext_mult * old_col_sectors_struct_mult[i_sector],
@@ -175,6 +176,7 @@ def fill_blocks_out(
     edic,
     edor,
     edoc,
+    existing_matrix_block_inds,
     slices_ir,
     slices_ic,
     slices_or,
@@ -194,6 +196,7 @@ def fill_blocks_out(
             old_matrix_blocks,
             new_matrix_blocks,
             data_perm,
+            existing_matrix_block_inds,
             isometry_in_blocks[
                 i_simple_block * n_old_sectors : (i_simple_block + 1) * n_old_sectors
             ],
@@ -779,18 +782,16 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             block_irreps_in, _ = self.get_block_sizes(
                 self._row_reps, self._col_reps, self._signature
             )
-            _, existing_inds = (
+            _, existing_matrix_block_inds = (
                 self._block_irreps[:, None] == block_irreps_in
             ).nonzero()
-            idirb = np.ascontiguousarray(idirb[:, existing_inds])
-            idicb = np.ascontiguousarray(idicb[:, existing_inds])
-            idirb.flags["W"] = False
-            idicb.flags["W"] = False
-            sh = (len(simple_block_indices), block_irreps_in.size)
-            unitaries_arr = np.empty((sh[0] * sh[1],), dtype=object)
-            unitaries_arr[:] = isometry_in_blocks
-            pruned_unitaries = unitaries_arr.reshape(sh)[:, existing_inds]
-            isometry_in_blocks = numba.typed.List(pruned_unitaries.flat)
+            existing_matrix_block_inds = np.ascontiguousarray(
+                existing_matrix_block_inds
+            )
+            # possible also filter simple_block_indices with (idirb.T @ idicb).nonzero()
+            # probably not worth it
+        else:
+            existing_matrix_block_inds = np.arange(self._nblocks)
 
         slices_ir = (edir[:, None] * idirb).cumsum(axis=0)
         slices_ic = (edic[:, None] * idicb).cumsum(axis=0)
@@ -804,6 +805,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             edic,
             edor,
             edoc,
+            existing_matrix_block_inds,
             slices_ir,
             slices_ic,
             slices_or,
@@ -830,6 +832,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             edic,
             edor,
             edoc,
+            existing_matrix_block_inds,
             slices_ir,
             slices_ic,
             slices_or,
