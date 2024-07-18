@@ -3,7 +3,7 @@ import numpy as np
 import scipy.linalg as lg
 
 from froSTspin.config import ASSERT_TOL
-from froSTspin.misc_tools.numba_tools import _numba_find_indices
+from froSTspin.misc_tools.numba_tools import numba_find_indices
 
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 from .u1_symmetric_tensor import U1_SymmetricTensor
@@ -194,7 +194,7 @@ def _numba_b0_arrays(o2_reps, sz_values):
     n_sz0 = degen[0] + degen[1] if degen.size > 1 and irreps[1] == 0 else degen[0]
 
     # 3) find Sz=0 states knowing n_sz0
-    sz0_states = _numba_find_indices(sz_values, 0, n_sz0)
+    sz0_states = numba_find_indices(sz_values, 0, n_sz0)
 
     # 4) run parallel loop to get Sz-reflected states
     # make it the simplest possible, do not construct coeff/indices arrays now
@@ -483,7 +483,7 @@ def _numba_O2_transpose(
     if len(old_blocks):
         for bi, b in enumerate(old_blocks):
             block_nrows, block_ncols = b.shape
-            ori = _numba_find_indices(old_row_sz, old_block_sz[bi], block_nrows)
+            ori = numba_find_indices(old_row_sz, old_block_sz[bi], block_nrows)
             rszb_mat = np.empty((block_nrows,), dtype=np.uint64)
             rsign = np.empty((block_nrows,), dtype=np.int8)
             for i in numba.prange(block_nrows):
@@ -499,7 +499,7 @@ def _numba_O2_transpose(
                 rszb_mat[i] = refl_s
                 rsign[i] = s_sign
 
-            oci = _numba_find_indices(old_col_sz, old_block_sz[bi], block_ncols)
+            oci = numba_find_indices(old_col_sz, old_block_sz[bi], block_ncols)
             cszb_mat = np.empty((block_ncols,), dtype=np.uint64)
             csign = np.empty((block_ncols,), dtype=np.int8)
             for i in numba.prange(block_ncols):
@@ -539,7 +539,7 @@ def _numba_O2_transpose(
         rocoeff, rocol, recoeff, recol = _numba_b0_arrays(old_o2_row_reps, old_row_sz)
         cocoeff, cocol, cecoeff, cecol = _numba_b0_arrays(old_o2_col_reps, old_col_sz)
         block_nrows = rocoeff.shape[0] + recoeff.shape[0]
-        ori = _numba_find_indices(old_row_sz, 0, block_nrows)
+        ori = numba_find_indices(old_row_sz, 0, block_nrows)
         for i in numba.prange(block_nrows):
             permuted_s = 0
             for j in range(old_nrr):
@@ -547,7 +547,7 @@ def _numba_O2_transpose(
             ori[i] = permuted_s  # overwrite ori with permuted state
 
         block_ncols = cocoeff.shape[0] + cecoeff.shape[0]
-        oci = _numba_find_indices(old_col_sz, 0, block_ncols)
+        oci = numba_find_indices(old_col_sz, 0, block_ncols)
         for i in numba.prange(block_ncols):
             permuted_s = 0
             for j in range(old_ncr):
@@ -828,7 +828,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             sz = self._block_irreps[isz]
             # it is faster to map to Sz-reflected inside the loop.
             nr, nc = self._blocks[isz].shape
-            rsz_mat = _numba_find_indices(u1_combined_row, sz, nr)  # Sz states
+            rsz_mat = numba_find_indices(u1_combined_row, sz, nr)  # Sz states
             rsz_t = np.unravel_index(rsz_mat, shr)  # multi-index form
             rsign = np.ones((nr,), dtype=np.int8)
             for i, ri in enumerate(rsz_t):
@@ -836,7 +836,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
                 ri[:] = rmaps[i][ri]  # map to spin reversed
             rsz_mat = np.ravel_multi_index(rsz_t, shr)
 
-            csz_mat = _numba_find_indices(u1_combined_col, sz, nc)  # Sz states
+            csz_mat = numba_find_indices(u1_combined_col, sz, nc)  # Sz states
             csz_t = np.unravel_index(csz_mat, shc)  # multi-index form
             csign = np.ones((nc,), dtype=np.int8)
             for i, ci in enumerate(csz_t):

@@ -1,47 +1,9 @@
 import numba
 import numpy as np
 
-from froSTspin.misc_tools.numba_tools import set_readonly_flag
+from froSTspin.misc_tools.numba_tools import numba_transpose_reshape, set_readonly_flag
 
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
-
-
-@numba.njit
-def _numba_compute_tensor_strides(mat_strides, nrr, tensor_shape):
-    NDIM = len(tensor_shape)
-    tensor_strides = np.empty((NDIM,), dtype=np.int64)
-    tensor_strides[NDIM - 1] = mat_strides[1]
-    for i in range(1, NDIM - nrr):
-        tensor_strides[NDIM - i - 1] = tensor_strides[NDIM - i] * tensor_shape[NDIM - i]
-    tensor_strides[nrr - 1] = mat_strides[0]
-    for i in range(1, nrr):
-        tensor_strides[nrr - 1 - i] = tensor_strides[nrr - i] * tensor_shape[nrr - i]
-    return tensor_strides
-
-
-@numba.njit
-def _numba_transpose_reshape(old_mat, r1, r2, c1, c2, old_nrr, old_tensor_shape, perm):
-    """
-    numba version of
-    old_mat[r1:r2, c1:c2].reshape(old_tensor_shape).transpose(perm)
-    """
-    NDIM = len(perm)
-
-    old_tensor_strides = _numba_compute_tensor_strides(
-        old_mat.strides, old_nrr, old_tensor_shape
-    )
-    new_tensor_shape = np.empty((NDIM,), dtype=np.int64)
-    new_tensor_strides = np.empty((NDIM,), dtype=np.int64)
-    for i in range(NDIM):
-        new_tensor_shape[i] = old_tensor_shape[perm[i]]
-        new_tensor_strides[i] = old_tensor_strides[perm[i]]
-
-    sht = numba.np.unsafe.ndarray.to_fixed_tuple(new_tensor_shape, NDIM)
-    stridest = numba.np.unsafe.ndarray.to_fixed_tuple(new_tensor_strides, NDIM)
-    permuted = np.lib.stride_tricks.as_strided(
-        old_mat[r1:r2, c1:c2], shape=sht, strides=stridest
-    )
-    return permuted
 
 
 @numba.njit
@@ -79,7 +41,7 @@ def add_sector_symmetric_block(
     # *external multiplicity for each NEW domain axis,
     # *external multiplicity for each NEW codomain axis,
 
-    swapped_old_sym_block = _numba_transpose_reshape(
+    swapped_old_sym_block = numba_transpose_reshape(
         old_mat,
         r2 - old_row_ext_mult * old_row_struct_mult,
         r2,
@@ -119,7 +81,7 @@ def set_new_symmetric_block(
         new_row_ext_mult,
         new_col_ext_mult,
     )
-    inplace = _numba_transpose_reshape(
+    inplace = numba_transpose_reshape(
         new_mat,
         nr2 - new_row_ext_mult * new_row_struct_mult,
         nr2,
