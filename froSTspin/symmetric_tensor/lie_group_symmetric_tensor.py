@@ -1,47 +1,97 @@
 import numba
 import numpy as np
 
-from froSTspin.misc_tools.numba_tools import set_readonly_flag
+from froSTspin.misc_tools.numba_tools import numba_transpose_reshape, set_readonly_flag
 
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 
 
 @numba.njit
-def _numba_compute_tensor_strides(mat_strides, nrr, tensor_shape):
-    NDIM = len(tensor_shape)
-    tensor_strides = np.empty((NDIM,), dtype=np.int64)
-    tensor_strides[NDIM - 1] = mat_strides[1]
-    for i in range(1, NDIM - nrr):
-        tensor_strides[NDIM - i - 1] = tensor_strides[NDIM - i] * tensor_shape[NDIM - i]
-    tensor_strides[nrr - 1] = mat_strides[0]
-    for i in range(1, nrr):
-        tensor_strides[nrr - 1 - i] = tensor_strides[nrr - i] * tensor_shape[nrr - i]
-    return tensor_strides
+def add_sector_symmetric_block(
+    new_simple_block,
+    old_mat,
+    simple_shape,
+    data_perm,
+    old_row_struct_mult,
+    old_col_struct_mult,
+    old_row_ext_mult,
+    old_col_ext_mult,
+    r2,
+    c2,
+    unitary_rows,
+):
+    NDIMP2 = len(data_perm)
+    old_nrrp1 = data_perm[1]
+    # there are two operations: changing basis with elementary AND
+    # swapping axes in external multiplicity part. Transpose tensor BEFORE
+    # applying unitary to do only one transpose
+
+    simple_shape[0] = old_row_struct_mult
+    simple_shape[old_nrrp1] = old_col_struct_mult
+
+    # initial tensor shape = (
+    # old_structural_multiplicity_row,
+    # *external multiplicity for each old domain axis,
+    # old_structural_multiplicity_column,
+    # *external multiplicity for each old codomain axis,
+    #
+    # transpose to shape = (
+    # old_structural_multiplicity_row,
+    # old_structural_multiplicity_column,
+    # *external multiplicity for each NEW domain axis,
+    # *external multiplicity for each NEW codomain axis,
+
+    swapped_old_sym_block = numba_transpose_reshape(
+        old_mat,
+        r2 - old_row_ext_mult * old_row_struct_mult,
+        r2,
+        c2 - old_col_ext_mult * old_col_struct_mult,
+        c2,
+        old_nrrp1,
+        numba.np.unsafe.ndarray.to_fixed_tuple(simple_shape, NDIMP2),
+        data_perm,
+    )
+
+    swapped_old_sym_mat = np.ascontiguousarray(swapped_old_sym_block).reshape(
+        old_row_struct_mult * old_col_struct_mult, old_row_ext_mult * old_col_ext_mult
+    )
+
+    # convention: simple block unitary is sliced sector-wise on its columns=OLD
+    # but not for its rows = NEW
+    # meaning one applies a unitary block on old symmetric block to produce the
+    # full new simple block, with all NEW sectors
+    new_simple_block += unitary_rows @ swapped_old_sym_mat
 
 
 @numba.njit
-def _numba_transpose_reshape(old_mat, r1, r2, c1, c2, old_nrr, old_tensor_shape, perm):
-    """
-    numba version of
-    old_mat[r1:r2, c1:c2].reshape(old_tensor_shape).transpose(perm)
-    """
-    NDIM = len(perm)
+def set_new_symmetric_block(
+    new_mat,
+    new_sym_block,
+    new_row_struct_mult,
+    new_col_struct_mult,
+    new_row_ext_mult,
+    new_col_ext_mult,
+    nr2,
+    nc2,
+):
 
-    old_tensor_strides = _numba_compute_tensor_strides(
-        old_mat.strides, old_nrr, old_tensor_shape
+    sh = (
+        new_row_struct_mult,
+        new_col_struct_mult,
+        new_row_ext_mult,
+        new_col_ext_mult,
     )
-    new_tensor_shape = np.empty((NDIM,), dtype=np.int64)
-    new_tensor_strides = np.empty((NDIM,), dtype=np.int64)
-    for i in range(NDIM):
-        new_tensor_shape[i] = old_tensor_shape[perm[i]]
-        new_tensor_strides[i] = old_tensor_strides[perm[i]]
-
-    sht = numba.np.unsafe.ndarray.to_fixed_tuple(new_tensor_shape, NDIM)
-    stridest = numba.np.unsafe.ndarray.to_fixed_tuple(new_tensor_strides, NDIM)
-    permuted = np.lib.stride_tricks.as_strided(
-        old_mat[r1:r2, c1:c2], shape=sht, strides=stridest
+    inplace = numba_transpose_reshape(
+        new_mat,
+        nr2 - new_row_ext_mult * new_row_struct_mult,
+        nr2,
+        nc2 - new_col_ext_mult * new_col_struct_mult,
+        nc2,
+        2,
+        (sh[0], sh[2], sh[1], sh[3]),
+        (0, 2, 1, 3),
     )
-    return permuted
+    inplace[:] = new_sym_block.reshape(sh)
 
 
 @numba.njit
@@ -80,87 +130,47 @@ def permute_simple_block(
 
     # loop over all existing matrix blocks (!= all allowed matrix blocks)
     for i_existing_sector, i_sector in enumerate(existing_matrix_block_inds):
-        struct_mult_old_sector = (
-            old_row_sectors_struct_mult[i_sector]
-            * old_col_sectors_struct_mult[i_sector]
-        )
-        # need to check if this sector appears in elementary_block
-        if struct_mult_old_sector > 0:
-            r2 = old_row_sector_matrix_indices[i_sector]
-            c2 = old_col_sector_matrix_indices[i_sector]
-            # there are two operations: changing basis with elementary AND
-            # swapping axes in external multiplicity part. Transpose tensor BEFORE
-            # applying unitary to do only one transpose
-
-            simple_shape[0] = old_row_sectors_struct_mult[i_sector]
-            simple_shape[old_nrrp1] = old_col_sectors_struct_mult[i_sector]
-
-            # initial tensor shape = (
-            # old_structural_multiplicity_row,
-            # *external multiplicity for each old domain axis,
-            # old_structural_multiplicity_column,
-            # *external multiplicity for each old codomain axis,
-            #
-            # transpose to shape = (
-            # old_structural_multiplicity_row,
-            # old_structural_multiplicity_column,
-            # *external multiplicity for each NEW domain axis,
-            # *external multiplicity for each NEW codomain axis,
-
-            swapped_old_sym_block = _numba_transpose_reshape(
+        if (
+            old_row_sectors_struct_mult[i_sector] > 0
+            and old_col_sectors_struct_mult[i_sector] > 0
+        ):
+            add_sector_symmetric_block(
+                new_simple_block,
                 old_matrix_blocks[i_existing_sector],
-                r2 - old_row_ext_mult * old_row_sectors_struct_mult[i_sector],
-                r2,
-                c2 - old_col_ext_mult * old_col_sectors_struct_mult[i_sector],
-                c2,
-                old_nrrp1,
-                numba.np.unsafe.ndarray.to_fixed_tuple(simple_shape, NDIMP2),
+                simple_shape,
                 data_perm,
+                old_row_sectors_struct_mult[i_sector],
+                old_col_sectors_struct_mult[i_sector],
+                old_row_ext_mult,
+                old_col_ext_mult,
+                old_row_sector_matrix_indices[i_sector],
+                old_col_sector_matrix_indices[i_sector],
+                unitary_row_sectors[i_sector],
             )
-
-            swapped_old_sym_mat = np.ascontiguousarray(swapped_old_sym_block).reshape(
-                struct_mult_old_sector, ext_mult
-            )
-
-            # convention: simple block unitary is sliced sector-wise on its columns=OLD
-            # but not for its rows = NEW
-            # meaning one applies a unitary block on old symmetric block to produce the
-            # full new simple block, with all NEW sectors
-            unitary_rows = unitary_row_sectors[i_sector]
-            new_simple_block += unitary_rows @ swapped_old_sym_mat
 
     # all OLD sectors have been processed = we have the full simple block
     # slice it for all new sectors to generate the new symmetric blocks
     nmb_shift = 0
-    for i_nmb, nmb in enumerate(new_matrix_blocks):
-        struct_mult_new_sector = (
+    for i_nmb, new_mat in enumerate(new_matrix_blocks):
+        struct_mult_sector = (
             new_row_sectors_struct_mult[i_nmb] * new_col_sectors_struct_mult[i_nmb]
         )
 
-        if struct_mult_new_sector > 0:
-            sh = (
+        if (
+            new_row_sectors_struct_mult[i_nmb] > 0
+            and new_col_sectors_struct_mult[i_nmb] > 0
+        ):
+            set_new_symmetric_block(
+                new_mat,
+                new_simple_block[nmb_shift : nmb_shift + struct_mult_sector],
                 new_row_sectors_struct_mult[i_nmb],
                 new_col_sectors_struct_mult[i_nmb],
                 new_row_ext_mult,
                 new_col_ext_mult,
+                new_row_sector_matrix_indices[i_nmb],
+                new_col_sector_matrix_indices[i_nmb],
             )
-            new_sym_block = new_simple_block[
-                nmb_shift : nmb_shift + struct_mult_new_sector
-            ]
-            nr2 = new_row_sector_matrix_indices[i_nmb]
-            nc2 = new_col_sector_matrix_indices[i_nmb]
-            inplace = _numba_transpose_reshape(
-                nmb,
-                nr2 - new_row_ext_mult * new_row_sectors_struct_mult[i_nmb],
-                nr2,
-                nc2 - new_col_ext_mult * new_col_sectors_struct_mult[i_nmb],
-                nc2,
-                2,
-                (sh[0], sh[2], sh[1], sh[3]),
-                (0, 2, 1, 3),
-            )
-            inplace[:] = new_sym_block.reshape(sh)
-            nmb_shift += struct_mult_new_sector
+            nmb_shift += struct_mult_sector
 
 
 @numba.njit
