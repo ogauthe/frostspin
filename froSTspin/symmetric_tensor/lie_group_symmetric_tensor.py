@@ -174,7 +174,7 @@ def permute_simple_block(
 
 
 @numba.njit
-def fill_blocks_out(
+def numba_monothread_fill_blocks_out(
     new_matrix_blocks,
     old_matrix_blocks,
     simple_block_indices,
@@ -199,6 +199,60 @@ def fill_blocks_out(
 
     n_old_sectors = idirb.shape[1]
     for i_simple_block in range(len(simple_block_indices)):
+        i_old_row, i_old_col, i_new_row, i_new_col = simple_block_indices[
+            i_simple_block
+        ]
+        permute_simple_block(
+            old_matrix_blocks,
+            new_matrix_blocks,
+            data_perm,
+            existing_matrix_block_inds,
+            isometry_in_blocks[
+                i_simple_block * n_old_sectors : (i_simple_block + 1) * n_old_sectors
+            ],
+            idirb[i_old_row],
+            idicb[i_old_col],
+            idorb[i_new_row],
+            idocb[i_new_col],
+            edir[i_old_row],
+            edic[i_old_col],
+            edor[i_new_row],
+            edoc[i_new_col],
+            old_row_external_mult[i_old_row],
+            old_col_external_mult[i_old_col],
+            slices_ir[i_old_row],
+            slices_ic[i_old_col],
+            slices_or[i_new_row],
+            slices_oc[i_new_col],
+        )
+
+
+@numba.njit(parallel=True)
+def numba_parallel_fill_blocks_out(
+    new_matrix_blocks,
+    old_matrix_blocks,
+    simple_block_indices,
+    idirb,
+    idicb,
+    idorb,
+    idocb,
+    edir,
+    edic,
+    edor,
+    edoc,
+    existing_matrix_block_inds,
+    slices_ir,
+    slices_ic,
+    slices_or,
+    slices_oc,
+    old_row_external_mult,
+    old_col_external_mult,
+    isometry_in_blocks,
+    data_perm,
+):
+
+    n_old_sectors = idirb.shape[1]
+    for i_simple_block in numba.prange(len(simple_block_indices)):
         i_old_row, i_old_col, i_new_row, i_new_col = simple_block_indices[
             i_simple_block
         ]
@@ -830,28 +884,52 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         )
 
         data_perm = (0, self._nrr + 1, *(axes + 1 + (axes >= self._nrr)))
-        fill_blocks_out(
-            new_matrix_blocks,
-            old_matrix_blocks,
-            simple_block_indices,
-            idirb,
-            idicb,
-            idorb,
-            idocb,
-            edir,
-            edic,
-            edor,
-            edoc,
-            existing_matrix_block_inds,
-            slices_ir,
-            slices_ic,
-            slices_or,
-            slices_oc,
-            old_row_external_mult,
-            old_col_external_mult,
-            isometry_in_blocks,
-            data_perm,
-        )
+        if simple_block_indices.shape[0] < 300:
+            numba_monothread_fill_blocks_out(
+                new_matrix_blocks,
+                old_matrix_blocks,
+                simple_block_indices,
+                idirb,
+                idicb,
+                idorb,
+                idocb,
+                edir,
+                edic,
+                edor,
+                edoc,
+                existing_matrix_block_inds,
+                slices_ir,
+                slices_ic,
+                slices_or,
+                slices_oc,
+                old_row_external_mult,
+                old_col_external_mult,
+                isometry_in_blocks,
+                data_perm,
+            )
+        else:
+            numba_parallel_fill_blocks_out(
+                new_matrix_blocks,
+                old_matrix_blocks,
+                simple_block_indices,
+                idirb,
+                idicb,
+                idorb,
+                idocb,
+                edir,
+                edic,
+                edor,
+                edoc,
+                existing_matrix_block_inds,
+                slices_ir,
+                slices_ic,
+                slices_or,
+                slices_oc,
+                old_row_external_mult,
+                old_col_external_mult,
+                isometry_in_blocks,
+                data_perm,
+            )
         return block_irreps_out, new_matrix_blocks
 
     ####################################################################################
