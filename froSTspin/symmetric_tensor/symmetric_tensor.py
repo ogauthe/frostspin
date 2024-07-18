@@ -3,6 +3,7 @@ import scipy.linalg as lg
 import scipy.sparse.linalg as slg
 
 from froSTspin.config import ASSERT_TOL
+from froSTspin.misc_tools.numba_tools import set_writable_flag
 from froSTspin.misc_tools.svd_tools import (
     find_chi_largest,
     robust_eigh,
@@ -427,11 +428,13 @@ class SymmetricTensor:
         )
 
     def __imul__(self, x):
+        set_writable_flag(*self._blocks)
         for b in self._blocks:
             b[:] *= x
         return self
 
     def __itruediv__(self, x):
+        set_writable_flag(*self._blocks)
         for b in self._blocks:
             b[:] /= x
         return self
@@ -1234,6 +1237,7 @@ class SymmetricTensor:
 
         # 3) define functions do deal with dense and sparse blocks
         def matvec(x, st0, bj):
+            st0.blocks[0].flags["W"] = True  # st0 may be permuted and set readonly
             st0.blocks[0][:, 0] = x
             st1 = matmat(st0)
             y = st1.blocks[bj].ravel()

@@ -95,6 +95,15 @@ assert lg.norm(stu1.toarray() - sds_22t) < 1e-14
 sto2 = st.toO2()
 assert lg.norm(sto2.toarray() - sds_22t) < 1e-14
 
+# check scalar operations
+assert lg.norm((st / 2).toarray() - sds_22t / 2) < 1e-14
+assert lg.norm((st * 2).toarray() - sds_22t * 2) < 1e-14
+assert lg.norm((2 * st).toarray() - sds_22t * 2) < 1e-14
+st /= 2
+assert lg.norm(st.toarray() - sds_22t / 2) < 1e-14
+st *= 2
+assert lg.norm(st.toarray() - sds_22t) < 1e-14
+
 # check missing blocks
 r3 = np.array([[1], [3]])
 blocks = (-np.eye(1), 2 * np.eye(1))
