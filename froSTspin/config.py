@@ -33,6 +33,4 @@ if __debug__:  # noqa: SIM102
         print("Consider running the code in optimized mode with python -O")
         print("You may disable this warning with the flag --froSTspin-quiet\n")
 
-print("\n *** FROSTSPIN IS ON BRANCH DEV ***\n")
-
 ASSERT_TOL = 4e-13
