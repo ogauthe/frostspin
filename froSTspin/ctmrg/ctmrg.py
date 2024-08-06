@@ -455,7 +455,15 @@ class CTMRG:
                 self._env.get_T3(x + 1, y + 2),
                 self._env.get_C3(x + 2, y + 2),
             )
-            logZ += np.log(n1234) + np.log(nc) - np.log(nt13) - np.log(nt24)
+            if nc * nt13 * nt24 * n1234 < 0:
+                print("Warning: negative PEPS norm")
+                return np.nan
+            logZ += (
+                np.log(np.abs(n1234))
+                + np.log(np.abs(nc))
+                - np.log(np.abs(nt13))
+                - np.log(np.abs(nt24))
+            )
         logZ /= self.n_sites
         return logZ
 
