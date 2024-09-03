@@ -621,7 +621,7 @@ class CTMRG:
         return rdm_dr_cell, rdm_ur_cell
 
     def compute_transfer_spectrum_h(
-        self, y, nval, *, dmax_full=200, maxiter=1000, tol=0
+        self, y, nvals, *, dmax_full=200, maxiter=1000, tol=0
     ):
         """
         Compute nval (dense) largest eigenvalues of the horizontal transfer matrix at
@@ -630,26 +630,26 @@ class CTMRG:
         T1s = []
         T3s = []
         for x in range(self.Lx):
-            T1s.append(self._env.get_T1(x, y))
-            T3s.append(self._env.get_T3(x, y + 1))
+            T1s.append(self._env.get_T1(-x, y))
+            T3s.append(self._env.get_T3(-x, y + 1))
         return observables.compute_mps_transfer_spectrum(
-            T1s, T3s, nval, dmax_full=dmax_full, maxiter=maxiter, tol=tol
+            T1s, T3s, nvals, dmax_full=dmax_full, maxiter=maxiter, tol=tol
         )
 
     def compute_transfer_spectrum_v(
-        self, x, nval, *, dmax_full=200, maxiter=1000, tol=0
+        self, x, nvals, *, dmax_full=200, maxiter=1000, tol=0
     ):
         """
         Compute nval (dense) largest eigenvalues of the vertical transfer matrix at
         unit cell column x.
         """
-        T2s = []
-        T4s = []
+        T1s = []
+        T3s = []
         for y in range(self.Ly):
-            T2s.append(self._env.get_T2(x + 1, y).permute((1,), (2, 3, 0)))
-            T4s.append(self._env.get_T4(x, y).permute((1, 2), (3, 0)))
+            T1s.append(self._env.get_T2(x + 1, -y).permute((1,), (2, 3, 0)))
+            T3s.append(self._env.get_T4(x, -y).permute((1, 2), (3, 0)))
         return observables.compute_mps_transfer_spectrum(
-            T2s, T4s, nval, dmax_full=dmax_full, maxiter=maxiter, tol=tol
+            T1s, T3s, nvals, dmax_full=dmax_full, maxiter=maxiter, tol=tol
         )
 
     def compute_corr_length_h(self, y, *, maxiter=1000, tol=0):
