@@ -4,73 +4,135 @@ import froSTspin
 
 
 def compute_mps_transfer_spectrum(
-    Tup_list,
-    Tdown_list,
+    T1s,
+    T3s,
     nvals,
     *,
+    A_list=None,
     dmax_full=200,
     rng=None,
     maxiter=4000,
     tol=0,
 ):
-    """
+    r"""
     Compute nval eigenvalues for the transfer matrix defined by the MPS in Tup_list and
     Tdown_list.
 
     Parameters
     ----------
-    Tup_list : enum of SymmetricTensor
-        Elementary cell MPS top tensors, from left to right. See leg ordering below.
-    Tdown_list : enum of SymmetricTensor
-        Elementary cell MPS bottom tensors, from left to right.
-    nval : int
+    T1s : enum of SymmetricTensor
+        Elementary cell MPS top tensors, from right to left. See leg ordering below.
+    T3s : enum of SymmetricTensor
+        Elementary cell MPS bottom tensors, from right to left.
+    nvals : int
         Number of eigenvalues to compute.
-    The other parameters correspond to scipy.linalg.eigs optional parameters.
+    A_list : None or enum of SymmetricTensor
+        Elementary cell site tensor, from right to left.
+    dmax_full : int
+        Maximum block size to use dense eigvals.
+    rng : numpy random generator
+        Random number generator. Used to initialize starting vectors for each block.
+        If None, a new random generator is created with default_rng().
+    maxiter : int
+        Maximum number of Lanczos update iterations allowed in Arpack.
+    tol : float
+        Arpack tol.
 
+
+    Notes
+    -----
     Transfer matrix is defined as acting on a left edge state by adding MPS tensors
-    from left to right. If transposed, it acts on a right edge state by adding tensors
-    from right to left.
+    from *right* to *left*.
 
     Expected leg ordering:
 
-       2-Tup-0              3-Tup-0
-          |                    ||
-          1                    12
-                      OR
-          0                    01
-          |                    ||
-       2-Tdown-1           3-Tdown-2
+        3-Tup-0
+           ||           0 2
+           12            \|
+                        5-A-3
+                          |\
+           01             4 1
+           ||
+       3-Tdown-2
 
-    That is there can be either one or two middle legs (physical + ancila, CTM double
-    layer edge environment tensor).
+
+    If A_list is not provided, the applied transfer matrix is made of 2 rows: one of Tup
+    and one of Tdown.
+           --T1--
+             ||
+           --T3--
+
+    If A_list is provided, the applied transfer matrix is made of 3 rows: one of Tup,
+    one of A and one of Tdown. This is much more expensive but should be more precise,
+    especially for small chi.
+           --T1--
+             ||
+           ==AA*=
+             ||
+           --T3--
+
     """
+    ST = type(T1s[0])
+    dtype = T1s[0].dtype
 
-    Tup_list = [T.permute((3, 1, 2), (0,)) for T in Tup_list]
-    Tdown_list = [T.permute((3,), (2, 0, 1)) for T in Tdown_list]
-    reps = (Tup_list[0].col_reps[0], Tdown_list[0].col_reps[0])
-    sig0 = np.empty((2,), dtype=bool)
-    sig0[0] = ~Tup_list[0].signature[3]
-    sig0[1] = ~Tdown_list[0].signature[1]
+    if A_list is None:
+        Ts_up = [T.permute((3, 1, 2), (0,)) for T in T1s]
+        Ts_down = [T.permute((3,), (2, 0, 1)) for T in T3s]
+        reps = (Ts_up[0].col_reps[0], Ts_down[0].col_reps[0])
+        sig0 = np.empty((2,), dtype=bool)
+        sig0[0] = ~Ts_up[0].signature[3]
+        sig0[1] = ~Ts_down[0].signature[1]
 
-    def matmat(st):
-        # bilayer matrix-vector product, MPS tensors going from right to left
-        # (input is on the right).
-        st = st.permute((0,), (1, 2))
-        for mu, md in zip(Tup_list, Tdown_list, strict=True):
-            st = mu @ st
-            st = st.permute((3, 1, 2), (0, 4))
-            st = md @ st
-            st = st.permute((1,), (0, 2))
-        st = st.permute((0, 1), (2,))
-        return st
+        def matmat(st0):
+            # bilayer matrix-vector product, MPS tensors going from right to left
+            # (input is on the right).
+            st = st0.permute((0,), (1, 2))
+            for mu, md in zip(Ts_up, Ts_down, strict=True):
+                st = mu @ st
+                st = st.permute((3, 1, 2), (0, 4))
+                st = md @ st
+                st = st.permute((1,), (0, 2))
+            st = st.permute((0, 1), (2,))
+            return st
+
+    else:
+        Ts_up = [T.permute((3, 1, 2), (0,)) for T in T1s]
+        Ts_down = [T.permute((3,), (2, 0, 1)) for T in T3s]
+        As = [A.permute((0, 1, 4, 5), (3, 2)) for A in A_list]
+        Acs = [A.dagger().permute((2, 3), (4, 5, 1, 0)) for A in A_list]
+        reps = (
+            Ts_up[0].col_reps[0],
+            As[0].col_reps[0],
+            Acs[0].col_reps[2],
+            Ts_down[0].col_reps[0],
+        )
+        sig0 = np.empty((4,), dtype=bool)
+        sig0[0] = ~Ts_up[0].signature[3]
+        sig0[1] = ~As[0].signature[4]
+        sig0[2] = ~Acs[0].signature[4]
+        sig0[3] = ~Ts_down[0].signature[1]
+
+        def matmat(st0):
+            st = st0.permute((0,), (1, 2, 3, 4))
+            for mu, md, A, Aconj in zip(Ts_up, Ts_down, As, Acs, strict=True):
+                st = mu @ st
+                st = st.permute((3, 1), (0, 2, 4, 5, 6))
+                st = A @ st
+                st = st.permute((0, 1, 6, 5), (2, 3, 4, 7, 8))
+                st = Aconj @ st
+                st = st.permute((5, 2, 0), (1, 3, 4, 6))
+                st = md @ st
+                st = st.permute((3,), (2, 1, 0, 4))
+            st = st.permute((0, 1, 2, 3), (4,))
+            return st
 
     try:
-        vals = Tup_list[0].eigs(
+        vals = ST.eigs(
             matmat,
             nvals,
             reps=reps,
             signature=sig0,
-            dtype=Tup_list[0].dtype,
+            dtype=dtype,
             dmax_full=dmax_full,
             rng=rng,
             maxiter=maxiter,
