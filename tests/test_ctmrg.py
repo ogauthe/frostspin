@@ -342,6 +342,11 @@ for m in rdm_ur_cell:
 ctm.iterate()
 ctm.iterate()
 
+xih0 = ctm.compute_corr_length_h(0)
+xih1 = ctm.compute_corr_length_h(1)
+assert np.isfinite(xih0)
+assert np.isfinite(xih1)
+
 # check truncate_corners succeeds
 ctm.restart_environment()
 ctm.truncate_corners()
