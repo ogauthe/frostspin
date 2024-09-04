@@ -689,7 +689,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         block_sz = -self._block_irreps[::-1]
 
         # Sz = 0 blocks (may not exist)
-        if self._block_irreps[0] < 1:
+        if self._nblocks and self._block_irreps[0] < 1:
             sz_values = U1_SymmetricTensor.combine_representations(
                 u1_row_reps, self._signature[: self._nrr]
             )
