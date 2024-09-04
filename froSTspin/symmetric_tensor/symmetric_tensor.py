@@ -151,7 +151,10 @@ class SymmetricTensor:
         as_matrix : bool
             Whether to return tensor with its tensor shape (default) or its matrix shape
         """
-        mat = self._tomatrix()
+        if self._nblocks == 0:  # pathological case
+            mat = np.zeros(self.matrix_shape, dtype=self.dtype)
+        else:
+            mat = self._tomatrix()
         assert abs(self.norm() - lg.norm(mat)) <= ASSERT_TOL * self.norm()
         if as_matrix:
             return mat
