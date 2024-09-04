@@ -704,7 +704,9 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
                 b0o = np.zeros((0, 0), dtype=self.dtype)
                 b0e = self._blocks[0]
                 block_sz = np.hstack((block_sz, self._block_irreps[1:]))
-            elif self.nblocks > 1 and self._block_irreps[1] > 0:  # no 0e block
+            elif self._nblocks == 1 or (
+                self._nblocks > 1 and self._block_irreps[1] > 0
+            ):  # no 0e block
                 i1 = 1
                 b0o = self._blocks[0]
                 b0e = np.zeros((0, 0), dtype=self.dtype)
