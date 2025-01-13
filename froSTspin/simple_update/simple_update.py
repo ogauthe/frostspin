@@ -204,7 +204,7 @@ def get_update_data(tensor_bond_indices, raw_update_data, raw_hamilts, second_or
         swap = [init.index(i) for i in end]
         final_swap[i] = (tuple(swap[:2]), tuple(swap[2:]))
 
-    ret = (
+    return (
         bond1,
         bond2,
         gate_indices,
@@ -218,7 +218,6 @@ def get_update_data(tensor_bond_indices, raw_update_data, raw_hamilts, second_or
         initial_swap,
         final_swap,
     )
-    return ret
 
 
 class SimpleUpdate:
@@ -372,15 +371,13 @@ class SimpleUpdate:
 
     def __repr__(self):
         s = f"SimpleUpdate with {self._symmetry} symmetry and D = {self.D}"
-        s = s + f" at beta = {self._beta:.10g}"
-        return s
+        return s + f" at beta = {self._beta:.10g}"
 
     def __str__(self):
         s = repr(self)
         s = s + f"\nn_tensors = {self._n_tensors}, n_bonds = {self._n_bonds}"
         s = s + f"\nDmax = {self.Dmax}, tau = {self._tau}, rcutoff = {self.rcutoff}, "
-        s = s + f"degen_ratio = {self.degen_ratio}"
-        return s
+        return s + f"degen_ratio = {self.degen_ratio}"
 
     @classmethod
     def square_lattice_first_neighbor(
@@ -1348,8 +1345,7 @@ class SimpleUpdate:
             sw = swap[0] + swap[1]
             if sorted(sw) != list(range(len(legs))):
                 raise ValueError("Swap does not match legs")
-            new_legs = [legs[i] for i in sw]
-            return new_legs
+            return [legs[i] for i in sw]
 
         def check_update(i, tensor_legs):
             b1 = self._1st_updated_bond[i]

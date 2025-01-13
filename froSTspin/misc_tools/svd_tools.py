@@ -39,8 +39,7 @@ def find_chi_largest(block_s, chi, *, dims=None, rcutoff=0.0, degen_ratio=1.0):
     degen_ratio = float(degen_ratio)
     assert dims.shape == (len(block_s),)
     assert degen_ratio <= 1.0
-    block_cuts = _numba_find_chi_largest(block_s, chi, dims, rcutoff, degen_ratio)
-    return block_cuts
+    return _numba_find_chi_largest(block_s, chi, dims, rcutoff, degen_ratio)
 
 
 @numba.njit
@@ -176,8 +175,7 @@ def sparse_svd(A, k, *, ncv=None, tol=0, maxiter=None, compute_vectors=True):
     # matrices should be small enough to avoid convergence errors in lg.svd
     u = X_dot(eigvec)
     if not compute_vectors:
-        s = lg.svd(u, compute_uv=False, overwrite_a=True)
-        return s
+        return lg.svd(u, compute_uv=False, overwrite_a=True)
 
     # compute the right singular vectors of X and update the left ones accordingly
     u, s, vh = lg.svd(u, full_matrices=False, overwrite_a=True)

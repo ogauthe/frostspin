@@ -646,7 +646,7 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             simple_block_indices, idirb, idicb, idorb, idocb, block_irreps_out
         )
 
-        structual_data = (
+        return (
             simple_block_indices,
             idirb,
             idicb,
@@ -655,7 +655,6 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             block_irreps_out,
             isometry_blocks,
         )
-        return structual_data
 
     @classmethod
     def overlap_cg_trees(

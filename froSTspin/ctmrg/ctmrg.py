@@ -284,8 +284,7 @@ class CTMRG:
 
     def __repr__(self):
         s = f"{self.symmetry()} symmetric CTMRG with Dmax = {self.Dmax}"
-        s = s + f" and chi_target = {self.chi_target}"
-        return s
+        return s + f" and chi_target = {self.chi_target}"
 
     def __str__(self):
         return "\n".join(
@@ -468,7 +467,7 @@ class CTMRG:
         return logZ
 
     def compute_rdm1x1(self, x, y):
-        rdm1x1 = rdm.rdm_1x1(
+        return rdm.rdm_1x1(
             self._env.get_C1(x, y),
             self._env.get_T1(x + 1, y),
             self._env.get_C2(x + 2, y),
@@ -479,7 +478,6 @@ class CTMRG:
             self._env.get_T3(x + 1, y + 2),
             self._env.get_C3(x + 2, y + 2),
         )
-        return rdm1x1
 
     def compute_rdm1x2(self, x, y):
         if self.verbosity > 1:
@@ -657,16 +655,14 @@ class CTMRG:
         Compute maximal vertical correlation length at unit cell row y.
         """
         v1, v2 = self.compute_transfer_spectrum_h(y, 2, maxiter=maxiter, tol=tol)
-        xi = -self.Lx / np.log(np.abs(v2))
-        return xi
+        return -self.Lx / np.log(np.abs(v2))
 
     def compute_corr_length_v(self, x, *, maxiter=1000, tol=0):
         """
         Compute maximal vertical correlation length at unit cell column x.
         """
         v1, v2 = self.compute_transfer_spectrum_v(x, 2, maxiter=maxiter, tol=tol)
-        xi = -self.Ly / np.log(np.abs(v2))
-        return xi
+        return -self.Ly / np.log(np.abs(v2))
 
     def construct_enlarged_dr(self, x, y, *, free_memory=False):
         """

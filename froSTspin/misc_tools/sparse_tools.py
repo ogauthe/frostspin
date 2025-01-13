@@ -142,5 +142,4 @@ def sparse_transpose(m, shape, axes, n_row_axes, *, copy=False):
     ind1D = np.ravel_multi_index((mcoo.row, mcoo.col), mcoo.shape)
     ind1D = (ind1D[:, None] // strides1 % shape) @ strides2
     row, col = np.unravel_index(ind1D, nsh)
-    out = ssp.coo_array((m.data, (row, col)), shape=nsh, copy=copy)
-    return out
+    return ssp.coo_array((m.data, (row, col)), shape=nsh, copy=copy)

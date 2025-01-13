@@ -34,8 +34,7 @@ def exact_magn(beta):
 def exact_energy(beta):
     k = np.sinh(2 * beta) ** -2
     x = scipy.special.ellipk(4 * k * (1 + k) ** -2)
-    u = -(1.0 + 2 / np.pi * (2 * np.tanh(2 * beta) ** 2 - 1) * x) / np.tanh(2 * beta)
-    return u
+    return -(1.0 + 2 / np.pi * (2 * np.tanh(2 * beta) ** 2 - 1) * x) / np.tanh(2 * beta)
 
 
 # ===============  Initialize tensors  =================
@@ -251,8 +250,7 @@ def env_1site(s, T):
     #   |     2*    |
     #   |     |     |
     #   s-----T-----s
-    full = full.permute((0, 3), (2, 1))
-    return full
+    return full.permute((0, 3), (2, 1))
 
 
 def env_2sites(s, T):
@@ -305,8 +303,7 @@ def env_2sites(s, T):
     #   |    3*   4*    |
     #   |    ^    ^     |
     #   s----T----T-----s
-    env = left @ right
-    return env
+    return left @ right
 
 
 # ==========  Run simulation without symmetry  =======

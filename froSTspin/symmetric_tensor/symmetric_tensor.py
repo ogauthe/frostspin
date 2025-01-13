@@ -537,8 +537,7 @@ class SymmetricTensor:
             b = rng.random(sh) - 0.5
             blocks.append(b)
 
-        st = cls(row_reps, col_reps, blocks, block_irreps, signature)
-        return st
+        return cls(row_reps, col_reps, blocks, block_irreps, signature)
 
     def copy(self):
         # only copy blocks
@@ -1088,8 +1087,7 @@ class SymmetricTensor:
     @classmethod
     def load_from_file(cls, savefile, *, prefix=""):
         with np.load(savefile) as fin:
-            st = cls.load_from_dic(fin, prefix=prefix)
-        return st
+            return cls.load_from_dic(fin, prefix=prefix)
 
     ####################################################################################
     # Private methods
@@ -1243,8 +1241,7 @@ class SymmetricTensor:
             st0.blocks[0].flags["W"] = True  # st0 may be permuted and set readonly
             st0.blocks[0][:, 0] = x
             st1 = matmat(st0)
-            y = st1.blocks[bj].ravel()
-            return y
+            return st1.blocks[bj].ravel()
 
         if compute_vectors:
             vector_blocks = [None] * nblocks

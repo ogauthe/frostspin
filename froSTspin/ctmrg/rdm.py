@@ -60,14 +60,14 @@ def contract_open_corner(C1, T1, T4, A):
     #  | \2  |\         |\
     #  7     5 0        2 3
     ul = A.permute((1, 2, 5), (0, 3, 4)).dagger() @ ul
-    ul = ul.permute((3, 0, 4, 1, 6), (5, 2, 7))
+
     # -----6          -----4
     # |  || 3         |  || 0
     # |  ||/          |  ||/
     # |=====4,1  -->  |=====2,3
     # |  ||\          |  ||\
     # 7  52 0         7  56 1
-    return ul
+    return ul.permute((3, 0, 4, 1, 6), (5, 2, 7))
 
 
 def contract_open_corner_mirror(T1, C2, A, T2):
@@ -78,14 +78,14 @@ def contract_open_corner_mirror(T1, C2, A, T2):
     ur = ur.permute((0, 3), (1, 4, 2, 5))
     ur = A.permute((1, 0, 4, 5), (2, 3)) @ ur
     ur = ur.permute((0, 4, 5), (1, 2, 3, 6, 7))
-    ur = A.permute((1, 2, 3), (0, 4, 5)).dagger() @ ur
+
     #   6------
     #    2 || |
     #     \|| |
     #  5,3====|
     #     /|| |
     #    0 41 7
-    return ur
+    return A.permute((1, 2, 3), (0, 4, 5)).dagger() @ ur
 
 
 def rdm_1x2(C1, T1l, T1r, C2, T4, Al, Ar, T2, C4, T3l, T3r, C3):
@@ -235,12 +235,11 @@ def rdm_diag_ur(ul, T1r, C2, Aur, T2u, T4d, Adl, dr_T, C4, T3l):
         T2u.permute((2, 3, 0), (1,)),
         C2.transpose(),
     )
-    rdm = (
+    return (
         rdm.reshape(Adl.shape[0], Aur.shape[0], Adl.shape[0], Aur.shape[0])
         .transpose(1, 0, 3, 2)
         .reshape(Aur.shape[0] * Adl.shape[0], Aur.shape[0] * Adl.shape[0])
     )
-    return rdm
 
 
 def rdm_2x2(C1, T1l, T1r, C2, T4u, Aul, Aur, T2u, T4d, Adl, Ard, T2d, C4, T4l, T4r, C3):

@@ -78,7 +78,6 @@ def numba_transpose_reshape(old_mat, r1, r2, c1, c2, old_nrr, old_tensor_shape, 
 
     sht = numba.np.unsafe.ndarray.to_fixed_tuple(new_tensor_shape, NDIM)
     stridest = numba.np.unsafe.ndarray.to_fixed_tuple(new_tensor_strides, NDIM)
-    permuted = np.lib.stride_tricks.as_strided(
+    return np.lib.stride_tricks.as_strided(
         old_mat[r1:r2, c1:c2], shape=sht, strides=stridest
     )
-    return permuted

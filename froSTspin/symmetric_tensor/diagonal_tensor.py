@@ -214,5 +214,4 @@ class DiagonalTensor:
     @classmethod
     def load_from_file(cls, savefile, *, prefix=""):
         with np.load(savefile) as fin:
-            st = cls.load_from_dic(fin, prefix=prefix)
-        return st
+            return cls.load_from_dic(fin, prefix=prefix)

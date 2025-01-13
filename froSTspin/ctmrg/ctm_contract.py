@@ -103,8 +103,7 @@ def contract_dl(T4, A, C4, T3):
 def contract_C1234(C1, C2, C4, C3):
     up = C2 @ C1
     down = C4 @ C3.transpose()
-    out = up.full_contract(down)
-    return out
+    return up.full_contract(down)
 
 
 def contract_T1T3(C1, T1, C2, C4, T3, C3):
@@ -125,8 +124,7 @@ def contract_T1T3(C1, T1, C2, C4, T3, C3):
     #  0--T3--C3
     right = right.permute((0,), (3, 1, 2))
 
-    out = left.full_contract(right)
-    return out
+    return left.full_contract(right)
 
 
 def contract_T2T4(C1, C2, T4, T2, C4, C3):
@@ -137,8 +135,7 @@ def contract_T2T4(C1, C2, T4, T2, C4, C3):
     left = left.permute((0, 1, 2), (3,))
     left = left @ down
     T2 = T2.permute((1,), (0, 2, 3))
-    out = left.full_contract(T2)
-    return out
+    return left.full_contract(T2)
 
 
 def contract_norm(C1, T1, C2, T4, A, T2, C4, T3, C3):
@@ -162,5 +159,4 @@ def contract_norm(C1, T1, C2, T4, A, T2, C4, T3, C3):
     down = down.permute((3,), (1, 2, 0))
     down = C4 @ down
     down = down.permute((1, 2, 0), (3,))
-    out = up.full_contract(down)
-    return out
+    return up.full_contract(down)
