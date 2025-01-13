@@ -610,7 +610,6 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     inds_e, inds_f = (co_rep[1, :, None] == block_irreps_out).nonzero()
                     idocb[ic_out, inds_f] = co_rep[0, inds_e]
 
-                # TODO remove singlets, adjust perm and signature
                 for i in range(ndim):
                     key0[i] = reps_ei[i][1, 0]
                 key = tuple(key0)
