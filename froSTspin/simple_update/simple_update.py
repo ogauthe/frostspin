@@ -1069,10 +1069,8 @@ class SimpleUpdate:
         and right physical variables. mid is the virtual bond to be updated.
         """
         # cut left and right between const and effective parts
-        cstL, svL, effL = left.svd()  # auxL-effL=p,m
-        effL = svL * effL
-        cstR, svR, effR = right.svd()  # auxR-effR=p,m
-        effR = svR * effR
+        cstL, effL = left.qr()  # auxL-effL=p,m
+        cstR, effR = right.qr()  # auxR-effR=p,m
 
         # change tensor structure to contract mid
         effL = effL.permute((0, 1), (2,))  # auxL,p=effL-m
@@ -1148,17 +1146,14 @@ class SimpleUpdate:
         # values *on the right* of effL and effR, and apply 1/weights *on the right*.
 
         # 1) SVD cut between constant tensors and effective tensors to update
-        cstL, svL, effL = left.svd()  # auxL - effL = pL, mL
-        effL = svL * effL
+        cstL, effL = left.qr()  # auxL - effL = pL, mL
         effL = effL.permute((0, 1), (2,))  # auxL,pL = effL - mL
         effL = effL * weightsL**-1
 
-        cstm, svm, effm = mid.svd()  # auxm - effm = mL, mR
-        effm = svm * effm
+        cstm, effm = mid.qr()  # auxm - effm = mL, mR
         effm = effm.permute((1,), (2, 0))  # mL - effm = mR, auxm
 
-        cstR, svR, effR = right.svd()  # auxR - effR = pR, mR
-        effR = svR * effR
+        cstR, effR = right.qr()  # auxR - effR = pR, mR
         effR = effR.permute((0, 1), (2,))  # auR, pR = effR - mR
         effR = effR * weightsR**-1
 
