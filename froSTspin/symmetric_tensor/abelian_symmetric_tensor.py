@@ -403,13 +403,12 @@ class AbelianSymmetricTensor(SymmetricTensor):
     def _tomatrix(self):
         # cast blocks to C-contiguous to avoid numba bug
         self._blocks = tuple(np.ascontiguousarray(b) for b in self._blocks)
-        m = _numba_blocks_to_array(
+        return _numba_blocks_to_array(
             self._blocks,
             self._block_irreps,
             self.get_row_representation(),
             self.get_column_representation(),
         )
-        return m
 
     def _transpose_data(self):
         # in the abelian case, matrix transpose can be obtained by taking dual of

@@ -36,8 +36,7 @@ def _initialize_env(A):
         C = At.dagger() @ At
         C = C.permute((2, 0), (3, 1))
         C.update_signature(su)
-        C = C.merge_legs(2, 3).merge_legs(0, 1)
-        return C
+        return C.merge_legs(2, 3).merge_legs(0, 1)
 
     # Due to C3 annoying conventions, some -1 need to appear here. These signature
     # update are independent of A signature or of the unit cell tiling pattern.
@@ -265,8 +264,7 @@ class CTM_Environment:
         def sortkey(r):
             return (C.representation_dimension(r), tuple(r.ravel()))
 
-        unique = sorted(unique, key=sortkey)
-        return unique
+        return sorted(unique, key=sortkey)
 
     @property
     def elementary_tensors(self):

@@ -33,8 +33,7 @@ def random_U1_tensor(row_reps, col_reps, signature, rng=None):
     nnz = (irreps1D == 0).nonzero()[0]
     t0 = np.zeros(irreps1D.size)
     t0[nnz] = rng.random(nnz.size) - 0.5
-    t0 = t0.reshape(tuple(r.size for r in reps)) / lg.norm(t0)
-    return t0
+    return t0.reshape(tuple(r.size for r in reps)) / lg.norm(t0)
 
 
 rng = np.random.default_rng(42)

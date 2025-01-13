@@ -92,8 +92,7 @@ def compute_mps_transfer_spectrum(
                 st = st.permute((3, 1, 2), (0, 4))
                 st = md @ st
                 st = st.permute((1,), (0, 2))
-            st = st.permute((0, 1), (2,))
-            return st
+            return st.permute((0, 1), (2,))
 
     else:
         Ts_up = [T.permute((3, 1, 2), (0,)) for T in T1s]
@@ -123,8 +122,7 @@ def compute_mps_transfer_spectrum(
                 st = st.permute((5, 2, 0), (1, 3, 4, 6))
                 st = md @ st
                 st = st.permute((3,), (2, 1, 0, 4))
-            st = st.permute((0, 1, 2, 3), (4,))
-            return st
+            return st.permute((0, 1, 2, 3), (4,))
 
     try:
         vals = ST.eigs(
