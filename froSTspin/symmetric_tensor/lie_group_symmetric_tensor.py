@@ -327,46 +327,6 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
     _structural_data_dic = NotImplemented  # permute information for a given tensor
     _unitary_dic = NotImplemented  # unitaries for a given elementary block
 
-    @classmethod
-    def load_isometries(cls, savefile):
-        raise NotImplementedError("TODO!")
-        """
-        with np.load(savefile) as fin:
-            if fin["_ST_symmetry"] != cls.symmetry:
-                raise ValueError("Savefile symmetry does not match SymmetricTensor")
-            for i in range(fin["_ST_n_iso"]):
-                key = tuple(fin[f"_ST_iso_{i}_key"])
-                block_irreps = fin[f"_ST_iso_{i}_block_irreps"]
-                blocks = []
-                for j in range(block_irreps.size):
-                    data = fin[f"_ST_iso_{i}_{j}_data"]
-                    indices = fin[f"_ST_iso_{i}_{j}_indices"]
-                    indptr = fin[f"_ST_iso_{i}_{j}_indptr"]
-                    shape = fin[f"_ST_iso_{i}_{j}_shape"]
-                    b = ssp.csc_array((data, indices, indptr), shape=shape)
-                    blocks.append(b)
-                cls._isometry_dic[key] = (np.array(block_irreps), blocks)
-        """
-
-    @classmethod
-    def save_isometries(cls, savefile):
-        raise NotImplementedError("TODO!")
-        """
-        data = {"_ST_symmetry": cls.symmetry, "_ST_n_iso": len(cls._isometry_dic)}
-        # keys may be very long, may get into trouble as valid archive name beyond 250
-        # char. Just count values and save keys as arrays.
-        for i, (k, v) in enumerate(cls._isometry_dic.items()):
-            data[f"_ST_iso_{i}_key"] = np.array(k, dtype=int)
-            data[f"_ST_iso_{i}_block_irreps"] = v[0]
-            assert len(v[1]) == v[0].size
-            for j, b in enumerate(v[1]):
-                data[f"_ST_iso_{i}_{j}_data"] = b.data
-                data[f"_ST_iso_{i}_{j}_indices"] = b.indices
-                data[f"_ST_iso_{i}_{j}_indptr"] = b.indptr
-                data[f"_ST_iso_{i}_{j}_shape"] = b.shape
-        np.savez_compressed(savefile, **data)
-        """
-
     ####################################################################################
     # Lie group shared symmetry implementation
     ####################################################################################
