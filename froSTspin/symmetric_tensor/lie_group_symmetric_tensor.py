@@ -130,51 +130,91 @@ def permute_simple_block(
 
     # loop over all existing matrix blocks (!= all allowed matrix blocks)
     for i_existing_sector, i_sector in enumerate(existing_matrix_block_inds):
-        if (
-            old_row_sectors_struct_mult[i_sector] > 0
-            and old_col_sectors_struct_mult[i_sector] > 0
-        ):
-            add_sector_symmetric_block(
-                new_simple_block,
+        struct_mult_old_sector = (
+            old_row_sectors_struct_mult[i_sector]
+            * old_col_sectors_struct_mult[i_sector]
+        )
+        # need to check if this sector appears in elementary_block
+        if struct_mult_old_sector > 0:
+            r2 = old_row_sector_matrix_indices[i_sector]
+            c2 = old_col_sector_matrix_indices[i_sector]
+            # there are two operations: changing basis with elementary AND
+            # swapping axes in external multiplicity part. Transpose tensor BEFORE
+            # applying unitary to do only one transpose
+
+            simple_shape[0] = old_row_sectors_struct_mult[i_sector]
+            simple_shape[old_nrrp1] = old_col_sectors_struct_mult[i_sector]
+
+            # initial tensor shape = (
+            # old_structural_multiplicity_row,
+            # *external multiplicity for each old domain axis,
+            # old_structural_multiplicity_column,
+            # *external multiplicity for each old codomain axis,
+            #
+            # transpose to shape = (
+            # old_structural_multiplicity_row,
+            # old_structural_multiplicity_column,
+            # *external multiplicity for each NEW domain axis,
+            # *external multiplicity for each NEW codomain axis,
+
+            swapped_old_sym_block = numba_transpose_reshape(
                 old_matrix_blocks[i_existing_sector],
-                simple_shape,
+                r2 - old_row_ext_mult * old_row_sectors_struct_mult[i_sector],
+                r2,
+                c2 - old_col_ext_mult * old_col_sectors_struct_mult[i_sector],
+                c2,
+                old_nrrp1,
+                numba.np.unsafe.ndarray.to_fixed_tuple(simple_shape, NDIMP2),
                 data_perm,
-                old_row_sectors_struct_mult[i_sector],
-                old_col_sectors_struct_mult[i_sector],
-                old_row_ext_mult,
-                old_col_ext_mult,
-                old_row_sector_matrix_indices[i_sector],
-                old_col_sector_matrix_indices[i_sector],
-                unitary_row_sectors[i_sector],
             )
+
+            swapped_old_sym_mat = np.ascontiguousarray(swapped_old_sym_block).reshape(
+                struct_mult_old_sector, ext_mult
+            )
+
+            # convention: simple block unitary is sliced sector-wise on its columns=OLD
+            # but not for its rows = NEW
+            # meaning one applies a unitary block on old symmetric block to produce the
+            # full new simple block, with all NEW sectors
+            unitary_rows = unitary_row_sectors[i_sector]
+            new_simple_block += unitary_rows @ swapped_old_sym_mat
 
     # all OLD sectors have been processed = we have the full simple block
     # slice it for all new sectors to generate the new symmetric blocks
     nmb_shift = 0
-    for i_nmb, new_mat in enumerate(new_matrix_blocks):
-        struct_mult_sector = (
+    for i_nmb, nmb in enumerate(new_matrix_blocks):
+        struct_mult_new_sector = (
             new_row_sectors_struct_mult[i_nmb] * new_col_sectors_struct_mult[i_nmb]
         )
 
-        if (
-            new_row_sectors_struct_mult[i_nmb] > 0
-            and new_col_sectors_struct_mult[i_nmb] > 0
-        ):
-            set_new_symmetric_block(
-                new_mat,
-                new_simple_block[nmb_shift : nmb_shift + struct_mult_sector],
+        if struct_mult_new_sector > 0:
+            sh = (
                 new_row_sectors_struct_mult[i_nmb],
                 new_col_sectors_struct_mult[i_nmb],
                 new_row_ext_mult,
                 new_col_ext_mult,
-                new_row_sector_matrix_indices[i_nmb],
-                new_col_sector_matrix_indices[i_nmb],
             )
-            nmb_shift += struct_mult_sector
+            new_sym_block = new_simple_block[
+                nmb_shift : nmb_shift + struct_mult_new_sector
+            ]
+            nr2 = new_row_sector_matrix_indices[i_nmb]
+            nc2 = new_col_sector_matrix_indices[i_nmb]
+            inplace = numba_transpose_reshape(
+                nmb,
+                nr2 - new_row_ext_mult * new_row_sectors_struct_mult[i_nmb],
+                nr2,
+                nc2 - new_col_ext_mult * new_col_sectors_struct_mult[i_nmb],
+                nc2,
+                2,
+                (sh[0], sh[2], sh[1], sh[3]),
+                (0, 2, 1, 3),
+            )
+            inplace[:] = new_sym_block.reshape(sh)
+            nmb_shift += struct_mult_new_sector
 
 
 @numba.njit
-def numba_monothread_fill_blocks_out(
+def fill_blocks_out(
     new_matrix_blocks,
     old_matrix_blocks,
     simple_block_indices,
@@ -199,60 +239,6 @@ def numba_monothread_fill_blocks_out(
 
     n_old_sectors = old_row_sectors_struct_mult_blocks.shape[1]
     for i_simple_block in range(len(simple_block_indices)):
-        i_old_row, i_old_col, i_new_row, i_new_col = simple_block_indices[
-            i_simple_block
-        ]
-        permute_simple_block(
-            old_matrix_blocks,
-            new_matrix_blocks,
-            data_perm,
-            existing_matrix_block_inds,
-            unitary_row_sectors_blocks[
-                i_simple_block * n_old_sectors : (i_simple_block + 1) * n_old_sectors
-            ],
-            old_row_sectors_struct_mult_blocks[i_old_row],
-            old_col_sectors_struct_mult_blocks[i_old_col],
-            new_row_sectors_struct_mult_blocks[i_new_row],
-            new_col_sectors_struct_mult_blocks[i_new_col],
-            old_row_ext_mult_blocks[i_old_row],
-            old_col_ext_mult_blocks[i_old_col],
-            new_row_ext_mult_blocks[i_new_row],
-            new_col_ext_mult_blocks[i_new_col],
-            old_row_external_mult[i_old_row],
-            old_col_external_mult[i_old_col],
-            old_row_slices[i_old_row],
-            old_col_slices[i_old_col],
-            new_row_slices[i_new_row],
-            new_col_slices[i_new_col],
-        )
-
-
-@numba.njit(parallel=True)
-def numba_parallel_fill_blocks_out(
-    new_matrix_blocks,
-    old_matrix_blocks,
-    simple_block_indices,
-    old_row_sectors_struct_mult_blocks,
-    old_col_sectors_struct_mult_blocks,
-    new_row_sectors_struct_mult_blocks,
-    new_col_sectors_struct_mult_blocks,
-    old_row_ext_mult_blocks,
-    old_col_ext_mult_blocks,
-    new_row_ext_mult_blocks,
-    new_col_ext_mult_blocks,
-    existing_matrix_block_inds,
-    old_row_slices,
-    old_col_slices,
-    new_row_slices,
-    new_col_slices,
-    old_row_external_mult,
-    old_col_external_mult,
-    unitary_row_sectors_blocks,
-    data_perm,
-):
-
-    n_old_sectors = old_row_sectors_struct_mult_blocks.shape[1]
-    for i_simple_block in numba.prange(len(simple_block_indices)):
         i_old_row, i_old_col, i_new_row, i_new_col = simple_block_indices[
             i_simple_block
         ]
@@ -340,46 +326,6 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
     ####################################################################################
     _structural_data_dic = NotImplemented  # permute information for a given tensor
     _unitary_dic = NotImplemented  # unitaries for a given elementary block
-
-    @classmethod
-    def load_isometries(cls, savefile):
-        raise NotImplementedError("TODO!")
-        """
-        with np.load(savefile) as fin:
-            if fin["_ST_symmetry"] != cls.symmetry:
-                raise ValueError("Savefile symmetry does not match SymmetricTensor")
-            for i in range(fin["_ST_n_iso"]):
-                key = tuple(fin[f"_ST_iso_{i}_key"])
-                block_irreps = fin[f"_ST_iso_{i}_block_irreps"]
-                blocks = []
-                for j in range(block_irreps.size):
-                    data = fin[f"_ST_iso_{i}_{j}_data"]
-                    indices = fin[f"_ST_iso_{i}_{j}_indices"]
-                    indptr = fin[f"_ST_iso_{i}_{j}_indptr"]
-                    shape = fin[f"_ST_iso_{i}_{j}_shape"]
-                    b = ssp.csc_array((data, indices, indptr), shape=shape)
-                    blocks.append(b)
-                cls._isometry_dic[key] = (np.array(block_irreps), blocks)
-        """
-
-    @classmethod
-    def save_isometries(cls, savefile):
-        raise NotImplementedError("TODO!")
-        """
-        data = {"_ST_symmetry": cls.symmetry, "_ST_n_iso": len(cls._isometry_dic)}
-        # keys may be very long, may get into trouble as valid archive name beyond 250
-        # char. Just count values and save keys as arrays.
-        for i, (k, v) in enumerate(cls._isometry_dic.items()):
-            data[f"_ST_iso_{i}_key"] = np.array(k, dtype=int)
-            data[f"_ST_iso_{i}_block_irreps"] = v[0]
-            assert len(v[1]) == v[0].size
-            for j, b in enumerate(v[1]):
-                data[f"_ST_iso_{i}_{j}_data"] = b.data
-                data[f"_ST_iso_{i}_{j}_indices"] = b.indices
-                data[f"_ST_iso_{i}_{j}_indptr"] = b.indptr
-                data[f"_ST_iso_{i}_{j}_shape"] = b.shape
-        np.savez_compressed(savefile, **data)
-        """
 
     ####################################################################################
     # Lie group shared symmetry implementation
@@ -552,7 +498,6 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         key0[ndim + 1] = nrr_out
         key0[ndim + 2] = (1 << np.arange(ndim)) @ signature_in
         key0[ndim + 3 :] = axes
-        singlet = cls.singlet()[1, 0]
 
         # convention: return elementary unitary blocked sliced for IN irrep blocks
         dummy_ar = np.empty((0, 0))
@@ -625,25 +570,9 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
                     inds_e, inds_f = (co_rep[1, :, None] == block_irreps_out).nonzero()
                     idocb[ic_out, inds_f] = co_rep[0, inds_e]
 
-                # prune singlets
-                kept = (key0[:ndim] != singlet).nonzero()[0]
-                if kept.size == ndim:
-                    key = tuple(key0)
-                else:
-                    nrr_kept = (kept < nrr_in).sum()
-                    sig_kept = (1 << np.arange(kept.size)) @ signature_in[kept]
-                    kept_axes = axes.argsort()[kept]
-                    nrr_out_kept = (kept_axes < nrr_out).sum()
-                    kept_perm = kept_axes.argsort()
-
-                    # get a new key corresponding to same reps and perm without singlet
-                    key = (
-                        *key0[kept],
-                        nrr_kept,
-                        nrr_out_kept,
-                        sig_kept,
-                        *kept_perm,
-                    )
+                for i in range(ndim):
+                    key0[i] = reps_ei[i][1, 0]
+                key = tuple(key0)
 
                 try:  # maybe we already computed the unitary
                     ele_unitary = cls._unitary_dic[key]
@@ -884,52 +813,28 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
         )
 
         data_perm = (0, self._nrr + 1, *(axes + 1 + (axes >= self._nrr)))
-        if simple_block_indices.shape[0] < 300:
-            numba_monothread_fill_blocks_out(
-                new_matrix_blocks,
-                old_matrix_blocks,
-                simple_block_indices,
-                idirb,
-                idicb,
-                idorb,
-                idocb,
-                edir,
-                edic,
-                edor,
-                edoc,
-                existing_matrix_block_inds,
-                slices_ir,
-                slices_ic,
-                slices_or,
-                slices_oc,
-                old_row_external_mult,
-                old_col_external_mult,
-                isometry_in_blocks,
-                data_perm,
-            )
-        else:
-            numba_parallel_fill_blocks_out(
-                new_matrix_blocks,
-                old_matrix_blocks,
-                simple_block_indices,
-                idirb,
-                idicb,
-                idorb,
-                idocb,
-                edir,
-                edic,
-                edor,
-                edoc,
-                existing_matrix_block_inds,
-                slices_ir,
-                slices_ic,
-                slices_or,
-                slices_oc,
-                old_row_external_mult,
-                old_col_external_mult,
-                isometry_in_blocks,
-                data_perm,
-            )
+        fill_blocks_out(
+            new_matrix_blocks,
+            old_matrix_blocks,
+            simple_block_indices,
+            idirb,
+            idicb,
+            idorb,
+            idocb,
+            edir,
+            edic,
+            edor,
+            edoc,
+            existing_matrix_block_inds,
+            slices_ir,
+            slices_ic,
+            slices_or,
+            slices_oc,
+            old_row_external_mult,
+            old_col_external_mult,
+            isometry_in_blocks,
+            data_perm,
+        )
         return block_irreps_out, new_matrix_blocks
 
     ####################################################################################
