@@ -632,7 +632,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         return 1 + (irrep > 0)
 
     @staticmethod
-    def combine_representations(reps, signature):
+    def combine_representations(reps, _signature):
         if len(reps) > 1:  # numba issue 7245
             return _numba_combine_O2(*reps)
         return reps[0]

@@ -148,7 +148,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         return np.ones((2, 1), dtype=int)
 
     @staticmethod
-    def combine_representations(reps, signature):
+    def combine_representations(reps, _signature):
         if len(reps) > 1:  # numba issue 7245
             return _numba_combine_SU2(*reps)
         return reps[0]
