@@ -9,7 +9,7 @@ max_spin_dimension value and save the coefficients in a .npz file.
 
 import argparse
 
-from froSTspin.groups.su2_clebsch_gordan import default_su2_cg_file, save_su2_cg
+from frostspin.groups.su2_clebsch_gordan import default_su2_cg_file, save_su2_cg
 
 parser = argparse.ArgumentParser()
 

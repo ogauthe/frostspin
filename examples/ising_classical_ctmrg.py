@@ -9,9 +9,9 @@ import numpy as np
 import scipy.linalg as lg
 import scipy.special
 
-from froSTspin.symmetric_tensor.asymmetric_tensor import AsymmetricTensor
-from froSTspin.symmetric_tensor.diagonal_tensor import DiagonalTensor
-from froSTspin.symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
+from frostspin.symmetric_tensor.asymmetric_tensor import AsymmetricTensor
+from frostspin.symmetric_tensor.diagonal_tensor import DiagonalTensor
+from frostspin.symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
 
 # ===============  simulation parameters  =================
 D = 2  # bond dimension for Ising model
@@ -368,7 +368,7 @@ assert lg.norm(K @ K - np.eye(2)) < 1e-15
 # we are now going to insert K @ K = Id on every bond
 # K diagonalizes a bond such that a it now carries Z2 irreps (odd, even)
 
-# Z2 symmetry is not explicitly implemented in froSTspin
+# Z2 symmetry is not explicitly implemented in frostspin
 # however we can use U(1) symmetry as Z2, using int8 and the rules
 # 0 + 0 = 0
 # 0 + -128 = -128

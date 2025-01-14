@@ -1,7 +1,7 @@
 import numba
 import numpy as np
 
-from froSTspin.misc_tools.numba_tools import numba_find_indices
+from frostspin.misc_tools.numba_tools import numba_find_indices
 
 from .asymmetric_tensor import AsymmetricTensor
 from .symmetric_tensor import SymmetricTensor

@@ -1,5 +1,5 @@
 """
-This file sets global configuration for froSTspin
+This file sets global configuration for frostspin
 """
 
 import argparse
@@ -13,16 +13,16 @@ default_su2_cg_file = os.path.join(
 
 # parse command line options
 parser = argparse.ArgumentParser()
-parser.add_argument("--froSTspin-quiet", help="silence froSTspin", action="store_true")
+parser.add_argument("--frostspin-quiet", help="silence frostspin", action="store_true")
 parser.add_argument(
-    "--froSTspin-SU2-CG-file",
+    "--frostspin-SU2-CG-file",
     help="savefile for SU(2) Clebsch-Gordan",
     type=str,
     default=default_su2_cg_file,
 )
 
 args, _ = parser.parse_known_args()
-config = {"quiet": args.froSTspin_quiet, "SU2_CG_file": args.froSTspin_SU2_CG_file}
+config = {"quiet": args.frostspin_quiet, "SU2_CG_file": args.frostspin_SU2_CG_file}
 
 
 # ==============================  Display debug warning  ===============================
@@ -31,7 +31,7 @@ if __debug__:  # noqa: SIM102
         print("\nWarning: assert statement are activated")
         print("They may significantly impact performances")
         print("Consider running the code in optimized mode with python -O")
-        print("You may disable this warning with the flag --froSTspin-quiet\n")
+        print("You may disable this warning with the flag --frostspin-quiet\n")
 
 print("\n *** FROSTSPIN IS ON BRANCH DEV ***\n")
 

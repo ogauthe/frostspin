@@ -2,16 +2,16 @@
 A Symmetric Tensor library for lattice spin systems at finite temperature.
 
 ## Symmetries
-froSTspin incorporates both abelian and non-abelian symmetries. It features a unified interface to interact with a SymmetricTensor, irrespective of the specific symmetry group ruling it.
+frostspin incorporates both abelian and non-abelian symmetries. It features a unified interface to interact with a SymmetricTensor, irrespective of the specific symmetry group ruling it.
 
-Currently, froSTspin supports the following symmetry groups:
+Currently, frostspin supports the following symmetry groups:
 - Z<sub>2</sub>
 - U(1)
 - O(2)
 - SU(2)
 
 ## Algorithms
-froSTspin includes the following tensor network algorithms:
+frostspin includes the following tensor network algorithms:
 - simple update
 - CTMRG
 
@@ -25,7 +25,7 @@ froSTspin includes the following tensor network algorithms:
 ## Install
 The simplest is to git clone this repository and to add it to your PYTHONPATH.
 ```shell
-git clone git@framagit.org:ogauthe/froSTspin.git
+git clone git@framagit.org:ogauthe/frostspin.git
 export PYTHONPATH=$(pwd)/froSTspin:$PYTHONPATH
 python -uO ./froSTspin/tests/test_u1_tensor.py
 ```

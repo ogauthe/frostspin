@@ -2,8 +2,8 @@ import numba
 import numpy as np
 import scipy.linalg as lg
 
-from froSTspin.config import ASSERT_TOL
-from froSTspin.misc_tools.numba_tools import numba_find_indices
+from frostspin.config import ASSERT_TOL
+from frostspin.misc_tools.numba_tools import numba_find_indices
 
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 from .u1_symmetric_tensor import U1_SymmetricTensor

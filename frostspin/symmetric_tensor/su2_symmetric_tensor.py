@@ -1,8 +1,8 @@
 import numba
 import numpy as np
 
-import froSTspin
-from froSTspin.groups.su2_clebsch_gordan import load_su2_cg
+import frostspin
+from frostspin.groups.su2_clebsch_gordan import load_su2_cg
 
 from .lie_group_symmetric_tensor import LieGroupSymmetricTensor
 from .o2_symmetric_tensor import O2_SymmetricTensor
@@ -80,7 +80,7 @@ def compute_fusion_tensor(rep1, rep2, s1, s2, *, max_irrep=2**30):
                         f"dimensions {(irr1, irr2, irr3)} not found.\nOn the fly"
                         "computation of CG tensors is not currently implemented.\nTo "
                         "compute a larger set of CG tensors, use the script "
-                        "froSTspin/groups/compute_su2_clebsch_gordan.py.\n"
+                        "frostspin/groups/compute_su2_clebsch_gordan.py.\n"
                     )
                     raise RuntimeError(msg) from None
 
@@ -224,7 +224,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
 
     def toU1(self):
         # yet to adapt to elementary block structure for SU(2)
-        if not froSTspin.config["quiet"]:
+        if not frostspin.config["quiet"]:
             print("WARNING: toU1() currently casts to intermediate dense form")
 
         # efficient cast to U(1): project directly raw data to U(1) blocks
@@ -243,7 +243,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         out = U1_SymmetricTensor.from_array(
             arr, reps[: self._nrr], reps[self._nrr :], self._signature
         )
-        assert abs(out.norm() - self.norm()) <= froSTspin.ASSERT_TOL * self.norm()
+        assert abs(out.norm() - self.norm()) <= frostspin.ASSERT_TOL * self.norm()
         return out
 
     def toO2(self):
@@ -253,7 +253,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         are contracted.
         """
         # yet to adapt to elementary block structure for SU(2)
-        if not froSTspin.config["quiet"]:
+        if not frostspin.config["quiet"]:
             print("WARNING: toO2() currently casts to intermediate dense form")
 
         # When casting to U(1), O(2) has different irrep ordering conventions:
@@ -315,7 +315,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         out = O2_SymmetricTensor.from_array(
             arr, o2_reps[: self._nrr], o2_reps[self._nrr :], self._signature
         )
-        assert abs(out.norm() - self.norm()) <= froSTspin.ASSERT_TOL * self.norm()
+        assert abs(out.norm() - self.norm()) <= frostspin.ASSERT_TOL * self.norm()
         return out
 
     ####################################################################################
@@ -331,6 +331,6 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         ---------
         savefile : str
             Savefile for SU(2) Clebsch-Gordan coefficients. Must be a .json or .npz file
-            and abide by the format defined in froSTspin/groups/su2_clebsch_gordan.py.
+            and abide by the format defined in frostspin/groups/su2_clebsch_gordan.py.
         """
         cls._clebsch_gordan_dic = load_su2_cg(savefile)

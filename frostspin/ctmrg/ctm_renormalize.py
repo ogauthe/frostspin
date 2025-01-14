@@ -1,6 +1,6 @@
 import numpy as np
 
-from froSTspin.misc_tools.svd_tools import find_chi_largest, robust_svd, sparse_svd
+from frostspin.misc_tools.svd_tools import find_chi_largest, robust_svd, sparse_svd
 
 
 def construct_projectors(
