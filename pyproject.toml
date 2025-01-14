@@ -60,6 +60,7 @@ select = [
     "PL",
     "B",
     "PGH",
+    "FURB",
 ]
 ignore = [
     "C901",  # too demanding
