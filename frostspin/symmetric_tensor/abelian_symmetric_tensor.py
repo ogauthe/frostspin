@@ -277,7 +277,7 @@ class AbelianSymmetricTensor(SymmetricTensor):
         return rep.size
 
     @staticmethod
-    def irrep_dimension(rep):
+    def irrep_dimension(_rep):
         return 1
 
     ####################################################################################

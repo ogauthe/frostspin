@@ -24,7 +24,7 @@ class AsymmetricTensor(SymmetricTensor):
         return np.ones((1,), dtype=int)
 
     @staticmethod
-    def combine_representations(reps, signature):
+    def combine_representations(reps, _signature):
         return np.prod(reps, axis=0)
 
     @staticmethod
@@ -36,7 +36,7 @@ class AsymmetricTensor(SymmetricTensor):
         return rep
 
     @staticmethod
-    def init_representation(degen, irreps):
+    def init_representation(degen, _irreps):
         return degen.reshape((1,))
 
     @staticmethod
@@ -44,7 +44,7 @@ class AsymmetricTensor(SymmetricTensor):
         return int(rep)
 
     @staticmethod
-    def irrep_dimension(rep):
+    def irrep_dimension(_rep):
         return 1
 
     ####################################################################################
@@ -52,13 +52,13 @@ class AsymmetricTensor(SymmetricTensor):
     ####################################################################################
 
     @classmethod
-    def get_block_sizes(cls, row_reps, col_reps, signature):
+    def get_block_sizes(cls, row_reps, col_reps, _signature):
         nr = np.prod(row_reps)
         nc = np.prod(col_reps)
         return cls._irrep, np.array([[nr, nc]])
 
     @classmethod
-    def _blocks_from_dense(cls, arr, row_reps, col_reps, signature):
+    def _blocks_from_dense(cls, arr, row_reps, col_reps, _signature):
         block = arr.reshape(np.prod(row_reps), np.prod(col_reps))
         return (block,), cls._irrep
 
