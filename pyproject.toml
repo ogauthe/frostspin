@@ -17,7 +17,7 @@ license = {file = "LICENSE.txt"}
 dynamic = ["version"]
 
 [project.urls]
-Homepage = "https://framagit.org/ogauthe/frostspin"
+Homepage = "https://github.com/ogauthe/frostspin"
 
 [build-system]
 requires = ["setuptools"]
