@@ -1,7 +1,7 @@
 import numba
 import numpy as np
 
-from froSTspin.misc_tools.numba_tools import numba_transpose_reshape, set_readonly_flag
+from frostspin.misc_tools.numba_tools import numba_transpose_reshape, set_readonly_flag
 
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 

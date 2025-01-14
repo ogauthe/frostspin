@@ -4,8 +4,8 @@ import os
 
 import numpy as np
 
-from froSTspin.simple_update.simple_update import SimpleUpdate
-from froSTspin.symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
+from frostspin.simple_update.simple_update import SimpleUpdate
+from frostspin.symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
 
 # ------------------------------------   setup   ---------------------------------------
 D = 7

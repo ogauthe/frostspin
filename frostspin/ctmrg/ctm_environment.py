@@ -1,6 +1,6 @@
 import numpy as np
 
-from froSTspin.symmetric_tensor.tools import get_symmetric_tensor_type
+from frostspin.symmetric_tensor.tools import get_symmetric_tensor_type
 
 
 def _initialize_env(A):

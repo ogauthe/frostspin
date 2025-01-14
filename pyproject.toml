@@ -1,5 +1,5 @@
 [project]
-name = "froSTspin"
+name = "frostspin"
 version = "0.4.2"
 requires-python = ">=3.10"
 dependencies = [
@@ -17,7 +17,7 @@ readme = "README.md"
 license = {file = "LICENSE.txt"}
 
 [project.urls]
-Homepage = "https://framagit.org/ogauthe/froSTspin"
+Homepage = "https://framagit.org/ogauthe/frostspin"
 
 [build-system]
 requires = ["hatchling"]
@@ -69,7 +69,6 @@ ignore = [
     "N803",  # prefer keeping D
     "N806",  # prefer keeping D
     "N816",  # prefer keeping hU1
-    "N999",  # froSTspin
     "TRY003",  # simpler with explicit message
     "RUF012",  # not using type annotation
     "PLR0912", # too pedantic
