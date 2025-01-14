@@ -1,6 +1,9 @@
 # froSTspin
 A Symmetric Tensor library for lattice spin systems at finite temperature.
 
+## Note
+This library is no more actively maintained. Consider using more complete libraries such as [ITensors](https://github.com/ITensor/ITensors.jl), [TensorKit](https://github.com/Jutho/TensorKit.jl) or [TeNPy](https://github.com/tenpy/tenpy).
+
 ## Symmetries
 frostspin incorporates both abelian and non-abelian symmetries. It features a unified interface to interact with a SymmetricTensor, irrespective of the specific symmetry group ruling it.
 
