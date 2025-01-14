@@ -5,6 +5,8 @@ This file sets global configuration for frostspin
 import argparse
 import os
 
+__version__ = "0.5.0"
+
 # =================================  Parse arguments  ==================================
 local_dir = os.path.join(os.path.dirname(__file__))
 default_su2_cg_file = os.path.join(
