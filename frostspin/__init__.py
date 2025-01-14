@@ -1,3 +1,3 @@
-from frostspin.config import ASSERT_TOL, config
+from frostspin.config import ASSERT_TOL, __version__, config
 
-__all__ = ["ASSERT_TOL", "config"]
+__all__ = ["ASSERT_TOL", "__version__", "config"]
