@@ -1236,7 +1236,7 @@ class SymmetricTensor:
             else:
                 sparse.append(bi)
 
-        # 3) define functions do deal with dense and sparse blocks
+        # 3) define functions to deal with dense and sparse blocks
         def matvec(x, st0, bj):
             st0.blocks[0].flags["W"] = True  # st0 may be permuted and set readonly
             st0.blocks[0][:, 0] = x
@@ -1291,7 +1291,7 @@ class SymmetricTensor:
                 val_blocks[bi] = vals[so]
                 abs_val_blocks[bi] = abs_val[so]
 
-        # 4) construct full matrix blocks and call dense eigh on them
+        # 4) construct full matrix blocks and call dense eig on them
         if type(matmat) is cls:
             st = matmat  # use already constructed blocks
         elif full:  # avoid issues with empty full
@@ -1313,7 +1313,8 @@ class SymmetricTensor:
             irr = block_irreps[bi]
             sh = block_shapes[bi]
             k = nvals // dims[bi] + 1
-            v0 = rng.standard_normal(size=(sh[0],), dtype=dtype)
+            real_dtype = np.zeros(1, dtype=dtype).real.dtype
+            v0 = rng.standard_normal(size=(sh[0],), dtype=real_dtype)
             if type(matmat) is cls:  # use constructed blocks
                 bj = matmat.block_irreps.searchsorted(irr)
                 if bj < matmat.nblocks and matmat.block_irreps[bj] == irr:
