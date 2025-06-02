@@ -108,11 +108,11 @@ def _load_CG_npz(savefile):
     return elementary_projectors
 
 
-def load_su2_cg(cg_file=None):
+def load_su2_cg(cg_file=None, *, verbosity=0):
     if cg_file is None:
         cg_file = frostspin.config["SU2_CG_file"]
 
-    if not frostspin.config["quiet"]:
+    if verbosity > 0:
         print("Load SU(2) Clebsch-Gordan coefficient from file", cg_file)
 
     extension = cg_file.split(".")[-1]
@@ -133,7 +133,7 @@ def load_su2_cg(cg_file=None):
 
     max_spin_dim = max(k[0] for k in elementary_projectors)
     elementary_projectors["maximal_spin_dimension"] = max_spin_dim
-    if not frostspin.config["quiet"]:
+    if verbosity > 0:
         print("Clebsch-Gordan maximal spin dimension =", max_spin_dim)
 
     return elementary_projectors

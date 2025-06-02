@@ -120,7 +120,7 @@ assert (t - t2).norm() < 1e-14
 
 # test reload CG coeff from default file
 cg_file = frostspin.config["SU2_CG_file"]
-SU2_SymmetricTensor.reload_clebsch_gordan(cg_file)
+SU2_SymmetricTensor.reload_clebsch_gordan(cg_file, verbosity=0)
 
 # check merge_legs  TODO
 # _ = st.merge_legs(0, 1)

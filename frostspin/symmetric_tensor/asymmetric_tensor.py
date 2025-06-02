@@ -1,6 +1,7 @@
 import numpy as np
 
 from .symmetric_tensor import SymmetricTensor
+from .tools import symmetric_tensor_types
 
 
 class AsymmetricTensor(SymmetricTensor):
@@ -98,3 +99,6 @@ class AsymmetricTensor(SymmetricTensor):
         assert up.shape == (self._ndim,)
         self._signature = self._signature ^ up
         assert self.check_blocks_fit_representations()
+
+
+symmetric_tensor_types["trivial"] = AsymmetricTensor

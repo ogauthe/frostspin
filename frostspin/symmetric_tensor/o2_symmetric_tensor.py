@@ -2,10 +2,10 @@ import numba
 import numpy as np
 import scipy.linalg as lg
 
-from frostspin.config import ASSERT_TOL
 from frostspin.misc_tools.numba_tools import numba_find_indices
 
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
+from .tools import check_norm, symmetric_tensor_types
 from .u1_symmetric_tensor import U1_SymmetricTensor
 
 
@@ -316,9 +316,7 @@ def split_b0(b0, row_reps, rsz_values, col_reps, csz_values):
     b0o, b0e = _numba_split_b0(
         b0, rocoeff, rocol, cocoeff, cocol, recoeff, recol, cecoeff, cecol
     )
-    assert abs(
-        np.sqrt(lg.norm(b0o) ** 2 + lg.norm(b0e) ** 2) - lg.norm(b0)
-    ) <= ASSERT_TOL * lg.norm(b0), "b0 splitting does not preserve norm"
+    assert check_norm(np.sqrt(lg.norm(b0o) ** 2 + lg.norm(b0e) ** 2), b0)
     if b0o.size and b0e.size:
         return (b0o, b0e), (-1, 0)
     if b0o.size:
@@ -731,7 +729,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         tu1 = U1_SymmetricTensor(
             u1_row_reps, u1_col_reps, blocks, block_sz, self._signature
         )
-        assert abs(tu1.norm() - self.norm()) <= ASSERT_TOL * self.norm()
+        assert check_norm(self, tu1)
         return tu1
 
     def update_signature(self, sign_update):
@@ -945,3 +943,6 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         b0 = tuple(b.T for b in self._blocks[: self._block_irreps.searchsorted(1)])
         blocks = b0 + b_neg
         return blocks, self._block_irreps
+
+
+symmetric_tensor_types["O2"] = O2_SymmetricTensor
