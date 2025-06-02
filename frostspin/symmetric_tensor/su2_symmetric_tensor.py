@@ -6,6 +6,7 @@ from frostspin.groups.su2_clebsch_gordan import load_su2_cg
 
 from .lie_group_symmetric_tensor import LieGroupSymmetricTensor
 from .o2_symmetric_tensor import O2_SymmetricTensor
+from .tools import check_norm, symmetric_tensor_types
 from .u1_symmetric_tensor import U1_SymmetricTensor
 
 
@@ -243,7 +244,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         out = U1_SymmetricTensor.from_array(
             arr, reps[: self._nrr], reps[self._nrr :], self._signature
         )
-        assert abs(out.norm() - self.norm()) <= frostspin.ASSERT_TOL * self.norm()
+        assert check_norm(self, out)
         return out
 
     def toO2(self):
@@ -315,14 +316,14 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         out = O2_SymmetricTensor.from_array(
             arr, o2_reps[: self._nrr], o2_reps[self._nrr :], self._signature
         )
-        assert abs(out.norm() - self.norm()) <= frostspin.ASSERT_TOL * self.norm()
+        assert check_norm(self, out)
         return out
 
     ####################################################################################
     # SU(2) specific
     ####################################################################################
     @classmethod
-    def reload_clebsch_gordan(cls, savefile):
+    def reload_clebsch_gordan(cls, savefile, *, verbosity=1):
         """
         Reload SU(2) Clebsch-Gordan cofficient dictionary from savefile. Coefficients
         are loaded at import, this function allows to reload them from another file.
@@ -333,4 +334,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
             Savefile for SU(2) Clebsch-Gordan coefficients. Must be a .json or .npz file
             and abide by the format defined in frostspin/groups/su2_clebsch_gordan.py.
         """
-        cls._clebsch_gordan_dic = load_su2_cg(savefile)
+        cls._clebsch_gordan_dic = load_su2_cg(savefile, verbosity=verbosity)
+
+
+symmetric_tensor_types["SU2"] = SU2_SymmetricTensor

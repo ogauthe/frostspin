@@ -2,7 +2,6 @@ import numpy as np
 import scipy.linalg as lg
 import scipy.sparse.linalg as slg
 
-from frostspin.config import ASSERT_TOL
 from frostspin.misc_tools.numba_tools import set_writable_flag
 from frostspin.misc_tools.svd_tools import (
     find_chi_largest,
@@ -12,6 +11,7 @@ from frostspin.misc_tools.svd_tools import (
 )
 
 from .diagonal_tensor import DiagonalTensor
+from .tools import check_norm
 
 # choices are made to make code light and fast:
 # irreps are labelled by integers (non-simple groups need another class using lexsort)
@@ -139,7 +139,7 @@ class SymmetricTensor:
         )
 
         st = cls(row_reps, col_reps, blocks, block_irreps, signature)
-        assert abs(st.norm() - lg.norm(arr)) <= ASSERT_TOL * lg.norm(arr)
+        assert check_norm(st, arr)
         return st
 
     def toarray(self, *, as_matrix=False):
@@ -155,7 +155,7 @@ class SymmetricTensor:
             mat = np.zeros(self.matrix_shape, dtype=self.dtype)
         else:
             mat = self._tomatrix()
-        assert abs(self.norm() - lg.norm(mat)) <= ASSERT_TOL * self.norm()
+        assert check_norm(self, mat)
         if as_matrix:
             return mat
         return mat.reshape(self._shape)
@@ -205,9 +205,7 @@ class SymmetricTensor:
             blocks, block_irreps = self._permute_data(axes, nrr)
 
         tp = type(self)(reps[:nrr], reps[nrr:], blocks, block_irreps, signature)
-        assert (
-            abs(self.norm() - tp.norm()) <= ASSERT_TOL * self.norm()
-        ), "norm is different"
+        assert check_norm(self, tp)
         return tp
 
     def check_blocks_fit_representations(self):
