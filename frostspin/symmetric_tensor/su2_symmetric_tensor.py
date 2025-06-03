@@ -323,7 +323,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
     # SU(2) specific
     ####################################################################################
     @classmethod
-    def reload_clebsch_gordan(cls, savefile, *, verbosity=1):
+    def reload_clebsch_gordan(cls, savefile, *, verbosity=0):
         """
         Reload SU(2) Clebsch-Gordan cofficient dictionary from savefile. Coefficients
         are loaded at import, this function allows to reload them from another file.

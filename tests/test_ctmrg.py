@@ -5,9 +5,8 @@ import os
 import numpy as np
 import scipy.linalg as lg
 
+from frostspin import AsymmetricTensor, U1_SymmetricTensor
 from frostspin.ctmrg.ctmrg import CTMRG
-from frostspin.symmetric_tensor.asymmetric_tensor import AsymmetricTensor
-from frostspin.symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
 
 # try simplest CTMRG and parameter parsing
 a = AsymmetricTensor.from_array(

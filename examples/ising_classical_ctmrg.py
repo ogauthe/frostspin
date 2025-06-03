@@ -9,9 +9,8 @@ import numpy as np
 import scipy.linalg as lg
 import scipy.special
 
-from frostspin.symmetric_tensor.asymmetric_tensor import AsymmetricTensor
+from frostspin import AsymmetricTensor, U1_SymmetricTensor
 from frostspin.symmetric_tensor.diagonal_tensor import DiagonalTensor
-from frostspin.symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
 
 # ===============  simulation parameters  =================
 D = 2  # bond dimension for Ising model

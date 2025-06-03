@@ -7,12 +7,14 @@ Run simple update for the Heisenberg model on the square lattice
 import numpy as np
 import scipy.linalg as lg
 
+from frostspin import (
+    AsymmetricTensor,
+    O2_SymmetricTensor,
+    SU2_SymmetricTensor,
+    U1_SymmetricTensor,
+)
 from frostspin.ctmrg.ctmrg import CTMRG
 from frostspin.simple_update.simple_update import SimpleUpdate
-from frostspin.symmetric_tensor.asymmetric_tensor import AsymmetricTensor
-from frostspin.symmetric_tensor.o2_symmetric_tensor import O2_SymmetricTensor
-from frostspin.symmetric_tensor.su2_symmetric_tensor import SU2_SymmetricTensor
-from frostspin.symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
 
 d = 2  # d=2 for spin 1/2, change to d=3 for spin 1
 tau = 0.01  # imaginary time step

@@ -3,8 +3,7 @@
 import numpy as np
 import scipy.linalg as lg
 
-import frostspin
-from frostspin.symmetric_tensor.su2_symmetric_tensor import SU2_SymmetricTensor
+from frostspin import SU2_SymmetricTensor, config
 
 sds_22 = np.array(
     [
@@ -119,8 +118,8 @@ t2 = SU2_SymmetricTensor.from_array(td, t.row_reps, t.col_reps, t.signature)
 assert (t - t2).norm() < 1e-14
 
 # test reload CG coeff from default file
-cg_file = frostspin.config["SU2_CG_file"]
-SU2_SymmetricTensor.reload_clebsch_gordan(cg_file, verbosity=0)
+cg_file = config["SU2_CG_file"]
+SU2_SymmetricTensor.reload_clebsch_gordan(cg_file)
 
 # check merge_legs  TODO
 # _ = st.merge_legs(0, 1)
