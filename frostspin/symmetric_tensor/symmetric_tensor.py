@@ -600,9 +600,6 @@ class SymmetricTensor:
         s[self._ndim - self._nrr :] = ~self.signature[: self._nrr]
         return type(self)(self._col_reps, self._row_reps, blocks, self._block_irreps, s)
 
-    def merge_legs(self, i1, i2):
-        raise NotImplementedError("Must be defined in derived class")
-
     ####################################################################################
     # Linear algebra
     ####################################################################################

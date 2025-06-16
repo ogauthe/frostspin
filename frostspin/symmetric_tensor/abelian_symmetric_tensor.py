@@ -344,34 +344,6 @@ class AbelianSymmetricTensor(SymmetricTensor):
         self._signature = self._signature ^ up
         assert self.check_blocks_fit_representations()
 
-    def merge_legs(self, i1, i2):
-        if self._signature[i1] != self._signature[i2]:
-            raise ValueError("Cannot merge legs with different signatures")
-        if i1 + 1 != i2:
-            raise ValueError("Cannot merge non-contiguous legs: need i2 = i1 + 1")
-        if i2 == self._nrr:
-            raise ValueError("Cannot merge legs split between rows and columns")
-        s = np.array([False, False])
-        if i2 < self._nrr:
-            r = self.combine_representations(
-                (self._row_reps[i1], self._row_reps[i2]), s
-            )
-            row_reps = self._row_reps[:i1] + (r,) + self._row_reps[i2 + 1 :]
-            col_reps = self._col_reps
-        else:
-            j = i1 - self._nrr
-            r = self.combine_representations(
-                (self._col_reps[j], self._col_reps[j + 1]), s
-            )
-            col_reps = self._col_reps[:j] + (r,) + self._col_reps[j + 2 :]
-            row_reps = self._row_reps
-        signature = np.empty((self._ndim - 1,), dtype=bool)
-        signature[:i1] = self._signature[:i1]
-        signature[i1:] = self._signature[i2:]
-        return type(self)(
-            row_reps, col_reps, self._blocks, self._block_irreps, signature
-        )
-
     def check_blocks_fit_representations(self):
         assert self._block_irreps.size == self._nblocks
         assert len(self._blocks) == self._nblocks
