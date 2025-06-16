@@ -98,14 +98,13 @@ del a0, a_U1, a_O2, a_SU2, a1, a1_U1, a1_O2, a1_SU2
 
 # check ctm with AB//BA pattern
 ctmU1_AB = CTMRG.from_elementary_tensors("AB\nBA", (tA_U1, tB_U1), 20, degen_ratio=0.99)
-# workaround for missing O(2) merge_legs
 ctmO2_AB = CTMRG.from_elementary_tensors(
     "AB\nBA", (tA_SU2, tB_SU2), 20, degen_ratio=0.99
 )
 ctmO2_AB.set_symmetry("O2")
 check_ctm(ctmU1_AB, ctmO2_AB)
 
-ctmU1_AB.restart_environment()
+ctmU1_AB = CTMRG.from_elementary_tensors("AB\nBA", (tA_U1, tB_U1), 20, degen_ratio=0.99)
 ctmSU2_AB = CTMRG.from_elementary_tensors(
     "AB\nBA", (tA_SU2, tB_SU2), 20, degen_ratio=0.99
 )
@@ -130,6 +129,6 @@ ctmU1_ur = CTMRG.from_elementary_tensors("A", (tur_U1,), 20, degen_ratio=0.99)
 ctmO2_ur = CTMRG.from_elementary_tensors("A", (tur_SU2,), 20, degen_ratio=0.99)
 ctmO2_ur.set_symmetry("O2")
 check_ctm(ctmU1_ur, ctmO2_ur)
-ctmU1_ur.restart_environment()
+ctmU1_ur = CTMRG.from_elementary_tensors("A", (tur_U1,), 20, degen_ratio=0.99)
 ctmSU2_ur = CTMRG.from_elementary_tensors("A", (tur_SU2,), 20, degen_ratio=0.99)
 check_ctm(ctmU1_ur, ctmSU2_ur)

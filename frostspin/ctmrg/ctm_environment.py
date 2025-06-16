@@ -3,122 +3,33 @@ import numpy as np
 from frostspin.symmetric_tensor.tools import get_symmetric_tensor_type
 
 
-def _initialize_env(A):
-    #
-    #   C1-0   3-T1-0   1-C2
-    #   |        ||        |
-    #   1        12        0
-    #
-    #   0       0 2        0
-    #   |        \|        |
-    #   T4=1   5--A--3  2=T2
-    #   |  2     /|     3  |
-    #   3       1 4        1
-    #
-    #   0        01        0
-    #   |        ||        |
-    #   C4-1   3-T3-2   1-C3
-
-    # leg ordering is set according to diagram upside
-    # all functions using edge T use some transpose to fix n_row_reps
-    # so there can be no error associated with it
-    # however signature matter.
-    # convention: corners C1, C2 and C4 have standard matrix signature ->-C->-
-    # ie 0 for row and 1 for column
-    # it is not possible to impose the same convention for C3
-    # edges signature for corner legs have to obey
-    # this convention does not change through iteration. (In any case SVD always
-    # produces isometries with matching signatures)
-    # for edges legs merging with center A, signature must respect A.signature
-    # no assumption is made on it.
-
-    def init_C(At, su):
-        C = At.dagger() @ At
-        C = C.permute((2, 0), (3, 1))
-        C.update_signature(su)
-        return C.merge_legs(2, 3).merge_legs(0, 1)
-
-    # Due to C3 annoying conventions, some -1 need to appear here. These signature
-    # update are independent of A signature or of the unit cell tiling pattern.
-    C1 = init_C(A.permute((0, 1, 2, 5), (3, 4)), [0, 1, 0, 1])
-    C2 = init_C(A.permute((0, 1, 2, 3), (4, 5)), [0, -1, 0, 1])
-    C3 = init_C(A.permute((0, 1, 3, 4), (2, 5)), [0, 1, 0, 1])
-    C4 = init_C(A.permute((0, 1, 4, 5), (2, 3)), [0, 1, 0, -1])
-
-    # merging is trivial for abelian symmetries, however for non-abelian symmetries
-    # one must be careful not to change tree structure. With current tree structure
-    #       singlets
-    #       /     /
-    #      /\    /\
-    #     /\ \  /\ \
-    #
-    # only first 2 legs of either rows or columns can be merged: merging legs 1 and 2
-    # creates different tree strucutre
-    #    /
-    #   /\
-    #  / /\
-    #
-    # to avoid this, additional leg permutations are added so that legs to be merged are
-    # always 0 and 1 in row or columns. Additional cost is very low, just add one
-    # permutation on T with total size D^6.
-
-    temp = A.permute((0, 1, 2), (3, 4, 5))
-    T1 = temp.dagger() @ temp
-    T1 = T1.permute((3, 0), (5, 2, 4, 1))
-    T1.update_signature([0, 1, 0, 1, 0, 0])
-    T1 = T1.merge_legs(2, 3).merge_legs(0, 1)
-    T1 = T1.permute((0,), (2, 3, 1))
-
-    temp = A.permute((0, 1, 3), (2, 4, 5))
-    T2 = temp.dagger() @ temp
-    T2 = T2.permute((3, 0), (4, 1, 5, 2))
-    T2.update_signature([0, 1, 0, 1, 0, 0])
-    T2 = T2.merge_legs(2, 3).merge_legs(0, 1)
-
-    temp = A.permute((0, 1, 4), (2, 3, 5))
-    T3 = temp.dagger() @ temp
-    T3 = T3.permute((4, 1), (5, 2, 3, 0))
-    T3.update_signature([0, 1, 0, 1, 0, 0])
-    T3 = T3.merge_legs(2, 3).merge_legs(0, 1)
-    T3 = T3.permute((2, 3, 0), (1,))
-
-    temp = A.permute((0, 1, 5), (2, 3, 4))
-    T4 = temp.dagger() @ temp
-    T4 = T4.permute((3, 0), (5, 2, 4, 1))
-    T4.update_signature([0, 1, 0, 1, 0, 0])
-    T4 = T4.merge_legs(2, 3).merge_legs(0, 1)
-    T4 = T4.permute((0,), (2, 3, 1))
-
-    return C1, T1, C2, T2, C3, T3, C4, T4
-
-
 def _initialize_dummy(A):
     ST = type(A)
 
     rr = (ST.singlet(),)
-    C1 = ST.from_array(np.eye(1), rr, rr, signature=[A.signature[3], A.signature[4]])
-    C2 = ST.from_array(np.eye(1), rr, rr, signature=[A.signature[4], A.signature[5]])
-    C3 = ST.from_array(np.eye(1), rr, rr, signature=[A.signature[2], A.signature[5]])
-    C4 = ST.from_array(np.eye(1), rr, rr, signature=[A.signature[2], A.signature[3]])
+    C1 = ST.from_array(np.eye(1), rr, rr)
+    C2 = ST.from_array(np.eye(1), rr, rr)
+    C3 = ST.from_array(np.eye(1), rr, rr, signature=[True, False])
+    C4 = ST.from_array(np.eye(1), rr, rr)
 
     rr = (ST.singlet(),)
     rc = (A.col_reps[2], A.col_reps[2], ST.singlet())
-    sig = np.array([A.signature[3], A.signature[4], ~A.signature[4], A.signature[5]])
+    sig = np.array([False, A.signature[4], ~A.signature[4], True])
     T1 = ST.from_array(np.eye(A.shape[4])[None, :, :, None], rr, rc, signature=sig)
 
     rr = (ST.singlet(),)
     rc = (ST.singlet(), A.col_reps[3], A.col_reps[3])
-    sig = np.array([A.signature[2], A.signature[4], A.signature[5], ~A.signature[5]])
+    sig = np.array([True, False, A.signature[5], ~A.signature[5]])
     T2 = ST.from_array(np.eye(A.shape[5])[None, None, :, :], rr, rc, signature=sig)
 
     rr = (A.col_reps[0], A.col_reps[0], ST.singlet())
     rc = (ST.singlet(),)
-    sig = np.array([A.signature[2], ~A.signature[2], A.signature[3], A.signature[5]])
+    sig = np.array([A.signature[2], ~A.signature[2], True, False])
     T3 = ST.from_array(np.eye(A.shape[2])[:, :, None, None], rr, rc, signature=sig)
 
     rr = (ST.singlet(),)
     rc = (A.col_reps[1], A.col_reps[1], ST.singlet())
-    sig = np.array([A.signature[2], A.signature[3], ~A.signature[3], A.signature[4]])
+    sig = np.array([False, A.signature[3], ~A.signature[3], True])
     T4 = ST.from_array(np.eye(A.shape[3])[None, :, :, None], rr, rc, signature=sig)
     return C1, T1, C2, T2, C3, T3, C4, T4
 
@@ -279,10 +190,10 @@ class CTM_Environment:
         return self._site_coords
 
     @classmethod
-    def from_elementary_tensors(cls, tiling, tensors, dummy):
+    def from_elementary_tensors(cls, tiling, tensors):
         """
-        Construct CTM_Environment from elementary tensors according to tiling. If dummy,
-        environment is initalized as dummy: corners are (1x1) identity matrices with
+        Construct CTM_Environment from elementary tensors according to tiling.
+        Environment is initalized as dummy: corners are (1x1) identity matrices with
         trivial representation, edges are identiy matrices between layers with dummy
         legs for chi.
 
@@ -301,10 +212,7 @@ class CTM_Environment:
             raise ValueError("Incompatible cell and tensor number")
         C1s, C2s, C3s, C4s, T1s, T2s, T3s, T4s = ([] for i in range(8))
         for A in tensors:
-            if dummy:
-                C1, T1, C2, T2, C3, T3, C4, T4 = _initialize_dummy(A)
-            else:
-                C1, T1, C2, T2, C3, T3, C4, T4 = _initialize_env(A)
+            C1, T1, C2, T2, C3, T3, C4, T4 = _initialize_dummy(A)
             C1s.append(C1)
             T1s.append(T1)
             C2s.append(C2)

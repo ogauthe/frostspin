@@ -1176,12 +1176,3 @@ class LieGroupSymmetricTensor(NonAbelianSymmetricTensor):
             self._blocks = blocks
             self._block_irreps = block_irreps
         self._signature = new_sign
-
-    def merge_legs(self, i1, i2):
-        # TODO
-        # merging legs affects the number of elementary blocks: some degeneracies that
-        # were seen as "internal" becomes "internal" and end up appearing at a different
-        # position in data blocks.
-        # It is not enough to just remove one CG tensor at the end of a tree.
-        # All involved elementary blocks need to be updated
-        raise NotImplementedError("To do!")

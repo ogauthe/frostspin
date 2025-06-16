@@ -120,12 +120,3 @@ assert (t - t2).norm() < 1e-14
 # test reload CG coeff from default file
 cg_file = config["SU2_CG_file"]
 SU2_SymmetricTensor.reload_clebsch_gordan(cg_file)
-
-# check merge_legs  TODO
-# _ = st.merge_legs(0, 1)
-# _ = st.merge_legs(2, 3)
-
-
-# try I/O for isometries  TODO
-# st.save_isometries("data_test_su2_isometries.npz")
-# st.load_isometries("data_test_su2_isometries.npz")

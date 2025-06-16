@@ -146,17 +146,14 @@ class CTMRG:
 
     @classmethod
     def from_elementary_tensors(
-        cls, tiling, tensors, chi_target, *, dummy=True, verbosity=0, **ctm_params
+        cls, tiling, tensors, chi_target, *, verbosity=0, **ctm_params
     ):
         """
         Construct CTMRG from elementary tensors and tiling.
-        If dummy is True (default), environment tensors are initialized as dummy and act
-        as identity between bra and ket layers: corners are (1x1) identity matrices with
-        trivial representation and edges are identiy matrices between layers with a
-        representation matching site tensor, with dummy legs added to match corners.
-        If dummy is False, each environment tensor is initalized from double-layer
-        elementary site tensor after tracing over directions absent from said tensor.
-        This should be equivalent to starting with dummy and running one iteration.
+        Environment tensors are initialized as dummy and act as identity between bra and
+        ket layers: corners are (1x1) identity matrices with trivial representation and
+        edges are identiy matrices between layers with a representation matching site
+        tensor, with dummy legs added to match corners.
 
         Parameters
         ----------
@@ -167,20 +164,14 @@ class CTMRG:
         chi_target : integer
             Target for corner dimension. This is a target, actual corner dimension chi
             may differ differ independently on a any corner due to cutoff or multiplets.
-        dummy : bool
-            Whether to initalize the environment tensors as dummy or from site tensors.
-            Default is False.
         verbosity : int
             Level of log verbosity. Default is no log.
 
         See `__init__` for a description of additional parameters.
         """
         if verbosity > 0:
-            if dummy:
-                print("Start CTMRG from dummy environment")
-            else:
-                print("Start CTMRG from elementary tensors")
-        env = CTM_Environment.from_elementary_tensors(tiling, tensors, dummy)
+            print("Start CTMRG from dummy environment")
+        env = CTM_Environment.from_elementary_tensors(tiling, tensors)
         return cls(env, chi_target, verbosity, **ctm_params)
 
     def set_tensors(self, tensors):
@@ -331,21 +322,6 @@ class CTMRG:
 
     def get_corner_representations(self):
         return self._env.get_corner_representations()
-
-    def restart_environment(self, *, dummy=True):
-        """
-        Restart environment tensors from elementary ones. ERASE current environment,
-        use with caution.
-        """
-        if self.verbosity > 0:
-            print("Restart brand new environment from elementary tensors.")
-        tensors = [self._env.get_A(x, y) for (x, y) in self.site_coords]
-        tiling = "\n".join("".join(line) for line in self.cell)
-        self._env = CTM_Environment.from_elementary_tensors(
-            tiling, tensors, dummy=dummy
-        )
-        if self.verbosity > 0:
-            print(self)
 
     def set_symmetry(self, symmetry):
         """

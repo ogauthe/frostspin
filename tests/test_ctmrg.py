@@ -347,7 +347,7 @@ assert np.isfinite(xih0)
 assert np.isfinite(xih1)
 
 # check truncate_corners succeeds
-ctm.restart_environment()
+ctm = CTMRG.from_elementary_tensors(tiling, tensors, 13)
 ctm.truncate_corners()
 ctm.iterate()
 ctm.iterate()
@@ -380,32 +380,3 @@ for x, y in ctm.site_coords:
     assert eq_st(ctm.get_T4(x, y), ctm2.get_T4(x, y))
 
 os.remove(savefile)
-
-
-# check dummy=False environment initialization
-# TODO
-"""
-ctm = CTMRG.from_elementary_tensors(tiling, tensors, 13, dummy=False)
-
-rdm2x1_cell, rdm1x2_cell = ctm.compute_rdm_1st_neighbor_cell()
-for m in rdm2x1_cell:
-    assert lg.norm(m - m.T) < 1e-8
-for m in rdm1x2_cell:
-    assert lg.norm(m - m.T) < 1e-8
-
-rdm_dr_cell, rdm_ur_cell = ctm.compute_rdm_2nd_neighbor_cell()
-for m in rdm_dr_cell:
-    assert lg.norm(m - m.T) < 1e-8
-for m in rdm_ur_cell:
-    assert lg.norm(m - m.T) < 1e-8
-
-ctm.iterate()
-ctm.iterate()
-
-ctm.restart_environment(dummy=True)
-ctm.truncate_corners()
-ctm.iterate()
-ctm.iterate()
-rdm2x1_cell, rdm1x2_cell = ctm.compute_rdm_1st_neighbor_cell()
-rdm_dr_cell, rdm_ur_cell = ctm.compute_rdm_2nd_neighbor_cell()
-"""
