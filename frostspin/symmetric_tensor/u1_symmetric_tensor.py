@@ -37,7 +37,7 @@ class U1_SymmetricTensor(AbelianSymmetricTensor):
         assert signature.shape == (len(reps),)
         if len(reps) > 1:  # numba issue 7245
             return _numba_combine_U1(tuple(reps), signature)
-        return (1 - 2 * signature[0]) * reps[0]
+        return np.int8(1 - 2 * signature[0]) * reps[0]
 
     @staticmethod
     def conjugate_irrep(irr):
