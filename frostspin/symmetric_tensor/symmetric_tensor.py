@@ -685,6 +685,26 @@ class SymmetricTensor:
         V = type(self)((mid_rep,), self._col_reps, v_blocks, self._block_irreps, vsign)
         return U, s, V
 
+    def solve(self, b):
+        """
+        Solve self @ x = b for x.
+        """
+        assert type(self) is type(b)
+        assert self.n_row_reps == b.n_row_reps
+        assert (self._signature[: self._nrr] == b.signature[: b.n_row_reps]).all()
+        assert all(
+            (r == r2).all() for (r, r2) in zip(self._row_reps, b.row_reps, strict=True)
+        )
+
+        indices1, indices2 = (self.block_irreps[:, None] == b.block_irreps).nonzero()
+        if len(indices2) < b.nblocks:
+            raise ValueError("No solution: missing block in A appears in b")
+        xblocks = []
+        for i, j in zip(indices1, indices2, strict=False):
+            xblocks.append(lg.solve(self.blocks[i], b.blocks[j]))
+        s = np.hstack((~self.signature[self._nrr :], b.signature[b.n_row_reps :]))
+        return type(self)(self.col_reps, b.col_reps, xblocks, b.block_irreps, s)
+
     def eigh(self, *, compute_vectors=True):
         """
         Compute all eigenvalues and eigen of the SymmetricTensor viewed as a matrix.
