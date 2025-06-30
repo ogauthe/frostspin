@@ -1088,9 +1088,8 @@ class SimpleUpdate:
 
         # normalize weights and apply them to new left and new right
         # save log of normalization factor to update logZ
-        nf = new_weights.sum()
-        lognf = np.log(nf)
-        new_weights /= nf
+        new_weights /= new_weights.sum()
+        lognf = np.log(theta.norm() / new_weights.norm())
         effL = effL * new_weights
         effR = new_weights * effR
 
@@ -1167,12 +1166,11 @@ class SimpleUpdate:
 
         # 1st SVD
         theta = theta.permute((4, 2), (0, 3, 1))  # pR, auxR = theta = auxL, pL, auxm
+        norm0 = theta.norm()
         effR, new_weightsR, theta = theta.truncated_svd(
             self.D, rtol=self.rcutoff, degen_ratio=self.degen_ratio
         )
-        nf = new_weightsR.sum()
-        lognf = np.log(nf)
-        new_weightsR /= nf
+        new_weightsR /= new_weightsR.sum()
         effR = effR * new_weightsR  # pR, auxR = effR - mR
 
         # 2nd SVD
@@ -1181,9 +1179,8 @@ class SimpleUpdate:
         effL, new_weightsL, effm = theta.truncated_svd(
             self.D, rtol=self.rcutoff, degen_ratio=self.degen_ratio
         )
-        nf = new_weightsL.sum()
-        lognf += np.log(nf)
-        new_weightsL /= nf
+        new_weightsL /= new_weightsL.sum()
+        lognf = np.log(norm0 / new_weightsL.norm())
         effm = new_weightsL * effm  # mL - effm = auxm, mR
         effL = effL * new_weightsL  # auxL, pL = effL - mL
 
