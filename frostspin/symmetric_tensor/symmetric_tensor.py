@@ -801,7 +801,7 @@ class SymmetricTensor:
     # Sparse linear algebra
     ####################################################################################
     def truncated_svd(
-        self, cut, *, max_dense_dim=None, window=0, rcutoff=0.0, degen_ratio=1.0
+        self, cut, *, max_dense_dim=None, oversampling=0, rcutoff=0.0, degen_ratio=1.0
     ):
         """
         Compute block-wise SVD of self and keep only cut largest singular values. Keep
@@ -823,7 +823,7 @@ class SymmetricTensor:
             if min(b.shape) < max_dense_dim:  # dense svd for small blocks
                 raw_u[bi], raw_s[bi], raw_v[bi] = robust_svd(b)
             else:
-                raw_u[bi], raw_s[bi], raw_v[bi] = sparse_svd(b, cut + window)
+                raw_u[bi], raw_s[bi], raw_v[bi] = sparse_svd(b, cut + oversampling)
 
         u_blocks = []
         s_blocks = []
