@@ -717,6 +717,10 @@ class SymmetricTensor:
         s = np.hstack((~self.signature[self._nrr :], b.signature[b.n_row_reps :]))
         return type(self)(self.col_reps, b.col_reps, xblocks, b.block_irreps, s)
 
+    def pinv(self, *, atol=0.0, rtol=None):
+        u, s, v = self.truncated_svd(2**31, atol=atol, rtol=rtol)
+        return v.dagger() * (1 / s) @ u.dagger()
+
     def eigh(self, *, compute_vectors=True):
         """
         Compute all eigenvalues and eigen of the SymmetricTensor viewed as a matrix.
