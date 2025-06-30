@@ -596,13 +596,23 @@ class SymmetricTensor:
         """
         blocks = tuple(b.T.conj() for b in self._blocks)
         s = np.empty((self._ndim,), dtype=bool)
-        s[: self._ndim - self._nrr] = ~self.signature[self._nrr :]
-        s[self._ndim - self._nrr :] = ~self.signature[: self._nrr]
+        s[: self._ndim - self._nrr] = ~self._signature[self._nrr :]
+        s[self._ndim - self._nrr :] = ~self._signature[: self._nrr]
         return type(self)(self._col_reps, self._row_reps, blocks, self._block_irreps, s)
 
     ####################################################################################
     # Linear algebra
     ####################################################################################
+    def is_square_matrix(self):
+        if self._nrr != self.ndim // 2:
+            return False
+        if (self._signature[: self._nrr] == self._signature[self._nrr :]).any():
+            return False
+        for r1, r2 in zip(self.row_reps, self.col_reps, strict=True):
+            if r1.shape != r2.shape or (r1 != r2).any():
+                return False
+        return True
+
     def norm(self):
         """
         Tensor Frobenius norm.
@@ -689,6 +699,8 @@ class SymmetricTensor:
         """
         Solve self @ x = b for x.
         """
+        if not self.is_square_matrix():
+            raise ValueError("Tensor legs do not define a square matrix")
         assert type(self) is type(b)
         assert self.n_row_reps == b.n_row_reps
         assert (self._signature[: self._nrr] == b.signature[: b.n_row_reps]).all()
@@ -733,6 +745,8 @@ class SymmetricTensor:
         be truncated and no value or vector will be returned for the null eigenspace. In
         such as case, the dimensions of s and u will be smaller than self.
         """
+        if not self.is_square_matrix():
+            raise ValueError("Tensor legs do not define a square matrix")
         # just call eigsh with large nvals, it will call eigh on all blocks.
         # It would be possible to post-process eigenvalues and recover null eigenspace
         # Too complicate for no real use, just document behavior.
@@ -775,6 +789,8 @@ class SymmetricTensor:
         be truncated and no value or vector will be returned for the null eigenspace. In
         such as case, the dimensions of s and u will be smaller than self.
         """
+        if not self.is_square_matrix():
+            raise ValueError("Tensor legs do not define a square matrix")
         # just call eigs with large nvals, it will call eig on all blocks.
         # It would be possible to post-process eigenvalues and recover null eigenspace
         # Too complicate for no real use, just document behavior.
@@ -792,6 +808,8 @@ class SymmetricTensor:
         )
 
     def expm(self):
+        if not self.is_square_matrix():
+            raise ValueError("Tensor legs do not define a square matrix")
         blocks = tuple(lg.expm(b) for b in self._blocks)
         return type(self)(
             self._row_reps, self._col_reps, blocks, self._block_irreps, self._signature
@@ -1201,16 +1219,7 @@ class SymmetricTensor:
         # 0) input validation
         if type(matmat) is cls:
             nrr = matmat.n_row_reps
-            if any(
-                r1.shape != r2.shape or (r1 != r2).any()
-                for (r1, r2) in zip(matmat.row_reps, matmat.col_reps, strict=True)
-            ):
-                raise ValueError(
-                    "M representations are incompatible with a square matrix"
-                )
-            if (matmat.signature[:nrr] != ~matmat.signature[nrr:]).any():
-                raise ValueError("M signature is incompatible with a square matrix")
-
+            assert matmat.is_square_matrix()
             reps = matmat.row_reps
             signature = matmat.signature[:nrr]
             dtype = matmat.dtype
