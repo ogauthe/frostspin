@@ -4,7 +4,7 @@ import scipy.sparse.linalg as slg
 
 from frostspin.misc_tools.numba_tools import set_writable_flag
 from frostspin.misc_tools.svd_tools import (
-    find_chi_largest,
+    find_block_cuts,
     robust_eigh,
     robust_svd,
     sparse_svd,
@@ -596,13 +596,23 @@ class SymmetricTensor:
         """
         blocks = tuple(b.T.conj() for b in self._blocks)
         s = np.empty((self._ndim,), dtype=bool)
-        s[: self._ndim - self._nrr] = ~self.signature[self._nrr :]
-        s[self._ndim - self._nrr :] = ~self.signature[: self._nrr]
+        s[: self._ndim - self._nrr] = ~self._signature[self._nrr :]
+        s[self._ndim - self._nrr :] = ~self._signature[: self._nrr]
         return type(self)(self._col_reps, self._row_reps, blocks, self._block_irreps, s)
 
     ####################################################################################
     # Linear algebra
     ####################################################################################
+    def is_square_matrix(self):
+        if self._nrr != self.ndim // 2:
+            return False
+        if (self._signature[: self._nrr] == self._signature[self._nrr :]).any():
+            return False
+        for r1, r2 in zip(self.row_reps, self.col_reps, strict=True):
+            if r1.shape != r2.shape or (r1 != r2).any():
+                return False
+        return True
+
     def norm(self):
         """
         Tensor Frobenius norm.
@@ -685,6 +695,32 @@ class SymmetricTensor:
         V = type(self)((mid_rep,), self._col_reps, v_blocks, self._block_irreps, vsign)
         return U, s, V
 
+    def solve(self, b):
+        """
+        Solve self @ x = b for x.
+        """
+        if not self.is_square_matrix():
+            raise ValueError("Tensor legs do not define a square matrix")
+        assert type(self) is type(b)
+        assert self.n_row_reps == b.n_row_reps
+        assert (self._signature[: self._nrr] == b.signature[: b.n_row_reps]).all()
+        assert all(
+            (r == r2).all() for (r, r2) in zip(self._row_reps, b.row_reps, strict=True)
+        )
+
+        indices1, indices2 = (self.block_irreps[:, None] == b.block_irreps).nonzero()
+        if len(indices2) < b.nblocks:
+            raise ValueError("No solution: missing block in A appears in b")
+        xblocks = []
+        for i, j in zip(indices1, indices2, strict=False):
+            xblocks.append(lg.solve(self.blocks[i], b.blocks[j]))
+        s = np.hstack((~self.signature[self._nrr :], b.signature[b.n_row_reps :]))
+        return type(self)(self.col_reps, b.col_reps, xblocks, b.block_irreps, s)
+
+    def pinv(self, *, atol=0.0, rtol=None):
+        u, s, v = self.truncated_svd(2**31, atol=atol, rtol=rtol)
+        return v.dagger() * (1 / s) @ u.dagger()
+
     def eigh(self, *, compute_vectors=True):
         """
         Compute all eigenvalues and eigen of the SymmetricTensor viewed as a matrix.
@@ -713,6 +749,8 @@ class SymmetricTensor:
         be truncated and no value or vector will be returned for the null eigenspace. In
         such as case, the dimensions of s and u will be smaller than self.
         """
+        if not self.is_square_matrix():
+            raise ValueError("Tensor legs do not define a square matrix")
         # just call eigsh with large nvals, it will call eigh on all blocks.
         # It would be possible to post-process eigenvalues and recover null eigenspace
         # Too complicate for no real use, just document behavior.
@@ -755,6 +793,8 @@ class SymmetricTensor:
         be truncated and no value or vector will be returned for the null eigenspace. In
         such as case, the dimensions of s and u will be smaller than self.
         """
+        if not self.is_square_matrix():
+            raise ValueError("Tensor legs do not define a square matrix")
         # just call eigs with large nvals, it will call eig on all blocks.
         # It would be possible to post-process eigenvalues and recover null eigenspace
         # Too complicate for no real use, just document behavior.
@@ -772,6 +812,8 @@ class SymmetricTensor:
         )
 
     def expm(self):
+        if not self.is_square_matrix():
+            raise ValueError("Tensor legs do not define a square matrix")
         blocks = tuple(lg.expm(b) for b in self._blocks)
         return type(self)(
             self._row_reps, self._col_reps, blocks, self._block_irreps, self._signature
@@ -781,7 +823,14 @@ class SymmetricTensor:
     # Sparse linear algebra
     ####################################################################################
     def truncated_svd(
-        self, cut, *, max_dense_dim=None, window=0, rcutoff=0.0, degen_ratio=1.0
+        self,
+        cut,
+        *,
+        max_dense_dim=None,
+        oversampling=0,
+        atol=0.0,
+        rtol=None,
+        degen_ratio=1.0,
     ):
         """
         Compute block-wise SVD of self and keep only cut largest singular values. Keep
@@ -803,14 +852,14 @@ class SymmetricTensor:
             if min(b.shape) < max_dense_dim:  # dense svd for small blocks
                 raw_u[bi], raw_s[bi], raw_v[bi] = robust_svd(b)
             else:
-                raw_u[bi], raw_s[bi], raw_v[bi] = sparse_svd(b, cut + window)
+                raw_u[bi], raw_s[bi], raw_v[bi] = sparse_svd(b, cut + oversampling)
 
         u_blocks = []
         s_blocks = []
         v_blocks = []
         dims = np.array([self.irrep_dimension(r) for r in self._block_irreps])
-        block_cuts = find_chi_largest(
-            raw_s, cut, dims=dims, rcutoff=rcutoff, degen_ratio=degen_ratio
+        block_cuts = find_block_cuts(
+            raw_s, cut, dims=dims, atol=atol, rtol=rtol, degen_ratio=degen_ratio
         )
         non_empty = block_cuts.nonzero()[0]
         warn = 0
@@ -1174,16 +1223,7 @@ class SymmetricTensor:
         # 0) input validation
         if type(matmat) is cls:
             nrr = matmat.n_row_reps
-            if any(
-                r1.shape != r2.shape or (r1 != r2).any()
-                for (r1, r2) in zip(matmat.row_reps, matmat.col_reps, strict=True)
-            ):
-                raise ValueError(
-                    "M representations are incompatible with a square matrix"
-                )
-            if (matmat.signature[:nrr] != ~matmat.signature[nrr:]).any():
-                raise ValueError("M signature is incompatible with a square matrix")
-
+            assert matmat.is_square_matrix()
             reps = matmat.row_reps
             signature = matmat.signature[:nrr]
             dtype = matmat.dtype
@@ -1336,8 +1376,8 @@ class SymmetricTensor:
                     eig_sparse_block(bi, op, k, v0)
 
         # 6) keep only nvals largest magnitude eigenvalues
-        # find_chi_largest will remove any rigorously zero eigenvalue
-        block_cuts = find_chi_largest(abs_val_blocks, nvals, dims=dims)
+        # find_block_cuts will remove any rigorously zero eigenvalue
+        block_cuts = find_block_cuts(abs_val_blocks, nvals, dims=dims)
         non_empty = block_cuts.nonzero()[0]
         s_blocks = []
         for bi in non_empty:

@@ -1083,7 +1083,7 @@ class SimpleUpdate:
         theta = theta.permute((0, 2), (1, 3))  # auxL, pL = theta = auxR, pR
         # define new_weights *on effL right*
         effL, new_weights, effR = theta.truncated_svd(
-            self.D, rcutoff=self.rcutoff, degen_ratio=self.degen_ratio
+            self.D, rtol=self.rcutoff, degen_ratio=self.degen_ratio
         )
 
         # normalize weights and apply them to new left and new right
@@ -1168,7 +1168,7 @@ class SimpleUpdate:
         # 1st SVD
         theta = theta.permute((4, 2), (0, 3, 1))  # pR, auxR = theta = auxL, pL, auxm
         effR, new_weightsR, theta = theta.truncated_svd(
-            self.D, rcutoff=self.rcutoff, degen_ratio=self.degen_ratio
+            self.D, rtol=self.rcutoff, degen_ratio=self.degen_ratio
         )
         nf = new_weightsR.sum()
         lognf = np.log(nf)
@@ -1179,7 +1179,7 @@ class SimpleUpdate:
         theta = new_weightsR * theta  # mR-theta = auL,pL,auxm
         theta = theta.permute((1, 2), (3, 0))  # auxL, pL = theta = auxm, mR
         effL, new_weightsL, effm = theta.truncated_svd(
-            self.D, rcutoff=self.rcutoff, degen_ratio=self.degen_ratio
+            self.D, rtol=self.rcutoff, degen_ratio=self.degen_ratio
         )
         nf = new_weightsL.sum()
         lognf += np.log(nf)

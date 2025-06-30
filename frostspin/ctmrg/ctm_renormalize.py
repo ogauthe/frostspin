@@ -1,6 +1,6 @@
 import numpy as np
 
-from frostspin.misc_tools.svd_tools import find_chi_largest, robust_svd, sparse_svd
+from frostspin.misc_tools.svd_tools import find_block_cuts, robust_svd, sparse_svd
 
 
 def construct_projectors(
@@ -8,12 +8,14 @@ def construct_projectors(
     corner2,
     corner3,
     corner4,
-    chi,
-    block_chi_ratio,
-    ncv_ratio,
-    rcutoff,
-    degen_ratio,
+    chi_target,
     last_renormalized,
+    *,
+    block_chi_ratio=1.1,
+    ncv_ratio=2.0,
+    atol=0.0,
+    rtol=None,
+    degen_ratio=1.0,
 ):
     """
     Parameters
@@ -26,8 +28,10 @@ def construct_projectors(
         Third corner to contract
     corner4 : SymmetricTensor
         Fourth corner to contract
-    chi : int
+    chi_target : int
         Total number of singular values to keep
+    last_renormalized : SymmetricTensor
+        Last renormalized corner, used to estimate block sizes in SVD.
     block_chi_ratio : float
         For each symmetry block, compute block_chi = block_chi_ratio * last_block_chi
         singular values, where last_block_chi is the size of the symmetry sector during
@@ -35,11 +39,12 @@ def construct_projectors(
         chi.
     ncv_ratio : float
         For each symmetry sector, generate ncv = ncv_ratio * chi_block Lanczos vectors.
+    atol : float
+        Singular values absolute threshold
+    rtol : float
+        Singular values relatice threshold
     degen_ratio : float
-        ratio to consider values as degenerate (see numba_find_chi_largest
-        documentation)
-    last_renormalized : SymmetricTensor
-        Last renormalized corner, used to estimate block sizes in SVD.
+        ratio to consider values as degenerate (see find_block_cuts)
     """
     # factorize loops on different symmetry sectors, construct only blocks that will
     # appear in final projectors. Compute SVD blockwise on the fly for R @ Rt, without
@@ -80,7 +85,7 @@ def construct_projectors(
         if ind < last_irreps.size and shared[bi] == last_irreps[ind]:
             block_chi[bi] = last_renormalized.blocks[ind].shape[1]
     block_chi = np.maximum(block_chi + 10, (block_chi_ratio * block_chi).astype(int))
-    block_chi = np.minimum(chi + 10, block_chi)
+    block_chi = np.minimum(chi_target + 10, block_chi)
 
     dims = []
     for bi in range(n_blocks):  # compute SVD on the fly
@@ -88,13 +93,13 @@ def construct_projectors(
         rt_blocks[bi] = corner3.blocks[ind3[bi]] @ corner4.blocks[ind4[bi]]
         m = r_blocks[bi] @ rt_blocks[bi]
         dims.append(corner2.irrep_dimension(corner2.block_irreps[ind2[bi]]))
-        if min(m.shape) < max(100, 6 * block_chi[bi]):  # use full svd for small blocks
+        ncv = int(ncv_ratio * block_chi[bi]) + 10
+        if min(m.shape) < max(100, 4 * ncv):  # use full svd for small blocks
             u, s, v = robust_svd(m)
         else:
             # a good precision is required for singular values, especially with pseudo
             # inverse. If precision is not good enough, reduced density matrix are less
             # hermitian. This requires a large number of computed vectors (ncv).
-            ncv = int(ncv_ratio * block_chi[bi]) + 10
             u, s, v = sparse_svd(m, k=block_chi[bi], ncv=ncv, maxiter=1000)
 
         u_blocks[bi] = u
@@ -102,8 +107,8 @@ def construct_projectors(
         v_blocks[bi] = v
 
     # keep chi largest singular values + last multiplet
-    block_cuts = find_chi_largest(
-        s_blocks, chi, dims=dims, rcutoff=rcutoff, degen_ratio=degen_ratio
+    block_cuts = find_block_cuts(
+        s_blocks, chi_target, dims=dims, atol=atol, rtol=rtol, degen_ratio=degen_ratio
     )
 
     # second loop: construct projectors

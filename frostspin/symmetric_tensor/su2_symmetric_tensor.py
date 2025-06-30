@@ -1,7 +1,6 @@
 import numba
 import numpy as np
 
-import frostspin
 from frostspin.groups.su2_clebsch_gordan import load_su2_cg
 
 from .lie_group_symmetric_tensor import LieGroupSymmetricTensor
@@ -224,12 +223,8 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         return self.toU1()
 
     def toU1(self):
-        # yet to adapt to elementary block structure for SU(2)
-        if not frostspin.config["quiet"]:
-            print("WARNING: toU1() currently casts to intermediate dense form")
-
-        # efficient cast to U(1): project directly raw data to U(1) blocks
-        # 1) construct U(1) representations
+        # this is not efficient: cast to dense, then back to U(1)
+        # not worth it to optimize.
         reps = []
         for r in self._row_reps + self._col_reps:
             sz = np.empty((r[0] @ r[1],), dtype=np.int8)
@@ -249,13 +244,12 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
 
     def toO2(self):
         """
-        WARNING: this method alters the dense tensors by swapping indices inside legs
+        Warning: this method alters the dense tensors by swapping indices inside legs
         and adding some diagonal -1 signs on every legs. This does not matter once legs
         are contracted.
         """
-        # yet to adapt to elementary block structure for SU(2)
-        if not frostspin.config["quiet"]:
-            print("WARNING: toO2() currently casts to intermediate dense form")
+        # this is not efficient: cast to dense, then back to U(1)
+        # not worth it to optimize.
 
         # When casting to U(1), O(2) has different irrep ordering conventions:
         # here for SU(2), each spin appears contiguously with all its Sz value

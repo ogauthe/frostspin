@@ -77,16 +77,26 @@ class DiagonalTensor:
         )
 
     def __mul__(self, x):
-        if np.issubdtype(type(x), np.number):
-            blocks = tuple(x * db for db in self._diagonal_blocks)
-            return type(self)(
-                blocks,
-                self._representation,
-                self._block_irreps,
-                self._block_degen,
-                self._symmetry,
+        if isinstance(x, DiagonalTensor):
+            if not (self._representation == x.representation).all():
+                raise ValueError("Representations do not match")
+            blocks = tuple(
+                b1 * b2
+                for (b1, b2) in zip(
+                    self._diagonal_blocks, x.diagonal_blocks, strict=True
+                )
             )
-        return NotImplemented  # call x.__rmul__(self)
+        elif np.issubdtype(type(x), np.number):
+            blocks = tuple(x * db for db in self._diagonal_blocks)
+        else:
+            return NotImplemented  # call x.__rmul__(self)
+        return type(self)(
+            blocks,
+            self._representation,
+            self._block_irreps,
+            self._block_degen,
+            self._symmetry,
+        )
 
     def __rmul__(self, x):
         if np.issubdtype(type(x), np.number):
@@ -102,6 +112,18 @@ class DiagonalTensor:
 
     def __truediv__(self, x):
         return self * (1.0 / x)
+
+    def __rtruediv__(self, x):
+        if np.issubdtype(type(x), np.number):
+            blocks = tuple(x / db for db in self._diagonal_blocks)
+            return type(self)(
+                blocks,
+                self._representation,
+                self._block_irreps,
+                self._block_degen,
+                self._symmetry,
+            )
+        raise NotImplementedError("Invalid type for /")
 
     def __itruediv__(self, x):
         self *= 1.0 / x
