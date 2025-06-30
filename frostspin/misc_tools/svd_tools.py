@@ -4,7 +4,9 @@ import scipy.linalg as lg
 import scipy.sparse.linalg as slg
 
 
-def find_chi_largest(block_s, chi, *, dims=None, rcutoff=0.0, degen_ratio=1.0):
+def find_block_cuts(
+    block_values, cut_target, *, dims=None, atol=0.0, rtol=None, degen_ratio=1.0
+):
     """
     Find chi largest values from a tuple of blockwise, decreasing singular values.
     Assume number of blocks is small: block_max_val is never sorted and elements
@@ -12,16 +14,20 @@ def find_chi_largest(block_s, chi, *, dims=None, rcutoff=0.0, degen_ratio=1.0):
 
     Parameters
     ----------
-    block_s: enumerable of 1D ndarray sorted by decreasing values
-        Sorted values by block.
-    chi: int
+    block_values: enumerable of 1D ndarray
+        Sorted values by block. Each block must be real postive  and sorted by
+        decreasing values
+    cut_target: int
         Number of values to keep. This is a target, the actual value may be bigger to
         preserve multiplets.
     dims: array of integer
         Degeneracy of each block. A given value in block i counts for dims[i] * i to
         reach chi. If None, assumed to be 1 everywhere.
-    rcutoff: float
-        relative cutoff on small values. Default to 0 (no cutoff)
+    atol : float, optional
+        Absolute threshold term, default value is 0.
+    rtol : float, optional
+        Relative threshold term, default value is ``sum(length(values)) * eps`` where
+        ``eps`` is the machine precision value of the datatype of ``values``.
     degen_ratio: float
         ratio to keep degenerate values. Default to 1.0 (keep values exactly degenerate)
 
@@ -30,26 +36,31 @@ def find_chi_largest(block_s, chi, *, dims=None, rcutoff=0.0, degen_ratio=1.0):
     block_cuts: integer ndarray
         Number of values to keep in each block.
     """
-    block_s = tuple(block_s)
-    chi = int(chi)
+    block_values = tuple(np.asarray(t) for t in block_values)
+    dt = block_values[0].dtype
     if dims is None:
-        dims = np.ones((len(block_s),), dtype=int)
-    dims = np.asarray(dims, dtype=int, order="C")
-    rcutoff = float(rcutoff)
+        dims = np.ones((len(block_values),), dtype=int)
+    else:
+        dims = np.asarray(dims, dtype=int, order="C")
+    rtol = (
+        sum(len(b) for b in block_values) * np.finfo(dt).eps if (rtol is None) else rtol
+    )
+    cutoff = float(atol + rtol * max([b[0] for b in block_values]))
     degen_ratio = float(degen_ratio)
-    assert dims.shape == (len(block_s),)
+    assert dims.shape == (len(block_values),)
     assert degen_ratio <= 1.0
-    return _numba_find_chi_largest(block_s, chi, dims, rcutoff, degen_ratio)
+    return _numba_find_block_cuts(
+        block_values, int(cut_target), dims, cutoff, degen_ratio
+    )
 
 
 @numba.njit
-def _numba_find_chi_largest(block_s, chi, dims, rcutoff, degen_ratio):
+def _numba_find_block_cuts(block_s, cut_target, dims, cutoff, degen_ratio):
     block_max_vals = np.array([b[0] for b in block_s])
-    cutoff = block_max_vals.max() * rcutoff
     block_cuts = np.zeros((len(block_s),), dtype=np.int64)
     kept = 0
     bi = block_max_vals.argmax()
-    while block_max_vals[bi] > cutoff and kept < chi:
+    while block_max_vals[bi] > cutoff and kept < cut_target:
         c = degen_ratio * block_max_vals[bi]
         while block_max_vals[bi] >= c:  # take all quasi-degenerated values together
             block_cuts[bi] += 1

@@ -4,7 +4,7 @@ import scipy.sparse.linalg as slg
 
 from frostspin.misc_tools.numba_tools import set_writable_flag
 from frostspin.misc_tools.svd_tools import (
-    find_chi_largest,
+    find_block_cuts,
     robust_eigh,
     robust_svd,
     sparse_svd,
@@ -801,7 +801,14 @@ class SymmetricTensor:
     # Sparse linear algebra
     ####################################################################################
     def truncated_svd(
-        self, cut, *, max_dense_dim=None, oversampling=0, rcutoff=0.0, degen_ratio=1.0
+        self,
+        cut,
+        *,
+        max_dense_dim=None,
+        oversampling=0,
+        atol=0.0,
+        rtol=None,
+        degen_ratio=1.0,
     ):
         """
         Compute block-wise SVD of self and keep only cut largest singular values. Keep
@@ -829,8 +836,8 @@ class SymmetricTensor:
         s_blocks = []
         v_blocks = []
         dims = np.array([self.irrep_dimension(r) for r in self._block_irreps])
-        block_cuts = find_chi_largest(
-            raw_s, cut, dims=dims, rcutoff=rcutoff, degen_ratio=degen_ratio
+        block_cuts = find_block_cuts(
+            raw_s, cut, dims=dims, atol=atol, rtol=rtol, degen_ratio=degen_ratio
         )
         non_empty = block_cuts.nonzero()[0]
         warn = 0
@@ -1356,8 +1363,8 @@ class SymmetricTensor:
                     eig_sparse_block(bi, op, k, v0)
 
         # 6) keep only nvals largest magnitude eigenvalues
-        # find_chi_largest will remove any rigorously zero eigenvalue
-        block_cuts = find_chi_largest(abs_val_blocks, nvals, dims=dims)
+        # find_block_cuts will remove any rigorously zero eigenvalue
+        block_cuts = find_block_cuts(abs_val_blocks, nvals, dims=dims)
         non_empty = block_cuts.nonzero()[0]
         s_blocks = []
         for bi in non_empty:
