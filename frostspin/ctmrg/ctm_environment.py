@@ -59,7 +59,7 @@ def find_unique_coords(cell):
     return site_coords, indicesT.T.copy()
 
 
-class CTM_Environment:
+class CTMEnvironment:
     """
     Container for CTMRG environment tensors. Follow leg conventions from CTMRG.
     """
@@ -129,12 +129,15 @@ class CTM_Environment:
 
         def check(tensors, ndim, name):
             if len(tensors) != self._n_sites:
-                raise ValueError(f"Invalid {name} number")
+                msg = f"Invalid {name} number"
+                raise ValueError(msg)
             for t in tensors:
                 if type(t) is not ST:
-                    raise ValueError(f"Invalid {name} type")
+                    msg = f"Invalid {name} type"
+                    raise ValueError(msg)
                 if t.ndim != ndim:
-                    raise ValueError(f"Invalid {name} ndim")
+                    msg = f"Invalid {name} ndim"
+                    raise ValueError(msg)
 
         check(self._unique_As, 6, "A")
         check(self._unique_C1s, 2, "C1")
@@ -154,14 +157,18 @@ class CTM_Environment:
             A = self.get_A(x, y)
             Ay = self.get_A(x, y - 1)
             if A.signature[2] == Ay.signature[4]:
-                raise ValueError(f"signature mismatch between {(x, y)} and {(x, y-1)}")
+                msg = f"signature mismatch between {(x, y)} and {(x, y - 1)}"
+                raise ValueError(msg)
             if (A.col_reps[0] != Ay.col_reps[2]).any():
-                raise ValueError(f"rep mismatch between {(x, y)} and {(x, y-1)}")
+                msg = f"rep mismatch between {(x, y)} and {(x, y - 1)}"
+                raise ValueError(msg)
             Ax = self.get_A(x + 1, y)
             if A.signature[3] == Ax.signature[5]:
-                raise ValueError(f"signature mismatch between {(x+1, y)} and {(x, y)}")
+                msg = f"signature mismatch between {(x + 1, y)} and {(x, y)}"
+                raise ValueError(msg)
             if (A.col_reps[1] != Ax.col_reps[3]).any():
-                raise ValueError(f"rep mismatch between {(x+1, y)} and {(x, y)}")
+                msg = f"rep mismatch between {(x + 1, y)} and {(x, y)}"
+                raise ValueError(msg)
 
     def get_corner_representations(self):
         unique = []
@@ -198,7 +205,7 @@ class CTM_Environment:
     @classmethod
     def from_elementary_tensors(cls, tiling, tensors):
         """
-        Construct CTM_Environment from elementary tensors according to tiling.
+        Construct CTMEnvironment from elementary tensors according to tiling.
         Environment is initalized as dummy: corners are (1x1) identity matrices with
         trivial representation, edges are identiy matrices between layers with dummy
         legs for chi.
@@ -232,7 +239,7 @@ class CTM_Environment:
     @classmethod
     def load_from_file(cls, savefile):
         """
-        Construct CTM_Environment from save file.
+        Construct CTMEnvironment from save file.
         """
         As, C1s, C2s, C3s, C4s, T1s, T2s, T3s, T4s = ([] for i in range(9))
         with np.load(savefile) as data:

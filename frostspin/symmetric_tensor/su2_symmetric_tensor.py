@@ -4,9 +4,9 @@ import numpy as np
 from frostspin.groups.su2_clebsch_gordan import load_su2_cg
 
 from .lie_group_symmetric_tensor import LieGroupSymmetricTensor
-from .o2_symmetric_tensor import O2_SymmetricTensor
+from .o2_symmetric_tensor import O2SymmetricTensor
 from .tools import check_norm, symmetric_tensor_types
-from .u1_symmetric_tensor import U1_SymmetricTensor
+from .u1_symmetric_tensor import U1SymmetricTensor
 
 
 def compute_fusion_tensor(rep1, rep2, s1, s2, *, max_irrep=2**30):
@@ -42,7 +42,7 @@ def compute_fusion_tensor(rep1, rep2, s1, s2, *, max_irrep=2**30):
     """
     # this is function is specific to SU(2), we can safely assume an irrep is labeled by
     # its dimension and use label or dimension indistinctly.
-    cg_dic = SU2_SymmetricTensor.clebsch_gordan_dic()
+    cg_dic = SU2SymmetricTensor.clebsch_gordan_dic()
 
     # precompute projector size
     degen, irreps = _numba_elementary_combine_SU2(rep1[0], rep1[1], rep2[0], rep2[1])
@@ -127,7 +127,7 @@ def _numba_combine_SU2(*reps):
     return np.concatenate((degen, irreps)).reshape(2, -1)
 
 
-class SU2_SymmetricTensor(LieGroupSymmetricTensor):
+class SU2SymmetricTensor(LieGroupSymmetricTensor):
     """
     Irreps are 2D arrays with int dtype. First row is degen, second row is irrep
     dimension = 2 * s + 1
@@ -236,7 +236,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
             reps.append(sz)
 
         arr = self.toarray()
-        out = U1_SymmetricTensor.from_array(
+        out = U1SymmetricTensor.from_array(
             arr, reps[: self._nrr], reps[self._nrr :], self._signature
         )
         assert check_norm(self, out)
@@ -307,7 +307,7 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
             arr = np.tensordot(mat, arr, ((1,), (0,)))
             arr = arr.transpose(perm)
 
-        out = O2_SymmetricTensor.from_array(
+        out = O2SymmetricTensor.from_array(
             arr, o2_reps[: self._nrr], o2_reps[self._nrr :], self._signature
         )
         assert check_norm(self, out)
@@ -331,4 +331,4 @@ class SU2_SymmetricTensor(LieGroupSymmetricTensor):
         cls._clebsch_gordan_dic = load_su2_cg(savefile, verbosity=verbosity)
 
 
-symmetric_tensor_types["SU2"] = SU2_SymmetricTensor
+symmetric_tensor_types["SU2"] = SU2SymmetricTensor

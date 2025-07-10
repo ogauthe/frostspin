@@ -13,7 +13,7 @@ from .ctm_contract import (
     contract_ul,
     contract_ur,
 )
-from .ctm_environment import CTM_Environment
+from .ctm_environment import CTMEnvironment
 
 
 class AbstractCTMRG:
@@ -43,7 +43,7 @@ class AbstractCTMRG:
         |  |  |   |
         C4-T3-T3-C3
 
-    The environment tensors are stored in a custom CTM_Environment class to easily deal
+    The environment tensors are stored in a custom CTMEnvironment class to easily deal
     with periodic boundary conditions and non-equivalent coordinates. Tensor
     contractions, renormalization and reduced density matrix construction functions are
     defined in distinct modules. This class has very few members and makes no
@@ -66,7 +66,7 @@ class AbstractCTMRG:
 
         Parameters
         ----------
-        env: CTM_Environment
+        env: CTMEnvironment
             Environment object, as construced by from_file or from_elementary_tensors.
         chi_target : integer
             Target for corner dimension. This is a target, actual corner dimension chi
@@ -160,7 +160,7 @@ class AbstractCTMRG:
         """
         if verbosity > 0:
             print("Start CTMRG from dummy environment")
-        env = CTM_Environment.from_elementary_tensors(tiling, tensors)
+        env = CTMEnvironment.from_elementary_tensors(tiling, tensors)
         return cls(env, chi_target, verbosity=verbosity, **ctm_params)
 
     def set_tensors(self, tensors):
@@ -196,7 +196,7 @@ class AbstractCTMRG:
             ctm_params["degen_ratio"] = fin["_CTM_degen_ratio"]
         # better to open and close savefile twice (here and in env) to have env __init__
         # outside of file opening block.
-        env = CTM_Environment.load_from_file(filename)
+        env = CTMEnvironment.load_from_file(filename)
         return cls(env, chi_target, verbosity=verbosity, **ctm_params)
 
     def save_to_file(self, filename, **additional_data):

@@ -69,7 +69,6 @@ select = [
 ]
 ignore = [
     "C901",  # too demanding
-    "N801",  # prefer keeping SU2_SymmetricTensor
     "N802",  # prefer keeping toU1
     "N803",  # prefer keeping D
     "N806",  # prefer keeping D

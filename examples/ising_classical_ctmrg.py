@@ -9,7 +9,7 @@ import numpy as np
 import scipy.linalg as lg
 import scipy.special
 
-from frostspin import AsymmetricTensor, DiagonalTensor, U1_SymmetricTensor
+from frostspin import AsymmetricTensor, DiagonalTensor, U1SymmetricTensor
 
 # ===============  simulation parameters  =================
 D = 2  # bond dimension for Ising model
@@ -378,10 +378,10 @@ row_Z2 = (bond_repr_Z2,) * 2
 col_Z2 = (bond_repr_Z2,) * 2
 
 a0_diag = np.einsum("abcd,ai,bj,ck,dl->ijkl", a0, K, K, K, K)
-a_Z2 = U1_SymmetricTensor.from_array(a0_diag, row_Z2, col_Z2, signature=siga)
+a_Z2 = U1SymmetricTensor.from_array(a0_diag, row_Z2, col_Z2, signature=siga)
 
 # signature still does not matter as Z2 action is self-dual
-a_Z2_2 = U1_SymmetricTensor(row_Z2, col_Z2, a_Z2.blocks, a_Z2.block_irreps, siga2)
+a_Z2_2 = U1SymmetricTensor(row_Z2, col_Z2, a_Z2.blocks, a_Z2.block_irreps, siga2)
 
 # initialize symmetric corner eigenvalues s with even and odd blocks
 d0o = chi0 // 2
@@ -403,8 +403,8 @@ s0_Z2 = DiagonalTensor(
 # initialize edge tensor T directly as a SymmetricTensor
 row_reps = (corner_repr_Z2,)
 col_reps = (bond_repr_Z2, corner_repr_Z2)
-T0_Z2 = U1_SymmetricTensor.random(row_reps, col_reps, signature=sigT, rng=rng)
-temp = U1_SymmetricTensor(
+T0_Z2 = U1SymmetricTensor.random(row_reps, col_reps, signature=sigT, rng=rng)
+temp = U1SymmetricTensor(
     row_reps, col_reps, T0_Z2.blocks, T0_Z2.block_irreps, [1, 0, 0]
 )
 temp = temp.permute((2,), (1, 0))
@@ -413,7 +413,7 @@ T0_Z2 /= T0_Z2.norm()
 
 # with these new tensors, we can run the simulation exactly as before.
 # There is no difference in the interface between AsymmetricTensor and
-# U1_SymmetricTensor
+# U1SymmetricTensor
 
 
 # ==========  Simulation with Z2 symmetry  =======

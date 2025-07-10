@@ -3,7 +3,7 @@
 import numpy as np
 import scipy.linalg as lg
 
-from frostspin import U1_SymmetricTensor
+from frostspin import U1SymmetricTensor
 
 
 def random_U1_tensor(row_reps, col_reps, signature, rng=None):
@@ -29,7 +29,7 @@ def random_U1_tensor(row_reps, col_reps, signature, rng=None):
     if rng is None:
         rng = np.random.default_rng()
     reps = row_reps + col_reps
-    irreps1D = U1_SymmetricTensor.combine_representations(reps, signature)
+    irreps1D = U1SymmetricTensor.combine_representations(reps, signature)
     nnz = (irreps1D == 0).nonzero()[0]
     t0 = np.zeros(irreps1D.size)
     t0[nnz] = rng.random(nnz.size) - 0.5
@@ -48,13 +48,13 @@ row_reps = (c1, c2)
 col_reps = (c3, c4, c5)
 signature = np.array([1, 0, 0, 1, 1], dtype=bool)
 
-assert U1_SymmetricTensor.symmetry() == "U1"
-assert U1_SymmetricTensor.singlet().shape == (1,)
-assert (U1_SymmetricTensor.singlet() == np.zeros((1,), dtype=np.int8)).all()
+assert U1SymmetricTensor.symmetry() == "U1"
+assert U1SymmetricTensor.singlet().shape == (1,)
+assert (U1SymmetricTensor.singlet() == np.zeros((1,), dtype=np.int8)).all()
 
 
 t0 = random_U1_tensor(row_reps, col_reps, signature=signature, rng=rng)
-tu1 = U1_SymmetricTensor.from_array(t0, row_reps, col_reps, signature=signature)
+tu1 = U1SymmetricTensor.from_array(t0, row_reps, col_reps, signature=signature)
 
 assert (tu1.toarray() == t0).all()
 assert abs(1.0 - tu1.norm() / lg.norm(t0)) < 1e-14
@@ -89,5 +89,5 @@ assert (tu1 - us2 @ s2v).norm() < 1e-12
 sigma = type(tu1).from_diagonal_tensor(s)
 assert (tu1 - u @ sigma @ v).norm() < 1e-12
 
-tu1 = U1_SymmetricTensor.random(row_reps, col_reps, signature=signature, rng=rng)
+tu1 = U1SymmetricTensor.random(row_reps, col_reps, signature=signature, rng=rng)
 assert abs(tu1.norm() ** 2 - tu1.full_contract(tu1.dagger())) < 1e-12 * tu1.norm() ** 2

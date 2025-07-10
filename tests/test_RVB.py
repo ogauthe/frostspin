@@ -3,7 +3,7 @@
 import numpy as np
 import scipy.linalg as lg
 
-from frostspin import O2_SymmetricTensor, SU2_SymmetricTensor, U1_SymmetricTensor
+from frostspin import O2SymmetricTensor, SU2SymmetricTensor, U1SymmetricTensor
 from frostspin.ctmrg import SequentialCTMRG
 
 ########################################################################################
@@ -50,14 +50,14 @@ for i in range(d):
 
 
 # 1st test: AB//BA pattern with staggered signature
-tA_U1 = U1_SymmetricTensor.from_array(tRVB, rr_U1, rc_U1, signature=[0, 0, 1, 1, 1, 1])
-tB_U1 = U1_SymmetricTensor.from_array(tRVB, rr_U1, rc_U1, signature=[1, 1, 0, 0, 0, 0])
-tA_O2 = O2_SymmetricTensor.from_array(tRVB, rr_O2, rc_O2, signature=[0, 0, 1, 1, 1, 1])
-tB_O2 = O2_SymmetricTensor.from_array(tRVB, rr_O2, rc_O2, signature=[1, 1, 0, 0, 0, 0])
-tA_SU2 = SU2_SymmetricTensor.from_array(
+tA_U1 = U1SymmetricTensor.from_array(tRVB, rr_U1, rc_U1, signature=[0, 0, 1, 1, 1, 1])
+tB_U1 = U1SymmetricTensor.from_array(tRVB, rr_U1, rc_U1, signature=[1, 1, 0, 0, 0, 0])
+tA_O2 = O2SymmetricTensor.from_array(tRVB, rr_O2, rc_O2, signature=[0, 0, 1, 1, 1, 1])
+tB_O2 = O2SymmetricTensor.from_array(tRVB, rr_O2, rc_O2, signature=[1, 1, 0, 0, 0, 0])
+tA_SU2 = SU2SymmetricTensor.from_array(
     tRVB, rr_SU2, rc_SU2, signature=[0, 0, 1, 1, 1, 1]
 )
-tB_SU2 = SU2_SymmetricTensor.from_array(
+tB_SU2 = SU2SymmetricTensor.from_array(
     tRVB, rr_SU2, rc_SU2, signature=[1, 1, 0, 0, 0, 0]
 )
 assert lg.norm(tA_O2.toarray() - tRVB) < tol
@@ -123,8 +123,8 @@ zD[1:, 1:] = np.diag(1 - np.arange(d) % 2 * 2)[::-1]
 s = np.array([0, 0, 0, 0, 1, 1])
 tRVBur = np.einsum("paurdl,Uu,Rr->paURdl", tRVB, zD, zD)
 
-tur_U1 = U1_SymmetricTensor.from_array(tRVBur, rr_U1, rc_U1, signature=s)
-tur_SU2 = SU2_SymmetricTensor.from_array(tRVBur, rr_SU2, rc_SU2, signature=s)
+tur_U1 = U1SymmetricTensor.from_array(tRVBur, rr_U1, rc_U1, signature=s)
+tur_SU2 = SU2SymmetricTensor.from_array(tRVBur, rr_SU2, rc_SU2, signature=s)
 assert lg.norm(tur_U1.toarray() - tRVBur) < tol
 assert lg.norm(tur_SU2.toarray() - tRVBur) < tol
 assert (tur_SU2.toU1() - tur_U1).norm() < tol

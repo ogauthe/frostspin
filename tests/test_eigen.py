@@ -3,11 +3,11 @@
 import numpy as np
 import scipy.linalg as lg
 
-from frostspin import SU2_SymmetricTensor
+from frostspin import SU2SymmetricTensor
 
 rng = np.random.default_rng(42)
 reps = (np.array([[2, 3, 1], [1, 3, 5]]), np.array([[2, 2, 1], [1, 3, 5]]))
-mat_su2 = SU2_SymmetricTensor.random(reps, reps, rng=rng)
+mat_su2 = SU2SymmetricTensor.random(reps, reps, rng=rng)
 mat_su2 /= mat_su2.norm()
 mat_o2 = mat_su2.toO2()
 mat_u1 = mat_su2.toU1()
@@ -49,7 +49,7 @@ def matmat(x):
     return mat_su2 @ (mat_su2 @ x)
 
 
-vals = SU2_SymmetricTensor.eigs(
+vals = SU2SymmetricTensor.eigs(
     matmat,
     nvals,
     dmax_full=dmax_full,
@@ -67,11 +67,11 @@ assert all((np.abs(d1**2 - vals) < 1e-12) | (np.abs(d2**2 - vals) < 1e-12))
 inds = np.array([1, 2, 4])
 blocks = [mat_su2.blocks[i] for i in inds]
 block_irreps = mat_su2.block_irreps[inds]
-mat_missing = SU2_SymmetricTensor(reps, reps, blocks, block_irreps, mat_su2.signature)
-v1 = SU2_SymmetricTensor.eigs(
+mat_missing = SU2SymmetricTensor(reps, reps, blocks, block_irreps, mat_su2.signature)
+v1 = SU2SymmetricTensor.eigs(
     mat_missing, 40, dmax_full=200, rng=rng, compute_vectors=False
 )
-v2 = SU2_SymmetricTensor.eigs(
+v2 = SU2SymmetricTensor.eigs(
     mat_missing, 4, dmax_full=2, rng=rng, compute_vectors=False
 )
 
@@ -81,7 +81,7 @@ def matmat(x):
     return mat_missing @ (mat_missing @ x)
 
 
-vals = SU2_SymmetricTensor.eigs(
+vals = SU2SymmetricTensor.eigs(
     matmat,
     40,
     dmax_full=200,
@@ -91,7 +91,7 @@ vals = SU2_SymmetricTensor.eigs(
     dtype=mat_su2.dtype,
     compute_vectors=False,
 )
-vals = SU2_SymmetricTensor.eigs(
+vals = SU2SymmetricTensor.eigs(
     matmat,
     4,
     dmax_full=2,
@@ -105,7 +105,7 @@ vals = SU2_SymmetricTensor.eigs(
 
 # pathological case: nblocks = 0
 block_irreps = np.array([], dtype=int)
-mat_0b = SU2_SymmetricTensor(reps, reps, [], block_irreps, mat_su2.signature)
+mat_0b = SU2SymmetricTensor(reps, reps, [], block_irreps, mat_su2.signature)
 assert mat_0b.norm() == 0.0
 v1 = mat_0b.eigs(mat_0b, 40, dmax_full=200, rng=rng, compute_vectors=False)
 v2 = mat_0b.eigs(mat_0b, 4, dmax_full=2, rng=rng, compute_vectors=False)
@@ -118,7 +118,7 @@ def matmat0(x):
     return mat_0b @ (mat_0b @ x)
 
 
-vals = SU2_SymmetricTensor.eigs(
+vals = SU2SymmetricTensor.eigs(
     matmat0,
     40,
     dmax_full=200,
@@ -129,7 +129,7 @@ vals = SU2_SymmetricTensor.eigs(
     compute_vectors=False,
 )
 assert vals.shape == (0,)
-vals = SU2_SymmetricTensor.eigs(
+vals = SU2SymmetricTensor.eigs(
     matmat0,
     4,
     dmax_full=2,
@@ -153,7 +153,7 @@ assert all(
 assert (vec * vals - mat_su2 @ vec).norm() < 1e-12
 
 # compute eigenvectors with missing blocks
-vals, vec = SU2_SymmetricTensor.eigs(mat_missing, nvals, dmax_full=dmax_full, rng=rng)
+vals, vec = SU2SymmetricTensor.eigs(mat_missing, nvals, dmax_full=dmax_full, rng=rng)
 assert vals.nblocks == vec.nblocks
 assert (vals.block_irreps == vec.block_irreps).all()
 assert all(
@@ -166,14 +166,14 @@ assert (vec * vals - mat_missing @ vec).norm() < 1e-12
 # test eigsh
 blocks = [b + b.T.conj() for b in mat_su2.blocks]
 block_irreps = mat_su2.block_irreps
-mat_sym = SU2_SymmetricTensor(reps, reps, blocks, block_irreps, mat_su2.signature)
-vals = SU2_SymmetricTensor.eigsh(
+mat_sym = SU2SymmetricTensor(reps, reps, blocks, block_irreps, mat_su2.signature)
+vals = SU2SymmetricTensor.eigsh(
     mat_sym, nvals, dmax_full=dmax_full, rng=rng, compute_vectors=False
 )
 assert vals.dtype == np.float64
 
 # test eigenvectors
-vals, vec = SU2_SymmetricTensor.eigsh(mat_sym, nvals, dmax_full=dmax_full, rng=rng)
+vals, vec = SU2SymmetricTensor.eigsh(mat_sym, nvals, dmax_full=dmax_full, rng=rng)
 assert vals.nblocks == vec.nblocks
 assert (vals.block_irreps == vec.block_irreps).all()
 assert all(
@@ -187,7 +187,7 @@ assert all(
 )
 
 # test eigenvectors for zero block
-vals, vec = SU2_SymmetricTensor.eigsh(mat_0b, nvals, dmax_full=dmax_full, rng=rng)
+vals, vec = SU2SymmetricTensor.eigsh(mat_0b, nvals, dmax_full=dmax_full, rng=rng)
 assert vals.shape == (0,)
 assert vals.nblocks == vec.nblocks == 0
 assert (vec * vals - mat_0b @ vec).norm() < 1e-12  # should still be possble

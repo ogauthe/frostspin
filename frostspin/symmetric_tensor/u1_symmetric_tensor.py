@@ -19,7 +19,7 @@ def _numba_combine_U1(reps, signature):
     return c0
 
 
-class U1_SymmetricTensor(AbelianSymmetricTensor):
+class U1SymmetricTensor(AbelianSymmetricTensor):
     """
     SymmetricTensor with global U(1) symmetry.
     """
@@ -54,4 +54,4 @@ class U1_SymmetricTensor(AbelianSymmetricTensor):
         return self
 
 
-symmetric_tensor_types["U1"] = U1_SymmetricTensor
+symmetric_tensor_types["U1"] = U1SymmetricTensor

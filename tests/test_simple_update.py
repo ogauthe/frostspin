@@ -4,7 +4,7 @@ import os
 
 import numpy as np
 
-from frostspin import U1_SymmetricTensor
+from frostspin import U1SymmetricTensor
 from frostspin.simple_update import SimpleUpdate
 
 # ------------------------------------   setup   ---------------------------------------
@@ -23,7 +23,7 @@ sds = np.array(
 sds = sds.reshape(2, 2, 2, 2)
 
 reps = (np.array([1, -1], dtype=np.int8),) * 2
-h1 = U1_SymmetricTensor.from_array(sds, reps, reps)
+h1 = U1SymmetricTensor.from_array(sds, reps, reps)
 
 
 # ------------------------------------   J1 square   -----------------------------------

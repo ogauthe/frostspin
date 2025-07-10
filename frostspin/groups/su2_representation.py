@@ -36,7 +36,7 @@ def product_degen(degen1, irreps1, degen2, irreps2):
     return degen
 
 
-class SU2_Representation:
+class SU2Representation:
     """
     SU(2) representation. Representations are immutable, hashable objects.
     """
@@ -66,7 +66,7 @@ class SU2_Representation:
     @classmethod
     def from_string(cls, s):
         """
-        Construct SU2_Representation from string representation. Absolutly NO check is
+        Construct SU2Representation from string representation. Absolutly NO check is
         made on input, which has to follow str syntax.
         """
         degen = []
@@ -106,7 +106,7 @@ class SU2_Representation:
     def __mul__(self, other):  # numba wrapper
         degen = product_degen(self._degen, self._irreps, other._degen, other._irreps)
         irreps = np.arange(1, degen.size + 1)
-        return SU2_Representation(degen, irreps)
+        return SU2Representation(degen, irreps)
 
     def __add__(self, other):
         i1, i2 = 0, 0
@@ -132,7 +132,7 @@ class SU2_Representation:
         if i2 < other._n_irr:
             irreps.extend(other._irreps[i2:])
             degen.extend(other._degen[i2:])
-        return SU2_Representation(degen, irreps)
+        return SU2Representation(degen, irreps)
 
     def __repr__(self):
         return " + ".join(
@@ -161,7 +161,7 @@ class SU2_Representation:
         """
         ind = np.searchsorted(self._irreps, max_irrep + 1)
         if ind < self._n_irr:
-            return SU2_Representation(self._degen[:ind], self._irreps[:ind])
+            return SU2Representation(self._degen[:ind], self._irreps[:ind])
         return self
 
     def get_generators(self):

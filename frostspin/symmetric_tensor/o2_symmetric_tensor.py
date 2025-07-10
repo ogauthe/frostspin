@@ -6,7 +6,7 @@ from frostspin.misc_tools.numba_tools import numba_find_indices
 
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
 from .tools import check_norm, symmetric_tensor_types
-from .u1_symmetric_tensor import U1_SymmetricTensor
+from .u1_symmetric_tensor import U1SymmetricTensor
 
 
 @numba.njit
@@ -581,7 +581,7 @@ def _numba_O2_transpose(
     return new_blocks
 
 
-class O2_SymmetricTensor(NonAbelianSymmetricTensor):
+class O2SymmetricTensor(NonAbelianSymmetricTensor):
     """
     SymmetricTensor with global O(2) symmetry. Implement it as semi direct product of
     Z_2 and U(1). Irreps of U(1) are labelled by integer n. For n>0 even, one gets a
@@ -688,11 +688,11 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
 
         # Sz = 0 blocks (may not exist)
         if self._nblocks and self._block_irreps[0] < 1:
-            sz_values = U1_SymmetricTensor.combine_representations(
+            sz_values = U1SymmetricTensor.combine_representations(
                 u1_row_reps, self._signature[: self._nrr]
             )
             rocoeff, rocol, recoeff, recol = _numba_b0_arrays(self._row_reps, sz_values)
-            sz_values = U1_SymmetricTensor.combine_representations(
+            sz_values = U1SymmetricTensor.combine_representations(
                 u1_col_reps, ~self._signature[self._nrr :]
             )
             cocoeff, cocol, cecoeff, cecol = _numba_b0_arrays(self._col_reps, sz_values)
@@ -726,7 +726,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         # Sz > 0 blocks
         blocks.extend(self._blocks[i1:])
 
-        tu1 = U1_SymmetricTensor(
+        tu1 = U1SymmetricTensor(
             u1_row_reps, u1_col_reps, blocks, block_sz, self._signature
         )
         assert check_norm(self, tu1)
@@ -771,7 +771,7 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         # keep sectors with n > 0 as they are
         u1_row_reps = tuple(_numba_O2_rep_to_U1(r) for r in row_reps)
         u1_col_reps = tuple(_numba_O2_rep_to_U1(r) for r in col_reps)
-        tu1 = U1_SymmetricTensor.from_array(arr, u1_row_reps, u1_col_reps, signature)
+        tu1 = U1SymmetricTensor.from_array(arr, u1_row_reps, u1_col_reps, signature)
         return cls._blocks_from_U1(tu1, row_reps, col_reps)
 
     @classmethod
@@ -811,10 +811,10 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             u1_col_reps[i] = _numba_O2_rep_to_U1(r)
             cmaps[i], csigns[i] = _numba_get_reflection_perm_sign(r)
 
-        u1_combined_row = U1_SymmetricTensor.combine_representations(
+        u1_combined_row = U1SymmetricTensor.combine_representations(
             u1_row_reps, self._signature[: self._nrr]
         )
-        u1_combined_col = U1_SymmetricTensor.combine_representations(
+        u1_combined_col = U1SymmetricTensor.combine_representations(
             u1_col_reps, ~self._signature[self._nrr :]
         )
         blocks = []
@@ -880,16 +880,16 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
             else:
                 block_sz[0] = 0
 
-        old_row_sz = U1_SymmetricTensor.combine_representations(
+        old_row_sz = U1SymmetricTensor.combine_representations(
             old_u1_reps[: self._nrr], self._signature[: self._nrr]
         )
-        old_col_sz = U1_SymmetricTensor.combine_representations(
+        old_col_sz = U1SymmetricTensor.combine_representations(
             old_u1_reps[self._nrr :], ~self._signature[self._nrr :]
         )
-        new_row_sz = U1_SymmetricTensor.combine_representations(
+        new_row_sz = U1SymmetricTensor.combine_representations(
             u1_reps[:nrr], signature[:nrr]
         )
-        new_col_sz = U1_SymmetricTensor.combine_representations(
+        new_col_sz = U1SymmetricTensor.combine_representations(
             u1_reps[nrr:], ~signature[nrr:]
         )
 
@@ -942,4 +942,4 @@ class O2_SymmetricTensor(NonAbelianSymmetricTensor):
         return blocks, self._block_irreps
 
 
-symmetric_tensor_types["O2"] = O2_SymmetricTensor
+symmetric_tensor_types["O2"] = O2SymmetricTensor

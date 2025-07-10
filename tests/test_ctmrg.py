@@ -5,7 +5,7 @@ import os
 import numpy as np
 import scipy.linalg as lg
 
-from frostspin import AsymmetricTensor, U1_SymmetricTensor
+from frostspin import AsymmetricTensor, U1SymmetricTensor
 from frostspin.ctmrg import SequentialCTMRG, SimultaneousCTMRG
 
 # try simplest SequentialCTMRG and parameter parsing
@@ -70,8 +70,8 @@ sA = np.array([False, False, True, True, True, True])
 sB = np.array([False, False, False, False, False, False])
 reps_U1_A = (rp, ra, ru, rr, rd, rl)
 reps_U1_B = (rp, ra, rd, rl, ru, rr)
-A_U1 = U1_SymmetricTensor.random(reps_U1_A[:2], reps_U1_A[2:], rng=rng, signature=sA)
-B_U1 = U1_SymmetricTensor.random(reps_U1_B[:2], reps_U1_B[2:], rng=rng, signature=sB)
+A_U1 = U1SymmetricTensor.random(reps_U1_A[:2], reps_U1_A[2:], rng=rng, signature=sA)
+B_U1 = U1SymmetricTensor.random(reps_U1_B[:2], reps_U1_B[2:], rng=rng, signature=sB)
 reps_as_A = tuple(np.array([t.size]) for t in reps_U1_A)
 reps_as_B = tuple(np.array([t.size]) for t in reps_U1_B)
 A_as = AsymmetricTensor.from_array(
@@ -278,25 +278,25 @@ rng = np.random.default_rng(42)
 
 # signature on sublattice B
 sB = np.array([True, True, False, False, False, False])
-t00 = U1_SymmetricTensor.random(reps[0][:2], reps[0][2:], rng=rng)
-t01 = U1_SymmetricTensor.random(reps[1][:2], reps[1][2:], rng=rng, signature=sB)
-t02 = U1_SymmetricTensor.random(reps[2][:2], reps[2][2:], rng=rng)
-t03 = U1_SymmetricTensor.random(reps[3][:2], reps[3][2:], rng=rng, signature=sB)
+t00 = U1SymmetricTensor.random(reps[0][:2], reps[0][2:], rng=rng)
+t01 = U1SymmetricTensor.random(reps[1][:2], reps[1][2:], rng=rng, signature=sB)
+t02 = U1SymmetricTensor.random(reps[2][:2], reps[2][2:], rng=rng)
+t03 = U1SymmetricTensor.random(reps[3][:2], reps[3][2:], rng=rng, signature=sB)
 
-t10 = U1_SymmetricTensor.random(reps[4][:2], reps[4][2:], rng=rng, signature=sB)
-t11 = U1_SymmetricTensor.random(reps[5][:2], reps[5][2:], rng=rng)
-t12 = U1_SymmetricTensor.random(reps[6][:2], reps[6][2:], rng=rng, signature=sB)
-t13 = U1_SymmetricTensor.random(reps[7][:2], reps[7][2:], rng=rng)
+t10 = U1SymmetricTensor.random(reps[4][:2], reps[4][2:], rng=rng, signature=sB)
+t11 = U1SymmetricTensor.random(reps[5][:2], reps[5][2:], rng=rng)
+t12 = U1SymmetricTensor.random(reps[6][:2], reps[6][2:], rng=rng, signature=sB)
+t13 = U1SymmetricTensor.random(reps[7][:2], reps[7][2:], rng=rng)
 
-t20 = U1_SymmetricTensor.random(reps[8][:2], reps[8][2:], rng=rng)
-t21 = U1_SymmetricTensor.random(reps[9][:2], reps[9][2:], rng=rng, signature=sB)
-t22 = U1_SymmetricTensor.random(reps[10][:2], reps[10][2:], rng=rng)
-t23 = U1_SymmetricTensor.random(reps[11][:2], reps[11][2:], rng=rng, signature=sB)
+t20 = U1SymmetricTensor.random(reps[8][:2], reps[8][2:], rng=rng)
+t21 = U1SymmetricTensor.random(reps[9][:2], reps[9][2:], rng=rng, signature=sB)
+t22 = U1SymmetricTensor.random(reps[10][:2], reps[10][2:], rng=rng)
+t23 = U1SymmetricTensor.random(reps[11][:2], reps[11][2:], rng=rng, signature=sB)
 
-t30 = U1_SymmetricTensor.random(reps[12][:2], reps[12][2:], rng=rng, signature=sB)
-t31 = U1_SymmetricTensor.random(reps[13][:2], reps[13][2:], rng=rng)
-t32 = U1_SymmetricTensor.random(reps[14][:2], reps[14][2:], rng=rng, signature=sB)
-t33 = U1_SymmetricTensor.random(reps[15][:2], reps[15][2:], rng=rng)
+t30 = U1SymmetricTensor.random(reps[12][:2], reps[12][2:], rng=rng, signature=sB)
+t31 = U1SymmetricTensor.random(reps[13][:2], reps[13][2:], rng=rng)
+t32 = U1SymmetricTensor.random(reps[14][:2], reps[14][2:], rng=rng, signature=sB)
+t33 = U1SymmetricTensor.random(reps[15][:2], reps[15][2:], rng=rng)
 
 tensors = (
     t00,
