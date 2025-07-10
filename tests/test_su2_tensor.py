@@ -31,6 +31,7 @@ assert abs(st.blocks[1] - 0.25) < 1e-14
 assert abs(lg.norm(sds_22) - st.norm()) < 1e-14
 assert lg.norm(st.toarray() - sds_22t) < 1e-14
 assert lg.norm(st.dual().toarray() - sds_22t) < 1e-14
+assert np.abs(st.trace()) < 1e-14
 
 stp = st.permute((0, 1, 2), (3,))
 stp2 = SU2SymmetricTensor.from_array(sds_22t, (r, r, r), (r,), signature=[0, 0, 1, 1])

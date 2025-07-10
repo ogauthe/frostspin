@@ -22,6 +22,7 @@ assert len(st.blocks) == 1
 assert np.allclose(st.blocks[0], tm)
 assert np.allclose(st.toarray(), t)
 assert np.allclose(st.toarray(as_matrix=True), tm)
+assert np.isclose(tm.trace(), st.trace())
 
 u0, s0, v0 = lg.svd(tm)
 u, s, v = st.svd()

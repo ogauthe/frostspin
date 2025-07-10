@@ -623,6 +623,12 @@ class SymmetricTensor:
             n2 += self.irrep_dimension(irr) * lg.norm(b) ** 2
         return np.sqrt(n2)
 
+    def trace(self):
+        x = 0.0
+        for irr, b in zip(self._block_irreps, self._blocks, strict=True):
+            x += self.irrep_dimension(irr) * b.trace()
+        return x
+
     def full_contract(self, other):
         """
         Contract all legs, equialent to Tr(A @ B) as matrices or tensordot(A, B, ndim)
