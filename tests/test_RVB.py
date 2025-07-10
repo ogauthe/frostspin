@@ -15,8 +15,8 @@ tol = 5e-14
 def check_rdm(ctm1, ctm2):
     # only check rdm eigenvalues are the same, rdm themselves may have different gauge
     # conventions.
-    rdm1 = ctm1.compute_rdm2x1(0, 0)
-    rdm2 = ctm2.compute_rdm2x1(0, 0)
+    rdm1 = ctm1.compute_rdm2x1(0, 0).toarray(as_matrix=True)
+    rdm2 = ctm2.compute_rdm2x1(0, 0).toarray(as_matrix=True)
     assert lg.norm(rdm1 - rdm1.T.conj()) < tol
     assert lg.norm(rdm2 - rdm2.T.conj()) < tol
     assert lg.norm(lg.eigvalsh(rdm1) - lg.eigvalsh(rdm2)) < tol

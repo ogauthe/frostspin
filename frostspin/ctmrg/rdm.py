@@ -23,7 +23,6 @@ def rdm_1x1(C1, T1, C2, T4, A, T2, C4, T3, C3):
     Aconj = A.permute((0,), (2, 5, 3, 4, 1)).dagger()
     rdm = down @ Aconj
 
-    rdm = rdm.toarray()
     rdm /= rdm.trace()
     return rdm
 
@@ -132,7 +131,7 @@ def rdm_1x2(C1, T1l, T1r, C2, T4, Al, Ar, T2, C4, T3l, T3r, C3):
     right = right @ T3r.permute((0, 1, 2), (3,))
     right = right.permute((2, 3, 4, 5), (0, 1))
     rdm = left @ right
-    rdm = rdm.permute((0, 2), (1, 3)).toarray(as_matrix=True)
+    rdm = rdm.permute((0, 2), (1, 3))
     rdm /= rdm.trace()
     return rdm
 
@@ -207,7 +206,7 @@ def rdm_diag_dr(C1, T1l, ur, T4u, Aul, dl, Adr, T2d, T3r, C3):
     #   7-------
     dr = dr.permute((5, 2, 6, 4, 1, 7), (3, 0))  # memory peak: 3*d**2*chi**2*D**4
     rdm = rdm @ dr
-    rdm = rdm.permute((0, 2), (1, 3)).toarray(as_matrix=True)
+    rdm = rdm.permute((0, 2), (1, 3))
     rdm /= rdm.trace()
     return rdm
 
@@ -235,8 +234,4 @@ def rdm_diag_ur(ul, T1r, C2, Aur, T2u, T4d, Adl, dr_T, C4, T3l):
         T2u.permute((2, 3, 0), (1,)),
         C2.transpose(),
     )
-    return (
-        rdm.reshape(Adl.shape[0], Aur.shape[0], Adl.shape[0], Aur.shape[0])
-        .transpose(1, 0, 3, 2)
-        .reshape(Aur.shape[0] * Adl.shape[0], Aur.shape[0] * Adl.shape[0])
-    )
+    return rdm.permute((1, 0), (3, 2))

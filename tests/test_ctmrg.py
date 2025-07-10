@@ -3,7 +3,6 @@
 import os
 
 import numpy as np
-import scipy.linalg as lg
 
 from frostspin import AsymmetricTensor, U1SymmetricTensor
 from frostspin.ctmrg import SequentialCTMRG, SimultaneousCTMRG
@@ -90,18 +89,24 @@ ctmU1 = SequentialCTMRG.from_elementary_tensors(tiling, tensorsU1, chi)
 
 # check rdm before iterating: due to random tensors they do not stay hermitian
 rdm2x1_cellU1, rdm1x2_cellU1 = ctmU1.compute_rdm_1st_neighbor_cell()
+assert len(rdm2x1_cellU1) == 2
+assert len(rdm1x2_cellU1) == 2
+for m in rdm2x1_cellU1 + rdm1x2_cellU1:
+    assert m.shape == (2, 2, 2, 2)
+    assert m.matrix_shape == (4, 4)
+
 rdm2x1_cellAs, rdm1x2_cellAs = ctmAs.compute_rdm_1st_neighbor_cell()
 rdm_dr_cellU1, rdm_ur_cellU1 = ctmU1.compute_rdm_2nd_neighbor_cell()
 rdm_dr_cellAs, rdm_ur_cellAs = ctmAs.compute_rdm_2nd_neighbor_cell()
 for i in range(2):
-    assert lg.norm(rdm2x1_cellU1[i] - rdm2x1_cellAs[i]) < 1e-13
-    assert lg.norm(rdm2x1_cellU1[i] - rdm2x1_cellU1[i].T) < 1e-13
-    assert lg.norm(rdm1x2_cellU1[i] - rdm1x2_cellAs[i]) < 1e-13
-    assert lg.norm(rdm1x2_cellU1[i] - rdm1x2_cellU1[i].T) < 1e-13
-    assert lg.norm(rdm_dr_cellU1[i] - rdm_dr_cellAs[i]) < 1e-13
-    assert lg.norm(rdm_dr_cellU1[i] - rdm_dr_cellU1[i].T) < 1e-13
-    assert lg.norm(rdm_ur_cellU1[i] - rdm_ur_cellAs[i]) < 1e-13
-    assert lg.norm(rdm_ur_cellU1[i] - rdm_ur_cellU1[i].T) < 1e-13
+    assert (rdm2x1_cellU1[i].totrivial() - rdm2x1_cellAs[i]).norm() < 1e-13
+    assert (rdm2x1_cellU1[i] - rdm2x1_cellU1[i].dagger()).norm() < 1e-13
+    assert (rdm1x2_cellU1[i].totrivial() - rdm1x2_cellAs[i]).norm() < 1e-13
+    assert (rdm1x2_cellU1[i] - rdm1x2_cellU1[i].dagger()).norm() < 1e-13
+    assert (rdm_dr_cellU1[i].totrivial() - rdm_dr_cellAs[i]).norm() < 1e-13
+    assert (rdm_dr_cellU1[i] - rdm_dr_cellU1[i].dagger()).norm() < 1e-13
+    assert (rdm_ur_cellU1[i].totrivial() - rdm_ur_cellAs[i]).norm() < 1e-13
+    assert (rdm_ur_cellU1[i] - rdm_ur_cellU1[i].dagger()).norm() < 1e-13
 
 ctmU1.iterate()
 ctmU1.iterate()
@@ -113,10 +118,10 @@ rdm2x1_cellAs, rdm1x2_cellAs = ctmAs.compute_rdm_1st_neighbor_cell()
 rdm_dr_cellU1, rdm_ur_cellU1 = ctmU1.compute_rdm_2nd_neighbor_cell()
 rdm_dr_cellAs, rdm_ur_cellAs = ctmAs.compute_rdm_2nd_neighbor_cell()
 for i in range(2):  # precision is pretty low
-    assert lg.norm(rdm2x1_cellU1[i] - rdm2x1_cellAs[i]) < 2e-4
-    assert lg.norm(rdm1x2_cellU1[i] - rdm1x2_cellAs[i]) < 2e-4
-    assert lg.norm(rdm_dr_cellU1[i] - rdm_dr_cellAs[i]) < 2e-4
-    assert lg.norm(rdm_ur_cellU1[i] - rdm_ur_cellAs[i]) < 2e-4
+    assert (rdm2x1_cellU1[i].totrivial() - rdm2x1_cellAs[i]).norm() < 2e-4
+    assert (rdm1x2_cellU1[i].totrivial() - rdm1x2_cellAs[i]).norm() < 2e-4
+    assert (rdm_dr_cellU1[i].totrivial() - rdm_dr_cellAs[i]).norm() < 2e-4
+    assert (rdm_ur_cellU1[i].totrivial() - rdm_ur_cellAs[i]).norm() < 2e-4
 
 # check xi computation succeeds
 xih1_U1 = ctmU1.compute_corr_length_h(y=0)
@@ -326,19 +331,23 @@ for ctm in [ctm_seq, ctm_sim]:
     assert len(rdm2x1_cell) == 16
     assert len(rdm1x2_cell) == 16
     for m in rdm2x1_cell:
-        assert m.shape == (4, 4)
-        assert lg.norm(m - m.T) < 1e-8
+        assert m.shape == (2, 2, 2, 2)
+        assert m.matrix_shape == (4, 4)
+        assert (m - m.dagger()).norm() < 1e-8
     for m in rdm1x2_cell:
-        assert m.shape == (4, 4)
-        assert lg.norm(m - m.T) < 1e-8
+        assert m.shape == (2, 2, 2, 2)
+        assert m.matrix_shape == (4, 4)
+        assert (m - m.dagger()).norm() < 1e-8
 
     rdm_dr_cell, rdm_ur_cell = ctm.compute_rdm_2nd_neighbor_cell()
     for m in rdm_dr_cell:
-        assert m.shape == (4, 4)
-        assert lg.norm(m - m.T) < 1e-8
+        assert m.shape == (2, 2, 2, 2)
+        assert m.matrix_shape == (4, 4)
+        assert (m - m.dagger()).norm() < 1e-8
     for m in rdm_ur_cell:
-        assert m.shape == (4, 4)
-        assert lg.norm(m - m.T) < 1e-8
+        assert m.shape == (2, 2, 2, 2)
+        assert m.matrix_shape == (4, 4)
+        assert (m - m.dagger()).norm() < 1e-8
 
     ctm.iterate()
     ctm.iterate()
