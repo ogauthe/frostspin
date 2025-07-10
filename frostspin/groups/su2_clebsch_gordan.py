@@ -7,8 +7,8 @@ import frostspin
 
 def compute_CG(max_spin_dim):
     # load sympy only if recomputing Clebsch-Gordon is required.
-    import sympy as sp
-    from sympy.physics.quantum.cg import CG
+    import sympy as sp  # noqa: PLC0415
+    from sympy.physics.quantum.cg import CG  # noqa: PLC0415
 
     elementary_projectors = {}
     max_irr = max_spin_dim + 1
