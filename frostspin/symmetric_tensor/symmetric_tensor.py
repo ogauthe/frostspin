@@ -21,6 +21,17 @@ from .tools import check_norm
 # blocks are tuple of contiguous F or C arrays (numba)
 
 
+def validated_signature(signature0, n_row_reps, n_col_reps):
+    if signature0 is None:
+        signature = np.zeros((n_row_reps + n_col_reps,), dtype=bool)
+        signature[n_row_reps:] = True
+    else:
+        signature = np.ascontiguousarray(signature0, dtype=bool)
+        if signature.shape != (n_row_reps + n_col_reps,):
+            raise ValueError("Invalid signature shape")
+    return signature
+
+
 class SymmetricTensor:
     """
     Generic base class to deal with symmetric tensors. Defines interface that can be
@@ -115,7 +126,7 @@ class SymmetricTensor:
             Representations for the rows.
         row_reps : tuple of arrays
             Representations for the columns.
-        signature : 1D boolean array
+        signature : enumerable of bool
             Signature of each representation. If None, assumed to be False for rows and
             True for columns.
         """
@@ -125,15 +136,7 @@ class SymmetricTensor:
         if arr.shape != tuple(cls.representation_dimension(rep) for rep in in_reps):
             raise ValueError("Representations do not match array shape")
 
-        nrr = len(row_reps)
-        ndim = len(in_reps)
-        if signature is None:
-            signature = np.arange(ndim) >= nrr
-        else:
-            signature = np.ascontiguousarray(signature, dtype=bool)
-            if signature.shape != (arr.ndim,):
-                raise ValueError("Signature does not match array shape")
-
+        signature = validated_signature(signature, len(row_reps), len(col_reps))
         blocks, block_irreps = cls._blocks_from_dense(
             arr, row_reps, col_reps, signature
         )
@@ -523,9 +526,7 @@ class SymmetricTensor:
         st : SymmetricTensor with cls subclass
             Random SymmetricTensor with np.float64 dtype.
         """
-        if signature is None:
-            signature = np.zeros((len(row_reps) + len(col_reps),), dtype=bool)
-            signature[len(row_reps) :] = True
+        signature = validated_signature(signature, len(row_reps), len(col_reps))
         if rng is None:
             rng = np.random.default_rng()
 
@@ -757,14 +758,9 @@ class SymmetricTensor:
         return self._sparse_eig(
             self,
             2**31,
-            None,
-            None,
-            None,
-            2**31,
-            compute_vectors,
-            None,
             lambda b: robust_eigh(b, compute_vectors=compute_vectors),
             None,
+            compute_vectors=compute_vectors,
         )
 
     def eig(self, *, compute_vectors=True):
@@ -801,14 +797,9 @@ class SymmetricTensor:
         return self._sparse_eig(
             self,
             2**31,
-            None,
-            None,
-            None,
-            2**31,
-            compute_vectors,
-            None,
             lambda b: lg.eig(b, right=compute_vectors),
             None,
+            compute_vectors=compute_vectors,
         )
 
     def expm(self):
@@ -890,6 +881,9 @@ class SymmetricTensor:
         matmat,
         nvals,
         *,
+        atol=0.0,
+        rtol=None,
+        degen_ratio=1.0,
         reps=None,
         signature=None,
         dtype=None,
@@ -970,14 +964,17 @@ class SymmetricTensor:
         return cls._sparse_eig(
             matmat,
             nvals,
-            reps,
-            signature,
-            dtype,
-            dmax_full,
-            compute_vectors,
-            rng,
             lambda b: lg.eig(b, right=compute_vectors),
             block_eigs,
+            atol=atol,
+            rtol=rtol,
+            degen_ratio=degen_ratio,
+            reps=reps,
+            signature=signature,
+            dtype=dtype,
+            dmax_full=dmax_full,
+            compute_vectors=compute_vectors,
+            rng=rng,
         )
 
     @classmethod
@@ -986,6 +983,9 @@ class SymmetricTensor:
         matmat,
         nvals,
         *,
+        atol=0.0,
+        rtol=None,
+        degen_ratio=1.0,
         reps=None,
         signature=None,
         dtype=None,
@@ -1071,14 +1071,17 @@ class SymmetricTensor:
         return cls._sparse_eig(
             matmat,
             nvals,
-            reps,
-            signature,
-            dtype,
-            dmax_full,
-            compute_vectors,
-            rng,
             lambda b: robust_eigh(b, compute_vectors=compute_vectors),
             block_eigsh,
+            atol=atol,
+            rtol=rtol,
+            degen_ratio=degen_ratio,
+            reps=reps,
+            signature=signature,
+            dtype=dtype,
+            dmax_full=dmax_full,
+            compute_vectors=compute_vectors,
+            rng=rng,
         )
 
     ####################################################################################
@@ -1202,14 +1205,18 @@ class SymmetricTensor:
         cls,
         matmat,
         nvals,
-        reps,
-        signature,
-        dtype,
-        dmax_full,
-        compute_vectors,
-        rng,
         dense_eig,
         sparse_eig,
+        *,
+        atol=0.0,
+        rtol=None,
+        degen_ratio=1.0,
+        reps=None,
+        signature=None,
+        dtype=np.float64,
+        dmax_full=100,
+        compute_vectors=False,
+        rng=None,
     ):
         """
         Private helper function. See eigsh documentation for parameters description.
@@ -1377,7 +1384,14 @@ class SymmetricTensor:
 
         # 6) keep only nvals largest magnitude eigenvalues
         # find_block_cuts will remove any rigorously zero eigenvalue
-        block_cuts = find_block_cuts(abs_val_blocks, nvals, dims=dims)
+        block_cuts = find_block_cuts(
+            abs_val_blocks,
+            nvals,
+            dims=dims,
+            atol=atol,
+            rtol=rtol,
+            degen_ratio=degen_ratio,
+        )
         non_empty = block_cuts.nonzero()[0]
         s_blocks = []
         for bi in non_empty:

@@ -216,6 +216,13 @@ def renormalize_corner_Pt(C, T, Pt):
     return nC
 
 
+def renormalize_quadrant(P, quadrant, Pt):
+    """
+    Renormalize quadrant into corner using 2 projectors
+    """
+    return P.transpose() @ quadrant @ Pt
+
+
 def renormalize_C1_up(C1, T4, P):
     """
     Renormalize corner C1 from an up move using projector P

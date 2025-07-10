@@ -1,13 +1,17 @@
 from frostspin.config import ASSERT_TOL, __version__, config
-from frostspin.symmetric_tensor.asymmetric_tensor import AsymmetricTensor
-from frostspin.symmetric_tensor.o2_symmetric_tensor import O2_SymmetricTensor
-from frostspin.symmetric_tensor.su2_symmetric_tensor import SU2_SymmetricTensor
-from frostspin.symmetric_tensor.tools import get_symmetric_tensor_type
-from frostspin.symmetric_tensor.u1_symmetric_tensor import U1_SymmetricTensor
+from frostspin.symmetric_tensor import (
+    AsymmetricTensor,
+    DiagonalTensor,
+    O2_SymmetricTensor,
+    SU2_SymmetricTensor,
+    U1_SymmetricTensor,
+    get_symmetric_tensor_type,
+)
 
 __all__ = [
     "ASSERT_TOL",
     "AsymmetricTensor",
+    "DiagonalTensor",
     "O2_SymmetricTensor",
     "SU2_SymmetricTensor",
     "U1_SymmetricTensor",

@@ -1,6 +1,6 @@
 import numpy as np
 
-from frostspin.symmetric_tensor.diagonal_tensor import DiagonalTensor
+from frostspin import DiagonalTensor
 from frostspin.symmetric_tensor.tools import get_symmetric_tensor_type
 
 from .su_models import j1_j2_models
@@ -567,7 +567,7 @@ class SimpleUpdate:
         ]
         logZ = 0.0
 
-        return SimpleUpdate(
+        return cls(
             D,
             beta,
             tau,
@@ -685,7 +685,7 @@ class SimpleUpdate:
                 db[:] = 1.0
             weights.append(s)
 
-        return SimpleUpdate(
+        return cls(
             D,
             beta,
             tau,
@@ -831,7 +831,7 @@ class SimpleUpdate:
             _, s, _ = t.svd()
             weights.append(s)
 
-        return SimpleUpdate(
+        return cls(
             D,
             beta,
             tau,

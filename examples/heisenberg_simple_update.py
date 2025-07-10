@@ -13,8 +13,8 @@ from frostspin import (
     SU2_SymmetricTensor,
     U1_SymmetricTensor,
 )
-from frostspin.ctmrg.ctmrg import CTMRG
-from frostspin.simple_update.simple_update import SimpleUpdate
+from frostspin.ctmrg import SequentialCTMRG
+from frostspin.simple_update import SimpleUpdate
 
 d = 2  # d=2 for spin 1/2, change to d=3 for spin 1
 tau = 0.01  # imaginary time step
@@ -100,15 +100,15 @@ print("suSU2 weights:", *suSU2.get_weights(), sep="\n")
 
 til = "AB\nBA"
 chi = 30
-ctmAs = CTMRG.from_elementary_tensors(til, suAs.get_tensors(), chi, **params)
-ctmU1 = CTMRG.from_elementary_tensors(til, suU1.get_tensors(), chi, **params)
-ctmO2 = CTMRG.from_elementary_tensors(til, suO2.get_tensors(), chi, **params)
+ctmAs = SequentialCTMRG.from_elementary_tensors(til, suAs.get_tensors(), chi, **params)
+ctmU1 = SequentialCTMRG.from_elementary_tensors(til, suU1.get_tensors(), chi, **params)
+ctmO2 = SequentialCTMRG.from_elementary_tensors(til, suO2.get_tensors(), chi, **params)
 tensorsSU2 = suSU2.get_tensors()
-ctmU1_fromSU2 = CTMRG.from_elementary_tensors(til, tensorsSU2, chi, **params)
+ctmU1_fromSU2 = SequentialCTMRG.from_elementary_tensors(til, tensorsSU2, chi, **params)
 ctmU1_fromSU2.set_symmetry("U1")
-ctmO2_fromSU2 = CTMRG.from_elementary_tensors(til, tensorsSU2, chi, **params)
+ctmO2_fromSU2 = SequentialCTMRG.from_elementary_tensors(til, tensorsSU2, chi, **params)
 ctmO2_fromSU2.set_symmetry("O2")
-ctmSU2 = CTMRG.from_elementary_tensors(til, tensorsSU2, chi, **params)
+ctmSU2 = SequentialCTMRG.from_elementary_tensors(til, tensorsSU2, chi, **params)
 
 
 def get_tol(rdm):
@@ -132,7 +132,7 @@ print("SU(2)..........", lg.eigvalsh(rdmSU2), get_tol(rdmSU2))
 
 
 ctm_iter = 10
-print(f"\nRun CTMRG for {ctm_iter} iterations...")
+print(f"\nRun SequentialCTMRG for {ctm_iter} iterations...")
 for _ in range(ctm_iter):
     ctmAs.iterate()
     ctmU1.iterate()
@@ -142,32 +142,32 @@ for _ in range(ctm_iter):
     ctmSU2.iterate()
 
 print("done.", "#" * 79, sep="\n")
-print("Asymmetric CTMRG:")
+print("Asymmetric SequentialCTMRG:")
 print(ctmAs)
 reps = ctmAs.get_corner_representations()
 print("corner representations:", *reps, sep="\n")
 
-print("\nU(1) CTMRG:")
+print("\nU(1) SequentialCTMRG:")
 print(ctmU1)
 reps = ctmU1.get_corner_representations()
 print("corner representations:", *reps, sep="\n")
 
-print("\nO(2) CTMRG:")
+print("\nO(2) SequentialCTMRG:")
 print(ctmO2)
 reps = ctmO2.get_corner_representations()
 print("representations", *reps, sep="\n")
 
-print("\nSU(2) SU + U(1) CTMRG:")
+print("\nSU(2) SU + U(1) SequentialCTMRG:")
 print(ctmU1_fromSU2)
 reps = ctmU1_fromSU2.get_corner_representations()
 print("corner representations:", *reps, sep="\n")
 
-print("\nSU(2) SU + O(2) CTMRG:")
+print("\nSU(2) SU + O(2) SequentialCTMRG:")
 print(ctmO2_fromSU2)
 reps = ctmO2_fromSU2.get_corner_representations()
 print("corner representations:", *reps, sep="\n")
 
-print("\nSU(2) CTMRG:")
+print("\nSU(2) SequentialCTMRG:")
 print(ctmSU2)
 reps = ctmSU2.get_corner_representations()
 print("corner representations:", *reps, sep="\n")

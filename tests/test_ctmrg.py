@@ -6,14 +6,14 @@ import numpy as np
 import scipy.linalg as lg
 
 from frostspin import AsymmetricTensor, U1_SymmetricTensor
-from frostspin.ctmrg.ctmrg import CTMRG
+from frostspin.ctmrg import SequentialCTMRG, SimultaneousCTMRG
 
-# try simplest CTMRG and parameter parsing
+# try simplest SequentialCTMRG and parameter parsing
 a = AsymmetricTensor.from_array(
     np.ones((2, 2, 3, 3, 3, 3)), np.array([[2, 2]]).T, np.array([[3, 3, 3, 3]]).T
 )
 b = a.dual()
-ctm0 = CTMRG.from_elementary_tensors(
+ctm0 = SequentialCTMRG.from_elementary_tensors(
     "AB\nBA",
     [a, b],
     20,
@@ -53,7 +53,7 @@ def eq_st(st1, st2):
 
 
 # Consider random tensors with each bond having a different representation of different
-# size. CTMRG will crash if any mismatch appears in leg contractions.
+# size. SequentialCTMRG will crash if any mismatch appears in leg contractions.
 rng = np.random.default_rng(42)
 savefile = "data_test_ctmrg.npz"
 
@@ -85,8 +85,8 @@ tensorsAs = (A_as, B_as)
 tensorsU1 = (A_U1, B_U1)
 chi = 20
 
-ctmAs = CTMRG.from_elementary_tensors(tiling, tensorsAs, chi)
-ctmU1 = CTMRG.from_elementary_tensors(tiling, tensorsU1, chi)
+ctmAs = SequentialCTMRG.from_elementary_tensors(tiling, tensorsAs, chi)
+ctmU1 = SequentialCTMRG.from_elementary_tensors(tiling, tensorsU1, chi)
 
 # check rdm before iterating: due to random tensors they do not stay hermitian
 rdm2x1_cellU1, rdm1x2_cellU1 = ctmU1.compute_rdm_1st_neighbor_cell()
@@ -141,7 +141,7 @@ assert abs(xiv2_As - xiv1_U1) < 0.02 * xih1_U1
 
 # check save and load once tensors != init
 ctmU1.save_to_file(savefile)
-ctm2 = CTMRG.load_from_file(savefile)
+ctm2 = SequentialCTMRG.load_from_file(savefile)
 for x, y in ctmU1.site_coords:
     assert eq_st(ctmU1.get_A(x, y), ctm2.get_A(x, y))
     assert eq_st(ctmU1.get_C1(x, y), ctm2.get_C1(x, y))
@@ -154,7 +154,7 @@ for x, y in ctmU1.site_coords:
     assert eq_st(ctmU1.get_T4(x, y), ctm2.get_T4(x, y))
 
 ctmAs.save_to_file(savefile)
-ctm2 = CTMRG.load_from_file(savefile)
+ctm2 = SequentialCTMRG.load_from_file(savefile)
 for x, y in ctmAs.site_coords:
     assert eq_st(ctmAs.get_A(x, y), ctm2.get_A(x, y))
     assert eq_st(ctmAs.get_C1(x, y), ctm2.get_C1(x, y))
@@ -169,7 +169,7 @@ for x, y in ctmAs.site_coords:
 
 ########################################################################################
 #
-# Exhaustive test for CTMRG unit cell. Construct a 4x4 unit cell with all 32
+# Exhaustive test for SequentialCTMRG unit cell. Construct a 4x4 unit cell with all 32
 # inequivalent bond differ from each other. Use U(1): each bond has dimension 4, but has
 # different quantum numbers and contraction with any other bond will fail. Also consider
 # charge conjugation: conjugate representation does not appear in any other bond.
@@ -318,65 +318,61 @@ tensors = (
 )
 
 tiling = "ABCD\nEFGH\nIJKL\nMNOP"
-ctm = CTMRG.from_elementary_tensors(tiling, tensors, 13)
+ctm_seq = SequentialCTMRG.from_elementary_tensors(tiling, tensors, 13)
+ctm_sim = SimultaneousCTMRG.from_elementary_tensors(tiling, tensors, 13)
 
-rdm2x1_cell, rdm1x2_cell = ctm.compute_rdm_1st_neighbor_cell()
-assert len(rdm2x1_cell) == 16
-assert len(rdm1x2_cell) == 16
-for m in rdm2x1_cell:
-    assert m.shape == (4, 4)
-    assert lg.norm(m - m.T) < 1e-8
-for m in rdm1x2_cell:
-    assert m.shape == (4, 4)
-    assert lg.norm(m - m.T) < 1e-8
+for ctm in [ctm_seq, ctm_sim]:
+    rdm2x1_cell, rdm1x2_cell = ctm.compute_rdm_1st_neighbor_cell()
+    assert len(rdm2x1_cell) == 16
+    assert len(rdm1x2_cell) == 16
+    for m in rdm2x1_cell:
+        assert m.shape == (4, 4)
+        assert lg.norm(m - m.T) < 1e-8
+    for m in rdm1x2_cell:
+        assert m.shape == (4, 4)
+        assert lg.norm(m - m.T) < 1e-8
 
-rdm_dr_cell, rdm_ur_cell = ctm.compute_rdm_2nd_neighbor_cell()
-for m in rdm_dr_cell:
-    assert m.shape == (4, 4)
-    assert lg.norm(m - m.T) < 1e-8
-for m in rdm_ur_cell:
-    assert m.shape == (4, 4)
-    assert lg.norm(m - m.T) < 1e-8
+    rdm_dr_cell, rdm_ur_cell = ctm.compute_rdm_2nd_neighbor_cell()
+    for m in rdm_dr_cell:
+        assert m.shape == (4, 4)
+        assert lg.norm(m - m.T) < 1e-8
+    for m in rdm_ur_cell:
+        assert m.shape == (4, 4)
+        assert lg.norm(m - m.T) < 1e-8
 
-ctm.iterate()
-ctm.iterate()
+    ctm.iterate()
+    ctm.iterate()
 
-xih0 = ctm.compute_corr_length_h(0)
-xih1 = ctm.compute_corr_length_h(1)
-assert np.isfinite(xih0)
-assert np.isfinite(xih1)
+    xih0 = ctm.compute_corr_length_h(0)
+    xih1 = ctm.compute_corr_length_h(1)
+    assert np.isfinite(xih0)
+    assert np.isfinite(xih1)
 
-# check truncate_corners succeeds
-ctm = CTMRG.from_elementary_tensors(tiling, tensors, 13)
-ctm.truncate_corners()
-ctm.iterate()
-ctm.iterate()
+    # after iterate, rdm are not really hermitian, precision is around 1e-3
+    # due to U(1), measure is made on 1 coeff only
+    # do not bother check for it, just check computations succeeds
+    rdm2x1_cell, rdm1x2_cell = ctm.compute_rdm_1st_neighbor_cell()
+    rdm_dr_cell, rdm_ur_cell = ctm.compute_rdm_2nd_neighbor_cell()
+    rdm1x1_cell = ctm.compute_rdm1x1_cell()
+    assert len(rdm1x1_cell) == 16
+    for m in rdm1x1_cell:
+        assert m.shape == (2, 2)
 
-# after iterate, rdm are not really hermitian, precision is around 1e-3
-# due to U(1), measure is made on 1 coeff only
-# do not bother check for it, just check computations succeeds
-rdm2x1_cell, rdm1x2_cell = ctm.compute_rdm_1st_neighbor_cell()
-rdm_dr_cell, rdm_ur_cell = ctm.compute_rdm_2nd_neighbor_cell()
-rdm1x1_cell = ctm.compute_rdm1x1_cell()
-assert len(rdm1x1_cell) == 16
-for m in rdm1x1_cell:
-    assert m.shape == (2, 2)
+    # test free energy computation
+    logZ = ctm.compute_PEPS_norm_log()
 
-# test free energy computation
-logZ = ctm.compute_PEPS_norm_log()
-
-# check save and load once tensors != init
-ctm.save_to_file(savefile)
-ctm2 = CTMRG.load_from_file(savefile)
-for x, y in ctm.site_coords:
-    assert eq_st(ctm.get_A(x, y), ctm2.get_A(x, y))
-    assert eq_st(ctm.get_C1(x, y), ctm2.get_C1(x, y))
-    assert eq_st(ctm.get_C2(x, y), ctm2.get_C2(x, y))
-    assert eq_st(ctm.get_C3(x, y), ctm2.get_C3(x, y))
-    assert eq_st(ctm.get_C4(x, y), ctm2.get_C4(x, y))
-    assert eq_st(ctm.get_T1(x, y), ctm2.get_T1(x, y))
-    assert eq_st(ctm.get_T2(x, y), ctm2.get_T2(x, y))
-    assert eq_st(ctm.get_T3(x, y), ctm2.get_T3(x, y))
-    assert eq_st(ctm.get_T4(x, y), ctm2.get_T4(x, y))
+    # check save and load once tensors != init
+    ctm.save_to_file(savefile)
+    ctm2 = SequentialCTMRG.load_from_file(savefile)
+    for x, y in ctm.site_coords:
+        assert eq_st(ctm.get_A(x, y), ctm2.get_A(x, y))
+        assert eq_st(ctm.get_C1(x, y), ctm2.get_C1(x, y))
+        assert eq_st(ctm.get_C2(x, y), ctm2.get_C2(x, y))
+        assert eq_st(ctm.get_C3(x, y), ctm2.get_C3(x, y))
+        assert eq_st(ctm.get_C4(x, y), ctm2.get_C4(x, y))
+        assert eq_st(ctm.get_T1(x, y), ctm2.get_T1(x, y))
+        assert eq_st(ctm.get_T2(x, y), ctm2.get_T2(x, y))
+        assert eq_st(ctm.get_T3(x, y), ctm2.get_T3(x, y))
+        assert eq_st(ctm.get_T4(x, y), ctm2.get_T4(x, y))
 
 os.remove(savefile)

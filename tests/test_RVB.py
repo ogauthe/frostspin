@@ -4,7 +4,7 @@ import numpy as np
 import scipy.linalg as lg
 
 from frostspin import O2_SymmetricTensor, SU2_SymmetricTensor, U1_SymmetricTensor
-from frostspin.ctmrg.ctmrg import CTMRG
+from frostspin.ctmrg import SequentialCTMRG
 
 ########################################################################################
 # Test CTMRG on RVB SU(2) wavefunction
@@ -97,15 +97,19 @@ del a0, a_U1, a_O2, a_SU2, a1, a1_U1, a1_O2, a1_SU2
 # this is done with degen_ratio.
 
 # check ctm with AB//BA pattern
-ctmU1_AB = CTMRG.from_elementary_tensors("AB\nBA", (tA_U1, tB_U1), 20, degen_ratio=0.99)
-ctmO2_AB = CTMRG.from_elementary_tensors(
+ctmU1_AB = SequentialCTMRG.from_elementary_tensors(
+    "AB\nBA", (tA_U1, tB_U1), 20, degen_ratio=0.99
+)
+ctmO2_AB = SequentialCTMRG.from_elementary_tensors(
     "AB\nBA", (tA_SU2, tB_SU2), 20, degen_ratio=0.99
 )
 ctmO2_AB.set_symmetry("O2")
 check_ctm(ctmU1_AB, ctmO2_AB)
 
-ctmU1_AB = CTMRG.from_elementary_tensors("AB\nBA", (tA_U1, tB_U1), 20, degen_ratio=0.99)
-ctmSU2_AB = CTMRG.from_elementary_tensors(
+ctmU1_AB = SequentialCTMRG.from_elementary_tensors(
+    "AB\nBA", (tA_U1, tB_U1), 20, degen_ratio=0.99
+)
+ctmSU2_AB = SequentialCTMRG.from_elementary_tensors(
     "AB\nBA", (tA_SU2, tB_SU2), 20, degen_ratio=0.99
 )
 check_ctm(ctmU1_AB, ctmSU2_AB)
@@ -125,10 +129,14 @@ assert lg.norm(tur_U1.toarray() - tRVBur) < tol
 assert lg.norm(tur_SU2.toarray() - tRVBur) < tol
 assert (tur_SU2.toU1() - tur_U1).norm() < tol
 
-ctmU1_ur = CTMRG.from_elementary_tensors("A", (tur_U1,), 20, degen_ratio=0.99)
-ctmO2_ur = CTMRG.from_elementary_tensors("A", (tur_SU2,), 20, degen_ratio=0.99)
+ctmU1_ur = SequentialCTMRG.from_elementary_tensors("A", (tur_U1,), 20, degen_ratio=0.99)
+ctmO2_ur = SequentialCTMRG.from_elementary_tensors(
+    "A", (tur_SU2,), 20, degen_ratio=0.99
+)
 ctmO2_ur.set_symmetry("O2")
 check_ctm(ctmU1_ur, ctmO2_ur)
-ctmU1_ur = CTMRG.from_elementary_tensors("A", (tur_U1,), 20, degen_ratio=0.99)
-ctmSU2_ur = CTMRG.from_elementary_tensors("A", (tur_SU2,), 20, degen_ratio=0.99)
+ctmU1_ur = SequentialCTMRG.from_elementary_tensors("A", (tur_U1,), 20, degen_ratio=0.99)
+ctmSU2_ur = SequentialCTMRG.from_elementary_tensors(
+    "A", (tur_SU2,), 20, degen_ratio=0.99
+)
 check_ctm(ctmU1_ur, ctmSU2_ur)

@@ -5,7 +5,7 @@ import os
 import numpy as np
 
 from frostspin import U1_SymmetricTensor
-from frostspin.simple_update.simple_update import SimpleUpdate
+from frostspin.simple_update import SimpleUpdate
 
 # ------------------------------------   setup   ---------------------------------------
 D = 7

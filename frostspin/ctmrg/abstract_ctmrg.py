@@ -14,24 +14,9 @@ from .ctm_contract import (
     contract_ur,
 )
 from .ctm_environment import CTM_Environment
-from .ctm_renormalize import (
-    construct_projectors,
-    renormalize_C1_left,
-    renormalize_C1_up,
-    renormalize_C2_right,
-    renormalize_C2_up,
-    renormalize_C3_down,
-    renormalize_C3_right,
-    renormalize_C4_down,
-    renormalize_C4_left,
-    renormalize_T1,
-    renormalize_T2,
-    renormalize_T3,
-    renormalize_T4,
-)
 
 
-class CTMRG:
+class AbstractCTMRG:
     """
     Corner Transfer Matrix Renormalization Group algorithm. Approximately contract
     a square tensor network with precision controlled by corner dimension chi. This
@@ -74,7 +59,7 @@ class CTMRG:
     in addition to C and T environment tensors, 4*Lx*Ly corners are stored.
     """
 
-    def __init__(self, env, chi_target, verbosity, **ctm_params):
+    def __init__(self, env, chi_target, *, verbosity=0, **ctm_params):
         """
         Constructor for totally asymmetric CTMRG algorithm. Consider using from_file or
         from_elementary_tensors methods instead of calling this one directly.
@@ -112,6 +97,10 @@ class CTMRG:
         self.verbosity = verbosity
         if self.verbosity > 0:
             print(f"initalize CTMRG with verbosity = {self.verbosity}")
+
+        if type(self) is AbstractCTMRG:
+            raise NotImplementedError("Cannot instantiate AbstractCTMRG")
+
         self._env = env
         self._site_coords = env.site_coords
         self.chi_target = int(chi_target)
@@ -172,7 +161,7 @@ class CTMRG:
         if verbosity > 0:
             print("Start CTMRG from dummy environment")
         env = CTM_Environment.from_elementary_tensors(tiling, tensors)
-        return cls(env, chi_target, verbosity, **ctm_params)
+        return cls(env, chi_target, verbosity=verbosity, **ctm_params)
 
     def set_tensors(self, tensors):
         """
@@ -208,7 +197,7 @@ class CTMRG:
         # better to open and close savefile twice (here and in env) to have env __init__
         # outside of file opening block.
         env = CTM_Environment.load_from_file(filename)
-        return cls(env, chi_target, verbosity, **ctm_params)
+        return cls(env, chi_target, verbosity=verbosity, **ctm_params)
 
     def save_to_file(self, filename, **additional_data):
         """
@@ -337,25 +326,6 @@ class CTMRG:
                 print("set symmetry to", symmetry)
             self._env.set_symmetry(symmetry)
 
-    def truncate_corners(self):
-        """
-        Truncate corners C1, C2, C3 and C4 without constructing ul, ur, dl and dr
-        Use before first move to reduce corner dimension if chi_target < D^2
-        """
-        # we cannot approximate independently each corner with an SVD: this would
-        # introduce an arbitrary unitary matrix between two corners U_1 @ V_2. To keep
-        # unit cell inner compatibility, we can only renormalize bonds, not tensors.
-        # So we renormalize bond between corners, without inserting edge tensors
-        # basically the same thing as a standard move, without absorption.
-        if self.verbosity > 0:
-            print(f"Truncate corners to chi ~ {self.chi_target}")
-        self.up_move_no_absorb()
-        self.right_move_no_absorb()
-        self.down_move_no_absorb()
-        self.left_move_no_absorb()
-        if self.verbosity > 2:
-            self.print_tensor_shapes()
-
     def print_tensor_shapes(self):
         print("tensor shapes for C1 T1 C2 // T4 A T2 // C4 T3 C4:")
         for x, y in self._site_coords:
@@ -371,24 +341,6 @@ class CTMRG:
                 self._env.get_T3(x + 1, y + 2).shape,
                 self._env.get_C3(x + 2, y + 2).shape,
             )
-
-    def iterate(self):
-        if self.verbosity > 1:
-            print("Begin CTM iteration")
-        self.up_move()
-        if self.verbosity > 2:
-            self.print_tensor_shapes()
-        self.right_move()
-        if self.verbosity > 2:
-            self.print_tensor_shapes()
-        self.down_move()
-        if self.verbosity > 2:
-            self.print_tensor_shapes()
-        self.left_move()
-        if self.verbosity > 2:
-            self.print_tensor_shapes()
-        if self.verbosity > 1:
-            print("Finished CTM iteration")
 
     def compute_PEPS_norm_log(self):
         """
@@ -728,315 +680,3 @@ class CTMRG:
         elif free_memory:
             self._env.set_corner_ur(x, y, None)
         return ur
-
-    def up_move(self):
-        """
-        Absorb a row on the upper side of environment. Compute new ul / ur / dl / dr
-        corners only if they cannot be found in the environment. At the end, delete ul
-        and ur corners which have been renormalized.
-        """
-        if self.verbosity > 1:
-            print("\nstart up move")
-        # 1) compute isometries for every non-equivalent sites
-        # construct corners, free memory as soon as possible for corners that will be
-        # updated by this move.
-        # use last renornalized corner to estimate block sizes in each symmetry sector
-        # and reduce total number of computed singular vecotrs
-        # Note that last renormalized corner coordinates correspond to the new corner,
-        # obtain from the isometries under construction.
-        for x, y in self._site_coords:
-            P, Pt = construct_projectors(
-                self.construct_enlarged_dr(x, y),
-                self.construct_enlarged_ur(x, y, free_memory=True),
-                self.construct_enlarged_ul(x, y, free_memory=True),
-                self.construct_enlarged_dl(x, y),
-                self.chi_target,
-                self._env.get_C2(x + 2, y + 1),
-                block_chi_ratio=self.block_chi_ratio,
-                ncv_ratio=self.ncv_ratio,
-                rtol=self.cutoff,
-                degen_ratio=self.degen_ratio,
-            )
-            self._env.store_projectors(x + 2, y, P, Pt)
-
-        # 2) renormalize every non-equivalent C1, T1 and C2
-        # need all projectors to be constructed at this time
-        if self.verbosity > 2:
-            print("Projectors constructed, renormalize tensors")
-        for x, y in self._site_coords:
-            P = self._env.get_P(x + 1, y)
-            Pt = self._env.get_Pt(x, y)
-            nC1 = renormalize_C1_up(
-                self._env.get_C1(x, y), self._env.get_T4(x, y + 1), P
-            )
-
-            A = self._env.get_A(x, y + 1)
-            nT1 = renormalize_T1(Pt, self._env.get_T1(x, y), A, P)
-
-            nC2 = renormalize_C2_up(
-                self._env.get_C2(x, y), self._env.get_T2(x, y + 1), Pt
-            )
-            self._env.store_renormalized_tensors(x, y + 1, nC1, nT1, nC2)
-
-        # 3) store renormalized tensors in the environment
-        # renormalization reads C1[x,y] but writes C1[x,y+1]
-        # => need to compute every renormalized tensors before storing any of them
-        self._env.set_renormalized_tensors_up()
-        if self.verbosity > 1:
-            print("up move completed")
-
-    def right_move(self):
-        """
-        Absorb a column on the right side of environment. Compute new ul / ur / dl / dr
-        corners only if they cannot be found in the environment. At the end, delete ur
-        and dr corners which have been renormalized.
-        """
-        if self.verbosity > 1:
-            print("\nstart right move")
-        # 1) compute isometries for every non-equivalent sites
-        for x, y in self._site_coords:
-            P, Pt = construct_projectors(
-                self.construct_enlarged_dl(x, y),
-                self.construct_enlarged_dr(x, y, free_memory=True),
-                self.construct_enlarged_ur(x, y, free_memory=True),
-                self.construct_enlarged_ul(x, y),
-                self.chi_target,
-                self._env.get_C3(x + 2, y + 2).transpose(),
-                block_chi_ratio=self.block_chi_ratio,
-                ncv_ratio=self.ncv_ratio,
-                rtol=self.cutoff,
-                degen_ratio=self.degen_ratio,
-            )
-            self._env.store_projectors(x + 3, y + 2, P, Pt)
-
-        # 2) renormalize tensors by absorbing column
-        if self.verbosity > 2:
-            print("Projectors constructed, renormalize tensors")
-        for x, y in self._site_coords:
-            P = self._env.get_P(x, y + 1)
-            Pt = self._env.get_Pt(x, y)
-            nC2 = renormalize_C2_right(
-                self._env.get_C2(x, y), self._env.get_T1(x - 1, y), P
-            )
-
-            A = self._env.get_A(x - 1, y)
-            nT2 = renormalize_T2(Pt, self._env.get_T2(x, y), A, P)
-
-            nC3 = renormalize_C3_right(
-                self._env.get_C3(x, y), self._env.get_T3(x - 1, y), Pt
-            )
-            self._env.store_renormalized_tensors(x - 1, y, nC2, nT2, nC3)
-
-        # 3) store renormalized tensors in the environment
-        self._env.set_renormalized_tensors_right()
-        if self.verbosity > 1:
-            print("right move completed")
-
-    def down_move(self):
-        """
-        Absorb a row on the down side of environment. Compute new ul / ur / dl / dr
-        corners only if they cannot be found in the environment. At the end, delete dl
-        and dr corners which have been renormalized.
-        """
-        if self.verbosity > 1:
-            print("\nstart down move")
-        # 1) compute isometries for every non-equivalent sites
-        for x, y in self._site_coords:
-            P, Pt = construct_projectors(
-                self.construct_enlarged_ul(x, y),
-                self.construct_enlarged_dl(x, y, free_memory=True),
-                self.construct_enlarged_dr(x, y, free_memory=True),
-                self.construct_enlarged_ur(x, y),
-                self.chi_target,
-                self._env.get_C4(x + 1, y + 2),
-                block_chi_ratio=self.block_chi_ratio,
-                ncv_ratio=self.ncv_ratio,
-                rtol=self.cutoff,
-                degen_ratio=self.degen_ratio,
-            )
-            self._env.store_projectors(x + 1, y + 3, P, Pt)
-
-        # 2) renormalize every non-equivalent C3, T3 and C4
-        if self.verbosity > 2:
-            print("Projectors constructed, renormalize tensors")
-        for x, y in self._site_coords:
-            P = self._env.get_P(x - 1, y)
-            Pt = self._env.get_Pt(x, y)
-            nC3 = renormalize_C3_down(
-                self._env.get_C3(x, y), self._env.get_T2(x, y - 1), P
-            )
-
-            A = self._env.get_A(x, y - 1)
-            nT3 = renormalize_T3(Pt, self._env.get_T3(x, y), A, P)
-
-            nC4 = renormalize_C4_down(
-                self._env.get_C4(x, y), self._env.get_T4(x, y - 1), Pt
-            )
-            self._env.store_renormalized_tensors(x, y - 1, nC3, nT3, nC4)
-
-        # 3) store renormalized tensors in the environment
-        self._env.set_renormalized_tensors_down()
-        if self.verbosity > 1:
-            print("down move completed")
-
-    def left_move(self):
-        """
-        Absorb a column on the left side of environment. Compute new ul / ur / dl / dr
-        corners only if they cannot be found in the environment. At the end, delete ul
-        and dl corners which have been renormalized.
-        """
-        if self.verbosity > 1:
-            print("\nstart left move")
-        # 1) compute isometries for every non-equivalent sites
-        for x, y in self._site_coords:
-            P, Pt = construct_projectors(
-                self.construct_enlarged_ur(x, y),
-                self.construct_enlarged_ul(x, y, free_memory=True),
-                self.construct_enlarged_dl(x, y, free_memory=True),
-                self.construct_enlarged_dr(x, y),
-                self.chi_target,
-                self._env.get_C1(x + 1, y + 1),
-                block_chi_ratio=self.block_chi_ratio,
-                ncv_ratio=self.ncv_ratio,
-                rtol=self.cutoff,
-                degen_ratio=self.degen_ratio,
-            )
-            self._env.store_projectors(x, y + 1, P, Pt)
-
-        # 2) renormalize every non-equivalent C4, T4 and C1
-        if self.verbosity > 2:
-            print("Projectors constructed, renormalize tensors")
-        for x, y in self._site_coords:
-            P = self._env.get_P(x, y - 1)
-            Pt = self._env.get_Pt(x, y)
-            nC4 = renormalize_C4_left(
-                self._env.get_C4(x, y), self._env.get_T3(x + 1, y), P
-            )
-
-            A = self._env.get_A(x + 1, y)
-            nT4 = renormalize_T4(Pt, self._env.get_T4(x, y), A, P)
-
-            nC1 = renormalize_C1_left(
-                self._env.get_C1(x, y), self._env.get_T1(x + 1, y), Pt
-            )
-            self._env.store_renormalized_tensors(x + 1, y, nC4, nT4, nC1)
-
-        # 3) store renormalized tensors in the environment
-        self._env.set_renormalized_tensors_left()
-        if self.verbosity > 1:
-            print("left move completed")
-
-    def up_move_no_absorb(self):
-        # renormalize tensors without adding A-A* to reduce corner dimension
-        # here renormalize bond C1-C2. Very similar to up_move, keep structure
-        for x, y in self._site_coords:
-            self._env.set_corner_ur(x, y, None)
-            self._env.set_corner_ul(x, y, None)
-            C2 = self._env.get_C2(x + 1, y)
-            P, Pt = construct_projectors(
-                self._env.get_C3(x + 1, y + 1).transpose(),
-                C2,
-                self._env.get_C1(x, y),
-                self._env.get_C4(x, y + 1),
-                self.chi_target,
-                C2,
-                block_chi_ratio=self.block_chi_ratio,
-                ncv_ratio=self.ncv_ratio,
-                rtol=self.cutoff,
-                degen_ratio=self.degen_ratio,
-            )
-            self._env.store_projectors(x + 1, y, P, Pt)
-        for x, y in self._site_coords:
-            # in place change: read and write C1(x,y), T1(x,y), C2(x,y)
-            P_trans = self._env.get_P(x + 1, y).transpose()
-            Pt = self._env.get_Pt(x, y)
-            nC1 = P_trans @ self._env.get_C1(x, y)
-            nT1 = (P_trans @ self._env.get_T1(x, y)).permute((0, 1, 2), (3,)) @ Pt
-            nT1 = nT1.permute((0,), (1, 2, 3))
-            nC2 = self._env.get_C2(x, y) @ Pt
-            self._env.store_renormalized_tensors(x, y, nC1, nT1, nC2)
-        self._env.set_renormalized_tensors_up()
-
-    def right_move_no_absorb(self):
-        for x, y in self._site_coords:
-            self._env.set_corner_ur(x, y, None)
-            self._env.set_corner_dr(x, y, None)
-            C3 = self._env.get_C3(x + 1, y + 1).transpose()
-            P, Pt = construct_projectors(
-                self._env.get_C4(x, y + 1),
-                C3,
-                self._env.get_C2(x + 1, y),
-                self._env.get_C1(x, y),
-                self.chi_target,
-                C3,
-                block_chi_ratio=self.block_chi_ratio,
-                ncv_ratio=self.ncv_ratio,
-                rtol=self.cutoff,
-                degen_ratio=self.degen_ratio,
-            )
-            self._env.store_projectors(x + 1, y + 1, P, Pt)
-        for x, y in self._site_coords:
-            P = self._env.get_P(x, y + 1)
-            Pt_trans = self._env.get_Pt(x, y).transpose()
-            nC2 = P.transpose() @ self._env.get_C2(x, y)
-            nT2 = (Pt_trans @ self._env.get_T2(x, y)).permute((0, 2, 3), (1,)) @ P
-            nT2 = nT2.permute((0,), (3, 1, 2))
-            nC3 = Pt_trans @ self._env.get_C3(x, y)
-            self._env.store_renormalized_tensors(x, y, nC2, nT2, nC3)
-        self._env.set_renormalized_tensors_right()
-
-    def down_move_no_absorb(self):
-        for x, y in self._site_coords:
-            self._env.set_corner_dl(x, y, None)
-            self._env.set_corner_dr(x, y, None)
-            C4 = self._env.get_C4(x, y + 1)
-            P, Pt = construct_projectors(
-                self._env.get_C1(x, y),
-                C4,
-                self._env.get_C3(x + 1, y + 1).transpose(),
-                self._env.get_C2(x + 1, y),
-                self.chi_target,
-                C4,
-                block_chi_ratio=self.block_chi_ratio,
-                ncv_ratio=self.ncv_ratio,
-                rtol=self.cutoff,
-                degen_ratio=self.degen_ratio,
-            )
-            self._env.store_projectors(x, y + 1, P, Pt)
-        for x, y in self._site_coords:
-            P = self._env.get_P(x - 1, y)
-            Pt = self._env.get_Pt(x, y)
-            nC3 = self._env.get_C3(x, y) @ P
-            nT3 = (self._env.get_T3(x, y) @ P).permute((0, 1, 3), (2,)) @ Pt
-            nT3 = nT3.permute((0, 1, 3), (2,))
-            nC4 = self._env.get_C4(x, y) @ Pt
-            self._env.store_renormalized_tensors(x, y, nC3, nT3, nC4)
-        self._env.set_renormalized_tensors_down()
-
-    def left_move_no_absorb(self):
-        for x, y in self._site_coords:
-            self._env.set_corner_ul(x, y, None)
-            self._env.set_corner_dl(x, y, None)
-            C1 = self._env.get_C1(x, y)
-            P, Pt = construct_projectors(
-                self._env.get_C2(x + 1, y),
-                C1,
-                self._env.get_C4(x, y + 1),
-                self._env.get_C3(x + 1, y + 1).transpose(),
-                self.chi_target,
-                C1,
-                block_chi_ratio=self.block_chi_ratio,
-                ncv_ratio=self.ncv_ratio,
-                rtol=self.cutoff,
-                degen_ratio=self.degen_ratio,
-            )
-            self._env.store_projectors(x, y, P, Pt)
-        for x, y in self._site_coords:
-            P_trans = self._env.get_P(x, y - 1).transpose()
-            Pt = self._env.get_Pt(x, y)
-            nC4 = P_trans @ self._env.get_C4(x, y)
-            nT4 = (P_trans @ self._env.get_T4(x, y)).permute((0, 1, 2), (3,)) @ Pt
-            nT4 = nT4.permute((0,), (1, 2, 3))
-            nC1 = self._env.get_C1(x, y) @ Pt
-            self._env.store_renormalized_tensors(x, y, nC4, nT4, nC1)
-        self._env.set_renormalized_tensors_left()
