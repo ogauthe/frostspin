@@ -240,7 +240,3 @@ def rdm_diag_ur(ul, T1r, C2, Aur, T2u, T4d, Adl, dr_T, C4, T3l):
         .transpose(1, 0, 3, 2)
         .reshape(Aur.shape[0] * Adl.shape[0], Aur.shape[0] * Adl.shape[0])
     )
-
-
-def rdm_2x2(C1, T1l, T1r, C2, T4u, Aul, Aur, T2u, T4d, Adl, Ard, T2d, C4, T4l, T4r, C3):
-    raise NotImplementedError("To do!")
