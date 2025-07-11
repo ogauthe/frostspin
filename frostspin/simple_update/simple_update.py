@@ -1204,7 +1204,8 @@ class SimpleUpdate:
         if self.verbosity > 0:
             print(
                 f"Evolve in imaginary time for beta from {self._beta:.6g} to "
-                f"{self._beta + beta_evolve:.6g}..."
+                f"{self._beta + beta_evolve:.6g}...",
+                flush=True,
             )
         if beta_evolve < -1e-12:
             raise ValueError("Cannot evolve for negative imaginary time")

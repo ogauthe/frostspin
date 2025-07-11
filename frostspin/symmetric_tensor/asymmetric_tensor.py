@@ -101,4 +101,4 @@ class AsymmetricTensor(SymmetricTensor):
         assert self.check_blocks_fit_representations()
 
 
-symmetric_tensor_types["trivial"] = AsymmetricTensor
+symmetric_tensor_types["Trivial"] = AsymmetricTensor

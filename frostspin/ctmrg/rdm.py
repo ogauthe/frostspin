@@ -131,7 +131,7 @@ def rdm_1x2(C1, T1l, T1r, C2, T4, Al, Ar, T2, C4, T3l, T3r, C3):
     right = right @ T3r.permute((0, 1, 2), (3,))
     right = right.permute((2, 3, 4, 5), (0, 1))
     rdm = left @ right
-    rdm = rdm.permute((0, 2), (1, 3))
+    rdm = rdm.permute((1, 3), (0, 2))
     rdm /= rdm.trace()
     return rdm
 
@@ -206,7 +206,7 @@ def rdm_diag_dr(C1, T1l, ur, T4u, Aul, dl, Adr, T2d, T3r, C3):
     #   7-------
     dr = dr.permute((5, 2, 6, 4, 1, 7), (3, 0))  # memory peak: 3*d**2*chi**2*D**4
     rdm = rdm @ dr
-    rdm = rdm.permute((0, 2), (1, 3))
+    rdm = rdm.permute((1, 3), (0, 2))
     rdm /= rdm.trace()
     return rdm
 
