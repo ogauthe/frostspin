@@ -105,7 +105,8 @@ class DiagonalTensor:
         raise TypeError(msg)
 
     def __imul__(self, x):
-        assert np.issubdtype(type(x), np.number)
+        if not np.issubdtype(type(x), np.number):
+            raise NotImplementedError("Invalid type for *=")
         for db in self._diagonal_blocks:
             db[:] *= x
         return self
@@ -130,7 +131,8 @@ class DiagonalTensor:
         return self
 
     def __pow__(self, x):
-        assert np.issubdtype(type(x), np.number)
+        if not np.issubdtype(type(x), np.number):
+            raise NotImplementedError("Invalid type for **")
         blocks = tuple(db**x for db in self._diagonal_blocks)
         return type(self)(
             blocks,
@@ -139,6 +141,41 @@ class DiagonalTensor:
             self._block_degen,
             self._symmetry,
         )
+
+    def __neg__(self):
+        blocks = tuple(-db for db in self._diagonal_blocks)
+        return type(self)(
+            blocks,
+            self._representation,
+            self._block_irreps,
+            self._block_degen,
+            self._symmetry,
+        )
+
+    def __add__(self, other):
+        if not isinstance(other, DiagonalTensor):
+            raise NotImplementedError("Invalid type for +")
+        if not (self._representation == other.representation).all():
+            raise ValueError("Representations do not match")
+        blocks = tuple(
+            b1 + b2
+            for (b1, b2) in zip(
+                self._diagonal_blocks, other.diagonal_blocks, strict=True
+            )
+        )
+        return type(self)(
+            blocks,
+            self._representation,
+            self._block_irreps,
+            self._block_degen,
+            self._symmetry,
+        )
+
+    def __sub__(self, other):
+        return self + (-other)
+
+    def __pos__(self):
+        return self
 
     ####################################################################################
     # misc

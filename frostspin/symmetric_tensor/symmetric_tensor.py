@@ -340,7 +340,11 @@ class SymmetricTensor:
     # Magic methods
     ####################################################################################
     def __repr__(self):
-        return f"{self.symmetry()} SymmetricTensor with shape {self._shape}"
+        bipartition = (self._nrr, self._ndim - self._nrr)
+        return (
+            f"{self.symmetry()} SymmetricTensor with bipartition {bipartition}"
+            f" and shape {self._shape}"
+        )
 
     def __add__(self, other):
         assert self.match_representations(other)
@@ -424,6 +428,9 @@ class SymmetricTensor:
 
     def __rtruediv__(self, x):
         return self * (1.0 / x)
+
+    def __pos__(self):
+        return self
 
     def __neg__(self):
         blocks = tuple(-b for b in self._blocks)

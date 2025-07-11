@@ -220,7 +220,9 @@ def renormalize_quadrant(P, quadrant, Pt):
     """
     Renormalize quadrant into corner using 2 projectors
     """
-    return P.transpose() @ quadrant @ Pt
+    nc = P.transpose() @ quadrant @ Pt
+    nc /= nc.norm()
+    return nc
 
 
 def renormalize_C1_up(C1, T4, P):
