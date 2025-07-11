@@ -1,7 +1,5 @@
 import numpy as np
 
-import frostspin
-
 from . import observables, rdm
 from .ctm_contract import (
     contract_C1234,
@@ -126,12 +124,6 @@ class AbstractCTMRG:
             raise ValueError("cutoff must me obey 0.0 <= self.cutoff < 1.0")
         if not (0.0 < self.degen_ratio <= 1.0):
             raise ValueError("degen_ratio must obey 0.0 <= self.degen_ratio <= 1.0")
-
-        if not frostspin.config["quiet"] and self.Dmin != self.Dmax:
-            print(
-                f"WARNING: initialize CTMRG with Dmin = {self.Dmin} != Dmax ="
-                f" {self.Dmax}"
-            )
 
     @classmethod
     def from_elementary_tensors(
