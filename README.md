@@ -28,9 +28,9 @@ frostspin includes the following tensor network algorithms:
 ## Install
 The simplest is to git clone this repository and to add it to your PYTHONPATH.
 ```shell
-git clone git@framagit.org:ogauthe/frostspin.git
-export PYTHONPATH=$(pwd)/froSTspin:$PYTHONPATH
-python -uO ./froSTspin/tests/test_u1_tensor.py
+git clone git@github.com:ogauthe/frostspin.git
+export PYTHONPATH=$(pwd)/frostspin:$PYTHONPATH
+python examples/ising_classical_ctmrg.py
 ```
 
 ## Usage
