@@ -1,7 +1,5 @@
 import numpy as np
 
-import frostspin
-
 
 def compute_mps_transfer_spectrum(
     T1s,
@@ -13,6 +11,7 @@ def compute_mps_transfer_spectrum(
     rng=None,
     maxiter=4000,
     tol=0,
+    verbosity=0,
 ):
     r"""
     Compute nval eigenvalues for the transfer matrix defined by the MPS in Tup_list and
@@ -149,7 +148,7 @@ def compute_mps_transfer_spectrum(
 
     if np.linalg.norm(vals.imag) < 1e-6:  # norm(vals.real) ~ 1
         vals = vals.real
-    elif not frostspin.config["quiet"]:
+    elif verbosity > 0:
         # complex eigenvalues mean wavector != (m*pi/Lx, n*pi/Ly)
         # this happens if correlation do not match unit cell size, which is always the
         # case for incommensurate correlations.

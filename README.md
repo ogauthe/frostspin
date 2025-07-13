@@ -35,3 +35,4 @@ python examples/ising_classical_ctmrg.py
 
 ## Usage
 See examples and tests on how to use it.
+To improve performances, consider running with `python -O` to disable `assert` statements.

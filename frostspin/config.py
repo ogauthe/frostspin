@@ -24,15 +24,11 @@ parser.add_argument(
 )
 
 args, _ = parser.parse_known_args()
-config = {"quiet": args.frostspin_quiet, "SU2_CG_file": args.frostspin_SU2_CG_file}
+config = {"SU2_CG_file": args.frostspin_SU2_CG_file}
 
 
 # ==============================  Display debug warning  ===============================
-if __debug__:  # noqa: SIM102
-    if not config["quiet"]:
-        print("\nWarning: assert statement are activated")
-        print("They may significantly impact performances")
-        print("Consider running the code in optimized mode with python -O")
-        print("You may disable this warning with the flag --frostspin-quiet\n")
+if not __debug__:
+    print("\nInfo: assert statements are disabled")
 
 ASSERT_TOL = 4e-13

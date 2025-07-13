@@ -529,7 +529,13 @@ class AbstractCTMRG:
             T1s.append(self._env.get_T1(-x, y))
             T3s.append(self._env.get_T3(-x, y + 1))
         return observables.compute_mps_transfer_spectrum(
-            T1s, T3s, nvals, dmax_full=dmax_full, maxiter=maxiter, tol=tol
+            T1s,
+            T3s,
+            nvals,
+            dmax_full=dmax_full,
+            maxiter=maxiter,
+            tol=tol,
+            verbosity=self.verbosity,
         )
 
     def compute_transfer_spectrum_v(
@@ -545,7 +551,13 @@ class AbstractCTMRG:
             T1s.append(self._env.get_T2(x + 1, -y).permute((1,), (2, 3, 0)))
             T3s.append(self._env.get_T4(x, -y).permute((1, 2), (3, 0)))
         return observables.compute_mps_transfer_spectrum(
-            T1s, T3s, nvals, dmax_full=dmax_full, maxiter=maxiter, tol=tol
+            T1s,
+            T3s,
+            nvals,
+            dmax_full=dmax_full,
+            maxiter=maxiter,
+            tol=tol,
+            verbosity=self.verbosity,
         )
 
     def compute_corr_length_h(self, y, *, maxiter=1000, tol=0):
