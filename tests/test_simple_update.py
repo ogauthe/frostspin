@@ -72,7 +72,7 @@ assert abs(su2.degen_ratio - su.degen_ratio) < 1e-14
 assert abs(su2.rcutoff - su.rcutoff) < 1e-14
 assert abs(su2.logZ - su.logZ) < 1e-14
 
-tensors2 = su.get_tensors()
+tensors2 = su2.get_tensors()
 assert all((t - t2).norm() < 1e-14 for (t, t2) in zip(tensors, tensors2, strict=True))
 
 

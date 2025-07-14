@@ -125,7 +125,7 @@ class CTMEnvironment:
         return sorted(s)
 
     def check_consistency(self):
-        ST = get_symmetric_tensor_type(self._symmetry)
+        ST = type(self._unique_As[0])
 
         def check(tensors, ndim, name):
             if len(tensors) != self._n_sites:

@@ -136,6 +136,38 @@ def rdm_1x2(C1, T1l, T1r, C2, T4, Al, Ar, T2, C4, T3l, T3r, C3):
     return rdm
 
 
+def rdm_symmetrized_1x2(C1, T1l, T4, Al, C4, T3l):
+    """
+    Compute reduced density matrix for 2 sites in a row, assuming a symmetrized
+    environment with B = rotated(dagger(A))
+    """
+    left = T4.permute((0, 1, 2), (3,))
+    left = left @ C4
+    left = contract_open_corner(C1, T1l, left, Al)
+    left = left @ T3l.permute((0, 1, 3), (2,))
+    left = left.permute((0, 1), (2, 3, 4, 5))
+    right = left.permute((3, 2, 5, 4), (1, 0))
+    rdm = left @ right
+    rdm = rdm.permute((1, 3), (0, 2))
+    rdm /= rdm.trace()
+    return rdm
+
+
+def rdm_symmetrized_2x1(C1, T1, C2, T4u, Au, T2u):
+    """
+    Compute reduced density matrix for 2 sites in a column, assuming a symmetrized
+    environment with B = rotated(dagger(A))
+    """
+    return rdm_symmetrized_1x2(
+        C2,
+        T2u.permute((1, 2, 3), (0,)),
+        T1,
+        Au.permute((0, 1), (3, 4, 5, 2)),
+        C1,
+        T4u.permute((1, 2, 3), (0,)),
+    )
+
+
 def rdm_2x1(C1, T1, C2, T4u, Au, T2u, T4d, Ad, T2d, C4, T3, C3):
     """
     Compute reduced density matrix for 2 sites in a column
