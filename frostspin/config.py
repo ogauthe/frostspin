@@ -15,7 +15,6 @@ default_su2_cg_file = os.path.join(
 
 # parse command line options
 parser = argparse.ArgumentParser()
-parser.add_argument("--frostspin-quiet", help="silence frostspin", action="store_true")
 parser.add_argument(
     "--frostspin-SU2-CG-file",
     help="savefile for SU(2) Clebsch-Gordan",
