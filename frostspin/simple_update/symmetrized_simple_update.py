@@ -184,8 +184,8 @@ class SymmetrizedSimpleUpdate(AbstractSimpleUpdate):
         # transpose back LxR, compute eigh and truncate
         theta = theta.permute((0, 2), (1, 3))  # auxL, pL = theta = auxR, pR
         # define new_weights *on effL right*
-        new_weights, new_effL = theta.eigsh(
-            theta, self.D, rtol=self.rcutoff, degen_ratio=self.degen_ratio
+        new_weights, new_effL = theta.truncated_eigh(
+            self.D, rtol=self.rcutoff, degen_ratio=self.degen_ratio
         )
 
         # normalize weights and apply them to new left and new right

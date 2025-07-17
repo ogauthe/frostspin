@@ -10,7 +10,7 @@ def compute_mps_transfer_spectrum(
     dmax_full=200,
     rng=None,
     maxiter=4000,
-    tol=0,
+    arpack_tol=0,
     verbosity=0,
 ):
     r"""
@@ -34,7 +34,7 @@ def compute_mps_transfer_spectrum(
         If None, a new random generator is created with default_rng().
     maxiter : int
         Maximum number of Lanczos update iterations allowed in Arpack.
-    tol : float
+    arpack_tol : float
         Arpack tol.
 
 
@@ -72,7 +72,6 @@ def compute_mps_transfer_spectrum(
 
     """
     ST = type(T1s[0])
-    dtype = T1s[0].dtype
 
     if A_list is None:
         Ts_up = [T.permute((3, 1, 2), (0,)) for T in T1s]
@@ -127,13 +126,12 @@ def compute_mps_transfer_spectrum(
         vals = ST.eigs(
             matmat,
             nvals,
-            reps=reps,
-            signature=sig0,
-            dtype=dtype,
+            reps,
+            sig0,
             dmax_full=dmax_full,
             rng=rng,
             maxiter=maxiter,
-            tol=tol,
+            arpack_tol=arpack_tol,
             compute_vectors=False,
         )
         vals = vals.toarray()

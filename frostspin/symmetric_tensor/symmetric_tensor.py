@@ -826,11 +826,17 @@ class SymmetricTensor:
     ####################################################################################
     # Sparse linear algebra
     ####################################################################################
+    @classmethod
+    def init_square_matrix(cls, reps, signature):
+        # TODO find a way to pass dtype info
+        s = np.asarray(signature, dtype=bool)
+        return cls(reps, reps, [], [], np.hstack((s, ~s)))
+
     def truncated_svd(
         self,
         cut,
         *,
-        max_dense_dim=None,
+        dmax_full=100,
         oversampling=0,
         atol=0.0,
         rtol=None,
@@ -846,204 +852,69 @@ class SymmetricTensor:
         may break a non-abelian symmetry, and also produces a suboptimal truncation.
         A warning is displayed whenever this happens.
         """
-        if max_dense_dim is None:
-            max_dense_dim = 8 * cut
+        dmax_full = min(dmax_full, 8 * cut)
 
         raw_u = [None] * self._nblocks
         raw_s = [None] * self._nblocks
         raw_v = [None] * self._nblocks
         for bi, b in enumerate(self._blocks):
-            if min(b.shape) < max_dense_dim:  # dense svd for small blocks
+            if min(b.shape) < dmax_full:  # dense svd for small blocks
                 raw_u[bi], raw_s[bi], raw_v[bi] = robust_svd(b)
             else:
                 raw_u[bi], raw_s[bi], raw_v[bi] = sparse_svd(b, cut + oversampling)
 
-        u_blocks = []
-        s_blocks = []
-        v_blocks = []
         dims = np.array([self.irrep_dimension(r) for r in self._block_irreps])
         block_cuts = find_block_cuts(
             raw_s, cut, dims=dims, atol=atol, rtol=rtol, degen_ratio=degen_ratio
         )
-        non_empty = block_cuts.nonzero()[0]
-        warn = 0
-        for bi in non_empty:
-            bcut = block_cuts[bi]
-            warn += bcut == raw_s[bi].size and bcut < min(self._blocks[bi].shape)
-            u_blocks.append(np.ascontiguousarray(raw_u[bi][:, :bcut]))
-            s_blocks.append(raw_s[bi][:bcut])
-            v_blocks.append(raw_v[bi][:bcut])
-
-        if warn:
-            print(f"*** WARNING *** kept all computed singular values in {warn} blocks")
-        block_irreps = self._block_irreps[non_empty]
-        mid_rep = self.init_representation(block_cuts[non_empty], block_irreps)
-        usign = np.ones((self._nrr + 1,), dtype=bool)
-        usign[: self._nrr] = self._signature[: self._nrr]
-        U = type(self)(self._row_reps, (mid_rep,), u_blocks, block_irreps, usign)
-        degens = [self.irrep_dimension(irr) for irr in block_irreps]
-        s = DiagonalTensor(s_blocks, mid_rep, block_irreps, degens, self._symmetry)
-        vsign = np.zeros((self._ndim - self._nrr + 1,), dtype=bool)
-        vsign[1:] = self._signature[self._nrr :]
-        V = type(self)((mid_rep,), self._col_reps, v_blocks, block_irreps, vsign)
-        return U, s, V
+        kept_blockwise = [np.arange(cut) for cut in block_cuts]
+        return self.truncate_values_vectors(
+            raw_s,
+            self._block_irreps,
+            kept_blockwise,
+            left_vectors_blocks=raw_u,
+            right_vectors_blocks=raw_v,
+        )
 
     @classmethod
     def eigs(
         cls,
         matmat,
         nvals,
+        reps,
+        signature,
         *,
         atol=0.0,
         rtol=None,
         degen_ratio=1.0,
-        reps=None,
-        signature=None,
-        dtype=None,
         dmax_full=100,
         compute_vectors=True,
         rng=None,
         maxiter=4000,
-        tol=0,
+        arpack_tol=0,
     ):
         """
-        Find nvals largest eigenvalues in magnitude for a square matrix M. M may be
-        explicitly defined as a SymmetricTensor or only implicitly defined by its action
-        on a vector with given representations, signature and dtype.
-        Whether explicitly or implicitly defined, M has to define a square matrix
-        that can act iteratively on a given initial vector. This means that its row
-        representations must match its column representations and the signature for the
-        columns must be the opposite of thw signature for the rows.
+        Find nvals largest eigenvalues in magnitude for a real matrix M. M is only
+        implicitly defined by its action on a vector with given representations and
+        signature.
+
+        Currently, dtpye is fixed to np.float64.
 
         Parameters
         ----------
-        matmat : cls or callable
-            If matmat is a SymmetricTensor with cls subclass then M=matmat and its
-            spectrum will be direclty computed. Input arguments reps, signature and
-            dtype are not read and are replaced by those inferred from matmat.
-            If matmat is a callable, it represents the operation M @ x and implicitly
-            defines a cls SymmetricTensor. Input arguments reps and signature are used
-            to determine the vector it acts on.
+        matmat : callable
+            Represents the operation M @ x and implicitly defines a cls SymmetricTensor.
+            Input arguments reps and signature are used to determine the vector it acts
+            on.
         nvals : int
             Number of eigenvalues to compute. This number corresponds to dense
             eigenvalues, including multiplicites imposed by symmetry.
         reps : enumerable of representations
-            Row representations for mat. Not read if mat is a SymmetricTensor. If mat
-            is a callabel, reps also have to match mat column representations such that
-            mat is a square  with same domain and codomain spaces.
+            Row representations for mat. Column representations are assumed to be the
+            same to define a square matrix.
         signature : bool 1D array
-            Signature for mat rows. Not read if mat is a SymmetricTensor. Signature for
-            mat column has to match ~signature.
-        dtype : type
-            Scalar data type for M. Not read if mat is a SymmetricTensor. Output dtype
-            will always be np.complex128 regardless of this field.
-        dmax_full : int
-            Maximum block size to use dense eigvals.
-        compute_vectors : Bool
-            Whether to compute and returns eigenvectors. Default to True.
-        rng : numpy random generator
-            Random number generator. Used to initialize starting vectors for each block.
-            If None, a new random generator is created with default_rng().
-        maxiter : int
-            Maximum number of Arnoldi iterations allowed in Arpack.
-        tol : float
-            Arpack tol.
-
-        Returns
-        -------
-        s : DiagonalTensor
-            eigenvalues as a DiagonalTensor. Final number of eigenvalues is the smallest
-            number above nvals that fits multiplets.
-        u : SymmetricTensor
-            Eigenvectors as a SymmetricTensor. Only returned if compute_vectors is
-            True.
-
-        Notes
-        -----
-        Exact zero eigenvalues may exist, especially when a block is missing. They will
-        be truncated and no value or vector will be returned for the null eigenspace.
-        """
-
-        def block_eigs(op, k, v0):
-            return slg.eigs(
-                op,
-                k=k,
-                v0=v0,
-                maxiter=maxiter,
-                tol=tol,
-                return_eigenvectors=compute_vectors,
-            )
-
-        return cls._sparse_eig(
-            matmat,
-            nvals,
-            lambda b: lg.eig(b, right=compute_vectors),
-            block_eigs,
-            atol=atol,
-            rtol=rtol,
-            degen_ratio=degen_ratio,
-            reps=reps,
-            signature=signature,
-            dtype=dtype,
-            dmax_full=dmax_full,
-            compute_vectors=compute_vectors,
-            rng=rng,
-        )
-
-    @classmethod
-    def eigsh(
-        cls,
-        matmat,
-        nvals,
-        *,
-        atol=0.0,
-        rtol=None,
-        degen_ratio=1.0,
-        reps=None,
-        signature=None,
-        dtype=None,
-        dmax_full=100,
-        compute_vectors=True,
-        rng=None,
-        maxiter=4000,
-        tol=0,
-    ):
-        """
-        Find nvals largest eigenvalues in magnitude for a real symmetric or complex
-        hermitian matrix M. M may be explicitly defined as a SymmetricTensor or only
-        implicitly defined by its action on a vector with given representations,
-        signature and dtype.
-        Whether explicitly or implicitly defined, M has to define a square matrix
-        that can act iteratively on a given initial vector. This means that its row
-        representations must match its column representations and the signature for the
-        columns must be the opposite of thw signature for the rows.
-
-        If M is square but not real symmetric or hermitian, no error is returned but the
-        results will be wrong.
-
-
-        Parameters
-        ----------
-        matmat : cls or callable
-            If matmat is a SymmetricTensor with cls subclass then M=matmat and its
-            spectrum will be direclty computed. Input arguments reps, signature and
-            dtype are not read and are replaced by those inferred from matmat.
-            If matmat is a callable, it represents the operation M @ x and implicitly
-            defines a cls SymmetricTensor. Input arguments reps and signature are used
-            to determine the vector it acts on.
-        nvals : int
-            Number of eigenvalues to compute. This number corresponds to dense
-            eigenvalues, including multiplicites imposed by symmetry.
-        reps : enumerable of representations
-            Row representations for mat. Not read if mat is a SymmetricTensor. If mat
-            is a callable, reps also have to match mat column representations such that
-            mat is a square  with same domain and codomain spaces.
-        signature : bool 1D array
-            Signature for mat rows. Not read if mat is a SymmetricTensor. Signature for
-            mat column has to match ~signature.
-        dtype : type
-            Scalar data type for M. Not read if mat is a SymmetricTensor. Output dtype
-            will always be np.float64 regardless of this field.
+            Signature for M rows. Column signature are assumed to be the opposite to
+            define a square matrix.
         dmax_full : int
             Maximum block size to use dense eigvals.
         compute_vectors : Bool
@@ -1053,7 +924,7 @@ class SymmetricTensor:
             If None, a new random generator is created with default_rng().
         maxiter : int
             Maximum number of Lanczos update iterations allowed in Arpack.
-        tol : float
+        arpack_tol : float
             Arpack tol.
 
         Returns
@@ -1070,18 +941,183 @@ class SymmetricTensor:
         Exact zero eigenvalues may exist, especially when a block is missing. They will
         be truncated and no value or vector will be returned for the null eigenspace.
         """
+        m = cls.init_square_matrix(reps, signature)
+        return m.truncated_eig(
+            nvals,
+            atol=atol,
+            rtol=rtol,
+            degen_ratio=degen_ratio,
+            dmax_full=dmax_full,
+            compute_vectors=compute_vectors,
+            rng=rng,
+            maxiter=maxiter,
+            arpack_tol=arpack_tol,
+            matmat=matmat,
+        )
 
+    def truncated_eig(
+        self,
+        nvals,
+        *,
+        atol=0.0,
+        rtol=None,
+        degen_ratio=1.0,
+        dmax_full=100,
+        compute_vectors=True,
+        rng=None,
+        maxiter=4000,
+        arpack_tol=0,
+        matmat=None,
+    ):
+        def block_eigs(op, k, v0):
+            return slg.eigs(
+                op,
+                k=k,
+                v0=v0,
+                maxiter=maxiter,
+                tol=arpack_tol,
+                return_eigenvectors=compute_vectors,
+            )
+
+        if matmat is None:
+            use_matrix_blocks = True
+
+            def matmat(v):
+                return self @ v
+
+        else:
+            use_matrix_blocks = False
+
+        return self._sparse_eig(
+            matmat,
+            nvals,
+            lambda b: lg.eig(b, right=compute_vectors),
+            block_eigs,
+            atol=atol,
+            rtol=rtol,
+            degen_ratio=degen_ratio,
+            dmax_full=dmax_full,
+            compute_vectors=compute_vectors,
+            rng=rng,
+            use_matrix_blocks=use_matrix_blocks,
+        )
+
+    @classmethod
+    def eigsh(
+        cls,
+        matmat,
+        nvals,
+        reps,
+        signature,
+        *,
+        atol=0.0,
+        rtol=None,
+        degen_ratio=1.0,
+        dmax_full=100,
+        compute_vectors=True,
+        rng=None,
+        maxiter=4000,
+        arpack_tol=0,
+    ):
+        """
+        Find nvals largest eigenvalues in magnitude for a real symmetric matrix M. M is
+        only implicitly defined by its action on a vector with given representations and
+        signature.
+
+        If M is square but not real symmetric, no error is returned but the results will
+        be wrong.
+
+        Currently, dtpye is fixed to np.float64.
+
+        Parameters
+        ----------
+        matmat : callable
+            Represents the operation M @ x and implicitly defines a cls SymmetricTensor.
+            Input arguments reps and signature are used to determine the vector it acts
+            on.
+        nvals : int
+            Number of eigenvalues to compute. This number corresponds to dense
+            eigenvalues, including multiplicites imposed by symmetry.
+        reps : enumerable of representations
+            Row representations for mat. Column representations are assumed to be the
+            same to define a square matrix.
+        signature : bool 1D array
+            Signature for M rows. Column signature are assumed to be the opposite to
+            define a square matrix.
+        dmax_full : int
+            Maximum block size to use dense eigvals.
+        compute_vectors : Bool
+            Whether to compute and returns eigenvectors. Default to True.
+        rng : numpy random generator
+            Random number generator. Used to initialize starting vectors for each block.
+            If None, a new random generator is created with default_rng().
+        maxiter : int
+            Maximum number of Lanczos update iterations allowed in Arpack.
+        arpack_tol : float
+            Arpack tol.
+
+        Returns
+        -------
+        s : DiagonalTensor
+            eigenvalues as a DiagonalTensor. Final number of eigenvalues is the smallest
+            number above nvals that fits multiplets.
+        u : SymmetricTensor
+            Eigenvectors as a SymmetricTensor. Only returned if compute_vectors is
+            True.
+
+        Notes
+        -----
+        Exact zero eigenvalues may exist, especially when a block is missing. They will
+        be truncated and no value or vector will be returned for the null eigenspace.
+        """
+        m = cls.init_square_matrix(reps, signature)
+        return m.truncated_eigh(
+            nvals,
+            atol=atol,
+            rtol=rtol,
+            degen_ratio=degen_ratio,
+            dmax_full=dmax_full,
+            compute_vectors=compute_vectors,
+            rng=rng,
+            maxiter=maxiter,
+            arpack_tol=arpack_tol,
+            matmat=matmat,
+        )
+
+    def truncated_eigh(
+        self,
+        nvals,
+        *,
+        atol=0.0,
+        rtol=None,
+        degen_ratio=1.0,
+        dmax_full=100,
+        compute_vectors=True,
+        rng=None,
+        maxiter=4000,
+        arpack_tol=0,
+        matmat=None,
+    ):
         def block_eigsh(op, k, v0):
             return slg.eigsh(
                 op,
                 k=k,
                 v0=v0,
                 maxiter=maxiter,
-                tol=tol,
+                tol=arpack_tol,
                 return_eigenvectors=compute_vectors,
             )
 
-        return cls._sparse_eig(
+        if matmat is None:
+            use_matrix_blocks = True
+
+            def matmat(v):
+                return self @ v
+
+        else:
+            use_matrix_blocks = False
+
+        return self._sparse_eig(
             matmat,
             nvals,
             lambda b: robust_eigh(b, compute_vectors=compute_vectors),
@@ -1089,12 +1125,10 @@ class SymmetricTensor:
             atol=atol,
             rtol=rtol,
             degen_ratio=degen_ratio,
-            reps=reps,
-            signature=signature,
-            dtype=dtype,
             dmax_full=dmax_full,
             compute_vectors=compute_vectors,
             rng=rng,
+            use_matrix_blocks=use_matrix_blocks,
         )
 
     ####################################################################################
@@ -1213,9 +1247,8 @@ class SymmetricTensor:
             self._row_reps, self._col_reps, blocks, block_irreps, self._signature
         )
 
-    @classmethod
     def _sparse_eig(
-        cls,
+        self,
         matmat,
         nvals,
         dense_eig,
@@ -1224,12 +1257,10 @@ class SymmetricTensor:
         atol=0.0,
         rtol=None,
         degen_ratio=1.0,
-        reps=None,
-        signature=None,
-        dtype=np.float64,
         dmax_full=100,
         compute_vectors=False,
         rng=None,
+        use_matrix_blocks=True,
     ):
         """
         Private helper function. See eigsh documentation for parameters description.
@@ -1240,56 +1271,37 @@ class SymmetricTensor:
             Function for sparse diagonalization of a block,
             e.g. lamba (op, k, v0): slg.eigsh(op, k=k, v0=v0)
         """
-        # 0) input validation
-        if type(matmat) is cls:
-            nrr = matmat.n_row_reps
-            assert matmat.is_square_matrix()
-            reps = matmat.row_reps
-            signature = matmat.signature[:nrr]
-            dtype = matmat.dtype
-
-        elif callable(matmat):
-            if reps is None or signature is None or dtype is None:
-                raise ValueError(
-                    "reps, signature and dtype must be specified for callable matmat"
-                )
-            nrr = len(reps)
-
-        else:
-            raise ValueError("Invalid input type for matmat")
-
         # 1) set parameters
         if rng is None:
             rng = np.random.default_rng()
 
-        sigm = np.empty((2 * nrr,), dtype=bool)
-        sigm[:nrr] = signature
-        sigm[nrr:] = ~signature
-        block_irreps, block_shapes = cls.get_block_sizes(reps, reps, sigm)
+        assert self.is_square_matrix()
+        block_irreps, block_shapes = self.get_block_sizes(
+            self._row_reps, self._col_reps, self._signature
+        )
         nblocks = len(block_shapes)
         assert all(block_shapes[:, 0] == block_shapes[:, 1])
-        sigv = np.ones((nrr + 1,), dtype=bool)
-        sigv[:-1] = signature
+        sigv = np.hstack((self._signature[: self._nrr], [True]))
         val_blocks = [None] * nblocks
         abs_val_blocks = [np.zeros((1,))] * nblocks  # avoid issue with missing block
 
         # 2) split matrix blocks between full and sparse
-        sparse = []
-        full = []
-        if type(matmat) is not cls:
+        sparse_block_indices = []
+        full_block_indices = []
+        if not use_matrix_blocks:
             dense_blocks = []
         dims = np.empty((nblocks,), dtype=int)
         for bi in range(nblocks):
             irr = block_irreps[bi]
-            dims[bi] = cls.irrep_dimension(irr)
+            dims[bi] = self.irrep_dimension(irr)
             d = block_shapes[bi, 0]  # size of the block in symmetric format
             k = nvals // dims[bi] + 1  # number of eigenvalues to compute in this block
             if d < max(dmax_full, 3 * k):  # small blocks: dense
-                full.append(bi)
-                if type(matmat) is not cls:
-                    dense_blocks.append(np.eye(d, dtype=dtype))
+                full_block_indices.append(bi)
+                if not use_matrix_blocks:
+                    dense_blocks.append(np.eye(d, dtype=self.dtype))
             else:
-                sparse.append(bi)
+                sparse_block_indices.append(bi)
 
         # 3) define functions to deal with dense and sparse blocks
         def matvec(x, st0, bj):
@@ -1325,6 +1337,7 @@ class SymmetricTensor:
                 vector_blocks[bi] = vec[:, so]
 
         else:
+            vector_blocks = None
 
             def eig_full_block(bi, b, k):
                 vals = dense_eig(b)
@@ -1347,15 +1360,17 @@ class SymmetricTensor:
                 abs_val_blocks[bi] = abs_val[so]
 
         # 4) construct full matrix blocks and call dense eig on them
-        if type(matmat) is cls:
-            st = matmat  # use already constructed blocks
-        elif full:  # avoid issues with empty full
+        if use_matrix_blocks:
+            st = self  # use already constructed blocks
+        elif full_block_indices:  # avoid issues with empty full
             # use just one call of matmat on identity blocks to produce all blocks
-            irr_full = np.ascontiguousarray(block_irreps[full])
-            rfull = cls.init_representation(block_shapes[full, 0], irr_full)
-            st = cls(reps, (rfull,), dense_blocks, irr_full, sigv)
+            irr_full = np.ascontiguousarray(block_irreps[full_block_indices])
+            rfull = self.init_representation(
+                block_shapes[full_block_indices, 0], irr_full
+            )
+            st = type(self)(self._row_reps, (rfull,), dense_blocks, irr_full, sigv)
             st = matmat(st)
-        for bi in full:
+        for bi in full_block_indices:
             k = nvals // dims[bi] + 1
             irr = block_irreps[bi]
             bj = st.block_irreps.searchsorted(irr)
@@ -1364,31 +1379,35 @@ class SymmetricTensor:
             # else the block is missing, truncate zero eigenvalue
 
         # 5) for each sparse block, apply matmat to a SymmetricTensor with 1 block
-        for bi in sparse:
+        real_dtype = np.zeros(1, dtype=self.dtype).real.dtype
+        for bi in sparse_block_indices:
             irr = block_irreps[bi]
             sh = block_shapes[bi]
             k = nvals // dims[bi] + 1
-            real_dtype = np.zeros(1, dtype=dtype).real.dtype
             v0 = rng.standard_normal(size=(sh[0],), dtype=real_dtype)
-            if type(matmat) is cls:  # use constructed blocks
-                bj = matmat.block_irreps.searchsorted(irr)
-                if bj < matmat.nblocks and matmat.block_irreps[bj] == irr:
-                    op = matmat.blocks[bj]
+            if use_matrix_blocks:  # use constructed blocks
+                bj = self._block_irreps.searchsorted(irr)
+                if bj < self._nblocks and self._block_irreps[bj] == irr:
+                    op = self._blocks[bj]
                     eig_sparse_block(bi, op, k, v0)
                 # else the block is missing
 
             else:
                 block_irreps_bi = block_irreps[bi : bi + 1]
-                brep = cls.init_representation(
+                brep = self.init_representation(
                     np.ones((1,), dtype=int), block_irreps_bi
                 )
 
-                st0 = cls(reps, (brep,), (v0[:, None],), block_irreps_bi, sigv)
+                st0 = type(self)(
+                    self._row_reps, (brep,), (v0[:, None],), block_irreps_bi, sigv
+                )
                 st1 = matmat(st0)
                 # assume bj does not depend on x values and stays fixed over iterations
                 bj = st1.block_irreps.searchsorted(irr)
                 op = slg.LinearOperator(
-                    sh, matvec=lambda x: matvec(x, st0, bj), dtype=dtype  # noqa: B023
+                    sh,
+                    matvec=lambda x: matvec(x, st0, bj),  # noqa: B023
+                    dtype=self.dtype,
                 )
 
                 # check that irr block actually appears in output
@@ -1405,29 +1424,54 @@ class SymmetricTensor:
             rtol=rtol,
             degen_ratio=degen_ratio,
         )
-        non_empty = block_cuts.nonzero()[0]
+        kept_blockwise = [np.arange(cut) for cut in block_cuts]
+        u, s, _ = self.truncate_values_vectors(
+            val_blocks, block_irreps, kept_blockwise, left_vectors_blocks=vector_blocks
+        )
+
+        if compute_vectors:
+            return s, u
+        return s
+
+    def truncate_values_vectors(
+        self,
+        val_blocks,
+        block_irreps,
+        kept_blockwise,
+        *,
+        left_vectors_blocks=None,
+        right_vectors_blocks=None,
+    ):
+        nkept = np.array([len(kb) for kb in kept_blockwise])
+        non_empty = nkept.nonzero()[0]
+        nkept = nkept[non_empty]
         s_blocks = []
+        kept_block_irreps = []
         for bi in non_empty:
-            bcut = block_cuts[bi]
-            s_blocks.append(val_blocks[bi][:bcut])
+            s_blocks.append(val_blocks[bi][kept_blockwise[bi]])
+            kept_block_irreps.append(block_irreps[bi])
 
-        # 7) construct DiagonalTensor for the eigenvalues
-        block_irreps = block_irreps[non_empty]
-        s_rep = cls.init_representation(block_cuts[non_empty], block_irreps)
-        degens = [cls.irrep_dimension(irr) for irr in block_irreps]
-        s = DiagonalTensor(s_blocks, s_rep, block_irreps, degens, cls._symmetry)
-
-        if not compute_vectors:
-            return s
-
-        # 8) construct SymmetricTensor for the eigenvectors
-        u_blocks = []
-        for bi in non_empty:
-            bcut = block_cuts[bi]
-            u_blocks.append(vector_blocks[bi][:, :bcut])
-
-        mid_rep = cls.init_representation(block_cuts[non_empty], block_irreps)
-        usign = np.ones((nrr + 1,), dtype=bool)
-        usign[:nrr] = signature
-        u = cls(reps, (mid_rep,), u_blocks, block_irreps, usign)
-        return s, u
+        s_rep = self.init_representation(nkept, kept_block_irreps)
+        degens = [self.irrep_dimension(irr) for irr in kept_block_irreps]
+        s = DiagonalTensor(s_blocks, s_rep, kept_block_irreps, degens, self._symmetry)
+        if left_vectors_blocks is None:
+            u = None
+        else:
+            u_blocks = [
+                left_vectors_blocks[bi][:, kept_blockwise[bi]] for bi in non_empty
+            ]
+            usign = np.hstack((self._signature[: self._nrr], [True]))
+            u = type(self)(
+                self._row_reps, (s.representation,), u_blocks, kept_block_irreps, usign
+            )
+        if right_vectors_blocks is None:
+            v = None
+        else:
+            v_blocks = [
+                right_vectors_blocks[bi][kept_blockwise[bi], :] for bi in non_empty
+            ]
+            vsign = np.hstack(([False], self._signature[self._nrr :]))
+            v = type(self)(
+                (s.representation,), self._col_reps, v_blocks, kept_block_irreps, vsign
+            )
+        return u, s, v

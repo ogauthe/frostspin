@@ -22,15 +22,15 @@ nvals = 20
 dmax_full = 10
 
 
-vsu2 = mat_su2.eigs(mat_su2, nvals, dmax_full=dmax_full, rng=rng, compute_vectors=False)
+vsu2 = mat_su2.truncated_eig(nvals, dmax_full=dmax_full, rng=rng, compute_vectors=False)
 assert vsu2.dtype == np.complex128
 
 vsu2 = vsu2.toarray(sort=True)[:nvals]
-vo2 = mat_o2.eigs(mat_o2, nvals, dmax_full=dmax_full, rng=rng, compute_vectors=False)
+vo2 = mat_o2.truncated_eig(nvals, dmax_full=dmax_full, rng=rng, compute_vectors=False)
 vo2 = vo2.toarray(sort=True)[:nvals]
-vu1 = mat_u1.eigs(mat_u1, nvals, dmax_full=dmax_full, rng=rng, compute_vectors=False)
+vu1 = mat_u1.truncated_eig(nvals, dmax_full=dmax_full, rng=rng, compute_vectors=False)
 vu1 = vu1.toarray(sort=True)[:nvals]
-vas = mat_as.eigs(mat_as, nvals, dmax_full=dmax_full, rng=rng, compute_vectors=False)
+vas = mat_as.truncated_eig(nvals, dmax_full=dmax_full, rng=rng, compute_vectors=False)
 vas = vas.toarray()[:nvals]
 
 
@@ -52,11 +52,10 @@ def matmat(x):
 vals = SU2SymmetricTensor.eigs(
     matmat,
     nvals,
+    mat_su2.row_reps,
+    mat_su2.signature[: mat_su2.n_row_reps],
     dmax_full=dmax_full,
     rng=rng,
-    reps=mat_su2.row_reps,
-    signature=mat_su2.signature[: mat_su2.n_row_reps],
-    dtype=mat_su2.dtype,
     compute_vectors=False,
 )
 vals = vals.toarray(sort=True)[:nvals]
@@ -68,12 +67,8 @@ inds = np.array([1, 2, 4])
 blocks = [mat_su2.blocks[i] for i in inds]
 block_irreps = mat_su2.block_irreps[inds]
 mat_missing = SU2SymmetricTensor(reps, reps, blocks, block_irreps, mat_su2.signature)
-v1 = SU2SymmetricTensor.eigs(
-    mat_missing, 40, dmax_full=200, rng=rng, compute_vectors=False
-)
-v2 = SU2SymmetricTensor.eigs(
-    mat_missing, 4, dmax_full=2, rng=rng, compute_vectors=False
-)
+v1 = mat_missing.truncated_eig(40, dmax_full=200, rng=rng, compute_vectors=False)
+v2 = mat_missing.truncated_eig(4, dmax_full=2, rng=rng, compute_vectors=False)
 
 
 # implicit matrix with missing blocks
@@ -84,21 +79,19 @@ def matmat(x):
 vals = SU2SymmetricTensor.eigs(
     matmat,
     40,
+    mat_su2.row_reps,
+    mat_su2.signature[: mat_su2.n_row_reps],
     dmax_full=200,
     rng=rng,
-    reps=mat_su2.row_reps,
-    signature=mat_su2.signature[: mat_su2.n_row_reps],
-    dtype=mat_su2.dtype,
     compute_vectors=False,
 )
 vals = SU2SymmetricTensor.eigs(
     matmat,
     4,
+    mat_su2.row_reps,
+    mat_su2.signature[: mat_su2.n_row_reps],
     dmax_full=2,
     rng=rng,
-    reps=mat_su2.row_reps,
-    signature=mat_su2.signature[: mat_su2.n_row_reps],
-    dtype=mat_su2.dtype,
     compute_vectors=False,
 )
 
@@ -107,8 +100,8 @@ vals = SU2SymmetricTensor.eigs(
 block_irreps = np.array([], dtype=int)
 mat_0b = SU2SymmetricTensor(reps, reps, [], block_irreps, mat_su2.signature)
 assert mat_0b.norm() == 0.0
-v1 = mat_0b.eigs(mat_0b, 40, dmax_full=200, rng=rng, compute_vectors=False)
-v2 = mat_0b.eigs(mat_0b, 4, dmax_full=2, rng=rng, compute_vectors=False)
+v1 = mat_0b.truncated_eig(40, dmax_full=200, rng=rng, compute_vectors=False)
+v2 = mat_0b.truncated_eig(4, dmax_full=2, rng=rng, compute_vectors=False)
 assert v1.shape == (0,)
 assert v2.shape == (0,)
 
@@ -121,29 +114,27 @@ def matmat0(x):
 vals = SU2SymmetricTensor.eigs(
     matmat0,
     40,
+    mat_su2.row_reps,
+    mat_su2.signature[: mat_su2.n_row_reps],
     dmax_full=200,
     rng=rng,
-    reps=mat_su2.row_reps,
-    signature=mat_su2.signature[: mat_su2.n_row_reps],
-    dtype=mat_su2.dtype,
     compute_vectors=False,
 )
 assert vals.shape == (0,)
 vals = SU2SymmetricTensor.eigs(
     matmat0,
     4,
+    mat_su2.row_reps,
+    mat_su2.signature[: mat_su2.n_row_reps],
     dmax_full=2,
     rng=rng,
-    reps=mat_su2.row_reps,
-    signature=mat_su2.signature[: mat_su2.n_row_reps],
-    dtype=mat_su2.dtype,
     compute_vectors=False,
 )
 assert vals.shape == (0,)
 
 
 # test computing eigenvectors
-vals, vec = mat_su2.eigs(mat_su2, nvals, dmax_full=dmax_full, rng=rng)
+vals, vec = mat_su2.truncated_eig(nvals, dmax_full=dmax_full, rng=rng)
 assert vals.nblocks == vec.nblocks
 assert (vals.block_irreps == vec.block_irreps).all()
 assert all(
@@ -153,7 +144,7 @@ assert all(
 assert (vec * vals - mat_su2 @ vec).norm() < 1e-12
 
 # compute eigenvectors with missing blocks
-vals, vec = SU2SymmetricTensor.eigs(mat_missing, nvals, dmax_full=dmax_full, rng=rng)
+vals, vec = mat_missing.truncated_eig(nvals, dmax_full=dmax_full, rng=rng)
 assert vals.nblocks == vec.nblocks
 assert (vals.block_irreps == vec.block_irreps).all()
 assert all(
@@ -167,13 +158,30 @@ assert (vec * vals - mat_missing @ vec).norm() < 1e-12
 blocks = [b + b.T.conj() for b in mat_su2.blocks]
 block_irreps = mat_su2.block_irreps
 mat_sym = SU2SymmetricTensor(reps, reps, blocks, block_irreps, mat_su2.signature)
-vals = SU2SymmetricTensor.eigsh(
-    mat_sym, nvals, dmax_full=dmax_full, rng=rng, compute_vectors=False
+vals = mat_sym.truncated_eigh(
+    nvals, dmax_full=dmax_full, rng=rng, compute_vectors=False
 )
 assert vals.dtype == np.float64
 
+
+def matmat(v):
+    return mat_sym @ v
+
+
+vals = SU2SymmetricTensor.eigsh(
+    matmat,
+    nvals,
+    mat_sym.row_reps,
+    mat_sym.signature[:2],
+    dmax_full=dmax_full,
+    rng=rng,
+    compute_vectors=False,
+)
+assert vals.dtype == np.float64
+
+
 # test eigenvectors
-vals, vec = SU2SymmetricTensor.eigsh(mat_sym, nvals, dmax_full=dmax_full, rng=rng)
+vals, vec = mat_sym.truncated_eigh(nvals, dmax_full=dmax_full, rng=rng)
 assert vals.nblocks == vec.nblocks
 assert (vals.block_irreps == vec.block_irreps).all()
 assert all(
@@ -187,7 +195,7 @@ assert all(
 )
 
 # test eigenvectors for zero block
-vals, vec = SU2SymmetricTensor.eigsh(mat_0b, nvals, dmax_full=dmax_full, rng=rng)
+vals, vec = mat_0b.truncated_eigh(nvals, dmax_full=dmax_full, rng=rng)
 assert vals.shape == (0,)
 assert vals.nblocks == vec.nblocks == 0
 assert (vec * vals - mat_0b @ vec).norm() < 1e-12  # should still be possble

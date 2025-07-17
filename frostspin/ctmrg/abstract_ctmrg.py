@@ -517,7 +517,7 @@ class AbstractCTMRG:
         return rdm_dr_cell, rdm_ur_cell
 
     def compute_transfer_spectrum_h(
-        self, y, nvals, *, dmax_full=200, maxiter=1000, tol=0
+        self, y, nvals, *, dmax_full=200, maxiter=1000, arpack_tol=0
     ):
         """
         Compute nval (dense) largest eigenvalues of the horizontal transfer matrix at
@@ -534,12 +534,12 @@ class AbstractCTMRG:
             nvals,
             dmax_full=dmax_full,
             maxiter=maxiter,
-            tol=tol,
+            arpack_tol=arpack_tol,
             verbosity=self.verbosity,
         )
 
     def compute_transfer_spectrum_v(
-        self, x, nvals, *, dmax_full=200, maxiter=1000, tol=0
+        self, x, nvals, *, dmax_full=200, maxiter=1000, arpack_tol=0
     ):
         """
         Compute nval (dense) largest eigenvalues of the vertical transfer matrix at
@@ -556,22 +556,26 @@ class AbstractCTMRG:
             nvals,
             dmax_full=dmax_full,
             maxiter=maxiter,
-            tol=tol,
+            arpack_tol=arpack_tol,
             verbosity=self.verbosity,
         )
 
-    def compute_corr_length_h(self, y, *, maxiter=1000, tol=0):
+    def compute_corr_length_h(self, y, *, maxiter=1000, arpack_tol=0):
         """
         Compute maximal vertical correlation length at unit cell row y.
         """
-        v1, v2 = self.compute_transfer_spectrum_h(y, 2, maxiter=maxiter, tol=tol)
+        v1, v2 = self.compute_transfer_spectrum_h(
+            y, 2, maxiter=maxiter, arpack_tol=arpack_tol
+        )
         return -self.Lx / np.log(np.abs(v2))
 
-    def compute_corr_length_v(self, x, *, maxiter=1000, tol=0):
+    def compute_corr_length_v(self, x, *, maxiter=1000, arpack_tol=0):
         """
         Compute maximal vertical correlation length at unit cell column x.
         """
-        v1, v2 = self.compute_transfer_spectrum_v(x, 2, maxiter=maxiter, tol=tol)
+        v1, v2 = self.compute_transfer_spectrum_v(
+            x, 2, maxiter=maxiter, arpack_tol=arpack_tol
+        )
         return -self.Ly / np.log(np.abs(v2))
 
     def construct_enlarged_dr(self, x, y, *, free_memory=False):
