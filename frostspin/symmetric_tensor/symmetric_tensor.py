@@ -1131,6 +1131,17 @@ class SymmetricTensor:
             use_matrix_blocks=use_matrix_blocks,
         )
 
+    def positive_approximant(self, *, atol=0.0, rtol=1e-16):
+        hermitian = (self + self.dagger()) / 2
+        s0, u0 = hermitian.eigh()
+        tol = rtol * u0.norm() + atol
+
+        kept = [(db > tol).nonzero()[0] for db in s0.diagonal_blocks]
+        u, s, _ = hermitian.truncate_values_vectors(
+            s0.diagonal_blocks, s0.block_irreps, kept, left_vectors_blocks=u0.blocks
+        )
+        return u * s @ u.dagger()
+
     ####################################################################################
     # I/O
     ####################################################################################

@@ -229,3 +229,23 @@ assert all(
 )
 assert (vec * vals - mat_sym @ vec).norm() < 1e-12
 assert (vec * vals @ vec.dagger() - mat_sym).norm() < 1e-12
+
+# test positive_approximant
+mpos = mat_sym.positive_approximant(rtol=0, atol=0)
+assert mpos.match_representations(mat_sym)
+sp, up = mpos.eigh()
+assert all((db >= 0).all() for db in sp.diagonal_blocks)
+s, u = mat_sym.eigh()
+bipos, bi_m = (sp.block_irreps == s.block_irreps[:, None]).nonzero()
+assert all(bi in bi_m for bi in bipos)
+for bi in bi_m:
+    sblock = s.diagonal_blocks[bi]
+    if bi not in bipos:
+        assert (sblock < 0).all()
+    else:
+        block_pos = sblock[(sblock >= 0)]
+        assert len(sp.diagonal_blocks[bi]) == len(block_pos)
+        assert np.allclose(block_pos, sp.diagonal_blocks[bi])
+
+mpos = mat_su2 @ mat_su2.dagger()
+assert (mpos.positive_approximant() - mpos).norm() < 1e-14
