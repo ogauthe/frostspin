@@ -1140,7 +1140,11 @@ class SymmetricTensor:
         u, s, _ = hermitian.truncate_values_vectors(
             s0.diagonal_blocks, s0.block_irreps, kept, left_vectors_blocks=u0.blocks
         )
-        return u * s @ u.dagger()
+        return s, u
+
+    def cholesky(self, *, atol=0.0, rtol=1e-16):
+        s, u = self.positive_approximant(atol=atol, rtol=rtol)
+        return u.dagger() * s**0.5
 
     ####################################################################################
     # I/O
