@@ -564,7 +564,7 @@ class AbstractCTMRG:
         """
         Compute maximal vertical correlation length at unit cell row y.
         """
-        v1, v2 = self.compute_transfer_spectrum_h(
+        _, v2 = self.compute_transfer_spectrum_h(
             y, 2, maxiter=maxiter, arpack_tol=arpack_tol
         )
         return -self.Lx / np.log(np.abs(v2))
@@ -573,7 +573,7 @@ class AbstractCTMRG:
         """
         Compute maximal vertical correlation length at unit cell column x.
         """
-        v1, v2 = self.compute_transfer_spectrum_v(
+        _, v2 = self.compute_transfer_spectrum_v(
             x, 2, maxiter=maxiter, arpack_tol=arpack_tol
         )
         return -self.Ly / np.log(np.abs(v2))
