@@ -8,26 +8,26 @@ dependencies = [
   "numba >= 0.57",
 ]
 authors = [
-  {name = "Olivier Gauthé"},
+  {name = "Olivier Gauthé", email = "olivier.gauthe@quobly.io"},
 ]
 description = "A Symmetric Tensor library for lattice spin systems at finite temperature."
 keywords = ["Quantum physics", "Tensor Networks", "Symmetries"]
 readme = "README.md"
-license = {file = "LICENSE.txt"}
+license-files = ["LICENSE.txt"]
 dynamic = ["version"]
 
 [project.urls]
 Homepage = "https://github.com/ogauthe/frostspin"
 
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools", "numpy", "scipy", "numba"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.dynamic]
 version = {attr = "frostspin.__version__"}
 
 [tool.setuptools.package-data]
-mypkg = ["*.json"]
+frostspin = ["groups/clebsch-gordan_data/*.json"]
 
 [tool.ruff]
 # keep Black conventions

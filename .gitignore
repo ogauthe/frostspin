@@ -1,0 +1,5 @@
+build/
+# sdist directory
+dist
+# Egg metadata
+*.egg-info
