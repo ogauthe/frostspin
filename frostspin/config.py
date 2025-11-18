@@ -5,7 +5,7 @@ This file sets global configuration for frostspin
 import argparse
 import os
 
-__version__ = "0.6.0"
+__version__ = "1.0.0"
 
 # =================================  Parse arguments  ==================================
 local_dir = os.path.join(os.path.dirname(__file__))

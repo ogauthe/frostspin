@@ -26,11 +26,12 @@ frostspin includes the following tensor network algorithms:
 - numba >= 0.57
 
 ## Install
-The simplest is to git clone this repository and to add it to your PYTHONPATH.
+Clone this repository and install it with locally with pip
 ```shell
 git clone git@github.com:ogauthe/frostspin.git
-export PYTHONPATH=$(pwd)/frostspin:$PYTHONPATH
-python examples/ising_classical_ctmrg.py
+uv pip install -e /path/to/frostspin
+uv sync
+python /path/to/frostspin/examples/ising_classical_ctmrg.py
 ```
 
 ## Usage
