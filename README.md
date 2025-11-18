@@ -28,9 +28,16 @@ frostspin includes the following tensor network algorithms:
 ## Install
 Clone this repository and install it with locally with pip
 ```shell
+# install with pip
 git clone git@github.com:ogauthe/frostspin.git
-uv pip install -e /path/to/frostspin
-uv sync
+pip install /path/to/frostspin
+python /path/to/frostspin/examples/ising_classical_ctmrg.py
+```
+
+```shell
+# install with uv, assuming you are already within a uv managed venv
+git clone git@github.com:ogauthe/frostspin.git
+uv add /path/to/frostspin
 python /path/to/frostspin/examples/ising_classical_ctmrg.py
 ```
 
