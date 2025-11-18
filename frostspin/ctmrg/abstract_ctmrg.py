@@ -438,8 +438,8 @@ class AbstractCTMRG:
     def compute_rdm_diag_dr(self, x, y, *, free_memory=False):
         if self.verbosity > 1:
             print(
-                f"Compute rdm for down right diagonal sites ({x+1},{y+1}) and",
-                f"({x+2},{y+2})",
+                f"Compute rdm for down right diagonal sites ({x + 1},{y + 1}) and",
+                f"({x + 2},{y + 2})",
             )
         return rdm.rdm_diag_dr(
             self._env.get_C1(x, y),
@@ -457,8 +457,8 @@ class AbstractCTMRG:
     def compute_rdm_diag_ur(self, x, y, *, free_memory=False):
         if self.verbosity > 1:
             print(
-                f"Compute rdm for upper right diagonal sites ({x+1},{y+2}) and",
-                f"({x+2},{y+1})",
+                f"Compute rdm for upper right diagonal sites ({x + 1},{y + 2}) and",
+                f"({x + 2},{y + 1})",
             )
         return rdm.rdm_diag_ur(
             self.construct_enlarged_ul(x, y, free_memory=free_memory),

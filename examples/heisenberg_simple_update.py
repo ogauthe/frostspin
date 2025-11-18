@@ -112,7 +112,7 @@ ctmSU2 = SequentialCTMRG.from_elementary_tensors(til, tensorsSU2, chi, **params)
 
 
 def get_tol(rdm):
-    return f"{lg.norm(rdm-rdm.T.conj()):.0e}"
+    return f"{lg.norm(rdm - rdm.T.conj()):.0e}"
 
 
 rdmAs = ctmAs.compute_rdm1x2(0, 0).toarray(as_matrix=True)

@@ -74,7 +74,6 @@ def set_new_symmetric_block(
     nr2,
     nc2,
 ):
-
     sh = (
         new_row_struct_mult,
         new_col_struct_mult,
@@ -236,7 +235,6 @@ def fill_blocks_out(
     unitary_row_sectors_blocks,
     data_perm,
 ):
-
     n_old_sectors = old_row_sectors_struct_mult_blocks.shape[1]
     for i_simple_block in range(len(simple_block_indices)):
         i_old_row, i_old_col, i_new_row, i_new_col = simple_block_indices[

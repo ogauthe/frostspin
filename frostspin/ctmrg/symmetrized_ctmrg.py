@@ -17,7 +17,6 @@ from .ctm_renormalize import (
 
 
 class SymmetrizedCTMRG(AbstractCTMRG):
-
     def construct_enlarged_dr(self, x, y, *, free_memory=False):
         """
         Construct enlarged down right corner by contracting C1, T1, T4 and A. Check _env

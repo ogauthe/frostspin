@@ -2,7 +2,6 @@ import numpy as np
 
 
 class AbstractSimpleUpdate:
-
     @property
     def Dmax(self):
         return max(max(t.shape[2:]) for t in self._tensors)

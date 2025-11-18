@@ -17,7 +17,6 @@ from .ctm_renormalize import (
 
 
 class SequentialCTMRG(AbstractCTMRG):
-
     def __repr__(self):
         s = f"{self.symmetry()} symmetric SequentialCTMRG with Dmax = {self.Dmax}"
         return s + f" and chi_target = {self.chi_target}"

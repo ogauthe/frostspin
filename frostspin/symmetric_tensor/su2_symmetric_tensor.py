@@ -205,7 +205,11 @@ class SU2SymmetricTensor(LieGroupSymmetricTensor):
         for i in range(2, n):
             max_irrep -= rep_in[i][1, -1] - 1
             nr, p = compute_fusion_tensor(
-                nr, rep_in[i], False, signature[i], max_irrep=max_irrep  # noqa: FBT003
+                nr,
+                rep_in[i],
+                False,  # noqa: FBT003
+                signature[i],
+                max_irrep=max_irrep,
             )
             if nr.size == 0:  # pathological case where no irrep is kept
                 return nr, np.zeros((p.shape[0] * p.shape[1], 0))

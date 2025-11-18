@@ -12,7 +12,6 @@ from .ctm_renormalize import (
 
 
 class SimultaneousCTMRG(AbstractCTMRG):
-
     def __repr__(self):
         s = f"{self.symmetry()} symmetric SimultaneousCTMRG with Dmax = {self.Dmax}"
         return s + f" and chi_target = {self.chi_target}"
