@@ -122,7 +122,7 @@ class CTMEnvironment:
         for C in self._unique_C1s + self._unique_C3s:
             s.add(C.shape[0])
             s.add(C.shape[1])
-        return sorted(s)
+        return np.sort(list(s))
 
     def check_consistency(self):
         ST = type(self._unique_As[0])
