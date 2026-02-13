@@ -2,7 +2,7 @@
 name = "frostspin"
 requires-python = ">=3.10"
 dependencies = [
-  "numpy >= 2.00",
+  "numpy >= 2.0",
   "scipy >= 1.12",
   "sympy >= 1.11",
   "numba >= 0.62",
