@@ -9,8 +9,8 @@ rng = np.random.default_rng(42)
 sht = (10, 11, 12)
 nrr = 1
 t = rng.normal(size=sht)
-row_reps = np.array(sht[:nrr])
-col_reps = np.array(sht[nrr:])
+row_reps = tuple(np.array([sht[i]]) for i in range(nrr))
+col_reps = tuple(np.array([sht[i]]) for i in range(nrr, len(sht)))
 
 st = AsymmetricTensor.from_array(t, row_reps, col_reps)
 tm = t.reshape(st.matrix_shape)
