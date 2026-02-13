@@ -1,3 +1,5 @@
+import warnings
+
 import numba
 import numpy as np
 import scipy.linalg as lg
@@ -100,13 +102,13 @@ def robust_eigh(a, *, compute_vectors=True):
     try:
         out = lg.eigh(a, eigvals_only=eigvals_only, driver=driver)
     except lg.LinAlgError as err:
-        print(f"Warning: eigh: evd failed with {err}. Try evr")
+        warnings.warn(f"eigh: evd failed with {err}. Try evr", stacklevel=2)
         try:
             out = lg.eigh(
                 a, eigvals_only=eigvals_only, check_finite=False, driver="evr"
             )
         except lg.LinAlgError as err2:
-            print(f"Warning: eigh: evr failed with {err2}. Try evx")
+            warnings.warn(f"eigh: evr failed with {err2}. Try evx", stacklevel=2)
             out = lg.eigh(
                 a, eigvals_only=eigvals_only, check_finite=False, driver="evx"
             )
@@ -140,7 +142,7 @@ def robust_svd(a, *, compute_vectors=True):
             a, full_matrices=False, compute_uv=compute_vectors, lapack_driver="gesdd"
         )
     except lg.LinAlgError as err:
-        print(f"Warning: svd: gesdd failed with {err}. Try gesvd")
+        warnings.warn(f"svd: gesdd failed with {err}. Try gesvd", stacklevel=2)
         out = lg.svd(
             a,
             full_matrices=False,

@@ -660,16 +660,22 @@ class O2SymmetricTensor(NonAbelianSymmetricTensor):
         # may remove these checks to be able to use U(1) with combined rows and columns
         # when tu1 is a temporary object
         # just need signature as input instead of tu1.signature
-        assert tu1.n_row_reps == len(row_reps)
-        assert all(
+        if tu1.n_row_reps != len(row_reps):
+            raise ValueError("Number of row representations does not match U1 tensor")
+        if not all(
             (_numba_O2_rep_to_U1(r) == tu1.row_reps[i]).all()
             for i, r in enumerate(row_reps)
-        )
-        assert len(tu1.col_reps) == len(col_reps)
-        assert all(
+        ):
+            raise ValueError("Row representations do not match U1 tensor")
+        if len(tu1.col_reps) != len(col_reps):
+            raise ValueError(
+                "Number of column representations does not match U1 tensor"
+            )
+        if not all(
             (_numba_O2_rep_to_U1(r) == tu1.col_reps[i]).all()
             for i, r in enumerate(col_reps)
-        )
+        ):
+            raise ValueError("Column representations do not match U1 tensor")
         blocks, block_irreps = cls._blocks_from_U1(tu1, row_reps, col_reps)
         return cls(row_reps, col_reps, blocks, block_irreps, tu1.signature)
 
@@ -731,17 +737,6 @@ class O2SymmetricTensor(NonAbelianSymmetricTensor):
         )
         assert check_norm(self, tu1)
         return tu1
-
-    def update_signature(self, sign_update):
-        # blocks coeff are defined as identical to abelian U(1) case, which are
-        # unaffected by update_signature.
-        # Additionnaly, every O(2) representation is self-conjugate, therefore signature
-        # has no effect on O(2) tensor with current conventions (another fine convention
-        # would be to change a sign here, when conjugating 0odd and in toU1)
-        up = np.asarray(sign_update, dtype=bool)
-        assert up.shape == (self._ndim,)
-        self._signature ^= up
-        assert self.check_blocks_fit_representations()
 
     def check_blocks_fit_representations(self):
         assert self._block_irreps.size == self._nblocks

@@ -121,7 +121,7 @@ class AbstractCTMRG:
         if self.ncv_ratio < 2.0:
             raise ValueError("ncv_ratio must be larger than 2.0")
         if not (0.0 <= self.cutoff < 1.0):
-            raise ValueError("cutoff must me obey 0.0 <= self.cutoff < 1.0")
+            raise ValueError("cutoff must obey 0.0 <= self.cutoff < 1.0")
         if not (0.0 < self.degen_ratio <= 1.0):
             raise ValueError("degen_ratio must obey 0.0 <= self.degen_ratio <= 1.0")
 

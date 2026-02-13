@@ -1,3 +1,5 @@
+import warnings
+
 import scipy.linalg as lg
 
 from frostspin import ASSERT_TOL
@@ -35,5 +37,7 @@ def check_norm(t1, t2, *, tol=ASSERT_TOL):
     dn = abs(n1 - n2)
     b = dn > tol * max(n1, n2)
     if b:
-        print(f"WARNING: norm is different: {dn:.1e} > {tol * max(n1, n2):.1e}")
+        warnings.warn(
+            f"norm is different: {dn:.1e} > {tol * max(n1, n2):.1e}", stacklevel=2
+        )
     return not b

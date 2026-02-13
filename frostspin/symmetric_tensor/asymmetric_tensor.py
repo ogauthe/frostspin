@@ -42,7 +42,7 @@ class AsymmetricTensor(SymmetricTensor):
 
     @staticmethod
     def representation_dimension(rep):
-        return int(rep)
+        return int(rep[0])
 
     @staticmethod
     def irrep_dimension(_rep):
@@ -92,14 +92,6 @@ class AsymmetricTensor(SymmetricTensor):
 
     def totrivial(self):
         return self
-
-    def update_signature(self, sign_update):
-        # in the asymmetric case, bending an index to the left or to the right makes no
-        # difference, signs can be ignored.
-        up = np.asarray(sign_update, dtype=bool)
-        assert up.shape == (self._ndim,)
-        self._signature = self._signature ^ up
-        assert self.check_blocks_fit_representations()
 
 
 symmetric_tensor_types["trivial"] = AsymmetricTensor

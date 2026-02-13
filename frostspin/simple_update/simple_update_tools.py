@@ -18,7 +18,7 @@ def check_tensor_bond_indices(tensor_bond_indices):
             if not 0 <= leg < n_bonds:
                 raise ValueError("Bond indices must be 0 to n_bonds - 1")
             if leg in tbi[j + 1 :]:
-                raise ValueError(f"Leg {leg} apperars twice in tensor {i}")
+                raise ValueError(f"Leg {leg} appears twice in tensor {i}")
             count[leg] += 1
 
     for i, c in enumerate(count):

@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import scipy.linalg as lg
 import scipy.sparse.linalg as slg
@@ -124,7 +126,7 @@ class SymmetricTensor:
             Dense array to cast to symmetric blocks.
         row_reps : tuple of arrays
             Representations for the rows.
-        row_reps : tuple of arrays
+        col_reps : tuple of arrays
             Representations for the columns.
         signature : enumerable of bool
             Signature of each representation. If None, assumed to be False for rows and
@@ -218,24 +220,6 @@ class SymmetricTensor:
         """
         Return a SymmetricTensor with largest possible abelian symmetry.
         AsymmetricTensor and AbelianSymmetricTensor are left unchanged.
-        """
-        raise NotImplementedError("Must be defined in derived class")
-
-    def update_signature(self, sign_update):
-        """
-        Change signature. This is an in-place operation.
-
-        Parameters
-        ----------
-        sign_diff: int array, shape (self._ndim)
-
-        Convention:  0: no change
-                    +1: change signature, no change in coefficients
-                    -1: change in signature with loop
-
-        For abelian symmetries (or asymmetric), this does not alter the blocks and the
-        signs in sign_update have no effect. For non-abelian symmetries, this may change
-        coefficients because a loop appears in structural tensors.
         """
         raise NotImplementedError("Must be defined in derived class")
 
@@ -726,7 +710,7 @@ class SymmetricTensor:
         if len(indices2) < b.nblocks:
             raise ValueError("No solution: missing block in A appears in b")
         xblocks = []
-        for i, j in zip(indices1, indices2, strict=False):
+        for i, j in zip(indices1, indices2, strict=True):
             xblocks.append(lg.solve(self.blocks[i], b.blocks[j]))
         s = np.hstack((~self.signature[self._nrr :], b.signature[b.n_row_reps :]))
         return type(self)(self.col_reps, b.col_reps, xblocks, b.block_irreps, s)
@@ -1238,7 +1222,7 @@ class SymmetricTensor:
             elif self._block_irreps[i1] < diag_block_irreps[i2]:
                 # the operation is valid but this should not happen for diagonal_irreps
                 # coming from a SVD
-                print("Warning: missing block in diagonal blocks")
+                warnings.warn("missing block in diagonal blocks", stacklevel=2)
                 i1 += 1
             else:
                 i2 += 1
@@ -1325,10 +1309,13 @@ class SymmetricTensor:
                 try:
                     vals, vec = sparse_eig(op, k, v0)
                 except slg.ArpackNoConvergence as err:
-                    print("Warning: ARPACK did not converge", err)
                     vals = err.eigenvalues
                     vec = err.eigenvectors
-                    print(f"Keep {vals.size}/{k} converged values and vectors")
+                    warnings.warn(
+                        f"ARPACK did not converge: {err}. "
+                        f"Keep {vals.size}/{k} converged values and vectors",
+                        stacklevel=2,
+                    )
 
                 abs_val = np.abs(vals)
                 so = abs_val.argsort()[: -k - 1 : -1]
@@ -1350,9 +1337,12 @@ class SymmetricTensor:
                 try:
                     vals = sparse_eig(op, k, v0)
                 except slg.ArpackNoConvergence as err:
-                    print("Warning: ARPACK did not converge", err)
                     vals = err.eigenvalues
-                    print(f"Keep {vals.size}/{k} converged eigvalues")
+                    warnings.warn(
+                        f"ARPACK did not converge: {err}. "
+                        f"Keep {vals.size}/{k} converged eigvalues",
+                        stacklevel=2,
+                    )
 
                 abs_val = np.abs(vals)
                 so = abs_val.argsort()[: -k - 1 : -1]

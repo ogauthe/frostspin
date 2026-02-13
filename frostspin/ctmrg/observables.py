@@ -1,4 +1,7 @@
+import warnings
+
 import numpy as np
+from scipy.sparse.linalg import ArpackError, ArpackNoConvergence
 
 
 def compute_mps_transfer_spectrum(
@@ -135,9 +138,9 @@ def compute_mps_transfer_spectrum(
             compute_vectors=False,
         )
         vals = vals.toarray()
-    except Exception as err:  # not very stable
-        print("WARNING: transfer matrix spectrum computation failed")
-        print("Error:", err)
+    except (ArpackNoConvergence, ArpackError, np.linalg.LinAlgError) as err:
+        msg = f"transfer matrix spectrum computation failed: {err}"
+        warnings.warn(msg, stacklevel=2)
         return np.nan * np.ones((nvals,))
 
     sortperm = np.abs(vals).argsort()[: -nvals - 1 : -1]

@@ -114,7 +114,7 @@ def _numba_elementary_combine_SU2(degen1, irreps1, degen2, irreps2):
         for i2, irr2 in enumerate(irreps2):
             d2 = degen2[i2]
             for irr in range(abs(irr1 - irr2), irr1 + irr2 - 1, 2):
-                degen[irr] += d1 * d2  # shit irr-1 <-- irr to start at 0
+                degen[irr] += d1 * d2  # shift irr-1 <-- irr to start at 0
     nnz = degen.nonzero()[0]
     return degen[nnz], nnz + 1
 

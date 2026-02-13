@@ -419,7 +419,7 @@ class SimpleUpdate(AbstractSimpleUpdate):
         verbosity=0,
     ):
         """
-        Initialize finite temperature SimpleUpdate at beta = 0 eact product state.
+        Initialize finite temperature SimpleUpdate at beta = 0 exact product state.
 
         Parameters
         ----------
@@ -990,7 +990,7 @@ class SimpleUpdate(AbstractSimpleUpdate):
             g1 = self._gates[self._gate_indices[self._n_updates]]
             if (g0 - g1 @ g1).norm() > 1e-14 * g1.norm():
                 raise ValueError("Squared gate is not squared")
-        elif self._gate_indices[0] != self._gates_indices[self._n_updates]:
+        elif self._gate_indices[0] != self._gate_indices[self._n_updates]:
             raise ValueError("Last and first update differ")
 
         for i in range(self._n_tensors):

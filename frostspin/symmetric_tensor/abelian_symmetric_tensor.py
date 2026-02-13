@@ -326,24 +326,6 @@ class AbelianSymmetricTensor(SymmetricTensor):
         cr = tuple(np.array([d]) for d in self._shape[self._nrr :])
         return AsymmetricTensor.from_array(ar, rr, cr, signature=self.signature)
 
-    def update_signature(self, sign_update):
-        # in the abelian case, bending an index to the left or to the right makes no
-        # difference, signs can be ignored.
-        up = np.asarray(sign_update, dtype=bool)
-        assert up.shape == (self._ndim,)
-        row_reps = list(self._row_reps)
-        col_reps = list(self._col_reps)
-        for i in up.nonzero()[0]:
-            if i < self._nrr:
-                row_reps[i] = self.conjugate_representation(row_reps[i])
-            else:
-                j = i - self._nrr
-                col_reps[j] = self.conjugate_representation(col_reps[j])
-        self._row_reps = tuple(row_reps)
-        self._col_reps = tuple(col_reps)
-        self._signature = self._signature ^ up
-        assert self.check_blocks_fit_representations()
-
     def check_blocks_fit_representations(self):
         assert self._block_irreps.size == self._nblocks
         assert len(self._blocks) == self._nblocks

@@ -126,7 +126,8 @@ class SymmetrizedSimpleUpdate(AbstractSimpleUpdate):
         mat = np.eye(d).reshape((d, d, 1, 1, 1, 1))
         row_reps = (phys_rep, phys_rep)
         col_reps = (ST.singlet(),) * n_bonds
-        assert raw_hamilts[0].signature[0] ^ raw_hamilts[0].signature[1]
+        if not raw_hamilts[0].signature[0] ^ raw_hamilts[0].signature[1]:
+            raise ValueError("Invalid Hamiltonian signatures")
         s0 = raw_hamilts[0].signature[0]
         a0 = ST.from_array(mat, row_reps, col_reps, signature=[~s0, s0, 1, 1, 1, 1])
 
