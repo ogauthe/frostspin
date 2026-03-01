@@ -324,11 +324,9 @@ class SymmetricTensor:
     # Magic methods
     ####################################################################################
     def __repr__(self):
-        bipartition = (self._nrr, self._ndim - self._nrr)
-        return (
-            f"{self.symmetry()} SymmetricTensor with bipartition {bipartition}"
-            f" and shape {self._shape}"
-        )
+        bp = (self._nrr, self._ndim - self._nrr)
+        sh = tuple(int(n) for n in self._shape)
+        return f"{self.symmetry()} SymmetricTensor with bipartition {bp} and shape {sh}"
 
     def __add__(self, other):
         assert self.match_representations(other)
