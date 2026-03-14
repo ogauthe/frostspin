@@ -192,17 +192,11 @@ class DiagonalTensor:
     def symmetry(self):
         return self._symmetry
 
-    def sum(self):
-        s = 0.0
+    def norm(self, *, p=2):
+        np = 0.0
         for i in range(self._nblocks):
-            s += self._block_degen[i] * self._diagonal_blocks[i].sum()
-        return s
-
-    def norm(self):
-        n2 = 0.0
-        for i in range(self._nblocks):
-            n2 += self._block_degen[i] * lg.norm(self._diagonal_blocks[i]) ** 2
-        return np.sqrt(n2)
+            np += self._block_degen[i] * lg.norm(self._diagonal_blocks[i], ord=p) ** p
+        return np ** (1.0 / p)
 
     def toarray(self, *, sort=False):
         """

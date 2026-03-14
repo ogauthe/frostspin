@@ -191,7 +191,7 @@ class SymmetrizedSimpleUpdate(AbstractSimpleUpdate):
 
         # normalize weights and apply them to new left and new right
         # save log of normalization factor to update logZ
-        new_weights /= new_weights.sum()
+        new_weights /= new_weights.norm(p=1)
         lognf = np.log(theta.norm() / new_weights.norm())
         new_effL = new_effL * new_weights
 
