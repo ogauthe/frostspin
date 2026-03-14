@@ -143,7 +143,7 @@ def save_su2_cg(savefile, max_spin_dim):
     # input validation
     max_spin_dim = int(max_spin_dim)
     cg_file = str(savefile)
-    extension = cg_file.split(".")[-1]
+    extension = cg_file.rsplit(".", maxsplit=1)[-1]
     if extension not in ["json", "npz"]:
         msg = f"Invalid file extension: must be json or npz, got {extension}"
         raise RuntimeError(msg)
