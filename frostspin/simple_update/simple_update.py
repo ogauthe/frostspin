@@ -454,7 +454,6 @@ class SimpleUpdate(AbstractSimpleUpdate):
         # physical lef signature also never changes as gates do not modify signature
         # virtual leg signatures may change depending on tensor position in update.
 
-        data = get_update_data(tensor_bond_indices, raw_update_data, raw_hamilts)
         (
             bond1,
             bond2,
@@ -468,7 +467,7 @@ class SimpleUpdate(AbstractSimpleUpdate):
             hamiltonians,
             _,
             _,
-        ) = data
+        ) = get_update_data(tensor_bond_indices, raw_update_data, raw_hamilts)
 
         # initialize tensors to infinite temperature product state
         # if tensor is purely virtual and no Hamiltonian acts on it, add dummy leg
