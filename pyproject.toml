@@ -30,14 +30,11 @@ dynamic = ["version"]
 Homepage = "https://github.com/ogauthe/frostspin"
 
 [build-system]
-requires = ["setuptools", "numpy", "scipy", "numba"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
 
-[tool.setuptools.dynamic]
-version = {attr = "frostspin.__version__"}
-
-[tool.setuptools.package-data]
-frostspin = ["groups/clebsch-gordan_data/*.json"]
+[tool.hatch.version]
+path = "frostspin/config.py"
 
 [tool.ruff]
 line-length = 88
