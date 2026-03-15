@@ -34,7 +34,7 @@ requires = ["hatchling >= 1.26"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
-path = "frostspin/config.py"
+path = "src/frostspin/config.py"
 
 [tool.ruff]
 line-length = 88
