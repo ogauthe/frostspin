@@ -14,7 +14,6 @@ description = "A Symmetric Tensor library for lattice spin systems at finite tem
 keywords = ["Quantum physics", "Tensor Networks", "Symmetries"]
 classifiers = [
   "Intended Audience :: Science/Research",
-  "License :: OSI Approved :: MIT License",
   "Operating System :: MacOS",
   "Operating System :: POSIX",
   "Operating System :: Unix",
@@ -23,6 +22,7 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Quantum Computing",
 ]
 readme = "README.md"
+license = "MIT"
 license-files = ["LICENSE.txt"]
 dynamic = ["version"]
 
@@ -40,7 +40,6 @@ version = {attr = "frostspin.__version__"}
 frostspin = ["groups/clebsch-gordan_data/*.json"]
 
 [tool.ruff]
-# keep Black conventions
 line-length = 88
 indent-width = 4
 
