@@ -17,8 +17,8 @@ class AsymmetricTensor(SymmetricTensor):
     ####################################################################################
     # Symmetry implementation
     ####################################################################################
-    _symmetry = "trivial"
-    _irrep = np.zeros([1], dtype=np.int8)
+    _symmetry = "Trivial"
+    _irrep = np.zeros((1,), dtype=int)
 
     @staticmethod
     def singlet():
@@ -94,4 +94,4 @@ class AsymmetricTensor(SymmetricTensor):
         return self
 
 
-symmetric_tensor_types["trivial"] = AsymmetricTensor
+symmetric_tensor_types["Trivial"] = AsymmetricTensor

@@ -1,5 +1,8 @@
 build/
-# sdist directory
-dist
-# Egg metadata
+dist/
 *.egg-info
+__pycache__/
+.coverage
+.pytest_cache/
+.ruff_cache/
+.venv/

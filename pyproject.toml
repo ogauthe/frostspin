@@ -7,6 +7,7 @@ dependencies = [
   "sympy >= 1.11",
   "numba >= 0.62",
 ]
+
 authors = [
   {name = "Olivier Gauthé", email = "olivier.gauthe@quobly.io"},
 ]
@@ -26,6 +27,10 @@ license = "MIT"
 license-files = ["LICENSE.txt"]
 dynamic = ["version"]
 
+[dependency-groups]
+lint = ["pre-commit>=4.3.0", "ruff>=0.14.10"]
+test = ["pytest>=9.0.0", "pytest-cov>=7.0.0", "pytest-xdist>=3.8"]
+
 [project.urls]
 Homepage = "https://github.com/ogauthe/frostspin"
 
@@ -35,6 +40,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.version]
 path = "src/frostspin/config.py"
+
+[tool.pytest.ini_options]
+addopts = "--cov=frostspin --cov-report=term-missing"
 
 [tool.ruff]
 line-length = 88
