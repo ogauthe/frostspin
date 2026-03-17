@@ -74,6 +74,7 @@ select = [
   'RET',
   'RSE',
   'RUF',
+  'S',
   'SIM',
   'SLF',
   'TID',
@@ -93,4 +94,5 @@ ignore = [
     "PLR0913", # too pedantic
     "PLR0915", # too pedantic
     "PLR2004", # too pedantic
+    "S101",  # using assert for debug
 ]
