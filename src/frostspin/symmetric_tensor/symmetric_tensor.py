@@ -94,6 +94,18 @@ class SymmetricTensor:
     ####################################################################################
 
     @classmethod
+    def isomorphism(cls, row_reps, col_reps, *, signature=None):
+        signature = validated_signature(signature, len(row_reps), len(col_reps))
+        block_irreps, block_shapes = cls.get_block_sizes(row_reps, col_reps, signature)
+        matrix_blocks = [np.eye(*sh) for sh in block_shapes]
+        st = cls(row_reps, col_reps, matrix_blocks, block_irreps, signature)
+        codomain = st.get_row_representation()
+        domain = st.get_column_representation()
+        if codomain.shape != domain.shape or (codomain != domain).any():
+            raise ValueError("No isomorphism between rows and columns")
+        return st
+
+    @classmethod
     def get_block_sizes(cls, row_reps, col_reps, signature):
         """
         Compute shapes of blocks authorized with row_reps and col_reps and their

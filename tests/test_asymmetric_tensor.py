@@ -47,6 +47,15 @@ def test_asymmetric_tensor():
     assert np.isclose(tm.trace(), st.trace())
     assert st.totrivial() is st
 
+    st = AsymmetricTensor.isomorphism(col_reps, col_reps)
+    assert isinstance(st, AsymmetricTensor)
+    try:
+        st = AsymmetricTensor.isomorphism(row_reps, col_reps)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError
+
 
 def test_svd():
     rng = np.random.default_rng(42)

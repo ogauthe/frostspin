@@ -40,3 +40,16 @@ def check_hamiltonians(hamiltonians):
                 raise ValueError(f"Hamiltonian {i} has invalid representations")
             if not h.signature[a] ^ h.signature[a + 2]:
                 raise ValueError(f"Hamiltonian {i} has invalid signature")
+
+
+def infinite_temperature_weights(term):
+    # simplest way to get initial weights = svd of trivial matrix
+    _, w0, _ = term.isomorphism((term.singlet(),), (term.singlet(),)).svd()
+    return w0
+
+
+def infinite_temperature_vertex(term, phys_rep, signature):
+    row_reps = (phys_rep,)
+    col_reps = row_reps + (term.singlet(),) * (len(signature) - 2)
+    t = term.isomorphism(row_reps, col_reps, signature=signature)
+    return t.permute((0, 1), tuple(range(2, len(signature))))

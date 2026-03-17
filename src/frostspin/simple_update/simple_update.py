@@ -4,7 +4,12 @@ from frostspin import DiagonalTensor
 from frostspin.symmetric_tensor.tools import get_symmetric_tensor_type
 
 from .abstract_simple_update import AbstractSimpleUpdate
-from .simple_update_tools import check_hamiltonians, check_tensor_bond_indices
+from .simple_update_tools import (
+    check_hamiltonians,
+    check_tensor_bond_indices,
+    infinite_temperature_vertex,
+    infinite_temperature_weights,
+)
 from .su_models import j1_j2_models
 
 
@@ -447,7 +452,7 @@ class SimpleUpdate(AbstractSimpleUpdate):
 
         n_tensors = len(tensor_bond_indices)
         n_bonds = max(max(tbi) for tbi in tensor_bond_indices) + 1
-        ST = type(raw_hamilts[0])
+        h0 = raw_hamilts[0]
 
         # find local representation by looking at Hamiltonians acting on tensor
         # ancilla leg signature never changes as this leg is never updated
@@ -471,8 +476,10 @@ class SimpleUpdate(AbstractSimpleUpdate):
 
         # initialize tensors to infinite temperature product state
         # if tensor is purely virtual and no Hamiltonian acts on it, add dummy leg
-        phys_reps = [ST.singlet() for i in range(n_tensors)]
-        signatures = [[None] * (2 + len(tbi)) for tbi in tensor_bond_indices]
+        phys_reps = [h0.singlet() for i in range(n_tensors)]
+        signatures = [
+            np.zeros((2 + len(tbi),), dtype=bool) for tbi in tensor_bond_indices
+        ]
         for j, b1 in enumerate(bond1):
             b2 = bond2[j]
             h = hamiltonians[gate_indices[j]]
@@ -498,38 +505,23 @@ class SimpleUpdate(AbstractSimpleUpdate):
                 leg = list(tensor_bond_indices[im]).index(b2)
                 signatures[im][2 + leg] = True
 
-        # initalize tensors
-        tensors = []
-        for i in range(n_tensors):
-            d = ST.representation_dimension(phys_reps[i])
-            sh = (d, d) + (1,) * len(tensor_bond_indices[i])
-            mat = np.eye(d).reshape(sh)
-            row_reps = (phys_reps[i], phys_reps[i])
-            col_reps = (ST.singlet(),) * len(tensor_bond_indices[i])
-            t = ST.from_array(mat, row_reps, col_reps, signature=signatures[i])
-            tensors.append(t)
-
-        beta = 0.0
-        irr = t.block_irreps
-        w = [np.ones((1,))]
-        weights = [
-            DiagonalTensor(w, ST.singlet(), irr, [1], ST.symmetry())
-            for i in range(n_bonds)
+        initial_vertices = [
+            infinite_temperature_vertex(h0, phys_reps[i], signatures[i])
+            for i in range(n_tensors)
         ]
-        logZ = 0.0
-
+        initial_weights = [infinite_temperature_weights(h0) for _ in range(n_bonds)]
         return cls(
             D,
-            beta,
+            0.0,
             tau,
             rcutoff,
             degen_ratio,
             tensor_bond_indices,
-            tensors,
+            initial_vertices,
             raw_update_data,
             raw_hamilts,
-            weights,
-            logZ,
+            initial_weights,
+            0.0,
             verbosity=verbosity,
         )
 

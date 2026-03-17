@@ -4,7 +4,11 @@ from frostspin import DiagonalTensor
 from frostspin.symmetric_tensor.tools import get_symmetric_tensor_type
 
 from .abstract_simple_update import AbstractSimpleUpdate
-from .simple_update_tools import check_hamiltonians
+from .simple_update_tools import (
+    check_hamiltonians,
+    infinite_temperature_vertex,
+    infinite_temperature_weights,
+)
 
 
 class SymmetrizedSimpleUpdate(AbstractSimpleUpdate):
@@ -117,39 +121,20 @@ class SymmetrizedSimpleUpdate(AbstractSimpleUpdate):
         verbosity : int
             Level of log verbosity. Default is no log.
         """
-        n_bonds = 4
-        ST = type(raw_hamilts[0])
-
-        # initalize tensors
-        phys_rep = raw_hamilts[0].row_reps[0]
-        d = ST.representation_dimension(phys_rep)
-        mat = np.eye(d).reshape((d, d, 1, 1, 1, 1))
-        row_reps = (phys_rep, phys_rep)
-        col_reps = (ST.singlet(),) * n_bonds
-        if not raw_hamilts[0].signature[0] ^ raw_hamilts[0].signature[1]:
-            raise ValueError("Invalid Hamiltonian signatures")
-        s0 = raw_hamilts[0].signature[0]
-        a0 = ST.from_array(mat, row_reps, col_reps, signature=[~s0, s0, 1, 1, 1, 1])
-
-        beta = 0.0
-        irr = a0.block_irreps
-        w = [np.ones((1,))]
-        weights = [
-            DiagonalTensor(w, ST.singlet(), irr, [1], ST.symmetry())
-            for _ in range(n_bonds)
-        ]
-        logZ = 0.0
-
+        h0 = raw_hamilts[0]
+        s0 = h0.signature[0]
+        if not s0 ^ h0.signature[1]:
+            raise ValueError(f"Invalid Hamiltonian signature: {h0.signature}")
         return cls(
             D,
-            beta,
+            0.0,
             tau,
             rcutoff,
             degen_ratio,
-            a0,
+            infinite_temperature_vertex(h0, h0.row_reps[0], [~s0, s0, 1, 1, 1, 1]),
             raw_hamilts,
-            weights,
-            logZ,
+            [infinite_temperature_weights(h0) for _ in range(4)],
+            0.0,
             verbosity=verbosity,
         )
 
