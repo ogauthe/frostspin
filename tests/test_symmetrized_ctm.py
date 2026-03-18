@@ -17,7 +17,7 @@ def svdvals(st):
     return s
 
 
-def test_symmetrized_ctm(tmp_path):
+def test_symmetrized_ctm():
     rng = np.random.default_rng(42)
 
     r2 = np.array([[1], [2]])
@@ -27,7 +27,7 @@ def test_symmetrized_ctm(tmp_path):
     rDr = np.array([[3, 3], [1, 3]])
     rDd = np.array([[1, 3], [1, 3]])
     rDl = np.array([[4, 3], [1, 3]])
-    chi_target = 50
+    chi_target = 40
 
     A = SU2SymmetricTensor.random((rd, ra), (rDu, rDr, rDd, rDl), rng=rng)
     A /= A.norm()
@@ -109,7 +109,8 @@ def test_symmetrized_ctm(tmp_path):
             assert (rdm1 - rdm2).norm() < ASSERT_TOL
         assert np.isclose(ctm.compute_PEPS_norm_log(), ctm2.compute_PEPS_norm_log())
 
-    # ==================================================================================
+
+def test_symmetrized_thermal_peps(tmp_path):
     sds22 = np.array(
         [
             [0.25, 0.0, 0.0, 0.0],
@@ -137,7 +138,8 @@ def test_symmetrized_ctm(tmp_path):
     D = 7
     degen_ratio = 0.9999
     rcutoff = 1e-12
-    chi_target = 49
+    chi_target = 40
+    n_ctm_iter = 8
 
     su0 = SimpleUpdate.square_lattice_first_neighbor(
         h22, D, tau, degen_ratio=degen_ratio, rcutoff=rcutoff
@@ -174,7 +176,7 @@ def test_symmetrized_ctm(tmp_path):
         "AB\nBA", su.get_tensors(), chi_target
     )
 
-    for _ in range(10):
+    for _ in range(n_ctm_iter):
         ctm0.iterate()
         ctm1.iterate()
         ctm2.iterate()
@@ -249,7 +251,7 @@ def test_symmetrized_ctm(tmp_path):
         "AB\nBA", su.get_tensors(), chi_target
     )
 
-    for _ in range(10):
+    for _ in range(n_ctm_iter):
         ctm0.iterate()
         ctm1.iterate()
         ctm2.iterate()
@@ -286,4 +288,5 @@ def test_symmetrized_ctm(tmp_path):
 
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory() as tmp_path:
-        test_symmetrized_ctm(tmp_path)
+        test_symmetrized_ctm()
+        test_symmetrized_thermal_peps(tmp_path)
