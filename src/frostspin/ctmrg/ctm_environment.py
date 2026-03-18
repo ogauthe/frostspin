@@ -3,34 +3,34 @@ import numpy as np
 from frostspin.symmetric_tensor.tools import get_symmetric_tensor_type
 
 
-def initialize_dummy_env(A):
-    ST = type(A)
+def initialize_dummy_env(site_tensor):
+    sing = site_tensor.singlet()
 
-    rr = (ST.singlet(),)
-    C1 = ST.from_array(np.eye(1), rr, rr)
-    C2 = ST.from_array(np.eye(1), rr, rr)
-    C3 = ST.from_array(np.eye(1), rr, rr, signature=[True, False])
-    C4 = ST.from_array(np.eye(1), rr, rr)
+    rr = (sing,)
+    C1 = site_tensor.isomorphism(rr, rr)
+    C2 = site_tensor.isomorphism(rr, rr)
+    C3 = site_tensor.isomorphism(rr, rr, signature=[True, False])
+    C4 = site_tensor.isomorphism(rr, rr)
 
-    rr = (ST.singlet(),)
-    rc = (A.col_reps[2], A.col_reps[2], ST.singlet())
-    sig = np.array([False, A.signature[4], ~A.signature[4], True])
-    T1 = ST.from_array(np.eye(A.shape[4])[None, :, :, None], rr, rc, signature=sig)
+    rr = (sing, site_tensor.col_reps[2])
+    rc = (site_tensor.col_reps[2], sing)
+    sig = np.array([False, site_tensor.signature[4], ~site_tensor.signature[4], True])
+    T1 = site_tensor.isomorphism(rr, rc, signature=sig).permute((0,), (1, 2, 3))
 
-    rr = (ST.singlet(),)
-    rc = (ST.singlet(), A.col_reps[3], A.col_reps[3])
-    sig = np.array([True, False, A.signature[5], ~A.signature[5]])
-    T2 = ST.from_array(np.eye(A.shape[5])[None, None, :, :], rr, rc, signature=sig)
+    rr = (sing, sing, site_tensor.col_reps[3])
+    rc = (site_tensor.col_reps[3],)
+    sig = np.array([True, False, site_tensor.signature[5], ~site_tensor.signature[5]])
+    T2 = site_tensor.isomorphism(rr, rc, signature=sig).permute((0,), (1, 2, 3))
 
-    rr = (A.col_reps[0], A.col_reps[0], ST.singlet())
-    rc = (ST.singlet(),)
-    sig = np.array([A.signature[2], ~A.signature[2], True, False])
-    T3 = ST.from_array(np.eye(A.shape[2])[:, :, None, None], rr, rc, signature=sig)
+    rr = (site_tensor.col_reps[0],)
+    rc = (site_tensor.col_reps[0], sing, sing)
+    sig = np.array([site_tensor.signature[2], ~site_tensor.signature[2], True, False])
+    T3 = site_tensor.isomorphism(rr, rc, signature=sig).permute((0, 1, 2), (3,))
 
-    rr = (ST.singlet(),)
-    rc = (A.col_reps[1], A.col_reps[1], ST.singlet())
-    sig = np.array([False, A.signature[3], ~A.signature[3], True])
-    T4 = ST.from_array(np.eye(A.shape[3])[None, :, :, None], rr, rc, signature=sig)
+    rr = (sing, site_tensor.col_reps[1])
+    rc = (site_tensor.col_reps[1], sing)
+    sig = np.array([False, site_tensor.signature[3], ~site_tensor.signature[3], True])
+    T4 = site_tensor.isomorphism(rr, rc, signature=sig).permute((0,), (1, 2, 3))
     return C1, T1, C2, T2, C3, T3, C4, T4
 
 
