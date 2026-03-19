@@ -98,11 +98,11 @@ class CTMEnvironment:
 
     @property
     def Dmax(self):
-        return max(max(A.shape[2:]) for A in self._unique_As)
+        return max(max(site_tensor.shape[2:]) for site_tensor in self._unique_As)
 
     @property
     def Dmin(self):
-        return min(min(A.shape[2:]) for A in self._unique_As)
+        return min(min(site_tensor.shape[2:]) for site_tensor in self._unique_As)
 
     @property
     def Lx(self):
@@ -119,9 +119,9 @@ class CTMEnvironment:
     @property
     def chi_values(self):
         s = set()
-        for C in self._unique_C1s + self._unique_C3s:
-            s.add(C.shape[0])
-            s.add(C.shape[1])
+        for corner in self._unique_C1s + self._unique_C3s:
+            s.add(corner.shape[0])
+            s.add(corner.shape[1])
         return np.sort(list(s))
 
     def check_consistency(self):

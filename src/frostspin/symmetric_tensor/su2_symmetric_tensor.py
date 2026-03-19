@@ -187,7 +187,7 @@ class SU2SymmetricTensor(LieGroupSymmetricTensor):
             n = 2
 
         # remove irreps that wont fuse to max_irrep
-        # too complicate to prune all non-contributing irreps at every stage
+        # too complicated to prune all non-contributing irreps at every stage
         # just prune spins larger than max_spin(product spins left)
         # should give the same pruning in most cases
         if target_irreps is None:

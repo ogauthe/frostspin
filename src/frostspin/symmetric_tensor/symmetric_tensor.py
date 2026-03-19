@@ -299,10 +299,9 @@ class SymmetricTensor:
     @property
     def dtype(self):
         try:
-            dt = self._blocks[0].dtype
+            return self._blocks[0].dtype
         except IndexError:  # pathological case with nblocks = 0
-            dt = np.array([]).dtype  # keep numpy convention
-        return dt
+            return np.array([]).dtype  # keep numpy convention
 
     @property
     def ncoeff(self):
@@ -658,11 +657,11 @@ class SymmetricTensor:
         mid_rep = self.init_representation(degen, self._block_irreps)
         qsign = np.ones((self._nrr + 1,), dtype=bool)
         qsign[: self._nrr] = self._signature[: self._nrr]
-        Q = type(self)(self._row_reps, (mid_rep,), q_blocks, self._block_irreps, qsign)
+        q = type(self)(self._row_reps, (mid_rep,), q_blocks, self._block_irreps, qsign)
         rsign = np.zeros((self._ndim - self._nrr + 1,), dtype=bool)
         rsign[1:] = self._signature[self._nrr :]
-        R = type(self)((mid_rep,), self._col_reps, r_blocks, self._block_irreps, rsign)
-        return Q, R
+        r = type(self)((mid_rep,), self._col_reps, r_blocks, self._block_irreps, rsign)
+        return q, r
 
     def rq(self):
         r_blocks = [None] * self._nblocks
@@ -676,11 +675,11 @@ class SymmetricTensor:
         mid_rep = self.init_representation(degen, self._block_irreps)
         rsign = np.ones((self._nrr + 1,), dtype=bool)
         rsign[: self._nrr] = self._signature[: self._nrr]
-        R = type(self)(self._row_reps, (mid_rep,), r_blocks, self._block_irreps, rsign)
+        r = type(self)(self._row_reps, (mid_rep,), r_blocks, self._block_irreps, rsign)
         qsign = np.zeros((self._ndim - self._nrr + 1,), dtype=bool)
         qsign[1:] = self._signature[self._nrr :]
-        Q = type(self)((mid_rep,), self._col_reps, q_blocks, self._block_irreps, qsign)
-        return R, Q
+        q = type(self)((mid_rep,), self._col_reps, q_blocks, self._block_irreps, qsign)
+        return r, q
 
     def svd(self):
         u_blocks = [None] * self._nblocks
@@ -693,22 +692,21 @@ class SymmetricTensor:
         mid_rep = self.init_representation(degen, self._block_irreps)
         usign = np.ones((self._nrr + 1,), dtype=bool)
         usign[: self._nrr] = self._signature[: self._nrr]
-        U = type(self)(self._row_reps, (mid_rep,), u_blocks, self._block_irreps, usign)
+        u = type(self)(self._row_reps, (mid_rep,), u_blocks, self._block_irreps, usign)
         degens = [self.irrep_dimension(irr) for irr in self._block_irreps]
         s = DiagonalTensor(
             s_blocks, mid_rep, self._block_irreps, degens, self._symmetry
         )
         vsign = np.zeros((self._ndim - self._nrr + 1,), dtype=bool)
         vsign[1:] = self._signature[self._nrr :]
-        V = type(self)((mid_rep,), self._col_reps, v_blocks, self._block_irreps, vsign)
-        return U, s, V
+        v = type(self)((mid_rep,), self._col_reps, v_blocks, self._block_irreps, vsign)
+        return u, s, v
 
     def solve(self, b):
         """
         Solve self @ x = b for x.
         """
-        if not self.is_square_matrix():
-            raise ValueError("Tensor legs do not define a square matrix")
+        assert self.is_square_matrix()
         assert type(self) is type(b)
         assert self.n_row_reps == b.n_row_reps
         assert (self._signature[: self._nrr] == b.signature[: b.n_row_reps]).all()
@@ -718,7 +716,7 @@ class SymmetricTensor:
 
         indices1, indices2 = (self.block_irreps[:, None] == b.block_irreps).nonzero()
         if len(indices2) < b.nblocks:
-            raise ValueError("No solution: missing block in A appears in b")
+            raise ValueError("No solution: missing block in self appears in b")
         xblocks = []
         for i, j in zip(indices1, indices2, strict=True):
             xblocks.append(lg.solve(self.blocks[i], b.blocks[j]))
@@ -761,7 +759,7 @@ class SymmetricTensor:
             raise ValueError("Tensor legs do not define a square matrix")
         # just call eigsh with large nvals, it will call eigh on all blocks.
         # It would be possible to post-process eigenvalues and recover null eigenspace
-        # Too complicate for no real use, just document behavior.
+        # Too complicated for no real use, just document behavior.
         return self._sparse_eig(
             self,
             2**31,
@@ -800,7 +798,7 @@ class SymmetricTensor:
             raise ValueError("Tensor legs do not define a square matrix")
         # just call eigs with large nvals, it will call eig on all blocks.
         # It would be possible to post-process eigenvalues and recover null eigenspace
-        # Too complicate for no real use, just document behavior.
+        # Too complicated for no real use, just document behavior.
         return self._sparse_eig(
             self,
             2**31,
@@ -892,7 +890,7 @@ class SymmetricTensor:
         implicitly defined by its action on a vector with given representations and
         signature.
 
-        Currently, dtpye is fixed to np.float64.
+        Currently, dtype is fixed to np.float64.
 
         Parameters
         ----------
@@ -1021,7 +1019,7 @@ class SymmetricTensor:
         If M is square but not real symmetric, no error is returned but the results will
         be wrong.
 
-        Currently, dtpye is fixed to np.float64.
+        Currently, dtype is fixed to np.float64.
 
         Parameters
         ----------
