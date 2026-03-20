@@ -11,7 +11,7 @@ from frostspin.ctmrg import SequentialCTMRG, SimultaneousCTMRG
 
 def eq_st(st1, st2):
     return (
-        st1.match_representations(st2)
+        st1.match_all_legs(st2)
         and (st1.block_irreps == st2.block_irreps).all()
         and all((b1 == b2).all() for b1, b2 in zip(st1.blocks, st2.blocks, strict=True))
     )

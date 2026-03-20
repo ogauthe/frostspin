@@ -663,7 +663,7 @@ class O2SymmetricTensor(NonAbelianSymmetricTensor):
         if tu1.n_row_reps != len(row_reps):
             raise ValueError("Number of row representations does not match U1 tensor")
         if not all(
-            (_numba_O2_rep_to_U1(r) == tu1.row_reps[i]).all()
+            cls.representation_equal(_numba_O2_rep_to_U1(r), tu1.row_reps[i])
             for i, r in enumerate(row_reps)
         ):
             raise ValueError("Row representations do not match U1 tensor")
@@ -672,7 +672,7 @@ class O2SymmetricTensor(NonAbelianSymmetricTensor):
                 "Number of column representations does not match U1 tensor"
             )
         if not all(
-            (_numba_O2_rep_to_U1(r) == tu1.col_reps[i]).all()
+            cls.representation_equal(_numba_O2_rep_to_U1(r), tu1.col_reps[i])
             for i, r in enumerate(col_reps)
         ):
             raise ValueError("Column representations do not match U1 tensor")

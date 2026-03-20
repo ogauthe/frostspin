@@ -88,6 +88,10 @@ class SymmetricTensor:
     def irrep_dimension(rep):
         raise NotImplementedError("Must be defined in derived class")
 
+    @staticmethod
+    def representation_equal(r1, r2):
+        return (r1.shape == r2.shape) and (r1 == r2).all()
+
     ####################################################################################
     # Symmetry specific methods with fixed signature
     # These methods must be defined in subclasses to set SymmetricTensor behavior
@@ -99,9 +103,9 @@ class SymmetricTensor:
         block_irreps, block_shapes = cls.get_block_sizes(row_reps, col_reps, signature)
         matrix_blocks = [np.eye(*sh) for sh in block_shapes]
         st = cls(row_reps, col_reps, matrix_blocks, block_irreps, signature)
-        codomain = st.get_row_representation()
-        domain = st.get_column_representation()
-        if codomain.shape != domain.shape or (codomain != domain).any():
+        if not cls.representation_equal(
+            st.get_row_representation(), st.get_column_representation()
+        ):
             raise ValueError("No isomorphism between rows and columns")
         return st
 
@@ -262,12 +266,10 @@ class SymmetricTensor:
             raise ValueError(f"Invalid input type: {type(dt)}")
         if cls.symmetry() != dt.symmetry():
             raise ValueError("Symmetries do not match")
-        row_reps = (dt.representation,)
-        col_reps = (dt.representation,)
         blocks = tuple(np.diag(db) for db in dt.diagonal_blocks)
         block_irreps = dt.block_irreps
         signature = np.array([False, True])
-        return cls(row_reps, col_reps, blocks, block_irreps, signature)
+        return cls(dt.row_reps, dt.col_reps, blocks, block_irreps, signature)
 
     def cast(self, symmetry):
         fn = getattr(self, f"to{symmetry}")
@@ -340,7 +342,7 @@ class SymmetricTensor:
         return f"{self.symmetry()} SymmetricTensor with bipartition {bp} and shape {sh}"
 
     def __add__(self, other):
-        assert self.match_representations(other)
+        assert self.match_all_legs(other)
         # need to take into account possibly missing block in self or other
         blocks = []
         block_irreps = []
@@ -386,7 +388,7 @@ class SymmetricTensor:
         if isinstance(other, DiagonalTensor):  # add diagonal weights on last col leg
             # check DiagonalTensor matches self
             assert self._symmetry == other.symmetry()
-            assert (self._col_reps[-1] == other.representation).all()
+            assert self.representation_equal(self._col_reps[-1], other.row_reps[0])
             assert (
                 other.block_degen
                 == [self.irrep_dimension(irr) for irr in other.block_irreps]
@@ -406,7 +408,7 @@ class SymmetricTensor:
             )
         if isinstance(other, DiagonalTensor):  # add diagonal weights on 1st row leg
             assert self._symmetry == other.symmetry()
-            assert (self._row_reps[0] == other.representation).all()
+            assert self.representation_equal(self._row_reps[0], other.row_reps[0])
             assert (
                 other.block_degen
                 == [self.irrep_dimension(irr) for irr in other.block_irreps]
@@ -452,12 +454,11 @@ class SymmetricTensor:
         associated irrep does not appear in the contracted bond.
         """
         assert type(self) is type(other)
-        assert self._shape[self._nrr :] == other._shape[: other._nrr]
-        assert (self._signature[self._nrr :] ^ other._signature[: other._nrr]).all()
         assert all(
-            (r == r2).all()
-            for (r, r2) in zip(self._col_reps, other._row_reps, strict=True)
+            self.representation_equal(rc, rr)
+            for (rr, rc) in zip(self._col_reps, other._row_reps, strict=True)
         )
+        assert (self._signature[self._nrr :] ^ other._signature[: other._nrr]).all()
 
         i1 = 0
         i2 = 0
@@ -484,7 +485,7 @@ class SymmetricTensor:
     ####################################################################################
     # misc
     ####################################################################################
-    def match_representations(self, other):
+    def match_all_legs(self, other):
         """
         Check if other has same type, same shape and same representations with same
         signature on every legs as self. block_irreps and blocks are not used.
@@ -494,13 +495,15 @@ class SymmetricTensor:
             type(self) is not type(other)
             or self._shape != other.shape
             or (self._signature != other.signature).any()
+            or self._nrr != other.n_row_reps
         ):
             return False
-        for r, r2 in zip(self._row_reps, other.row_reps, strict=True):
-            if r.shape != r2.shape or (r != r2).any():
-                return False
-        for r, r2 in zip(self._col_reps, other.col_reps, strict=True):
-            if r.shape != r2.shape or (r != r2).any():
+        for r, r2 in zip(
+            self._row_reps + self._col_reps,
+            other.row_reps + other.col_reps,
+            strict=True,
+        ):
+            if not self.representation_equal(r, r2):
                 return False
         return True
 
@@ -605,12 +608,12 @@ class SymmetricTensor:
     # Linear algebra
     ####################################################################################
     def is_square_matrix(self):
-        if self._nrr != self.ndim // 2:
+        if self.ndim != 2 * self._nrr:
             return False
         if (self._signature[: self._nrr] == self._signature[self._nrr :]).any():
             return False
-        for r1, r2 in zip(self.row_reps, self.col_reps, strict=True):
-            if r1.shape != r2.shape or (r1 != r2).any():
+        for rr, rc in zip(self.row_reps, self.col_reps, strict=True):
+            if not self.representation_equal(rr, rc):
                 return False
         return True
 
@@ -637,7 +640,7 @@ class SymmetricTensor:
         The name of this method is subject to change in the future.
         """
         # TBD rename full_dot, bicontract, trace_contract?
-        assert self.match_representations(other.dagger())
+        assert self.match_all_legs(other.dagger())
         x = 0.0
         shared = (self._block_irreps[:, None] == other.block_irreps).nonzero()
         for i1, i2 in zip(*shared, strict=True):
@@ -708,11 +711,11 @@ class SymmetricTensor:
         """
         assert self.is_square_matrix()
         assert type(self) is type(b)
-        assert self.n_row_reps == b.n_row_reps
-        assert (self._signature[: self._nrr] == b.signature[: b.n_row_reps]).all()
         assert all(
-            (r == r2).all() for (r, r2) in zip(self._row_reps, b.row_reps, strict=True)
+            self.representation_equal(r1, r2)
+            for (r1, r2) in zip(self._row_reps, b.row_reps, strict=True)
         )
+        assert (self._signature[: self._nrr] == b.signature[: b.n_row_reps]).all()
 
         indices1, indices2 = (self.block_irreps[:, None] == b.block_irreps).nonzero()
         if len(indices2) < b.nblocks:
@@ -1460,7 +1463,7 @@ class SymmetricTensor:
             ]
             usign = np.hstack((self._signature[: self._nrr], [True]))
             u = type(self)(
-                self._row_reps, (s.representation,), u_blocks, kept_block_irreps, usign
+                self._row_reps, s.col_reps, u_blocks, kept_block_irreps, usign
             )
         if right_vectors_blocks is None:
             v = None
@@ -1470,6 +1473,6 @@ class SymmetricTensor:
             ]
             vsign = np.hstack(([False], self._signature[self._nrr :]))
             v = type(self)(
-                (s.representation,), self._col_reps, v_blocks, kept_block_irreps, vsign
+                s.row_reps, self._col_reps, v_blocks, kept_block_irreps, vsign
             )
         return u, s, v

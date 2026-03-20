@@ -86,7 +86,7 @@ class CTMEnvironment:
         self._unique_T3s = T3s
         self._unique_T4s = T4s
 
-        self._symmetry = type(As[0]).symmetry()
+        self._symmetry = As[0].symmetry()
         self.check_consistency()
 
         # init enlarged corner and projectors lists
@@ -159,14 +159,14 @@ class CTMEnvironment:
             if A.signature[2] == Ay.signature[4]:
                 msg = f"signature mismatch between {(x, y)} and {(x, y - 1)}"
                 raise ValueError(msg)
-            if (A.col_reps[0] != Ay.col_reps[2]).any():
+            if not A.representation_equal(A.col_reps[0], Ay.col_reps[2]):
                 msg = f"rep mismatch between {(x, y)} and {(x, y - 1)}"
                 raise ValueError(msg)
             Ax = self.get_A(x + 1, y)
             if A.signature[3] == Ax.signature[5]:
                 msg = f"signature mismatch between {(x + 1, y)} and {(x, y)}"
                 raise ValueError(msg)
-            if (A.col_reps[1] != Ax.col_reps[3]).any():
+            if not A.representation_equal(A.col_reps[1], Ax.col_reps[3]):
                 msg = f"rep mismatch between {(x + 1, y)} and {(x, y)}"
                 raise ValueError(msg)
 
@@ -286,18 +286,18 @@ class CTMEnvironment:
         self._corners_dl = [None] * self._n_sites
         self._corners_dr = [None] * self._n_sites
 
-    def set_tensors(self, tensors):
+    def set_tensors(self, new_site_tensors):
         """
-        Set new elementary tensors. Type, shape and representations have to match
-        current elementary tensors.
+        Set new site tensors. Type, shape and representations have to match
+        current site tensors.
         """
-        if len(tensors) != self._n_sites:
+        if len(new_site_tensors) != self._n_sites:
             raise ValueError("Incompatible cell and tensors")
-        for i, A in enumerate(tensors):
-            if not A.match_representations(self._unique_As[i]):
+        for i, t in enumerate(new_site_tensors):
+            if not t.match_all_legs(self._unique_As[i]):
                 raise ValueError("Incompatible representation for new tensor")
 
-        self._unique_As = tuple(tensors)
+        self._unique_As = tuple(new_site_tensors)
         self.reset_constructed_corners()
 
     def set_symmetry(self, symmetry):

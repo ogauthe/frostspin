@@ -34,9 +34,7 @@ def check_hamiltonians(hamiltonians):
         if h.ndim != 4 or h.n_row_reps != 2:
             raise ValueError(f"Hamiltonian {i} has invalid shape")
         for a in range(2):
-            if h.row_reps[a].shape != h.col_reps[a].shape:
-                raise ValueError(f"Hamiltonian {i} has invalid representations")
-            if (h.row_reps[a] != h.col_reps[a]).any():
+            if not h.representation_equal(h.row_reps[a], h.col_reps[a]):
                 raise ValueError(f"Hamiltonian {i} has invalid representations")
             if not h.signature[a] ^ h.signature[a + 2]:
                 raise ValueError(f"Hamiltonian {i} has invalid signature")

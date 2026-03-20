@@ -864,17 +864,13 @@ class SimpleUpdate(AbstractSimpleUpdate):
             g = self._gates[ig]
 
             tL = self._tensors[iL]
-            if tL.row_reps[0].shape != g.row_reps[0].shape:
-                raise ValueError(f"update {i}: left/gate representations differ")
-            if (tL.row_reps[0] != g.row_reps[0]).any():
+            if not tL.representation_equal(tL.row_reps[0], g.row_reps[0]):
                 raise ValueError(f"update {i}: left/gate representations differ")
             if tL.signature[0] == g.signature[0]:
                 raise ValueError(f"update {i}: left/gate signatures differ")
 
             tR = self._tensors[iR]
-            if tR.row_reps[0].shape != g.row_reps[1].shape:
-                raise ValueError(f"update {i}: right/gate representations differ")
-            if (tR.row_reps[0] != g.row_reps[1]).any():
+            if not tR.representation_equal(tL.row_reps[0], g.row_reps[1]):
                 raise ValueError(f"update {i}: right/gate representations differ")
             if tR.signature[0] == g.signature[1]:
                 raise ValueError(f"update {i}: right/gate signature differ")
@@ -895,7 +891,7 @@ class SimpleUpdate(AbstractSimpleUpdate):
             rR = tR.col_reps[list(self._tensor_bond_indices[iR]).index(b2)]
             sR = tR.signature[2 + list(self._tensor_bond_indices[iR]).index(b2)]
             if b1 == b2:  # 1st neighbor update
-                if rL.shape != rR.shape or (rL != rR).any():
+                if not tL.representation_equal(rL, rR):
                     raise ValueError(f"update {i}: left/right legs do not match")
                 if sL == sR:
                     raise ValueError(f"update {i}: left/right signatures do not match")
@@ -915,17 +911,17 @@ class SimpleUpdate(AbstractSimpleUpdate):
                 if tensor_legs[im][-1] != b2:
                     raise ValueError(f"update {i}: invalid middle virtual leg position")
                 tm = self._tensors[im]
-                rm = tm.col_reps[list(self._tensor_bond_indices[im]).index(b1)]
-                sm = tm.signature[2 + list(self._tensor_bond_indices[im]).index(b1)]
-                if rL.shape != rm.shape or (rL != rm).any():
+
+                column_leg_index = list(self._tensor_bond_indices[im]).index(b1)
+                if not tm.representation_equal(rL, tm.col_reps[column_leg_index]):
                     raise ValueError(f"update {i}: left and middle legs do not match")
-                if sL == sm:
+                if sL == tm.signature[2 + column_leg_index]:
                     raise ValueError(f"update {i}: left/middle signatures do not match")
-                rm = tm.col_reps[list(self._tensor_bond_indices[im]).index(b2)]
-                sm = tm.signature[2 + list(self._tensor_bond_indices[im]).index(b2)]
-                if rR.shape != rm.shape or (rR != rm).any():
+
+                column_leg_index = list(self._tensor_bond_indices[im]).index(b2)
+                if not tm.representation_equal(rR, tm.col_reps[column_leg_index]):
                     raise ValueError(f"update {i}: right and middle legs do not match")
-                if sR == sm:
+                if sR == tm.signature[2 + column_leg_index]:
                     raise ValueError(
                         f"update {i}: right/middle signatures do not match"
                     )
@@ -942,10 +938,10 @@ class SimpleUpdate(AbstractSimpleUpdate):
             if t.n_row_reps != 2:
                 raise ValueError(f"Tensor {i} has invalid leg structure")
             for j, bi in enumerate(self._tensor_bond_indices[i]):
-                if t.col_reps[j].shape != self._weights[bi].representation.shape:
+                if not t.representation_equal(
+                    t.col_reps[j], self._weights[bi].row_reps[0]
+                ):
                     raise ValueError(f"Tensor {i} has invalid representation shape")
-                if (t.col_reps[j] != self._weights[bi].representation).any():
-                    raise ValueError(f"Tensor {i} has invalid representation")
             tl0 = [-1, -2, *self._tensor_bond_indices[i]]
             tl = swap_legs(tl0, self._initial_swap[i])
             tensor_legs.append(tl)

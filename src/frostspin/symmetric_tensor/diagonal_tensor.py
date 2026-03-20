@@ -47,8 +47,12 @@ class DiagonalTensor:
         return 1
 
     @property
-    def representation(self):
-        return self._representation
+    def row_reps(self):
+        return (self._representation,)
+
+    @property
+    def col_reps(self):
+        return (self._representation,)
 
     @property
     def signature(self):
@@ -78,7 +82,7 @@ class DiagonalTensor:
 
     def __mul__(self, x):
         if isinstance(x, DiagonalTensor):
-            if not (self._representation == x.representation).all():
+            if not (self._representation == x._representation).all():
                 raise ValueError("Representations do not match")
             blocks = tuple(
                 b1 * b2
@@ -155,7 +159,7 @@ class DiagonalTensor:
     def __add__(self, other):
         if not isinstance(other, DiagonalTensor):
             raise NotImplementedError("Invalid type for +")
-        if not (self._representation == other.representation).all():
+        if not (self._representation == other._representation).all():
             raise ValueError("Representations do not match")
         blocks = tuple(
             b1 + b2
