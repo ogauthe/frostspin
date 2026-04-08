@@ -54,6 +54,27 @@ class SymmetricTensor:
     # this may change in the future.
     _symmetry = NotImplemented
 
+    @staticmethod
+    def from_symmetry(symmetry):
+        """
+        Get SymmetricTensor subclass implementing the given symmetry.
+
+        Parameters
+        ----------
+        symmetry : str
+            Symmetry group label (e.g. 'U1', 'SU2', 'O2', 'Trivial').
+        """
+        # Concrete classes are leaves of a multi-level hierarchy, so a flat
+        # __subclasses__() call is not sufficient; traverse the full tree.
+        queue = list(SymmetricTensor.__subclasses__())
+        while queue:
+            sub = queue.pop()
+            if sub.symmetry() == symmetry:
+                return sub
+            queue.extend(sub.__subclasses__())
+        msg = f"Unknown symmetry '{symmetry}'"
+        raise RuntimeError(msg)
+
     @classmethod
     def symmetry(cls):
         return cls._symmetry

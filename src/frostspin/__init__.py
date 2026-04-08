@@ -4,8 +4,8 @@ from frostspin.symmetric_tensor import (
     DiagonalTensor,
     O2SymmetricTensor,
     SU2SymmetricTensor,
+    SymmetricTensor,
     U1SymmetricTensor,
-    get_symmetric_tensor_type,
 )
 
 __all__ = [
@@ -14,8 +14,8 @@ __all__ = [
     "DiagonalTensor",
     "O2SymmetricTensor",
     "SU2SymmetricTensor",
+    "SymmetricTensor",
     "U1SymmetricTensor",
     "__version__",
     "config",
-    "get_symmetric_tensor_type",
 ]

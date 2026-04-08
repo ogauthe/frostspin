@@ -4,26 +4,6 @@ import scipy.linalg as lg
 
 from frostspin import ASSERT_TOL
 
-symmetric_tensor_types = {}
-
-
-def get_symmetric_tensor_type(symmetry):
-    """
-    Get SymmetricTensor subclass implementing symmetry specified by 'symmetry'.
-
-    Parameters
-    ----------
-    symmetry : str
-        Symmetry group. Must match implemented symmetry. Currently implemented
-        symmetries are 'trivial', 'U1' and 'SU2'.
-    """
-    try:
-        st_type = symmetric_tensor_types[symmetry]
-    except KeyError:
-        msg = f"Unknown symmetry '{symmetry}'"
-        raise RuntimeError(msg) from None
-    return st_type
-
 
 def check_norm(t1, t2, *, tol=ASSERT_TOL):
     try:

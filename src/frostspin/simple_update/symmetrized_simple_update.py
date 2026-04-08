@@ -1,7 +1,6 @@
 import numpy as np
 
-from frostspin import DiagonalTensor
-from frostspin.symmetric_tensor.tools import get_symmetric_tensor_type
+from frostspin import DiagonalTensor, SymmetricTensor
 
 from .abstract_simple_update import AbstractSimpleUpdate
 from .simple_update_tools import (
@@ -31,7 +30,6 @@ class SymmetrizedSimpleUpdate(AbstractSimpleUpdate):
     _n_bonds = 4
     _n_updates = 6
     _n_tensors = 1
-    _classname = "SymmetrizedSimpleUpdate"  # used in save/load to check consistency
 
     def __repr__(self):
         s = f"SymmetrizedSimpleUpdate with {self._symmetry} symmetry and D = {self.D}"
@@ -219,8 +217,8 @@ class SymmetrizedSimpleUpdate(AbstractSimpleUpdate):
         if verbosity > 0:
             print("Restart SymmetrizedSimpleUpdate back from file", savefile)
         with np.load(savefile) as fin:
-            if fin["_SimpleUpdate_classname"] != cls._classname:
-                msg = f"Savefile '{savefile}' does not match class '{cls._classname}'"
+            if fin["_SimpleUpdate_classname"] != cls.__name__:
+                msg = f"Savefile '{savefile}' does not match class '{cls.__name__}'"
                 raise ValueError(msg)
             D = fin["_SimpleUpdate_D"][()]
             beta = fin["_SimpleUpdate_beta"][()]
@@ -229,7 +227,7 @@ class SymmetrizedSimpleUpdate(AbstractSimpleUpdate):
             rcutoff = fin["_SimpleUpdate_rcutoff"][()]
             degen_ratio = fin["_SimpleUpdate_degen_ratio"][()]
 
-            ST = get_symmetric_tensor_type(fin["_SimpleUpdate_symmetry"][()])
+            ST = SymmetricTensor.from_symmetry(fin["_SimpleUpdate_symmetry"][()])
             raw_hamilts = [
                 ST.load_from_dic(fin, prefix=f"_SimpleUpdate_hamiltonian_{i}")
                 for i in range(fin["_SimpleUpdate_n_hamiltonians"])

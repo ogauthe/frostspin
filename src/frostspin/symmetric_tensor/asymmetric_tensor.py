@@ -1,7 +1,6 @@
 import numpy as np
 
 from .symmetric_tensor import SymmetricTensor
-from .tools import symmetric_tensor_types
 
 
 class AsymmetricTensor(SymmetricTensor):
@@ -92,6 +91,3 @@ class AsymmetricTensor(SymmetricTensor):
 
     def totrivial(self):
         return self
-
-
-symmetric_tensor_types["Trivial"] = AsymmetricTensor

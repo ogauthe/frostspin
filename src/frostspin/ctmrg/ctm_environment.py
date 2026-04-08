@@ -1,6 +1,6 @@
 import numpy as np
 
-from frostspin.symmetric_tensor.tools import get_symmetric_tensor_type
+from frostspin.symmetric_tensor import SymmetricTensor
 
 
 def initialize_dummy_env(site_tensor):
@@ -244,7 +244,7 @@ class CTMEnvironment:
         As, C1s, C2s, C3s, C4s, T1s, T2s, T3s, T4s = ([] for i in range(9))
         with np.load(savefile) as data:
             cell = data["_CTM_cell"]
-            ST = get_symmetric_tensor_type(data["_CTM_symmetry"][()])
+            ST = SymmetricTensor.from_symmetry(data["_CTM_symmetry"][()])
             for i in range(len(set(cell.flat))):
                 As.append(ST.load_from_dic(data, prefix=f"_CTM_A_{i}"))
                 C1s.append(ST.load_from_dic(data, prefix=f"_CTM_C1_{i}"))

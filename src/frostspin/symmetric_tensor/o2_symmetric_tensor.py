@@ -5,7 +5,7 @@ import scipy.linalg as lg
 from frostspin.misc_tools.numba_tools import numba_find_indices
 
 from .non_abelian_symmetric_tensor import NonAbelianSymmetricTensor
-from .tools import check_norm, symmetric_tensor_types
+from .tools import check_norm
 from .u1_symmetric_tensor import U1SymmetricTensor
 
 
@@ -935,6 +935,3 @@ class O2SymmetricTensor(NonAbelianSymmetricTensor):
         b0 = tuple(b.T for b in self._blocks[: self._block_irreps.searchsorted(1)])
         blocks = b0 + b_neg
         return blocks, self._block_irreps
-
-
-symmetric_tensor_types["O2"] = O2SymmetricTensor

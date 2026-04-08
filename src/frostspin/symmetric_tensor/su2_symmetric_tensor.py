@@ -5,7 +5,7 @@ from frostspin.groups.su2_clebsch_gordan import load_su2_cg
 
 from .lie_group_symmetric_tensor import LieGroupSymmetricTensor
 from .o2_symmetric_tensor import O2SymmetricTensor
-from .tools import check_norm, symmetric_tensor_types
+from .tools import check_norm
 from .u1_symmetric_tensor import U1SymmetricTensor
 
 
@@ -333,6 +333,3 @@ class SU2SymmetricTensor(LieGroupSymmetricTensor):
             and abide by the format defined in frostspin/groups/su2_clebsch_gordan.py.
         """
         cls._clebsch_gordan_dic = load_su2_cg(savefile, verbosity=verbosity)
-
-
-symmetric_tensor_types["SU2"] = SU2SymmetricTensor

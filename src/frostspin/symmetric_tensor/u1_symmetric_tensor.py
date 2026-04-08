@@ -2,7 +2,6 @@ import numba
 import numpy as np
 
 from .abelian_symmetric_tensor import AbelianSymmetricTensor
-from .tools import symmetric_tensor_types
 
 
 @numba.njit(parallel=True)
@@ -52,6 +51,3 @@ class U1SymmetricTensor(AbelianSymmetricTensor):
     ####################################################################################
     def toU1(self):
         return self
-
-
-symmetric_tensor_types["U1"] = U1SymmetricTensor

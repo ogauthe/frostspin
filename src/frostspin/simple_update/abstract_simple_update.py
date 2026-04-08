@@ -159,7 +159,7 @@ class AbstractSimpleUpdate:
         """
         data = {
             "_SimpleUpdate_symmetry": self._symmetry,
-            "_SimpleUpdate_classname": self._classname,
+            "_SimpleUpdate_classname": type(self).__name__,
             "_SimpleUpdate_D": self.D,
             "_SimpleUpdate_beta": self._beta,
             "_SimpleUpdate_tau": self._tau,
