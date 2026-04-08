@@ -11,22 +11,22 @@ clean:
     rm -rf .pytest_cache
 
 format:
-    uv run ruff format
+    uv run --locked ruff format
 
 lint +targets="src tests examples":
-    uv run ruff check {{targets}}
+    uv run --locked ruff check {{targets}}
 
 pre-commit:
-    uv run pre-commit run --all-files
+    uv run --locked pre-commit run --all-files
 
 sync:
     uv sync --locked --all-groups --all-extras
 
 test testfile:
-    uv run pytest -v --color=yes --no-cov {{testfile}}
+    uv run --locked pytest -v --color=yes --no-cov {{testfile}}
 
 test-examples:
-    uv run pytest -n auto -vv --no-cov --durations=0 --durations-min=1 --color=yes ./tests/test_examples.py
+    uv run --locked pytest -n auto -vv --no-cov --durations=0 --durations-min=1 --color=yes ./tests/test_examples.py
 
 test-all:
-    uv run pytest -n auto -v --deselect tests/test_examples.py --durations=0 --durations-min=0.5 --color=yes --cov-report=html
+    uv run --locked pytest -n auto -v --deselect tests/test_examples.py --durations=0 --durations-min=0.5 --color=yes --cov-report=html
