@@ -82,6 +82,11 @@ def get_update_data(
     # impose all tensors to have a physical and an ancilla leg as their two first
     # legs in default configuration, although they may be dummy legs.
 
+    # Hamiltonian is defined to act on the right: left_right @ gate
+    # to optmize permute, we actually do gate.transpose() @ tleft_right.transpose()
+    # transpose Hamiltonians here and forget about it
+    raw_hamilts = [h.transpose() for h in raw_hamilts]
+
     # define second order scheme
     bond1, bond2, gate_indices, left_indices, right_indices, middle_indices = (
         decode_raw_update_data(raw_update_data, second_order=second_order)
@@ -484,15 +489,15 @@ class SimpleUpdate(AbstractSimpleUpdate):
 
             iL = left_indices[j]
             phys_reps[iL] = h.row_reps[0]
-            signatures[iL][0] = ~h.signature[0]
-            signatures[iL][1] = h.signature[0]
+            signatures[iL][0] = ~h.signature[2]
+            signatures[iL][1] = h.signature[2]
             leg = list(tensor_bond_indices[iL]).index(b1)
             signatures[iL][2 + leg] = True
 
             iR = right_indices[j]
             phys_reps[iR] = h.row_reps[1]
-            signatures[iR][0] = ~h.signature[1]
-            signatures[iR][1] = h.signature[1]
+            signatures[iR][0] = ~h.signature[3]
+            signatures[iR][1] = h.signature[3]
             leg = list(tensor_bond_indices[iR]).index(b2)
             signatures[iR][2 + leg] = False
 
@@ -650,20 +655,21 @@ class SimpleUpdate(AbstractSimpleUpdate):
         """
         # cut left and right between const and effective parts
         cstL, effL = left.qr()  # auxL-effL=p,m
+        # TBD use lq
         cstR, effR = right.qr()  # auxR-effR=p,m
 
         # change tensor structure to contract mid
         effL = effL.permute((0, 1), (2,))  # auxL,p=effL-m
         effL = effL * weights**-1
-        effR = effR.permute((2,), (0, 1))  # m-effR=auxR,p
+        effR = effR.permute((2,), (1, 0))  # m-effR=p,auxR
 
         # construct matrix theta and apply gate
         theta = effL @ effR  # auxL,pL=theta=auxR,pR
-        theta = theta.permute((0, 2), (1, 3))  # auxL, auxR = theta = pL, pR
-        theta = theta @ gate
+        theta = theta.permute((1, 2), (0, 3))  # pL, pR = theta = auxL, auxR
+        theta = gate @ theta
 
         # transpose back LxR, compute SVD and truncate
-        theta = theta.permute((0, 2), (1, 3))  # auxL, pL = theta = auxR, pR
+        theta = theta.permute((0, 2), (1, 3))  # pL, auxL = theta = pR, auxR
         # define new_weights *on effL right*
         effL, new_weights, effR = theta.truncated_svd(
             self.D, rtol=self.rcutoff, degen_ratio=self.degen_ratio
@@ -677,8 +683,8 @@ class SimpleUpdate(AbstractSimpleUpdate):
         effR = new_weights * effR
 
         # reshape to initial tree structure
-        effL = effL.permute((0,), (1, 2))  # auxL - effL = pL,m
-        effR = effR.permute((1,), (2, 0))  # auxR - effR = pR,m
+        effL = effL.permute((1,), (0, 2))  # auxL - effL = pL,m
+        effR = effR.permute((2,), (1, 0))  # auxR - effR = pR,m
 
         # reconnect with const parts
         newL = cstL @ effL
@@ -730,47 +736,48 @@ class SimpleUpdate(AbstractSimpleUpdate):
         effL = effL * weightsL**-1
 
         cstm, effm = mid.qr()  # auxm - effm = mL, mR
-        effm = effm.permute((1,), (2, 0))  # mL - effm = mR, auxm
+        effm = effm.permute((0, 1), (2,))  # auxm, mL = mR
 
         cstR, effR = right.qr()  # auxR - effR = pR, mR
-        effR = effR.permute((0, 1), (2,))  # auR, pR = effR - mR
-        effR = effR * weightsR**-1
+        effR = effR.permute((2,), (1, 0))  # mR - effR = pR, auxR
+        effR = weightsR**-1 * effR
 
         # contract tensor network
         #                         ||
         #    =effL-weightsL -- effmid -- weightsR-effR=
         #         \                             /
         #          \----------- gate ----------/
-        theta = effL @ effm  # auxL, pL = theta = mR, auxm
-        theta = theta.permute((0, 1, 3), (2,))  # auxL, pL, auxm = theta - mR
-        theta = theta @ effR.transpose()  # auxL, pL, auxm = theta = auxR, pR
-        theta = theta.permute((0, 2, 3), (1, 4))  # auxL, auxm, auxR = theta = pL, pR
-        theta = theta @ gate
+        theta = effm @ effR  # auxm, mL = theta = pR, auxR
+        theta = theta.permute((1, 2), (0, 3))  # mL, pR = theta = auxm, auxR
+        efftheta, cstmR = theta.rq()
+        theta = effL @ efftheta.permute((0,), (1, 2))  # auxL, pL = pR, auxmR
+        theta = gate @ theta.permute((1, 2), (0, 3))  # pL, pR = auxL, auxmR
 
         # 1st SVD
-        theta = theta.permute((4, 2), (0, 3, 1))  # pR, auxR = theta = auxL, pL, auxm
+        theta = theta.permute((0, 2), (1, 3))  # pL, auxL = pR, auxmR
         norm0 = theta.norm()
-        effR, new_weightsR, theta = theta.truncated_svd(
-            self.D, rtol=self.rcutoff, degen_ratio=self.degen_ratio
-        )
-        new_weightsR /= new_weightsR.norm(p=1)
-        effR = effR * new_weightsR  # pR, auxR = effR - mR
-
-        # 2nd SVD
-        theta = new_weightsR * theta  # mR-theta = auL,pL,auxm
-        theta = theta.permute((1, 2), (3, 0))  # auxL, pL = theta = auxm, mR
-        effL, new_weightsL, effm = theta.truncated_svd(
+        effL, new_weightsL, theta = theta.truncated_svd(
             self.D, rtol=self.rcutoff, degen_ratio=self.degen_ratio
         )
         new_weightsL /= new_weightsL.norm(p=1)
-        lognf = np.log(norm0 / new_weightsL.norm())
-        effm = new_weightsL * effm  # mL - effm = auxm, mR
-        effL = effL * new_weightsL  # auxL, pL = effL - mL
+        effL = effL * new_weightsL  # pL, auxL = mL
+
+        # 2nd SVD
+        theta = new_weightsL * theta  # mL = pR, auxmR
+        theta = theta.permute((0, 1), (2,)) @ cstmR  # mL, pR = auxm, auxR
+        theta = theta.permute((0, 2), (1, 3))  # mL, auxm = pR, auxR
+        effm, new_weightsR, effR = theta.truncated_svd(
+            self.D, rtol=self.rcutoff, degen_ratio=self.degen_ratio
+        )
+        new_weightsR /= new_weightsR.norm(p=1)
+        lognf = np.log(norm0 / new_weightsR.norm())
+        effm = effm * new_weightsR  # mL, auxm = mR
+        effR = new_weightsR * effR  # mR = pR, auxR
 
         # reshape to initial tree structure
-        effL = effL.permute((0,), (1, 2))  # auxL - effL = pL, mL
+        effL = effL.permute((1,), (0, 2))  # auxL - effL = pL, mL
         effm = effm.permute((1,), (0, 2))  # auxm - effm = mL, mR
-        effR = effR.permute((1,), (0, 2))  # auxR - effR = pR, mR
+        effR = effR.permute((2,), (1, 0))  # auxR - effR = pR, mR
 
         # reconnect with const parts
         newL = cstL @ effL
@@ -864,13 +871,13 @@ class SimpleUpdate(AbstractSimpleUpdate):
             tL = self._tensors[iL]
             if not tL.representation_equal(tL.row_reps[0], g.row_reps[0]):
                 raise ValueError(f"update {i}: left/gate representations differ")
-            if tL.signature[0] == g.signature[0]:
+            if tL.signature[0] == g.signature[2]:
                 raise ValueError(f"update {i}: left/gate signatures differ")
 
             tR = self._tensors[iR]
             if not tR.representation_equal(tL.row_reps[0], g.row_reps[1]):
                 raise ValueError(f"update {i}: right/gate representations differ")
-            if tR.signature[0] == g.signature[1]:
+            if tR.signature[0] == g.signature[3]:
                 raise ValueError(f"update {i}: right/gate signature differ")
 
             tensor_legs[iL] = swap_legs(tensor_legs[iL], self._lperm[i])
