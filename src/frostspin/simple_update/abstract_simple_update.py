@@ -24,7 +24,7 @@ class AbstractSimpleUpdate:
 
     @property
     def logZ(self):
-        return self._logZ / self._n_tensors
+        return self._logZ
 
     @tau.setter
     def tau(self, tau):

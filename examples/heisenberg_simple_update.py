@@ -227,7 +227,7 @@ def get_free_energy(su, ctm, beta):
     """
     Compute the per site free energy F = - logZ / beta
     """
-    peps_norm_log = ctm.compute_PEPS_norm_log()
+    peps_norm_log = np.log(np.abs(ctm.compute_state_norm()))
     return -(peps_norm_log + 2 * su.logZ) / beta
 
 

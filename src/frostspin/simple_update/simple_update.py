@@ -678,7 +678,8 @@ class SimpleUpdate(AbstractSimpleUpdate):
         # normalize weights and apply them to new left and new right
         # save log of normalization factor to update logZ
         new_weights /= new_weights.norm(p=1)
-        lognf = np.log(theta.norm() / new_weights.norm())
+        new_norm = new_weights.norm()
+        lognf = np.log1p((theta.norm() - new_norm) / new_norm)
         effL = effL * new_weights
         effR = new_weights * effR
 
@@ -770,7 +771,8 @@ class SimpleUpdate(AbstractSimpleUpdate):
             self.D, rtol=self.rcutoff, degen_ratio=self.degen_ratio
         )
         new_weightsR /= new_weightsR.norm(p=1)
-        lognf = np.log(norm0 / new_weightsR.norm())
+        new_norm = new_weightsR.norm()
+        lognf = np.log1p((norm0 - new_norm) / new_norm)
         effm = effm * new_weightsR  # mL, auxm = mR
         effR = new_weightsR * effR  # mR = pR, auxR
 

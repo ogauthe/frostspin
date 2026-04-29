@@ -374,7 +374,7 @@ def test_unit_cell(tmp_path):
             assert m.shape == (2, 2)
 
         # test free energy computation
-        _logz = ctm.compute_PEPS_norm_log()
+        _logz = np.log(np.abs(ctm.compute_state_norm()))
 
         # check save and load once tensors != init
         ctm.save_to_file(savefile)

@@ -60,7 +60,7 @@ def test_symmetrized_ctm():
             ctm.construct_enlarged_dr(*coords) - ctm2.construct_enlarged_dr(*coords)
         ).norm() < ASSERT_TOL
 
-    assert np.isclose(ctm.compute_PEPS_norm_log(), ctm2.compute_PEPS_norm_log())
+    assert np.isclose(ctm.compute_state_norm(), ctm2.compute_state_norm())
     ctm.iterate()
     ctm2.iterate()
 
@@ -93,7 +93,7 @@ def test_symmetrized_ctm():
         rdm2 = ctm2.compute_rdm2x1(*coords)
         assert (rdm1 - rdm2).norm() < ASSERT_TOL
 
-    assert np.isclose(ctm.compute_PEPS_norm_log(), ctm2.compute_PEPS_norm_log())
+    assert np.isclose(ctm.compute_state_norm(), ctm2.compute_state_norm())
 
     # reduced density matrices are more well-behaved
     for _ in range(4):
@@ -107,7 +107,7 @@ def test_symmetrized_ctm():
             rdm1 = ctm.compute_rdm2x1(*coords)
             rdm2 = ctm2.compute_rdm2x1(*coords)
             assert (rdm1 - rdm2).norm() < ASSERT_TOL
-        assert np.isclose(ctm.compute_PEPS_norm_log(), ctm2.compute_PEPS_norm_log())
+        assert np.isclose(ctm.compute_state_norm(), ctm2.compute_state_norm())
 
 
 def test_symmetrized_thermal_peps(tmp_path):
@@ -256,8 +256,8 @@ def test_symmetrized_thermal_peps(tmp_path):
         ctm1.iterate()
         ctm2.iterate()
 
-    assert np.isclose(ctm0.compute_PEPS_norm_log(), ctm1.compute_PEPS_norm_log())
-    assert np.isclose(ctm1.compute_PEPS_norm_log(), ctm2.compute_PEPS_norm_log())
+    assert np.isclose(ctm0.compute_state_norm(), ctm1.compute_state_norm())
+    assert np.isclose(ctm1.compute_state_norm(), ctm2.compute_state_norm())
 
     for coords in [(0, 0), (0, 1)]:
         sp0 = ctm0.compute_rdm1x2(*coords).eigh(compute_vectors=False)

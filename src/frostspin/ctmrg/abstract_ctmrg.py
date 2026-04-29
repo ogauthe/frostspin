@@ -334,12 +334,21 @@ class AbstractCTMRG:
                 self._env.get_C3(x + 2, y + 2).shape,
             )
 
-    def compute_PEPS_norm_log(self):
+    def compute_state_norm(self):
         """
-        Compute logarithm of PEPS norm per site.
+        Compute global norm of state.
+
+        The norm is defined as product of local norms over the unit cell.
+
+        C-C     C-T-C     C-T-C      C-C
+        | |  *  | | |  /  | | |   /  | |
+        C-C     T-E-C     C-T-C      T-T
+                | | |                | |
+                C-T-C                C-C
+
+        with E = AA*
         """
-        # TODO how to deal with complex?
-        logZ = 0.0
+        n2 = 1.0
         for x, y in self._site_coords:
             nc = contract_C1234(
                 self._env.get_C1(x, y),
@@ -374,17 +383,8 @@ class AbstractCTMRG:
                 self._env.get_T3(x + 1, y + 2),
                 self._env.get_C3(x + 2, y + 2),
             )
-            if nc * nt13 * nt24 * n1234 < 0:
-                print("Warning: negative PEPS norm")
-                return np.nan
-            logZ += (
-                np.log(np.abs(n1234))
-                + np.log(np.abs(nc))
-                - np.log(np.abs(nt13))
-                - np.log(np.abs(nt24))
-            )
-        logZ /= self.n_sites
-        return logZ
+            n2 *= n1234 * nc / (nt13 * nt24)
+        return n2
 
     def compute_rdm1x1(self, x, y):
         return rdm.rdm_1x1(

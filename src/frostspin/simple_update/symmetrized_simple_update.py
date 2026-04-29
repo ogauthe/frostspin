@@ -84,10 +84,6 @@ class SymmetrizedSimpleUpdate(AbstractSimpleUpdate):
             raise ValueError("Invalid raw_hamiltonians")
         self.tau = tau  # also set gates
 
-    @property
-    def logZ(self):
-        return self._logZ / 2  # here need n_tensors = 2
-
     @classmethod
     def from_infinite_temperature(
         cls,
