@@ -83,7 +83,7 @@ class NonAbelianSymmetricTensor(SymmetricTensor):
             assert self._blocks[bi].shape == (nr, nc)
         return True
 
-    def totrivial(self):
+    def toTrivial(self):
         ar = self.toarray()
         rr = tuple(np.array([d]) for d in self._shape[: self._nrr])
         cr = tuple(np.array([d]) for d in self._shape[self._nrr :])

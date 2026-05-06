@@ -89,5 +89,5 @@ class AsymmetricTensor(SymmetricTensor):
         assert self._shape == self._row_reps + self._col_reps
         return True
 
-    def totrivial(self):
+    def toTrivial(self):
         return self
